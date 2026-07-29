@@ -3,6 +3,7 @@ import { FreecivAIPlayerController } from '@game/ai/FreecivAIPlayerController';
 import {
   assertAIState,
   FreecivAIStateStore,
+  type AIDiplomacyMemory,
   type FreecivAIState,
 } from '@game/ai/FreecivAIStateStore';
 import type { DiplomacyEvent, DiplomacyManager } from '@game/managers/DiplomacyManager';
@@ -111,35 +112,62 @@ export class FreecivAIOrchestrator {
     const offenderId = event.offenderId ?? event.playerIds[0];
     const victimId = event.victimId ?? event.playerIds[1];
 
-    this.mutateAllAIStates(gameId, game, (state, playerId) => {
-      if (playerId === offenderId) return false;
-      const memory = state.diplomacy[offenderId] ?? {
-        love: 0,
-        warDesire: 0,
-        countdown: 0,
-      };
-      if (event.type === 'war_declared') {
-        // Freeciv applies a world penalty of MAX_AI_LOVE / 30 and an
-        // additional victim penalty of MAX_AI_LOVE / 3.
-        memory.love = Math.max(-1000, memory.love - (playerId === victimId ? 366 : 33));
-        if (playerId === victimId) memory.warDesire = Math.min(1000, memory.warDesire + 250);
-      } else if (playerId === victimId) {
-        const severity =
-          Math.max(1, event.severity ?? 100) * (event.scope === 'international_outcry' ? 2 : 1);
-        memory.love = Math.max(-1000, memory.love - severity);
-        memory.warDesire = Math.min(1000, memory.warDesire + Math.max(1, Math.round(severity / 2)));
-      } else {
-        if (event.scope !== 'international_outcry') return false;
-        const severity = Math.max(1, event.severity ?? 100);
-        const worldPenalty = Math.max(
-          1,
-          Math.round(severity * (offenderId === victimId ? 35 / 1000 : 35 / 500))
-        );
-        memory.love = Math.max(-1000, memory.love - worldPenalty);
-      }
-      state.diplomacy[offenderId] = memory;
+    this.mutateAllAIStates(gameId, game, (state, playerId) =>
+      this.applyDiplomacyPenalty(state, playerId, event, offenderId, victimId)
+    );
+  }
+
+  private applyDiplomacyPenalty(
+    state: FreecivAIState,
+    playerId: string,
+    event: DiplomacyEvent,
+    offenderId: string,
+    victimId: string
+  ): boolean {
+    if (playerId === offenderId) return false;
+    const memory = state.diplomacy[offenderId] ?? {
+      love: 0,
+      warDesire: 0,
+      countdown: 0,
+    };
+    if (event.type === 'war_declared') {
+      this.applyWarPenalty(memory, playerId === victimId);
+    } else {
+      const applied = this.applyIncidentPenalty(
+        memory,
+        event,
+        playerId === victimId,
+        offenderId === victimId
+      );
+      if (!applied) return false;
+    }
+    state.diplomacy[offenderId] = memory;
+    return true;
+  }
+
+  private applyWarPenalty(memory: AIDiplomacyMemory, victim: boolean): void {
+    memory.love = Math.max(-1000, memory.love - (victim ? 366 : 33));
+    if (victim) memory.warDesire = Math.min(1000, memory.warDesire + 250);
+  }
+
+  private applyIncidentPenalty(
+    memory: AIDiplomacyMemory,
+    event: DiplomacyEvent,
+    victim: boolean,
+    selfDirected: boolean
+  ): boolean {
+    if (victim) {
+      const severity =
+        Math.max(1, event.severity ?? 100) * (event.scope === 'international_outcry' ? 2 : 1);
+      memory.love = Math.max(-1000, memory.love - severity);
+      memory.warDesire = Math.min(1000, memory.warDesire + Math.max(1, Math.round(severity / 2)));
       return true;
-    });
+    }
+    if (event.scope !== 'international_outcry') return false;
+    const severity = Math.max(1, event.severity ?? 100);
+    const multiplier = selfDirected ? 35 / 1000 : 35 / 500;
+    memory.love = Math.max(-1000, memory.love - Math.max(1, Math.round(severity * multiplier)));
+    return true;
   }
 
   private mutateAllAIStates(

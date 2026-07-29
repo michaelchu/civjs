@@ -163,7 +163,18 @@ describe('Freeciv AI special-unit controller air integration', () => {
     mockedInciteCost.mockResolvedValue(50);
   });
 
-  it('flies an aircraft to a compatible carrier and loads through authoritative actions', async () => {
+  it.each([
+    {
+      label: 'loads after a successful carrier rebase',
+      gotoSucceeds: true,
+      expectedActions: 2,
+    },
+    {
+      label: 'does not load after a failed carrier rebase',
+      gotoSucceeds: false,
+      expectedActions: 0,
+    },
+  ])('$label', async ({ gotoSucceeds, expectedActions }) => {
     const bomber = unit('bomber', 'bomber', 1, 0);
     const carrier = unit('carrier', 'carrier', 0, 0);
     const units = new Map([
@@ -174,6 +185,7 @@ describe('Freeciv AI special-unit controller air integration', () => {
       async (unitId: string, action: ActionType, targetX: number, targetY: number) => {
         const actor = units.get(unitId)!;
         if (action === ActionType.GOTO) {
+          if (!gotoSucceeds) return { success: false };
           actor.x = targetX;
           actor.y = targetY;
         }
@@ -220,12 +232,16 @@ describe('Freeciv AI special-unit controller air integration', () => {
       createAIState()
     );
 
-    expect(actions).toBe(2);
-    expect(executeUnitAction.mock.calls).toEqual([
-      ['bomber', ActionType.GOTO, 0, 0, 'ai'],
-      ['bomber', ActionType.LOAD_UNIT, 0, 0, 'ai'],
-    ]);
-    expect(bomber.transportedBy).toBe('carrier');
+    expect(actions).toBe(expectedActions);
+    expect(executeUnitAction.mock.calls).toEqual(
+      gotoSucceeds
+        ? [
+            ['bomber', ActionType.GOTO, 0, 0, 'ai'],
+            ['bomber', ActionType.LOAD_UNIT, 0, 0, 'ai'],
+          ]
+        : [['bomber', ActionType.GOTO, 0, 0, 'ai']]
+    );
+    expect(bomber.transportedBy).toBe(gotoSucceeds ? 'carrier' : undefined);
   });
 
   it.each([

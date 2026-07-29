@@ -18,6 +18,7 @@ import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { EffectType, OutputType as EffectOutputType } from '@game/managers/EffectsManager';
 import { OutputType as CityOutputType } from '@game/constants/GameConstants';
 import { CitizenParameterFactory } from '@game/systems/CitizenManagement/CitizenParameter';
+import type { Technology } from '@game/managers/ResearchManager';
 
 function normalizeRulesetId(value: string): string {
   return value
@@ -26,11 +27,100 @@ function normalizeRulesetId(value: string): string {
     .replace(/^_|_$/g, '');
 }
 
+function createResearchDistance(
+  catalogue: Technology[],
+  researchedTechs: Iterable<string>
+): (techId: string) => number {
+  const techById = new Map(catalogue.map(tech => [normalizeRulesetId(tech.id), tech]));
+  const knownTechs = new Set([...researchedTechs].map(normalizeRulesetId));
+  const distanceToTech = (techId: string, visiting = new Set<string>()): number => {
+    const normalized = normalizeRulesetId(techId);
+    if (knownTechs.has(normalized)) return 0;
+    if (visiting.has(normalized)) return Number.POSITIVE_INFINITY;
+    const tech = techById.get(normalized);
+    if (!tech) return 1;
+    const next = new Set(visiting).add(normalized);
+    return (
+      1 + tech.requirements.reduce((sum, requirement) => sum + distanceToTech(requirement, next), 0)
+    );
+  };
+  return distanceToTech;
+}
+
 /**
  * Executes empire-level research, government, and treasury decisions.
  */
 export class FreecivAIDomesticController {
   constructor(private readonly hostilityPolicy: DiplomacyHostilityPolicy) {}
+
+  private shouldChangeResearch(
+    currentTech: string | undefined,
+    bulbsAccumulated: number | undefined,
+    choiceId: string,
+    choiceWant: number | undefined,
+    ranked: ReturnType<typeof rankResearch>
+  ): boolean {
+    if (!currentTech) return true;
+    if (choiceId === currentTech) return false;
+    const currentWant = ranked.find(candidate => candidate.value.id === currentTech)?.want;
+    const penalty = Math.max(0, bulbsAccumulated ?? 0);
+    return currentWant !== undefined && (choiceWant ?? 0) - currentWant > penalty;
+  }
+
+  private async updateResearchGoal(
+    game: GameInstance,
+    playerId: string,
+    goalId: string | undefined,
+    currentGoal: string | undefined
+  ): Promise<void> {
+    if (
+      goalId &&
+      goalId !== currentGoal &&
+      typeof game.researchManager.setResearchGoal === 'function'
+    ) {
+      await game.researchManager.setResearchGoal(playerId, goalId);
+    }
+  }
+
+  private governmentTechnologyIds(game: GameInstance): Set<string> {
+    const technologyIds = new Set<string>();
+    const governments = Object.values(game.governmentManager?.getAllGovernments?.() ?? {});
+    for (const government of governments) {
+      for (const requirement of government.reqs ?? []) {
+        if (requirement.type.toLowerCase() === 'tech') technologyIds.add(requirement.name);
+      }
+    }
+    return technologyIds;
+  }
+
+  private async strategicResearchContext(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState,
+    knownTechs: ReadonlySet<string>
+  ) {
+    const cities = game.cityManager.getPlayerCities(playerId);
+    const player = game.players.get(playerId);
+    const profile = createAIProfile(player?.aiLevel, player?.aiTraits);
+    const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, playerId);
+    const hostileUnits = hostileUnitsForPlanning(game, playerId, hostileIds, profile);
+    const advisorWants = new Map(Object.entries(state.techWants));
+    const effectWants = rankEffectTechnologyWants(cities, rulesetLoader.getEffects(), knownTechs);
+    const threatWants = rankThreatTechnologyWants({
+      cities,
+      hostileUnits,
+      unitTypes: UNIT_TYPES,
+      researchedTechs: knownTechs,
+      canBuildNow: (cityId, unitTypeId) =>
+        game.cityManager.canCityContinueProduction?.(cityId, 'unit', unitTypeId) ?? false,
+    });
+    return {
+      cities,
+      profile,
+      hostileCount: hostileIds.size,
+      strategicTechWants: mergeTechnologyWants(advisorWants, effectWants, threatWants),
+    };
+  }
 
   async selectResearch(
     game: GameInstance,
@@ -43,24 +133,18 @@ export class FreecivAIDomesticController {
       researchChoice?.value ??
       available.sort((a, b) => a.cost - b.cost || a.id.localeCompare(b.id))[0];
     if (!choice) return 0;
+    await this.updateResearchGoal(game, playerId, researchChoice?.goalId, research?.techGoal);
     if (
-      researchChoice?.goalId &&
-      researchChoice.goalId !== research?.techGoal &&
-      typeof game.researchManager.setResearchGoal === 'function'
+      !this.shouldChangeResearch(
+        research?.currentTech,
+        research?.bulbsAccumulated,
+        choice.id,
+        researchChoice?.want,
+        ranked
+      )
     ) {
-      await game.researchManager.setResearchGoal(playerId, researchChoice.goalId);
+      return 0;
     }
-    if (research?.currentTech) {
-      if (choice.id === research.currentTech) return 0;
-      const currentWant = ranked.find(
-        candidate => candidate.value.id === research.currentTech
-      )?.want;
-      const penalty = Math.max(0, research.bulbsAccumulated ?? 0);
-      if (currentWant === undefined || (researchChoice?.want ?? 0) - currentWant <= penalty) {
-        return 0;
-      }
-    }
-    if (choice.id === research?.currentTech) return 0;
     await game.researchManager.setCurrentResearch(playerId, choice.id);
     return 1;
   }
@@ -72,44 +156,23 @@ export class FreecivAIDomesticController {
     if (research?.currentTech && !catalogue) {
       return { research, available: [], ranked: [] };
     }
-    const governmentTechs = new Set<string>();
-    for (const government of Object.values(game.governmentManager?.getAllGovernments?.() ?? {})) {
-      for (const requirement of government.reqs ?? []) {
-        if (requirement.type.toLowerCase() === 'tech') governmentTechs.add(requirement.name);
-      }
-    }
-    const cities = game.cityManager.getPlayerCities(playerId);
-    const player = game.players.get(playerId);
-    const profile = createAIProfile(player?.aiLevel, player?.aiTraits);
-    const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, playerId);
-    const hostileUnits = hostileUnitsForPlanning(game, playerId, hostileIds, profile);
     const knownTechs = new Set(research?.researchedTechs ?? []);
-    const advisorWants = new Map(Object.entries(state.techWants));
-    const effectWants = rankEffectTechnologyWants(cities, rulesetLoader.getEffects(), knownTechs);
-    const threatWants = rankThreatTechnologyWants({
-      cities,
-      hostileUnits,
-      unitTypes: UNIT_TYPES,
-      researchedTechs: knownTechs,
-      canBuildNow: (cityId, unitTypeId) =>
-        game.cityManager.canCityContinueProduction?.(cityId, 'unit', unitTypeId) ?? false,
-    });
-    const strategicTechWants = mergeTechnologyWants(advisorWants, effectWants, threatWants);
+    const strategy = await this.strategicResearchContext(game, playerId, state, knownTechs);
     const ranked = catalogue
       ? rankResearch({
           available,
           catalogue,
           unitTypes: UNIT_TYPES,
           buildingTypes: BUILDING_TYPES,
-          governmentTechs,
-          militaryPressure: hostileIds.size,
-          cityCount: cities.length,
-          profile,
+          governmentTechs: this.governmentTechnologyIds(game),
+          militaryPressure: strategy.hostileCount,
+          cityCount: strategy.cities.length,
+          profile: strategy.profile,
           researchedTechs: research?.researchedTechs,
-          strategicTechWants,
+          strategicTechWants: strategy.strategicTechWants,
         })
       : [];
-    state.techWants = Object.fromEntries(strategicTechWants);
+    state.techWants = Object.fromEntries(strategy.strategicTechWants);
     return { research, available, ranked };
   }
 
@@ -140,42 +203,31 @@ export class FreecivAIDomesticController {
     };
     const governments = manager.getAllGovernments();
     const catalogue = game.researchManager.getTechnologyCatalogue?.(playerId) ?? [];
-    const techById = new Map(catalogue.map(tech => [normalizeRulesetId(tech.id), tech]));
-    const knownTechs = new Set([...research.researchedTechs].map(normalizeRulesetId));
-    const distanceToTech = (techId: string, visiting = new Set<string>()): number => {
-      const normalized = normalizeRulesetId(techId);
-      if (knownTechs.has(normalized)) return 0;
-      if (visiting.has(normalized)) return Number.POSITIVE_INFINITY;
-      const tech = techById.get(normalized);
-      if (!tech) return 1;
-      const next = new Set(visiting).add(normalized);
-      const prerequisiteDistance = tech.requirements.reduce(
-        (sum, requirement) => sum + distanceToTech(requirement, next),
-        0
-      );
-      return 1 + prerequisiteDistance;
-    };
+    const distanceToTech = createResearchDistance(catalogue, research.researchedTechs);
     const governmentDistance = (governmentId: string) =>
       (governments[governmentId]?.reqs ?? [])
         .filter(requirement => requirement.type.toLowerCase() === 'tech')
         .reduce((sum, requirement) => sum + distanceToTech(requirement.name), 0);
-    const futureChoices = rankGovernments({
-      ...planningContext,
-      availableGovernmentIds: Object.keys(governments),
-      researchDistance: governmentDistance,
-    });
-    for (const choice of futureChoices) {
-      const distance = governmentDistance(choice.governmentId);
-      if (distance <= 0 || !Number.isFinite(distance) || choice.netGain <= 0) continue;
-      const techRequirements = (governments[choice.governmentId]?.reqs ?? []).filter(
-        requirement => requirement.type.toLowerCase() === 'tech'
-      );
-      for (const requirement of techRequirements) {
-        const techId = normalizeRulesetId(requirement.name);
-        state.techWants[techId] =
-          (state.techWants[techId] ?? 0) + choice.netGain / Math.max(1, 20 * distance);
+    const updateFutureGovernmentWants = () => {
+      const futureChoices = rankGovernments({
+        ...planningContext,
+        availableGovernmentIds: Object.keys(governments),
+        researchDistance: governmentDistance,
+      });
+      for (const choice of futureChoices) {
+        const distance = governmentDistance(choice.governmentId);
+        if (distance <= 0 || !Number.isFinite(distance) || choice.netGain <= 0) continue;
+        const techRequirements = (governments[choice.governmentId]?.reqs ?? []).filter(
+          requirement => requirement.type.toLowerCase() === 'tech'
+        );
+        for (const requirement of techRequirements) {
+          const techId = normalizeRulesetId(requirement.name);
+          state.techWants[techId] =
+            (state.techWants[techId] ?? 0) + choice.netGain / Math.max(1, 20 * distance);
+        }
       }
-    }
+    };
+    updateFutureGovernmentWants();
     const best = chooseGovernment({
       ...planningContext,
       availableGovernmentIds: available.map(candidate => candidate.id),
@@ -186,13 +238,9 @@ export class FreecivAIDomesticController {
     return 1;
   }
 
-  async manageEconomy(
-    game: GameInstance,
-    playerId: string,
-    state: FreecivAIState
-  ): Promise<number> {
+  private async createTreasuryPlan(game: GameInstance, playerId: string, state: FreecivAIState) {
     const manager = game.turnManager.getEconomicManager?.();
-    if (!manager) return 0;
+    if (!manager) return undefined;
     const status = await manager.getPlayerEconomicStatus(playerId);
     const cities = game.cityManager.getPlayerCities(playerId);
     const netGold = cities.reduce((sum, city) => sum + (city.goldPerTurn ?? 0), 0);
@@ -229,30 +277,30 @@ export class FreecivAIDomesticController {
       celebrateSize: Number(rulesetLoader.loadCitiesRuleset().parameters.celebrate_size_limit ?? 3),
       existingSavingsGoal: state.treasuryGoal,
     });
-    state.treasuryGoal = plan.savingsGoal;
+    return { manager, currentRates: status.taxRates, plan };
+  }
+
+  private async applyTreasuryPlan(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState,
+    currentRates: { tax: number; luxury: number; science: number },
+    plan: ReturnType<typeof planTreasury>
+  ): Promise<number> {
+    const manager = game.turnManager.getEconomicManager?.();
+    if (!manager) return 0;
     const decisions = createAIDecisionSource(game, playerId, 'treasury');
     let actions = 0;
     if (
-      status.taxRates.tax !== plan.rates.tax ||
-      status.taxRates.luxury !== plan.rates.luxury ||
-      status.taxRates.science !== plan.rates.science
+      currentRates.tax !== plan.rates.tax ||
+      currentRates.luxury !== plan.rates.luxury ||
+      currentRates.science !== plan.rates.science
     ) {
       const result = manager.setPlayerTaxRates({ playerId, newRates: plan.rates });
       if (result.isValid) actions++;
     }
-    if (typeof game.cityManager.sellBuildingForPlayer === 'function') {
-      for (const sale of plan.sales) {
-        const result = await game.cityManager.sellBuildingForPlayer(
-          sale.cityId,
-          sale.buildingId,
-          playerId
-        );
-        if (result.success) actions++;
-      }
-    }
+    actions += await this.applyBuildingSales(game, playerId, plan.sales);
     for (const cityId of plan.rushCityIds) {
-      // Freeciv applies ai_fuzzy while selecting the highest-want city to buy.
-      // @reference reference/freeciv/ai/default/daicity.c:568-573
       if (!decisions.fuzzy(`rush:${cityId}`, true)) continue;
       const result = await game.cityManager.buyProduction(cityId, playerId);
       if (result.success) {
@@ -260,18 +308,52 @@ export class FreecivAIDomesticController {
         actions++;
       }
     }
-    if (typeof game.cityManager.optimizeCityManually === 'function') {
-      for (const cityId of plan.celebrationCityIds) {
-        const parameters = CitizenParameterFactory.createDefault();
-        parameters.require_happy = true;
-        parameters.allow_disorder = false;
-        parameters.allow_specialists = true;
-        parameters.max_growth = true;
-        parameters.factor[CityOutputType.FOOD] = 20;
-        parameters.minimal_surplus[CityOutputType.FOOD] = 1;
-        if (await game.cityManager.optimizeCityManually(cityId, parameters)) actions++;
-      }
+    actions += await this.applyCelebrations(game, plan.celebrationCityIds);
+    return actions;
+  }
+
+  private async applyBuildingSales(
+    game: GameInstance,
+    playerId: string,
+    sales: ReturnType<typeof planTreasury>['sales']
+  ): Promise<number> {
+    if (typeof game.cityManager.sellBuildingForPlayer !== 'function') return 0;
+    let actions = 0;
+    for (const sale of sales) {
+      const result = await game.cityManager.sellBuildingForPlayer(
+        sale.cityId,
+        sale.buildingId,
+        playerId
+      );
+      if (result.success) actions++;
     }
     return actions;
+  }
+
+  private async applyCelebrations(game: GameInstance, cityIds: string[]): Promise<number> {
+    if (typeof game.cityManager.optimizeCityManually !== 'function') return 0;
+    let actions = 0;
+    for (const cityId of cityIds) {
+      const parameters = CitizenParameterFactory.createDefault();
+      parameters.require_happy = true;
+      parameters.allow_disorder = false;
+      parameters.allow_specialists = true;
+      parameters.max_growth = true;
+      parameters.factor[CityOutputType.FOOD] = 20;
+      parameters.minimal_surplus[CityOutputType.FOOD] = 1;
+      if (await game.cityManager.optimizeCityManually(cityId, parameters)) actions++;
+    }
+    return actions;
+  }
+
+  async manageEconomy(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<number> {
+    const planning = await this.createTreasuryPlan(game, playerId, state);
+    if (!planning) return 0;
+    state.treasuryGoal = planning.plan.savingsGoal;
+    return this.applyTreasuryPlan(game, playerId, state, planning.currentRates, planning.plan);
   }
 }

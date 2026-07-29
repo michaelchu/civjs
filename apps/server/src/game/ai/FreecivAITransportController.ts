@@ -1,5 +1,9 @@
 import { ActionType } from '@app-types/shared/actions';
-import { planFerries, scoreFerryBeachhead } from '@game/ai/FreecivAIFerryPlanner';
+import {
+  planFerries,
+  scoreFerryBeachhead,
+  type FerryAssignment,
+} from '@game/ai/FreecivAIFerryPlanner';
 import type { AIUnitTask, FreecivAIState } from '@game/ai/FreecivAIStateStore';
 import type { GameInstance } from '@game/managers/GameManager';
 import type { Unit } from '@game/managers/UnitManager';
@@ -38,81 +42,102 @@ export class FreecivAITransportController {
     let actions = 0;
     const movedFerries = new Set<string>();
     for (const assignment of plan) {
-      const { ferry, passenger } = assignment;
-      if (assignment.phase === 'embarked') {
-        if (await game.unitManager.loadUnitOntoTransport(ferry.id, passenger.id)) actions++;
-        continue;
-      }
-      if (assignment.phase === 'rendezvous') {
-        if (ferry.x === passenger.x && ferry.y === passenger.y) {
-          if (await game.unitManager.loadUnitOntoTransport(ferry.id, passenger.id)) actions++;
-          continue;
-        }
-        const rendezvous = await this.findReachableFerryWaypoint(
-          game,
-          ferry,
-          game.mapManager.getNeighbors(passenger.x, passenger.y)
-        );
-        if (rendezvous && ferry.movementLeft > 0 && !movedFerries.has(ferry.id)) {
-          const result = await game.unitManager.executeUnitAction(
-            ferry.id,
-            ActionType.GOTO,
-            rendezvous.x,
-            rendezvous.y,
-            playerId
-          );
-          if (result.success) {
-            actions++;
-            movedFerries.add(ferry.id);
-          }
-        }
-        // A land unit embarks through the authoritative movement path by
-        // entering the adjacent transport's tile.
-        if (
-          game.mapManager.getDistance(ferry.x, ferry.y, passenger.x, passenger.y) <= 1 &&
-          !passenger.transportedBy &&
-          passenger.movementLeft > 0
-        ) {
-          const result = await game.unitManager.executeUnitAction(
-            passenger.id,
-            ActionType.GOTO,
-            ferry.x,
-            ferry.y,
-            playerId
-          );
-          if (result.success) actions++;
-        }
-        continue;
-      }
-      const landing = await this.findFerryLanding(
-        game,
-        ferry,
-        passenger,
-        assignment.destinationX,
-        assignment.destinationY,
-        assignment.missionRole
-      );
-      if (!landing) continue;
-      if (game.unitManager.canUnloadUnit(passenger.id, landing.landX, landing.landY)) {
-        if (await game.unitManager.unloadUnit(passenger.id, landing.landX, landing.landY))
-          actions++;
-        continue;
-      }
-      if (ferry.movementLeft > 0 && !movedFerries.has(ferry.id)) {
-        const result = await game.unitManager.executeUnitAction(
-          ferry.id,
-          ActionType.GOTO,
-          landing.waterX,
-          landing.waterY,
-          playerId
-        );
-        if (result.success) {
-          actions++;
-          movedFerries.add(ferry.id);
-        }
-      }
+      actions += await this.executeFerryAssignment(game, playerId, assignment, movedFerries);
     }
     return actions;
+  }
+
+  private async executeFerryAssignment(
+    game: GameInstance,
+    playerId: string,
+    assignment: FerryAssignment,
+    movedFerries: Set<string>
+  ): Promise<number> {
+    if (assignment.phase === 'embarked') {
+      return Number(
+        await game.unitManager.loadUnitOntoTransport(assignment.ferry.id, assignment.passenger.id)
+      );
+    }
+    return assignment.phase === 'rendezvous'
+      ? this.executeFerryRendezvous(game, playerId, assignment, movedFerries)
+      : this.executeFerryDelivery(game, playerId, assignment, movedFerries);
+  }
+
+  private async executeFerryRendezvous(
+    game: GameInstance,
+    playerId: string,
+    assignment: FerryAssignment,
+    movedFerries: Set<string>
+  ): Promise<number> {
+    const { ferry, passenger } = assignment;
+    if (ferry.x === passenger.x && ferry.y === passenger.y) {
+      return Number(await game.unitManager.loadUnitOntoTransport(ferry.id, passenger.id));
+    }
+    let actions = 0;
+    const rendezvous = await this.findReachableFerryWaypoint(
+      game,
+      ferry,
+      game.mapManager.getNeighbors(passenger.x, passenger.y)
+    );
+    if (rendezvous && ferry.movementLeft > 0 && !movedFerries.has(ferry.id)) {
+      const result = await game.unitManager.executeUnitAction(
+        ferry.id,
+        ActionType.GOTO,
+        rendezvous.x,
+        rendezvous.y,
+        playerId
+      );
+      if (result.success) {
+        actions++;
+        movedFerries.add(ferry.id);
+      }
+    }
+    const passengerCanEmbark =
+      game.mapManager.getDistance(ferry.x, ferry.y, passenger.x, passenger.y) <= 1 &&
+      !passenger.transportedBy &&
+      passenger.movementLeft > 0;
+    if (passengerCanEmbark) {
+      const result = await game.unitManager.executeUnitAction(
+        passenger.id,
+        ActionType.GOTO,
+        ferry.x,
+        ferry.y,
+        playerId
+      );
+      actions += Number(result.success);
+    }
+    return actions;
+  }
+
+  private async executeFerryDelivery(
+    game: GameInstance,
+    playerId: string,
+    assignment: FerryAssignment,
+    movedFerries: Set<string>
+  ): Promise<number> {
+    const { ferry, passenger } = assignment;
+    const landing = await this.findFerryLanding(
+      game,
+      ferry,
+      passenger,
+      assignment.destinationX,
+      assignment.destinationY,
+      assignment.missionRole
+    );
+    if (!landing) return 0;
+    if (game.unitManager.canUnloadUnit(passenger.id, landing.landX, landing.landY)) {
+      return Number(await game.unitManager.unloadUnit(passenger.id, landing.landX, landing.landY));
+    }
+    if (ferry.movementLeft <= 0 || movedFerries.has(ferry.id)) return 0;
+    const result = await game.unitManager.executeUnitAction(
+      ferry.id,
+      ActionType.GOTO,
+      landing.waterX,
+      landing.waterY,
+      playerId
+    );
+    if (result.success) movedFerries.add(ferry.id);
+    return Number(result.success);
   }
 
   /**

@@ -56,6 +56,97 @@ export function scoreFerryBeachhead(value: FerryBeachheadValue): number {
   );
 }
 
+interface FerryPlanningState {
+  assignments: FerryAssignment[];
+  plannedCapacity: Map<string, number>;
+  assignedPassengers: Set<string>;
+}
+
+function retainFerryAssignments(
+  context: FerryPlanningContext,
+  ferries: Unit[],
+  byId: ReadonlyMap<string, Unit>,
+  state: FerryPlanningState
+): void {
+  for (const ferry of ferries) {
+    const task = context.existingTasks[ferry.id];
+    const passenger = task?.role === 'ferry' && task.targetId ? byId.get(task.targetId) : undefined;
+    const passengerTask = passenger ? context.existingTasks[passenger.id] : undefined;
+    const ferryType = context.getType(ferry.unitTypeId);
+    const passengerType = passenger ? context.getType(passenger.unitTypeId) : undefined;
+    if (
+      !passenger ||
+      !ferryType ||
+      !passengerType ||
+      !hasOverseasMission(passengerTask) ||
+      !canCarry(ferryType, passengerType)
+    ) {
+      continue;
+    }
+    state.assignments.push({
+      ferry,
+      passenger,
+      destinationX: passengerTask.targetX!,
+      destinationY: passengerTask.targetY!,
+      missionRole: passengerTask.role,
+      phase: passenger.transportedBy === ferry.id ? 'delivery' : 'rendezvous',
+    });
+    const occupiedCapacity = passenger.transportedBy ? 0 : 1;
+    state.plannedCapacity.set(
+      ferry.id,
+      Math.max(0, (state.plannedCapacity.get(ferry.id) ?? 0) - occupiedCapacity)
+    );
+    state.assignedPassengers.add(passenger.id);
+  }
+}
+
+function assignPassenger(
+  context: FerryPlanningContext,
+  passenger: Unit,
+  ferries: Unit[],
+  byId: ReadonlyMap<string, Unit>,
+  state: FerryPlanningState
+): void {
+  const task = context.existingTasks[passenger.id]!;
+  const embarkedFerry = passenger.transportedBy ? byId.get(passenger.transportedBy) : undefined;
+  if (embarkedFerry) {
+    state.assignments.push({
+      ferry: embarkedFerry,
+      passenger,
+      destinationX: task.targetX!,
+      destinationY: task.targetY!,
+      missionRole: task.role,
+      phase: 'delivery',
+    });
+    state.assignedPassengers.add(passenger.id);
+    return;
+  }
+  if (passenger.transportedBy) return;
+  const passengerType = context.getType(passenger.unitTypeId)!;
+  const ferry = ferries
+    .filter(
+      unit =>
+        (state.plannedCapacity.get(unit.id) ?? 0) > 0 &&
+        canCarry(context.getType(unit.unitTypeId)!, passengerType)
+    )
+    .sort(
+      (a, b) =>
+        context.distance(a.x, a.y, passenger.x, passenger.y) -
+          context.distance(b.x, b.y, passenger.x, passenger.y) || a.id.localeCompare(b.id)
+    )[0];
+  if (!ferry) return;
+  state.assignments.push({
+    ferry,
+    passenger,
+    destinationX: task.targetX!,
+    destinationY: task.targetY!,
+    missionRole: task.role,
+    phase: ferry.x === passenger.x && ferry.y === passenger.y ? 'embarked' : 'rendezvous',
+  });
+  state.plannedCapacity.set(ferry.id, Math.max(0, (state.plannedCapacity.get(ferry.id) ?? 0) - 1));
+  state.assignedPassengers.add(passenger.id);
+}
+
 /**
  * Match ferryboats to passengers which already have a strategic destination.
  * Existing valid pairs are retained, then unassigned demand is matched by
@@ -76,84 +167,18 @@ export function planFerries(context: FerryPlanningContext): FerryAssignment[] {
       type && type.unitClass !== 'naval' && hasOverseasMission(context.existingTasks[unit.id])
     );
   });
-  const assignments: FerryAssignment[] = [];
-  const plannedCapacity = new Map(
-    ferries.map(ferry => [ferry.id, Math.max(0, context.capacityRemaining(ferry.id))])
-  );
-  const assignedPassengers = new Set<string>();
-
-  for (const ferry of ferries) {
-    const task = context.existingTasks[ferry.id];
-    const passenger = task?.role === 'ferry' && task.targetId ? byId.get(task.targetId) : undefined;
-    const passengerTask = passenger ? context.existingTasks[passenger.id] : undefined;
-    const ferryType = context.getType(ferry.unitTypeId);
-    const passengerType = passenger ? context.getType(passenger.unitTypeId) : undefined;
-    if (
-      !passenger ||
-      !ferryType ||
-      !passengerType ||
-      !hasOverseasMission(passengerTask) ||
-      !canCarry(ferryType, passengerType)
-    ) {
-      continue;
-    }
-    assignments.push({
-      ferry,
-      passenger,
-      destinationX: passengerTask.targetX!,
-      destinationY: passengerTask.targetY!,
-      missionRole: passengerTask.role,
-      phase: passenger.transportedBy === ferry.id ? 'delivery' : 'rendezvous',
-    });
-    plannedCapacity.set(
-      ferry.id,
-      Math.max(0, (plannedCapacity.get(ferry.id) ?? 0) - (passenger.transportedBy ? 0 : 1))
-    );
-    assignedPassengers.add(passenger.id);
-  }
-
+  const state: FerryPlanningState = {
+    assignments: [],
+    plannedCapacity: new Map(
+      ferries.map(ferry => [ferry.id, Math.max(0, context.capacityRemaining(ferry.id))])
+    ),
+    assignedPassengers: new Set(),
+  };
+  retainFerryAssignments(context, ferries, byId, state);
   for (const passenger of passengers
-    .filter(unit => !assignedPassengers.has(unit.id))
+    .filter(unit => !state.assignedPassengers.has(unit.id))
     .sort((a, b) => a.id.localeCompare(b.id))) {
-    const passengerType = context.getType(passenger.unitTypeId)!;
-    const task = context.existingTasks[passenger.id]!;
-    if (passenger.transportedBy) {
-      const ferry = byId.get(passenger.transportedBy);
-      if (ferry) {
-        assignments.push({
-          ferry,
-          passenger,
-          destinationX: task.targetX!,
-          destinationY: task.targetY!,
-          missionRole: task.role,
-          phase: 'delivery',
-        });
-        assignedPassengers.add(passenger.id);
-      }
-      continue;
-    }
-    const ferry = ferries
-      .filter(
-        unit =>
-          (plannedCapacity.get(unit.id) ?? 0) > 0 &&
-          canCarry(context.getType(unit.unitTypeId)!, passengerType)
-      )
-      .sort(
-        (a, b) =>
-          context.distance(a.x, a.y, passenger.x, passenger.y) -
-            context.distance(b.x, b.y, passenger.x, passenger.y) || a.id.localeCompare(b.id)
-      )[0];
-    if (!ferry) continue;
-    assignments.push({
-      ferry,
-      passenger,
-      destinationX: task.targetX!,
-      destinationY: task.targetY!,
-      missionRole: task.role,
-      phase: ferry.x === passenger.x && ferry.y === passenger.y ? 'embarked' : 'rendezvous',
-    });
-    plannedCapacity.set(ferry.id, Math.max(0, (plannedCapacity.get(ferry.id) ?? 0) - 1));
-    assignedPassengers.add(passenger.id);
+    assignPassenger(context, passenger, ferries, byId, state);
   }
-  return assignments;
+  return state.assignments;
 }

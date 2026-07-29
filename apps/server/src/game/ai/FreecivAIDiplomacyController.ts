@@ -18,6 +18,32 @@ import {
   spaceshipProgress,
 } from '@game/services/SpaceshipService';
 
+function researchedTechnologies(game: GameInstance, playerId: string): Set<string> {
+  return new Set(
+    game.researchManager.getResearchedTechs?.(playerId) ??
+      game.researchManager.getPlayerResearch(playerId)?.researchedTechs ??
+      []
+  );
+}
+
+function calculateLove(
+  memory: AIDiplomacyMemory,
+  nation: DiplomacySnapshot['nations'][number]
+): number {
+  return Math.max(
+    -1000,
+    Math.min(
+      1000,
+      Math.round(
+        memory.love * 0.8 +
+          (nation.relation.attitude ?? 0) +
+          ((nation.relation.reputation ?? 1000) - 500) / 10 -
+          (nation.relation.hasReasonToCancel > 0 ? 100 : 0)
+      )
+    )
+  );
+}
+
 /**
  * Applies Freeciv diplomacy memory and treaty decisions through the
  * authoritative diplomacy manager.
@@ -36,11 +62,7 @@ export class FreecivAIDiplomacyController {
     const profile = createAIProfile(player?.aiLevel, player?.aiTraits);
     const ownCities = game.cityManager.getPlayerCities(playerId);
     const ownUnits = game.unitManager.getPlayerUnits(playerId);
-    const ownTechs = new Set(
-      game.researchManager.getResearchedTechs?.(playerId) ??
-        game.researchManager.getPlayerResearch(playerId)?.researchedTechs ??
-        []
-    );
+    const ownTechs = researchedTechnologies(game, playerId);
     const catalogue = new Map(
       (
         game.researchManager.getTechnologyCatalogue?.(playerId) ??
@@ -67,11 +89,7 @@ export class FreecivAIDiplomacyController {
     for (const nation of snapshot.nations.slice().sort((a, b) => a.id.localeCompare(b.id))) {
       const otherCities = game.cityManager.getPlayerCities(nation.id);
       const otherUnits = game.unitManager.getPlayerUnits(nation.id);
-      const otherTechs = new Set(
-        game.researchManager.getResearchedTechs?.(nation.id) ??
-          game.researchManager.getPlayerResearch(nation.id)?.researchedTechs ??
-          []
-      );
+      const otherTechs = researchedTechnologies(game, nation.id);
       const memory = this.updateDiplomacyMemory({
         memory: state.diplomacy[nation.id],
         nation,
@@ -170,18 +188,7 @@ export class FreecivAIDiplomacyController {
         otherCities.map(other => game.mapManager.getDistance(own.x, own.y, other.x, other.y))
       )
     );
-    memory.love = Math.max(
-      -1000,
-      Math.min(
-        1000,
-        Math.round(
-          memory.love * 0.8 +
-            (nation.relation.attitude ?? 0) +
-            ((nation.relation.reputation ?? 1000) - 500) / 10 -
-            (nation.relation.hasReasonToCancel > 0 ? 100 : 0)
-        )
-      )
-    );
+    memory.love = calculateLove(memory, nation);
     const targetSpaceship = spaceshipByPlayer.get(nation.id);
     const assessedWarDesire = calculateWarDesire({
       ownCities,

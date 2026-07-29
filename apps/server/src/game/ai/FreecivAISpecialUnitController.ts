@@ -4,7 +4,7 @@ import {
   type AirMission,
   type AirRefuelPoint,
 } from '@game/ai/FreecivAIAirPlanner';
-import { planDiplomatMissions } from '@game/ai/FreecivAIDiplomatPlanner';
+import { planDiplomatMissions, type DiplomatMission } from '@game/ai/FreecivAIDiplomatPlanner';
 import { planParadropMissions, type ParadropMission } from '@game/ai/FreecivAIParadropPlanner';
 import { createAIProfile } from '@game/ai/FreecivAIProfile';
 import type { FreecivAIState } from '@game/ai/FreecivAIStateStore';
@@ -237,76 +237,86 @@ export class FreecivAISpecialUnitController {
       };
       if (mission.kind === 'hold' || mission.unit.movementLeft <= 0) continue;
       if (mission.kind === 'return' || mission.kind === 'rebase') {
-        const result = await game.unitManager.executeUnitAction(
-          mission.unit.id,
-          ActionType.GOTO,
-          mission.targetX,
-          mission.targetY,
-          playerId
-        );
-        if (result.success) actions++;
-        const moved = game.unitManager.getUnit(mission.unit.id);
-        if (
-          moved &&
-          mission.base.kind === 'carrier' &&
-          moved.x === mission.base.x &&
-          moved.y === mission.base.y &&
-          !moved.transportedBy
-        ) {
-          const loaded = await game.unitManager.executeUnitAction(
-            moved.id,
-            ActionType.LOAD_UNIT,
-            moved.x,
-            moved.y,
-            playerId
-          );
-          if (loaded.success) actions++;
-        }
+        actions += await this.executeAirReturn(game, playerId, mission);
       } else if (mission.kind === 'strike') {
-        let aircraft = game.unitManager.getUnit(mission.unit.id);
-        if (aircraft?.transportedBy) {
-          if (!(await game.unitManager.unloadUnit(aircraft.id, aircraft.x, aircraft.y))) continue;
-          actions++;
-          aircraft = game.unitManager.getUnit(aircraft.id);
-        }
-        if (!aircraft) continue;
-        if (
-          game.mapManager.getDistance(aircraft.x, aircraft.y, mission.targetX, mission.targetY) > 1
-        ) {
-          actions += await this.moveAircraftToTarget(
-            game,
-            aircraft,
-            mission.targetX,
-            mission.targetY
-          );
-          aircraft = game.unitManager.getUnit(aircraft.id);
-        }
-        const target = game.unitManager.getUnit(mission.target.id);
-        if (
-          !aircraft ||
-          !target ||
-          aircraft.movementLeft <= 0 ||
-          game.mapManager.getDistance(aircraft.x, aircraft.y, target.x, target.y) > 1
-        ) {
-          continue;
-        }
-        const type = game.unitManager.getUnitType(mission.unit.unitTypeId);
-        if ((type?.bombardRate ?? 0) > 0) {
-          const result = await game.unitManager.executeUnitAction(
-            aircraft.id,
-            ActionType.BOMBARD,
-            mission.targetX,
-            mission.targetY,
-            playerId
-          );
-          if (result.success) actions++;
-        } else {
-          await game.unitManager.attackUnit(aircraft.id, target.id);
-          actions++;
-        }
+        actions += await this.executeAirStrike(game, playerId, mission);
       }
     }
     return actions;
+  }
+
+  private async executeAirReturn(
+    game: GameInstance,
+    playerId: string,
+    mission: Extract<AirMission, { kind: 'return' | 'rebase' }>
+  ): Promise<number> {
+    const result = await game.unitManager.executeUnitAction(
+      mission.unit.id,
+      ActionType.GOTO,
+      mission.targetX,
+      mission.targetY,
+      playerId
+    );
+    let actions = Number(result.success);
+    const moved = game.unitManager.getUnit(mission.unit.id);
+    const reachedCarrier =
+      moved &&
+      mission.base.kind === 'carrier' &&
+      moved.x === mission.base.x &&
+      moved.y === mission.base.y &&
+      !moved.transportedBy;
+    if (reachedCarrier) {
+      const loaded = await game.unitManager.executeUnitAction(
+        moved.id,
+        ActionType.LOAD_UNIT,
+        moved.x,
+        moved.y,
+        playerId
+      );
+      actions += Number(loaded.success);
+    }
+    return actions;
+  }
+
+  private async executeAirStrike(
+    game: GameInstance,
+    playerId: string,
+    mission: Extract<AirMission, { kind: 'strike' }>
+  ): Promise<number> {
+    let actions = 0;
+    let aircraft = game.unitManager.getUnit(mission.unit.id);
+    if (aircraft?.transportedBy) {
+      if (!(await game.unitManager.unloadUnit(aircraft.id, aircraft.x, aircraft.y))) return actions;
+      actions++;
+      aircraft = game.unitManager.getUnit(aircraft.id);
+    }
+    if (!aircraft) return actions;
+    if (game.mapManager.getDistance(aircraft.x, aircraft.y, mission.targetX, mission.targetY) > 1) {
+      actions += await this.moveAircraftToTarget(game, aircraft, mission.targetX, mission.targetY);
+      aircraft = game.unitManager.getUnit(aircraft.id);
+    }
+    const target = game.unitManager.getUnit(mission.target.id);
+    if (
+      !aircraft ||
+      !target ||
+      aircraft.movementLeft <= 0 ||
+      game.mapManager.getDistance(aircraft.x, aircraft.y, target.x, target.y) > 1
+    ) {
+      return actions;
+    }
+    const type = game.unitManager.getUnitType(mission.unit.unitTypeId);
+    if ((type?.bombardRate ?? 0) > 0) {
+      const result = await game.unitManager.executeUnitAction(
+        aircraft.id,
+        ActionType.BOMBARD,
+        mission.targetX,
+        mission.targetY,
+        playerId
+      );
+      return actions + Number(result.success);
+    }
+    await game.unitManager.attackUnit(aircraft.id, target.id);
+    return actions + 1;
   }
 
   private async executeParadropMissions(
@@ -320,12 +330,7 @@ export class FreecivAISpecialUnitController {
     for (const mission of missions) {
       state.unitTasks[mission.unit.id] = {
         role: 'paradrop',
-        targetId:
-          mission.kind === 'tactical'
-            ? mission.attackTarget.id
-            : 'targetCity' in mission
-              ? mission.targetCity.id
-              : undefined,
+        targetId: this.paradropTargetId(mission),
         targetX: mission.targetX,
         targetY: mission.targetY,
         assignedTurn: game.currentTurn,
@@ -367,6 +372,11 @@ export class FreecivAISpecialUnitController {
       }
     }
     return actions;
+  }
+
+  private paradropTargetId(mission: ParadropMission): string | undefined {
+    if (mission.kind === 'tactical') return mission.attackTarget.id;
+    return 'targetCity' in mission ? mission.targetCity.id : undefined;
   }
 
   private async attackAdjacentWithParatrooper(
@@ -613,6 +623,15 @@ export class FreecivAISpecialUnitController {
     for (const [unitId, task] of Object.entries(state.unitTasks)) {
       if (task.role === 'diplomat') delete state.unitTasks[unitId];
     }
+    return this.executeDiplomatMissions(game, playerId, state, missions);
+  }
+
+  private async executeDiplomatMissions(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState,
+    missions: DiplomatMission[]
+  ): Promise<number> {
     let actions = 0;
     for (const mission of missions) {
       state.unitTasks[mission.unit.id] = {
@@ -632,14 +651,7 @@ export class FreecivAISpecialUnitController {
         mission.targetY
       );
       if (mission.kind === 'action' && mission.action && distance <= 1) {
-        const result = await game.unitManager.executeUnitAction(
-          actor.id,
-          mission.action,
-          mission.targetX,
-          mission.targetY,
-          playerId
-        );
-        if (result.success) actions++;
+        actions += await this.performDiplomatAction(game, playerId, actor, mission);
         continue;
       }
       if (mission.kind === 'defend') {
@@ -664,17 +676,27 @@ export class FreecivAISpecialUnitController {
       if (!actor || !mission.action || actor.movementLeft <= 0) continue;
       distance = game.mapManager.getDistance(actor.x, actor.y, mission.targetX, mission.targetY);
       if (distance <= 1) {
-        const result = await game.unitManager.executeUnitAction(
-          actor.id,
-          mission.action,
-          mission.targetX,
-          mission.targetY,
-          playerId
-        );
-        if (result.success) actions++;
+        actions += await this.performDiplomatAction(game, playerId, actor, mission);
       }
     }
     return actions;
+  }
+
+  private async performDiplomatAction(
+    game: GameInstance,
+    playerId: string,
+    actor: Unit,
+    mission: DiplomatMission
+  ): Promise<number> {
+    if (!mission.action) return 0;
+    const result = await game.unitManager.executeUnitAction(
+      actor.id,
+      mission.action,
+      mission.targetX,
+      mission.targetY,
+      playerId
+    );
+    return Number(result.success);
   }
 
   private async findDiplomatApproach(

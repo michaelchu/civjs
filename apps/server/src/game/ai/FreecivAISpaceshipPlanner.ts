@@ -30,6 +30,32 @@ function leadingPlayer(
     .sort((left, right) => value(right) - value(left) || left.localeCompare(right))[0];
 }
 
+function citySpaceshipWants(
+  city: CityState,
+  apolloBuilt: boolean,
+  ownStarted: boolean,
+  isLeader: boolean
+): Map<string, { want: number; reason: string }> {
+  const wants = new Map<string, { want: number; reason: string }>();
+  if (!apolloBuilt) {
+    wants.set('apollo_program', {
+      want: 10 + (isLeader ? 150 : 0),
+      reason: 'enable space race',
+    });
+    return wants;
+  }
+  const wonderCity =
+    city.productionType === 'building' &&
+    Boolean(
+      city.currentProduction && BUILDING_TYPES[city.currentProduction]?.genus === 'GreatWonder'
+    );
+  const baseWant = (wonderCity ? 120 : 210) * (ownStarted ? 3 : 1);
+  for (const partId of Object.keys(SPACESHIP_PART_LIMITS) as SpaceshipPartId[]) {
+    wants.set(partId, { want: baseWant, reason: 'space-race ship assembly' });
+  }
+  return wants;
+}
+
 /**
  * Port the default AI's EnableSpace and spaceship-part effect wants onto the
  * native minimum viable ship used by CivJS's authoritative science victory.
@@ -80,28 +106,8 @@ export function planSpaceship(context: SpaceshipPlanningContext): SpaceshipPlan 
   const technologyWants = new Map<string, number>();
 
   for (const city of ownCities) {
-    const wants = new Map<string, { want: number; reason: string }>();
-    if (!apolloBuilt) {
-      wants.set('apollo_program', {
-        want:
-          10 +
-          (productionLeader === context.playerId || technologyLeader === context.playerId
-            ? 150
-            : 0),
-        reason: 'enable space race',
-      });
-    } else {
-      const wonderCity =
-        city.productionType === 'building' &&
-        Boolean(
-          city.currentProduction && BUILDING_TYPES[city.currentProduction]?.genus === 'GreatWonder'
-        );
-      const baseWant = (wonderCity ? 120 : 210) * (ownStarted ? 3 : 1);
-      for (const partId of Object.keys(SPACESHIP_PART_LIMITS) as SpaceshipPartId[]) {
-        wants.set(partId, { want: baseWant, reason: 'space-race ship assembly' });
-      }
-    }
-    buildingWants.set(city.id, wants);
+    const isLeader = productionLeader === context.playerId || technologyLeader === context.playerId;
+    buildingWants.set(city.id, citySpaceshipWants(city, apolloBuilt, ownStarted, isLeader));
   }
 
   technologyWants.set('space_flight', apolloBuilt ? 210 : 160);

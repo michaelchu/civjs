@@ -65,6 +65,81 @@ function isValuableTarget(type: UnitType): boolean {
   );
 }
 
+function canHunterReachTarget(
+  hunter: Unit,
+  hunterType: UnitType,
+  target: Unit,
+  targetType: UnitType,
+  context: HunterPlanningContext
+): boolean {
+  const distance = context.distance(hunter.x, hunter.y, target.x, target.y);
+  if (distance > Math.max(1, hunterType.movement) * 6) return false;
+  if (hunterType.movement >= Math.max(1, targetType.movement)) return true;
+  const oldTask = context.existingTasks[hunter.id];
+  return Boolean(
+    oldTask?.targetId === target.id &&
+      oldTask.targetX !== undefined &&
+      oldTask.targetY !== undefined &&
+      distance < context.distance(hunter.x, hunter.y, oldTask.targetX, oldTask.targetY)
+  );
+}
+
+function stackValue(
+  stack: Unit[],
+  getType: (unitTypeId: string) => UnitType | undefined
+): { cost: number; threat: number } {
+  let cost = 0;
+  let threat = 0;
+  for (const member of stack) {
+    const type = getType(member.unitTypeId);
+    if (!type) continue;
+    cost += Math.max(1, type.cost);
+    threat += attackPower(member, type);
+    if (type.flags?.some(flag => flag.toLowerCase() === 'gameloss')) {
+      cost += 1000;
+      threat += 5000;
+    }
+    if ((type.attack ?? type.combat ?? 0) > 0) threat += 500;
+  }
+  return { cost, threat };
+}
+
+function rankHunterTargets(
+  hunter: Unit,
+  hunterType: UnitType,
+  context: HunterPlanningContext
+): HunterTarget[] {
+  const hunterCost = Math.max(1, hunterType.cost);
+  return context.hostileUnits
+    .map(target => {
+      const targetType = context.getType(target.unitTypeId);
+      if (!targetType || !isValuableTarget(targetType)) return undefined;
+      if (!canHunterReachTarget(hunter, hunterType, target, targetType, context)) return undefined;
+      const distance = context.distance(hunter.x, hunter.y, target.x, target.y);
+      const stack = context.hostileUnits.filter(unit => unit.x === target.x && unit.y === target.y);
+      const value = stackValue(stack, context.getType);
+      if (value.cost < hunterCost) return undefined;
+      const stackThreat = value.threat * 9 + value.cost;
+      const want = stackThreat / (distance + 1);
+      if (want < hunterCost) return undefined;
+      return { unit: target, distance, stackCost: value.cost, stackThreat, want };
+    })
+    .filter((target): target is HunterTarget => Boolean(target))
+    .sort(
+      (a, b) => b.want - a.want || a.distance - b.distance || a.unit.id.localeCompare(b.unit.id)
+    );
+}
+
+function chooseHunterTarget(
+  hunter: Unit,
+  ranked: HunterTarget[],
+  context: HunterPlanningContext
+): HunterTarget | undefined {
+  const oldTargetId = context.existingTasks[hunter.id]?.targetId;
+  const oldRank = oldTargetId ? ranked.find(item => item.unit.id === oldTargetId) : undefined;
+  return oldRank && oldRank.want >= (ranked[0]?.want ?? 0) ? oldRank : ranked[0];
+}
+
 /**
  * Assign specialist hunter units to threatening, valuable mobile stacks.
  *
@@ -81,58 +156,15 @@ export function planHunters(context: HunterPlanningContext): {
 } {
   const assignments: Record<string, AIUnitTask> = {};
   const targets: Record<string, HunterTarget[]> = {};
-  const hostileById = new Map(context.hostileUnits.map(unit => [unit.id, unit]));
-  const stackAt = (x: number, y: number) =>
-    context.hostileUnits.filter(unit => unit.x === x && unit.y === y);
 
   for (const hunter of context.friendlyUnits
     .filter(unit => isHunter(unit, context.getType(unit.unitTypeId)))
     .sort((a, b) => a.id.localeCompare(b.id))) {
     const hunterType = context.getType(hunter.unitTypeId)!;
-    const hunterCost = Math.max(1, hunterType.cost);
-    const ranked: HunterTarget[] = [];
-    for (const target of context.hostileUnits) {
-      const targetType = context.getType(target.unitTypeId);
-      if (!targetType || !isValuableTarget(targetType)) continue;
-      const distance = context.distance(hunter.x, hunter.y, target.x, target.y);
-      if (distance > Math.max(1, hunterType.movement) * 6) continue;
-      if (hunterType.movement < Math.max(1, targetType.movement)) {
-        const oldTask = context.existingTasks[hunter.id];
-        const onInterceptVector =
-          oldTask?.targetId === target.id &&
-          oldTask.targetX !== undefined &&
-          oldTask.targetY !== undefined &&
-          distance < context.distance(hunter.x, hunter.y, oldTask.targetX, oldTask.targetY);
-        if (!onInterceptVector) continue;
-      }
-      const stack = stackAt(target.x, target.y);
-      let stackCost = 0;
-      let rawThreat = 0;
-      for (const member of stack) {
-        const memberType = context.getType(member.unitTypeId);
-        if (!memberType) continue;
-        stackCost += Math.max(1, memberType.cost);
-        rawThreat += attackPower(member, memberType);
-        if (memberType.flags?.some(flag => flag.toLowerCase() === 'gameloss')) {
-          stackCost += 1000;
-          rawThreat += 5000;
-        }
-        if ((memberType.attack ?? memberType.combat ?? 0) > 0) rawThreat += 500;
-      }
-      if (stackCost < hunterCost) continue;
-      const stackThreat = rawThreat * 9 + stackCost;
-      const want = stackThreat / (distance + 1);
-      if (want < hunterCost) continue;
-      ranked.push({ unit: target, distance, stackCost, stackThreat, want });
-    }
-    ranked.sort(
-      (a, b) => b.want - a.want || a.distance - b.distance || a.unit.id.localeCompare(b.unit.id)
-    );
+    const ranked = rankHunterTargets(hunter, hunterType, context);
     targets[hunter.id] = ranked;
     const oldTargetId = context.existingTasks[hunter.id]?.targetId;
-    const oldTarget = oldTargetId ? hostileById.get(oldTargetId) : undefined;
-    const oldRank = oldTarget ? ranked.find(item => item.unit.id === oldTarget.id) : undefined;
-    const chosen = oldRank && oldRank.want >= (ranked[0]?.want ?? 0) ? oldRank : ranked[0];
+    const chosen = chooseHunterTarget(hunter, ranked, context);
     if (!chosen) continue;
     assignments[hunter.id] = {
       role: 'hunter',
@@ -219,64 +251,58 @@ function canCarryMissile(hunterType: UnitType, missileType: UnitType): boolean {
   );
 }
 
-/**
- * Feed hunter and hunter-carried missile wants into the shared city choice.
- * Cities with an existing local hunter replenish compatible missiles instead
- * of producing duplicate hunters.
- *
- * @reference reference/freeciv/ai/default/daihunter.c:dai_hunter_choice
- * @reference reference/freeciv/ai/default/daihunter.c:dai_hunter_missile_want
- */
-export function rankHunterProduction(context: HunterProductionContext): Map<string, number> {
+function rankMissileProduction(
+  context: HunterProductionContext,
+  hunter: Unit,
+  unitTypes: UnitType[]
+): Map<string, number> {
   const wants = new Map<string, number>();
-  if (context.targetSelectionHandicap) return wants;
-  const unitTypes = [...context.unitTypes];
-  const localHunter = context.friendlyUnits.find(unit => {
-    const type = context.getType(unit.unitTypeId);
-    return (
-      isHunter(unit, type) &&
-      (unit.homeCityId === context.city.id ||
-        (unit.x === context.city.x && unit.y === context.city.y))
-    );
-  });
-  if (localHunter) {
-    const hunterType = context.getType(localHunter.unitTypeId)!;
-    for (const type of unitTypes) {
-      if (!context.canBuild(type.id) || !isMissile(type) || !canCarryMissile(hunterType, type)) {
-        continue;
-      }
-      const upkeep = (type.uk_happy ?? 0) + (type.uk_shield ?? 0) + (type.uk_gold ?? 0);
-      let want =
-        (Math.max(1, type.hitpoints ?? 100) *
-          Math.min(30, Math.max(0, type.attack ?? type.combat ?? 0)) *
-          Math.max(1, type.firepower ?? 1) *
-          Math.max(1, type.movement)) /
-          Math.max(1, type.cost + upkeep) +
-        1;
-      if (type.flags?.includes('FieldUnit')) want /= 2;
-      wants.set(type.id, want);
+  const hunterType = context.getType(hunter.unitTypeId)!;
+  for (const type of unitTypes) {
+    if (!context.canBuild(type.id) || !isMissile(type) || !canCarryMissile(hunterType, type)) {
+      continue;
     }
-    return wants;
+    const upkeep = (type.uk_happy ?? 0) + (type.uk_shield ?? 0) + (type.uk_gold ?? 0);
+    let want =
+      (Math.max(1, type.hitpoints ?? 100) *
+        Math.min(30, Math.max(0, type.attack ?? type.combat ?? 0)) *
+        Math.max(1, type.firepower ?? 1) *
+        Math.max(1, type.movement)) /
+        Math.max(1, type.cost + upkeep) +
+      1;
+    if (type.flags?.includes('FieldUnit')) want /= 2;
+    wants.set(type.id, want);
   }
+  return wants;
+}
 
+function createVirtualHunter(context: HunterProductionContext, type: UnitType): Unit {
+  return {
+    id: `virtual-hunter:${context.city.id}:${type.id}`,
+    gameId: context.gameId,
+    playerId: context.playerId,
+    unitTypeId: type.id,
+    x: context.city.x,
+    y: context.city.y,
+    movementLeft: type.movement,
+    health: type.hitpoints ?? 100,
+    veteranLevel: 0,
+    experience: 0,
+    fortified: false,
+    homeCityId: context.city.id,
+  };
+}
+
+function rankNewHunterProduction(
+  context: HunterProductionContext,
+  unitTypes: UnitType[]
+): Map<string, number> {
+  const wants = new Map<string, number>();
   for (const type of unitTypes) {
     if (!context.canBuild(type.id) || !type.roles?.some(role => role.toLowerCase() === 'hunter')) {
       continue;
     }
-    const virtual: Unit = {
-      id: `virtual-hunter:${context.city.id}:${type.id}`,
-      gameId: context.gameId,
-      playerId: context.playerId,
-      unitTypeId: type.id,
-      x: context.city.x,
-      y: context.city.y,
-      movementLeft: type.movement,
-      health: type.hitpoints ?? 100,
-      veteranLevel: 0,
-      experience: 0,
-      fortified: false,
-      homeCityId: context.city.id,
-    };
+    const virtual = createVirtualHunter(context, type);
     const plan = planHunters({
       turn: 0,
       friendlyUnits: [virtual],
@@ -289,4 +315,28 @@ export function rankHunterProduction(context: HunterProductionContext): Map<stri
     if (want) wants.set(type.id, want);
   }
   return wants;
+}
+
+/**
+ * Feed hunter and hunter-carried missile wants into the shared city choice.
+ * Cities with an existing local hunter replenish compatible missiles instead
+ * of producing duplicate hunters.
+ *
+ * @reference reference/freeciv/ai/default/daihunter.c:dai_hunter_choice
+ * @reference reference/freeciv/ai/default/daihunter.c:dai_hunter_missile_want
+ */
+export function rankHunterProduction(context: HunterProductionContext): Map<string, number> {
+  if (context.targetSelectionHandicap) return new Map();
+  const unitTypes = [...context.unitTypes];
+  const localHunter = context.friendlyUnits.find(unit => {
+    const type = context.getType(unit.unitTypeId);
+    return (
+      isHunter(unit, type) &&
+      (unit.homeCityId === context.city.id ||
+        (unit.x === context.city.x && unit.y === context.city.y))
+    );
+  });
+  return localHunter
+    ? rankMissileProduction(context, localHunter, unitTypes)
+    : rankNewHunterProduction(context, unitTypes);
 }

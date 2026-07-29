@@ -129,6 +129,19 @@ const HANDICAPS = {
   ],
 } satisfies Record<AILevel, AIHandicap[]>;
 
+const DIFFICULTY_PARAMETERS: Record<
+  AILevel,
+  Pick<AIProfile, 'fuzzy' | 'expansion' | 'scienceCost'>
+> = {
+  restricted: { fuzzy: 400, expansion: 10, scienceCost: 250 },
+  novice: { fuzzy: 400, expansion: 10, scienceCost: 250 },
+  easy: { fuzzy: 300, expansion: 10, scienceCost: 100 },
+  normal: { fuzzy: 0, expansion: 100, scienceCost: 100 },
+  hard: { fuzzy: 0, expansion: 100, scienceCost: 100 },
+  cheating: { fuzzy: 0, expansion: 100, scienceCost: 100 },
+  away: { fuzzy: 0, expansion: 0, scienceCost: 100 },
+};
+
 /**
  * Freeciv difficulty parameters. Ruleset bonuses for Restricted/Cheating are
  * applied by normal effects evaluation, not directly in this profile.
@@ -145,16 +158,10 @@ export function createAIProfile(
     builder: 50,
   }
 ): AIProfile {
+  const parameters = DIFFICULTY_PARAMETERS[level];
   return {
     level,
-    fuzzy: level === 'restricted' || level === 'novice' ? 400 : level === 'easy' ? 300 : 0,
-    expansion:
-      level === 'away'
-        ? 0
-        : level === 'restricted' || level === 'novice' || level === 'easy'
-          ? 10
-          : 100,
-    scienceCost: level === 'restricted' || level === 'novice' ? 250 : 100,
+    ...parameters,
     handicaps: new Set(HANDICAPS[level]),
     traits: {
       expansionist: clampTrait(traits.expansionist),

@@ -112,6 +112,50 @@ function calculateProductionMetrics(context: ProductionPlanningContext): Product
   };
 }
 
+function scoreUnitProduction(
+  context: ProductionPlanningContext,
+  metrics: ProductionMetrics,
+  type: UnitType
+): { want: number; reasons: string[] } {
+  let want = 0;
+  const reasons: string[] = [];
+  if (type.canFoundCity) {
+    want += metrics.expansionNeed * 45;
+    reasons.push('expansion');
+  }
+  if (type.canBuildImprovements) {
+    want += metrics.workerNeed * 35;
+    reasons.push('infrastructure');
+  }
+  const defense = unitDefense(type);
+  const attack = unitAttack(type);
+  if (defense > 0) {
+    want += metrics.defenseNeed * defense;
+    reasons.push('defense');
+  }
+  const targetWant = context.offensiveUnitWants?.get(type.id);
+  if (targetWant !== undefined) {
+    want += targetWant * (attack > 0 ? metrics.aggressionWeight : 1);
+    reasons.push(attack > 0 ? 'targeted military' : 'strategic support');
+  } else if (attack > 0 && !context.offensiveUnitWants) {
+    want +=
+      ((attack * Math.max(1, type.movement) * Math.max(1, type.firepower ?? 1) * 14) /
+        Math.max(1, type.cost)) *
+      metrics.aggressionWeight;
+    reasons.push('military');
+  }
+  if ((type.transport_capacity ?? 0) > 0) {
+    const landUnits = context.units.filter(
+      unit => context.unitTypes[unit.unitTypeId]?.unitClass === 'military'
+    );
+    want += landUnits.length * 4;
+    reasons.push('transport');
+  }
+  const support = (type.uk_gold ?? 0) + (type.uk_shield ?? 0) * 2 + (type.uk_food ?? 0) * 2;
+  want -= support * Math.max(1, metrics.cityUnits.length);
+  return { want: amortize(want, turnsToBuild(context.city, type.cost)), reasons };
+}
+
 function rankUnitProduction(
   context: ProductionPlanningContext,
   metrics: ProductionMetrics
@@ -120,44 +164,7 @@ function rankUnitProduction(
   for (const type of Object.values(context.unitTypes)) {
     if (!context.canBuild('unit', type.id)) continue;
     if (context.excludedChoices?.has(`unit:${type.id}`)) continue;
-    let want = 0;
-    const reasons: string[] = [];
-    if (type.canFoundCity) {
-      want += metrics.expansionNeed * 45;
-      reasons.push('expansion');
-    }
-    if (type.canBuildImprovements) {
-      want += metrics.workerNeed * 35;
-      reasons.push('infrastructure');
-    }
-    const defense = unitDefense(type);
-    const attack = unitAttack(type);
-    if (defense > 0) {
-      want += metrics.defenseNeed * defense;
-      reasons.push('defense');
-    }
-    const targetWant = context.offensiveUnitWants?.get(type.id);
-    if (targetWant !== undefined) {
-      want += targetWant * (attack > 0 ? metrics.aggressionWeight : 1);
-      reasons.push(attack > 0 ? 'targeted military' : 'strategic support');
-    }
-    if (attack > 0 && targetWant === undefined && !context.offensiveUnitWants) {
-      want +=
-        ((attack * Math.max(1, type.movement) * Math.max(1, type.firepower ?? 1) * 14) /
-          Math.max(1, type.cost)) *
-        metrics.aggressionWeight;
-      reasons.push('military');
-    }
-    if ((type.transport_capacity ?? 0) > 0) {
-      const landUnits = context.units.filter(
-        unit => context.unitTypes[unit.unitTypeId]?.unitClass === 'military'
-      );
-      want += landUnits.length * 4;
-      reasons.push('transport');
-    }
-    const support = (type.uk_gold ?? 0) + (type.uk_shield ?? 0) * 2 + (type.uk_food ?? 0) * 2;
-    want -= support * Math.max(1, metrics.cityUnits.length);
-    want = amortize(want, turnsToBuild(context.city, type.cost));
+    const { want, reasons } = scoreUnitProduction(context, metrics, type);
     if (want > 0) {
       choices.push({
         value: { kind: 'unit', id: type.id },
@@ -193,46 +200,76 @@ function buildingEffectsWant(
   );
 }
 
+function canRankBuilding(context: ProductionPlanningContext, building: BuildingType): boolean {
+  if (!context.canBuild('building', building.id)) return false;
+  if (context.excludedChoices?.has(`building:${building.id}`)) return false;
+  return building.genus !== 'GreatWonder' || !context.reservedWonders?.has(building.id);
+}
+
+function baseBuildingWant(
+  context: ProductionPlanningContext,
+  building: BuildingType,
+  metrics: ProductionMetrics
+): number {
+  const effects = building.effects ?? {};
+  const citySize = context.city.size ?? context.city.population ?? 0;
+  let want = buildingEffectsWant(context, building, metrics);
+  if (effects.maxCitySize !== undefined) {
+    want += Math.max(0, citySize - (effects.maxCitySize - 4)) * 60;
+  }
+  if (effects.unlimitedCitySize) want += Math.max(0, citySize - 8) * 45;
+  if ((effects.defenseBonus ?? 0) > 0) {
+    want = reevaluateDefensiveBuildingWant(want, context.dangerAssessment);
+  }
+  return want * metrics.builderWeight;
+}
+
+function situationalBuildingWant(
+  context: ProductionPlanningContext,
+  building: BuildingType
+): number {
+  const effects = building.effects ?? {};
+  let want = 0;
+  const id = building.id.toLowerCase();
+  if ((context.city.goldPerTurn ?? 0) < 0 && (id.includes('market') || effects.goldBonus)) {
+    want += 120;
+  }
+  if ((context.city.foodPerTurn ?? 0) <= 0 && (id.includes('granary') || effects.foodBonus)) {
+    want += 100;
+  }
+  if (
+    context.city.happiness.unhappy + context.city.happiness.angry > 0 &&
+    effects.happinessEffect
+  ) {
+    want += 100;
+  }
+  if (building.genus === 'GreatWonder') {
+    want += Math.max(0, context.city.productionPerTurn ?? 0) * 4;
+  }
+  return want;
+}
+
+function adjustBuildingWant(
+  context: ProductionPlanningContext,
+  building: BuildingType,
+  metrics: ProductionMetrics
+): number {
+  let want = baseBuildingWant(context, building, metrics);
+  want += situationalBuildingWant(context, building);
+  if (building.genus === 'Convert') want = Math.max(want, 1);
+  want += context.buildingWants?.get(building.id)?.want ?? 0;
+  return amortize(want, turnsToBuild(context.city, building.cost));
+}
+
 function rankBuildingProduction(
   context: ProductionPlanningContext,
   metrics: ProductionMetrics
 ): AIChoice<ProductionChoice>[] {
   const choices: AIChoice<ProductionChoice>[] = [];
-  const citySize = context.city.size ?? context.city.population ?? 0;
   for (const building of Object.values(context.buildingTypes)) {
-    if (!context.canBuild('building', building.id)) continue;
-    if (context.excludedChoices?.has(`building:${building.id}`)) continue;
-    if (building.genus === 'GreatWonder' && context.reservedWonders?.has(building.id)) continue;
-    const effects = building.effects ?? {};
-    let want = buildingEffectsWant(context, building, metrics);
-    if (effects.maxCitySize !== undefined) {
-      want += Math.max(0, citySize - (effects.maxCitySize - 4)) * 60;
-    }
-    if (effects.unlimitedCitySize) want += Math.max(0, citySize - 8) * 45;
-    if ((effects.defenseBonus ?? 0) > 0) {
-      want = reevaluateDefensiveBuildingWant(want, context.dangerAssessment);
-    }
-    want *= metrics.builderWeight;
-    const id = building.id.toLowerCase();
-    if ((context.city.goldPerTurn ?? 0) < 0 && (id.includes('market') || effects.goldBonus)) {
-      want += 120;
-    }
-    if ((context.city.foodPerTurn ?? 0) <= 0 && (id.includes('granary') || effects.foodBonus)) {
-      want += 100;
-    }
-    if (
-      context.city.happiness.unhappy + context.city.happiness.angry > 0 &&
-      effects.happinessEffect
-    ) {
-      want += 100;
-    }
-    if (building.genus === 'GreatWonder') {
-      want += Math.max(0, context.city.productionPerTurn ?? 0) * 4;
-    }
-    if (building.genus === 'Convert') want = Math.max(want, 1);
+    if (!canRankBuilding(context, building)) continue;
     const strategicWant = context.buildingWants?.get(building.id);
-    if (strategicWant) want += strategicWant.want;
-    want = amortize(want, turnsToBuild(context.city, building.cost));
+    const want = adjustBuildingWant(context, building, metrics);
     if (want > 0) {
       choices.push({
         value: { kind: 'building', id: building.id },
@@ -296,6 +333,123 @@ function normalizeId(value: string): string {
     .replace(/^_|_$/g, '');
 }
 
+interface ResearchWant {
+  want: number;
+  reasons: string[];
+}
+
+function unitUnlockWant(context: ResearchPlanningContext, tech: Technology): ResearchWant {
+  let want = 0;
+  const reasons: string[] = [];
+  for (const unit of Object.values(context.unitTypes)) {
+    if (normalizeId(unit.requiredTech ?? '') !== normalizeId(tech.id)) continue;
+    const replacement = unit.obsolete_by ? context.unitTypes[unit.obsolete_by] : undefined;
+    if (replacement?.requiredTech && context.researchedTechs?.has(replacement.requiredTech)) {
+      continue;
+    }
+    const military =
+      unitAttack(unit) * Math.max(1, unit.movement) +
+      unitDefense(unit) * (1 + context.militaryPressure);
+    const domestic = unit.canFoundCity ? 35 : unit.canBuildImprovements ? 25 : 0;
+    want +=
+      military * 8 * ((context.profile?.traits.aggressive ?? 50) / 50) +
+      domestic * ((context.profile?.traits.expansionist ?? 50) / 50);
+    reasons.push(`unit:${unit.id}`);
+  }
+  return { want, reasons };
+}
+
+function buildingUnlockWant(context: ResearchPlanningContext, tech: Technology): ResearchWant {
+  let want = 0;
+  const reasons: string[] = [];
+  for (const building of Object.values(context.buildingTypes)) {
+    if (normalizeId(building.requiredTech ?? '') !== normalizeId(tech.id)) continue;
+    const effects = building.effects ?? {};
+    const buildingWant =
+      15 +
+      (effects.foodBonus ?? 0) * 18 +
+      (effects.productionBonus ?? 0) * 16 +
+      (effects.scienceBonus ?? 0) * 15 +
+      (effects.goldBonus ?? 0) * 12 +
+      (effects.happinessEffect ?? 0) * 22 +
+      (effects.defenseBonus ?? 0) * context.militaryPressure * 10;
+    want += buildingWant * ((context.profile?.traits.builder ?? 50) / 50);
+    reasons.push(`building:${building.id}`);
+  }
+  return { want, reasons };
+}
+
+function directResearchWant(context: ResearchPlanningContext, tech: Technology): ResearchWant {
+  let want = 1;
+  const reasons: string[] = [];
+  const strategicWant = context.strategicTechWants?.get(normalizeId(tech.id)) ?? 0;
+  if (strategicWant !== 0) {
+    want += strategicWant;
+    reasons.push('advisor');
+  }
+  for (const unlock of [unitUnlockWant(context, tech), buildingUnlockWant(context, tech)]) {
+    want += unlock.want;
+    reasons.push(...unlock.reasons);
+  }
+  const unlocksGovernment = [...context.governmentTechs].some(
+    requirement => normalizeId(requirement) === normalizeId(tech.id)
+  );
+  if (unlocksGovernment) {
+    want += 80 + context.cityCount * 10;
+    reasons.push('government');
+  }
+  return { want, reasons };
+}
+
+function prerequisiteDistance(
+  techById: ReadonlyMap<string, Technology>,
+  goalId: string,
+  prerequisiteId: string,
+  visiting = new Set<string>()
+): number | undefined {
+  if (goalId === prerequisiteId) return 0;
+  if (visiting.has(goalId)) return undefined;
+  const goal = techById.get(goalId);
+  if (!goal) return undefined;
+  const nextVisiting = new Set(visiting).add(goalId);
+  const distances = goal.requirements
+    .map(requirement => prerequisiteDistance(techById, requirement, prerequisiteId, nextVisiting))
+    .filter((distance): distance is number => distance !== undefined);
+  return distances.length > 0 ? Math.min(...distances) + 1 : undefined;
+}
+
+function rankAvailableTechnology(
+  context: ResearchPlanningContext,
+  tech: Technology,
+  directWants: ReadonlyMap<string, ResearchWant>,
+  techById: ReadonlyMap<string, Technology>
+): AIChoice<Technology> {
+  const direct = directWants.get(tech.id) ?? { want: 1, reasons: [] };
+  let want = direct.want;
+  const reasons = [...direct.reasons];
+  let goalId = tech.id;
+  let bestGoalContribution = direct.want;
+  for (const goal of context.catalogue) {
+    if (context.researchedTechs?.has(goal.id) || goal.id === tech.id) continue;
+    const distance = prerequisiteDistance(techById, goal.id, tech.id);
+    if (distance === undefined) continue;
+    const goalWant = directWants.get(goal.id)?.want ?? 1;
+    const contribution = amortize(goalWant, distance * 3) / (distance + 1);
+    want += contribution;
+    if (contribution > bestGoalContribution) {
+      bestGoalContribution = contribution;
+      goalId = goal.id;
+    }
+    if (goalWant > 1) reasons.push(`goal:${goal.id}`);
+  }
+  return {
+    value: tech,
+    want: (want * 100) / Math.max(1, tech.cost),
+    reason: reasons.join('+') || 'future options',
+    goalId,
+  };
+}
+
 /**
  * Aggregate technology wants from what each technology unlocks. This mirrors
  * the flow of `dai_manage_tech`: city, military, and government advisors feed
@@ -304,103 +458,15 @@ function normalizeId(value: string): string {
  * @reference reference/freeciv/ai/default/daitech.c
  */
 export function rankResearch(context: ResearchPlanningContext): AIChoice<Technology>[] {
-  const directWants = new Map<string, { want: number; reasons: string[] }>();
+  const directWants = new Map<string, ResearchWant>();
   for (const tech of context.catalogue) {
-    let want = 1;
-    const reasons: string[] = [];
-    const strategicWant = context.strategicTechWants?.get(normalizeId(tech.id)) ?? 0;
-    if (strategicWant !== 0) {
-      want += strategicWant;
-      reasons.push('advisor');
-    }
-
-    for (const unit of Object.values(context.unitTypes)) {
-      if (normalizeId(unit.requiredTech ?? '') !== normalizeId(tech.id)) continue;
-      const replacement = unit.obsolete_by ? context.unitTypes[unit.obsolete_by] : undefined;
-      if (replacement?.requiredTech && context.researchedTechs?.has(replacement.requiredTech)) {
-        continue;
-      }
-      const military =
-        unitAttack(unit) * Math.max(1, unit.movement) +
-        unitDefense(unit) * (1 + context.militaryPressure);
-      const domestic = unit.canFoundCity ? 35 : unit.canBuildImprovements ? 25 : 0;
-      want +=
-        military * 8 * ((context.profile?.traits.aggressive ?? 50) / 50) +
-        domestic * ((context.profile?.traits.expansionist ?? 50) / 50);
-      reasons.push(`unit:${unit.id}`);
-    }
-    for (const building of Object.values(context.buildingTypes)) {
-      if (normalizeId(building.requiredTech ?? '') !== normalizeId(tech.id)) continue;
-      const effects = building.effects ?? {};
-      const buildingWant =
-        15 +
-        (effects.foodBonus ?? 0) * 18 +
-        (effects.productionBonus ?? 0) * 16 +
-        (effects.scienceBonus ?? 0) * 15 +
-        (effects.goldBonus ?? 0) * 12 +
-        (effects.happinessEffect ?? 0) * 22 +
-        (effects.defenseBonus ?? 0) * context.militaryPressure * 10;
-      want += buildingWant * ((context.profile?.traits.builder ?? 50) / 50);
-      reasons.push(`building:${building.id}`);
-    }
-    if (
-      [...context.governmentTechs].some(
-        requirement => normalizeId(requirement) === normalizeId(tech.id)
-      )
-    ) {
-      want += 80 + context.cityCount * 10;
-      reasons.push('government');
-    }
-    directWants.set(tech.id, { want, reasons });
+    directWants.set(tech.id, directResearchWant(context, tech));
   }
 
   const techById = new Map(context.catalogue.map(tech => [tech.id, tech]));
-  const distanceToPrerequisite = (
-    goalId: string,
-    prerequisiteId: string,
-    visiting = new Set<string>()
-  ): number | undefined => {
-    if (goalId === prerequisiteId) return 0;
-    if (visiting.has(goalId)) return undefined;
-    const goal = techById.get(goalId);
-    if (!goal) return undefined;
-    const nextVisiting = new Set(visiting).add(goalId);
-    const distances = goal.requirements
-      .map(requirement => distanceToPrerequisite(requirement, prerequisiteId, nextVisiting))
-      .filter((distance): distance is number => distance !== undefined);
-    return distances.length > 0 ? Math.min(...distances) + 1 : undefined;
-  };
-
-  const choices = context.available.map(tech => {
-    const direct = directWants.get(tech.id) ?? { want: 1, reasons: [] };
-    let want = direct.want;
-    const reasons = [...direct.reasons];
-    let goalId = tech.id;
-    let bestGoalContribution = direct.want;
-    for (const goal of context.catalogue) {
-      if (context.researchedTechs?.has(goal.id) || goal.id === tech.id) continue;
-      const distance = distanceToPrerequisite(goal.id, tech.id);
-      if (distance === undefined) continue;
-      const goalWant = directWants.get(goal.id)?.want ?? 1;
-      const contribution = amortize(goalWant, distance * 3) / (distance + 1);
-      want += contribution;
-      if (contribution > bestGoalContribution) {
-        bestGoalContribution = contribution;
-        goalId = goal.id;
-      }
-      if (goalWant > 1) reasons.push(`goal:${goal.id}`);
-    }
-
-    // Present value per bulb keeps a cheap useful advance competitive without
-    // allowing cost alone to determine the research path.
-    want = (want * 100) / Math.max(1, tech.cost);
-    return {
-      value: tech,
-      want,
-      reason: reasons.join('+') || 'future options',
-      goalId,
-    };
-  });
+  const choices = context.available.map(tech =>
+    rankAvailableTechnology(context, tech, directWants, techById)
+  );
 
   return choices.sort((a, b) => b.want - a.want || a.value.id.localeCompare(b.value.id));
 }

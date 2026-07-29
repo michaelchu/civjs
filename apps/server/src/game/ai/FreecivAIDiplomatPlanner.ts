@@ -253,6 +253,63 @@ function defensiveMission(
     }))[0];
 }
 
+function virtualInciteGain(
+  context: VirtualDiplomatProductionContext,
+  city: CityState,
+  allied: boolean
+): { action: ActionType; value: number } | undefined {
+  const incite = context.inciteCost(city);
+  if (
+    allied ||
+    !context.canInciteCity(city) ||
+    city.buildings.includes('palace') ||
+    incite > Math.max(0, context.gold - context.goldReserve)
+  ) {
+    return undefined;
+  }
+  const output =
+    Math.max(0, city.foodPerTurn ?? 0) * 10 +
+    Math.max(0, city.productionPerTurn ?? 0) * 20 +
+    (Math.max(0, city.goldPerTurn ?? 0) +
+      Math.max(0, city.sciencePerTurn ?? 0) +
+      Math.max(0, city.tradePerTurn ?? 0)) *
+      10;
+  return { action: ActionType.INCITE_CITY, value: output * 20 - incite * 10 };
+}
+
+function virtualDiplomatTargetWant(
+  context: VirtualDiplomatProductionContext,
+  type: UnitType,
+  city: CityState
+): number | undefined {
+  const relation = context.relation(city.playerId);
+  if (relation.allied && relation.hasEmbassy) return undefined;
+  const turns = context.travelTurns(type, city);
+  if (!Number.isFinite(turns)) return undefined;
+  const gains: Array<{ action: ActionType; value: number }> = [];
+  if (!relation.hasEmbassy) {
+    gains.push({ action: ActionType.ESTABLISH_EMBASSY, value: 99 });
+  }
+  if (!relation.allied && context.countStealableTechs(city.playerId) > 0) {
+    gains.push({
+      action: ActionType.STEAL_TECH,
+      value: Math.max(1, city.sciencePerTurn ?? city.tradePerTurn ?? city.size) * 90,
+    });
+  }
+  const inciteGain = virtualInciteGain(context, city, relation.allied);
+  if (inciteGain) gains.push(inciteGain);
+  const best = gains.sort((a, b) => b.value - a.value)[0];
+  if (!best || best.value <= 0) return undefined;
+  const odds = context.actionOdds(type, best.action);
+  const expected =
+    odds.successChance * best.value -
+    (1 - odds.successChance * odds.escapeChance) * Math.max(1, type.cost);
+  const travelPenalty = Math.max(1, turns) * Math.max(1, turns + 1) * 5;
+  const want = (expected - travelPenalty) / (1 + Math.max(1, turns) + Math.max(1, type.cost) / 10);
+  if (want <= 0) return undefined;
+  return Math.max(best.action === ActionType.ESTABLISH_EMBASSY ? 99 : 0, want);
+}
+
 /**
  * Port of classic diplomat management: nearby bribery, threatened-city
  * defense, city mission selection, and idle defensive reassignment.
@@ -375,53 +432,11 @@ export function rankVirtualDiplomatProduction(
       }
       if (context.diplomatHandicap) return [];
 
-      const target = context.foreignCities
-        .flatMap(city => {
-          const relation = context.relation(city.playerId);
-          if (relation.allied && relation.hasEmbassy) return [];
-          const turns = context.travelTurns(type, city);
-          if (!Number.isFinite(turns)) return [];
-          const gains: Array<{ action: ActionType; value: number }> = [];
-          if (!relation.hasEmbassy) {
-            gains.push({ action: ActionType.ESTABLISH_EMBASSY, value: 99 });
-          }
-          if (!relation.allied && context.countStealableTechs(city.playerId) > 0) {
-            gains.push({
-              action: ActionType.STEAL_TECH,
-              value: Math.max(1, city.sciencePerTurn ?? city.tradePerTurn ?? city.size) * 90,
-            });
-          }
-          const incite = context.inciteCost(city);
-          if (
-            !relation.allied &&
-            context.canInciteCity(city) &&
-            !city.buildings.includes('palace') &&
-            incite <= Math.max(0, context.gold - context.goldReserve)
-          ) {
-            const output =
-              Math.max(0, city.foodPerTurn ?? 0) * 10 +
-              Math.max(0, city.productionPerTurn ?? 0) * 20 +
-              (Math.max(0, city.goldPerTurn ?? 0) +
-                Math.max(0, city.sciencePerTurn ?? 0) +
-                Math.max(0, city.tradePerTurn ?? 0)) *
-                10;
-            gains.push({ action: ActionType.INCITE_CITY, value: output * 20 - incite * 10 });
-          }
-          const best = gains.sort((a, b) => b.value - a.value)[0];
-          if (!best || best.value <= 0) return [];
-          const odds = context.actionOdds(type, best.action);
-          const expected =
-            odds.successChance * best.value -
-            (1 - odds.successChance * odds.escapeChance) * Math.max(1, type.cost);
-          const travelPenalty = Math.max(1, turns) * Math.max(1, turns + 1) * 5;
-          const amortized =
-            (expected - travelPenalty) / (1 + Math.max(1, turns) + Math.max(1, type.cost) / 10);
-          return amortized > 0
-            ? [{ want: Math.max(best.action === ActionType.ESTABLISH_EMBASSY ? 99 : 0, amortized) }]
-            : [];
-        })
-        .sort((a, b) => b.want - a.want)[0];
-      return target ? ([[type.id, target.want]] as const) : [];
+      const want = context.foreignCities
+        .map(city => virtualDiplomatTargetWant(context, type, city))
+        .filter((value): value is number => value !== undefined)
+        .sort((a, b) => b - a)[0];
+      return want !== undefined ? ([[type.id, want]] as const) : [];
     })
   );
 }

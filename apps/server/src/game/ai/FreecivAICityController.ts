@@ -30,7 +30,10 @@ import {
 import { calculateDiplomatInciteCost } from '@game/services/DiplomatActionEconomics';
 import { calculateTreasuryReserve } from '@game/ai/FreecivAITreasuryPlanner';
 import type { Unit } from '@game/managers/UnitManager';
-import { planWonderCoordination } from '@game/ai/FreecivAIWonderPlanner';
+import {
+  planWonderCoordination,
+  type WonderHelperAssignment,
+} from '@game/ai/FreecivAIWonderPlanner';
 import { planSpaceship } from '@game/ai/FreecivAISpaceshipPlanner';
 import type { DiplomaticState } from '@game/managers/DiplomacyManager';
 import type { MapTile } from '@game/map/MapTypes';
@@ -61,6 +64,25 @@ function createVirtualDiplomat(
   };
 }
 
+function citizenParameters(city: CityState, profile: AIProfile) {
+  const parameters = CitizenParameterFactory.createDefault();
+  const unrest = city.happiness.unhappy + city.happiness.angry;
+  parameters.minimal_surplus[OutputType.FOOD] = (city.foodStock ?? 0) <= 0 ? 2 : 1;
+  parameters.minimal_surplus[OutputType.SHIELD] = 1;
+  parameters.factor[OutputType.FOOD] = (city.foodPerTurn ?? 0) <= 0 ? 24 : 8;
+  parameters.factor[OutputType.SHIELD] = 6 + profile.traits.builder / 20;
+  parameters.factor[OutputType.TRADE] = 3;
+  parameters.factor[OutputType.GOLD] = (city.goldPerTurn ?? 0) < 0 ? 10 : 3;
+  parameters.factor[OutputType.LUXURY] = unrest > 0 ? 20 : 2;
+  parameters.factor[OutputType.SCIENCE] = 4 + profile.traits.builder / 25;
+  parameters.happy_factor = unrest > 0 ? 20 : 2;
+  parameters.max_growth = city.size < 8 && (city.foodPerTurn ?? 0) >= 0;
+  parameters.require_happy = unrest > 0;
+  parameters.allow_disorder = false;
+  parameters.allow_specialists = true;
+  return parameters;
+}
+
 /**
  * Executes citizen allocation, production, worklist, and city-local unit
  * decisions through authoritative managers.
@@ -77,21 +99,7 @@ export class FreecivAICityController {
       .getPlayerCities(playerId)
       .slice()
       .sort((a, b) => a.id.localeCompare(b.id))) {
-      const parameters = CitizenParameterFactory.createDefault();
-      const unrest = city.happiness.unhappy + city.happiness.angry;
-      parameters.minimal_surplus[OutputType.FOOD] = (city.foodStock ?? 0) <= 0 ? 2 : 1;
-      parameters.minimal_surplus[OutputType.SHIELD] = 1;
-      parameters.factor[OutputType.FOOD] = (city.foodPerTurn ?? 0) <= 0 ? 24 : 8;
-      parameters.factor[OutputType.SHIELD] = 6 + profile.traits.builder / 20;
-      parameters.factor[OutputType.TRADE] = 3;
-      parameters.factor[OutputType.GOLD] = (city.goldPerTurn ?? 0) < 0 ? 10 : 3;
-      parameters.factor[OutputType.LUXURY] = unrest > 0 ? 20 : 2;
-      parameters.factor[OutputType.SCIENCE] = 4 + profile.traits.builder / 25;
-      parameters.happy_factor = unrest > 0 ? 20 : 2;
-      parameters.max_growth = city.size < 8 && (city.foodPerTurn ?? 0) >= 0;
-      parameters.require_happy = unrest > 0;
-      parameters.allow_disorder = false;
-      parameters.allow_specialists = true;
+      const parameters = citizenParameters(city, profile);
       const optimized = await game.cityManager.optimizeCityManually(city.id, parameters);
       if (optimized) actions++;
     }
@@ -215,25 +223,15 @@ export class FreecivAICityController {
     return actions;
   }
 
-  private async prepareProduction(game: GameInstance, playerId: string, state: FreecivAIState) {
-    const cities = game.cityManager
-      .getPlayerCities(playerId)
-      .slice()
-      .sort((a, b) => a.id.localeCompare(b.id));
-    const units = game.unitManager.getPlayerUnits(playerId);
-    const canContinueProduction =
-      typeof game.cityManager.canCityContinueProduction === 'function'
-        ? (cityId: string, kind: 'unit' | 'building', id: string) =>
-            game.cityManager.canCityContinueProduction(cityId, kind, id)
-        : undefined;
-    const expansionQueued = units.some(
-      unit => game.unitManager.getUnitType(unit.unitTypeId)?.canFoundCity
-    );
-    const relations = await this.hostilityPolicy.getRelationPlayerIds(game.id, playerId);
-    const diplomacySnapshot = (await this.hostilityPolicy.getDiplomacySnapshot?.(
-      game.id,
-      playerId
-    )) ?? {
+  private async productionDiplomacySnapshot(
+    game: GameInstance,
+    playerId: string,
+    relations: Awaited<ReturnType<DiplomacyHostilityPolicy['getRelationPlayerIds']>>
+  ) {
+    const snapshot = await this.hostilityPolicy.getDiplomacySnapshot?.(game.id, playerId);
+    if (snapshot) return snapshot;
+    return {
+      playerId,
       nations: [...game.players.values()]
         .filter(candidate => candidate.id !== playerId)
         .map(candidate => ({
@@ -249,6 +247,134 @@ export class FreecivAICityController {
           },
         })),
     };
+  }
+
+  private productionSpaceshipPlan(game: GameInstance, playerId: string) {
+    const citiesByPlayer = new Map(
+      [...game.players.keys()].map(candidateId => [
+        candidateId,
+        game.cityManager.getPlayerCities(candidateId),
+      ])
+    );
+    return planSpaceship({
+      enabled: (game.config?.victoryConditions ?? []).some(condition =>
+        ['science', 'spaceship'].includes(condition)
+      ),
+      playerId,
+      citiesByPlayer,
+      technologyCount: candidateId =>
+        game.researchManager.getPlayerResearch(candidateId)?.researchedTechs.size ?? 0,
+      spaceshipState: candidateId => game.players.get(candidateId)?.spaceshipState,
+    });
+  }
+
+  private mergeTechnologyWants(state: FreecivAIState, wants: ReadonlyMap<string, number>): void {
+    for (const [techId, want] of wants) {
+      state.techWants[techId] = (state.techWants[techId] ?? 0) + want;
+    }
+  }
+
+  private async diplomatInciteCosts(
+    game: GameInstance,
+    cities: CityState[]
+  ): Promise<Map<string, number>> {
+    const costs = new Map<string, number>();
+    await Promise.all(
+      cities.map(async city => {
+        costs.set(city.id, await calculateDiplomatInciteCost(game, city));
+      })
+    );
+    return costs;
+  }
+
+  private reservedWonderIds(cities: CityState[]): Set<string> {
+    return new Set(
+      cities
+        .flatMap(city => [city.currentProduction, ...(city.worklist ?? []).map(item => item.value)])
+        .filter((buildingId): buildingId is string =>
+          Boolean(buildingId && BUILDING_TYPES[buildingId]?.genus === 'GreatWonder')
+        )
+    );
+  }
+
+  private productionWorldKnowledge(
+    game: GameInstance,
+    playerId: string,
+    fallbackCities: CityState[]
+  ) {
+    return {
+      allKnownCities: game.cityManager.getAllCities?.() ?? fallbackCities,
+      allUnits: [...game.unitManager.getAllUnits().values()],
+      mapTiles: game.mapManager.getMapData?.()?.tiles.flat() ?? [],
+      exploredTiles: game.visibilityManager.getExploredTiles?.(playerId) ?? new Set<string>(),
+      knownTechs: new Set(game.researchManager.getPlayerResearch(playerId)?.researchedTechs ?? []),
+    };
+  }
+
+  private async productionDiplomatData(
+    game: GameInstance,
+    playerId: string,
+    profile: AIProfile,
+    allKnownCities: CityState[],
+    knownTechs: ReadonlySet<string>,
+    diplomacySnapshot: {
+      nations: Array<{
+        id: string;
+        relation: { state: DiplomaticState; embassy: boolean };
+      }>;
+    }
+  ) {
+    const foreignPlayerIds = new Set(
+      allKnownCities.filter(city => city.playerId !== playerId).map(city => city.playerId)
+    );
+    const diplomatTargetCities = targetableForeignCities(game, playerId, foreignPlayerIds, profile);
+    const inciteCosts = await this.diplomatInciteCosts(game, diplomatTargetCities);
+    const stealableTechs = new Map(
+      diplomacySnapshot.nations.map(nation => [
+        nation.id,
+        [...(game.researchManager.getPlayerResearch(nation.id)?.researchedTechs ?? [])].filter(
+          tech => !knownTechs.has(tech)
+        ).length,
+      ])
+    );
+    return { diplomatTargetCities, inciteCosts, stealableTechs };
+  }
+
+  private async productionEconomy(
+    game: GameInstance,
+    playerId: string,
+    cities: CityState[],
+    unitCount: number,
+    atWar: boolean
+  ) {
+    const economicManager = game.turnManager?.getEconomicManager?.();
+    const gold =
+      (await economicManager?.getPlayerGold(playerId)) ?? game.players.get(playerId)?.gold ?? 0;
+    const goldReserve = calculateTreasuryReserve({
+      cities,
+      unitCount,
+      atWar,
+      netGold: game.players.get(playerId)?.goldPerTurn ?? 0,
+    });
+    return { gold, goldReserve };
+  }
+
+  private async prepareProduction(game: GameInstance, playerId: string, state: FreecivAIState) {
+    const cities = game.cityManager
+      .getPlayerCities(playerId)
+      .slice()
+      .sort((a, b) => a.id.localeCompare(b.id));
+    const units = game.unitManager.getPlayerUnits(playerId);
+    const canContinueProduction =
+      typeof game.cityManager.canCityContinueProduction === 'function'
+        ? (cityId: string, kind: 'unit' | 'building', id: string) =>
+            game.cityManager.canCityContinueProduction(cityId, kind, id)
+        : undefined;
+    const expansionQueued = units.some(
+      unit => game.unitManager.getUnitType(unit.unitTypeId)?.canFoundCity
+    );
+    const relations = await this.hostilityPolicy.getRelationPlayerIds(game.id, playerId);
+    const diplomacySnapshot = await this.productionDiplomacySnapshot(game, playerId, relations);
     const relationByPlayer = new Map(
       diplomacySnapshot.nations.map(nation => [nation.id, nation.relation])
     );
@@ -276,58 +402,23 @@ export class FreecivAICityController {
       potentiallyHostileIds,
       profile
     );
-    const allKnownCities = game.cityManager.getAllCities?.() ?? cities;
-    const allUnits = [...game.unitManager.getAllUnits().values()];
-    const mapTiles = game.mapManager.getMapData?.()?.tiles.flat() ?? [];
-    const exploredTiles = game.visibilityManager.getExploredTiles?.(playerId) ?? new Set<string>();
-    const knownTechs = new Set(
-      game.researchManager.getPlayerResearch(playerId)?.researchedTechs ?? []
-    );
-    const citiesByPlayer = new Map(
-      [...game.players.keys()].map(candidateId => [
-        candidateId,
-        game.cityManager.getPlayerCities(candidateId),
-      ])
-    );
-    const spaceshipPlan = planSpaceship({
-      enabled: (game.config?.victoryConditions ?? []).some(condition =>
-        ['science', 'spaceship'].includes(condition)
-      ),
+    const world = this.productionWorldKnowledge(game, playerId, cities);
+    const spaceshipPlan = this.productionSpaceshipPlan(game, playerId);
+    this.mergeTechnologyWants(state, spaceshipPlan.technologyWants);
+    const economy = await this.productionEconomy(
+      game,
       playerId,
-      citiesByPlayer,
-      technologyCount: candidateId =>
-        game.researchManager.getPlayerResearch(candidateId)?.researchedTechs.size ?? 0,
-      spaceshipState: candidateId => game.players.get(candidateId)?.spaceshipState,
-    });
-    for (const [techId, want] of spaceshipPlan.technologyWants) {
-      state.techWants[techId] = (state.techWants[techId] ?? 0) + want;
-    }
-    const economicManager = game.turnManager?.getEconomicManager?.();
-    const gold =
-      (await economicManager?.getPlayerGold(playerId)) ?? game.players.get(playerId)?.gold ?? 0;
-    const goldReserve = calculateTreasuryReserve({
       cities,
-      unitCount: units.length,
-      atWar: relations.hostile.size > 0,
-      netGold: game.players.get(playerId)?.goldPerTurn ?? 0,
-    });
-    const foreignCityIds = new Set(
-      allKnownCities.filter(city => city.playerId !== playerId).map(city => city.playerId)
+      units.length,
+      relations.hostile.size > 0
     );
-    const diplomatTargetCities = targetableForeignCities(game, playerId, foreignCityIds, profile);
-    const inciteCosts = new Map<string, number>();
-    await Promise.all(
-      diplomatTargetCities.map(async city => {
-        inciteCosts.set(city.id, await calculateDiplomatInciteCost(game, city));
-      })
-    );
-    const stealableTechs = new Map(
-      diplomacySnapshot.nations.map(nation => [
-        nation.id,
-        [...(game.researchManager.getPlayerResearch(nation.id)?.researchedTechs ?? [])].filter(
-          tech => !knownTechs.has(tech)
-        ).length,
-      ])
+    const diplomat = await this.productionDiplomatData(
+      game,
+      playerId,
+      profile,
+      world.allKnownCities,
+      world.knownTechs,
+      diplomacySnapshot
     );
     const dangerByCity = await buildAuthoritativeCityDangerAssessments({
       game,
@@ -336,13 +427,7 @@ export class FreecivAICityController {
       friendlyUnits: units,
       profile,
     });
-    const reservedWonders = new Set(
-      cities
-        .flatMap(city => [city.currentProduction, ...(city.worklist ?? []).map(item => item.value)])
-        .filter((buildingId): buildingId is string =>
-          Boolean(buildingId && BUILDING_TYPES[buildingId]?.genus === 'GreatWonder')
-        )
-    );
+    const reservedWonders = this.reservedWonderIds(cities);
     const wonderPlan = planWonderCoordination({
       cities,
       units,
@@ -352,9 +437,7 @@ export class FreecivAICityController {
         canContinueProduction?.(cityId, 'unit', unitTypeId) ?? false,
       distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
     });
-    for (const [techId, want] of wonderPlan.technologyWants) {
-      state.techWants[techId] = (state.techWants[techId] ?? 0) + want;
-    }
+    this.mergeTechnologyWants(state, wonderPlan.technologyWants);
     return {
       cities,
       units,
@@ -366,17 +449,10 @@ export class FreecivAICityController {
       hostileUnits,
       prospectiveUnits,
       prospectiveCities,
-      allKnownCities,
-      allUnits,
-      mapTiles,
-      exploredTiles,
-      knownTechs,
+      ...world,
       spaceshipPlan,
-      gold,
-      goldReserve,
-      diplomatTargetCities,
-      inciteCosts,
-      stealableTechs,
+      ...economy,
+      ...diplomat,
       dangerByCity,
       reservedWonders,
       wonderPlan,
@@ -670,6 +746,55 @@ export class FreecivAICityController {
     }
   }
 
+  private async seedProductionWorklist(options: {
+    game: GameInstance;
+    playerId: string;
+    city: CityState;
+    ranked: AIChoice<ProductionChoice>[];
+    reservedWonders: Set<string>;
+  }): Promise<number> {
+    const { game, playerId, city, ranked, reservedWonders } = options;
+    const queued = ranked.slice(0, 2).map(choice => ({
+      kind:
+        BUILDING_TYPES[choice.value.id]?.genus === 'GreatWonder'
+          ? ('wonder' as const)
+          : choice.value.kind,
+      value: choice.value.id,
+    }));
+    if (queued.length === 0 || typeof game.cityManager.addToWorklist !== 'function') return 0;
+    const added = await game.cityManager.addToWorklist(city.id, queued, playerId);
+    if (added) {
+      for (const item of queued) {
+        if (BUILDING_TYPES[item.value]?.genus === 'GreatWonder') {
+          reservedWonders.add(item.value);
+        }
+      }
+    }
+    return Number(added);
+  }
+
+  private initialProductionChoice(
+    game: GameInstance,
+    city: CityState,
+    ranked: AIChoice<ProductionChoice>[],
+    expansionQueued: boolean
+  ): { type: 'unit' | 'building'; id: string; expansionQueued: boolean } {
+    const scored = ranked[0];
+    let type: 'unit' | 'building' = scored?.value.kind ?? 'unit';
+    let id = scored?.value.id ?? 'warriors';
+    if (!scored && (city.goldPerTurn ?? 0) < 0 && !city.buildings.includes('marketplace')) {
+      type = 'building';
+      id = 'marketplace';
+    } else if (!scored && !expansionQueued) {
+      id = 'settlers';
+    }
+    return {
+      type,
+      id,
+      expansionQueued: expansionQueued || Boolean(game.unitManager.getUnitType(id)?.canFoundCity),
+    };
+  }
+
   private async applyRankedCityProduction(options: {
     game: GameInstance;
     playerId: string;
@@ -680,7 +805,7 @@ export class FreecivAICityController {
     expansionQueued: boolean;
   }): Promise<{ actions: number; expansionQueued: boolean }> {
     const { game, playerId, city, ranked, profile, reservedWonders } = options;
-    let { expansionQueued } = options;
+    const { expansionQueued } = options;
     if (profile.handicaps.has('away') && city.currentProduction) {
       return { actions: 0, expansionQueued };
     }
@@ -689,38 +814,20 @@ export class FreecivAICityController {
       (city.worklist?.length ?? 0) === 0 &&
       typeof game.cityManager.addToWorklist === 'function'
     ) {
-      const queued = ranked.slice(0, 2).map(choice => ({
-        kind:
-          BUILDING_TYPES[choice.value.id]?.genus === 'GreatWonder'
-            ? ('wonder' as const)
-            : choice.value.kind,
-        value: choice.value.id,
-      }));
-      const added =
-        queued.length > 0 && (await game.cityManager.addToWorklist(city.id, queued, playerId));
-      if (added) {
-        for (const item of queued) {
-          if (BUILDING_TYPES[item.value]?.genus === 'GreatWonder') {
-            reservedWonders.add(item.value);
-          }
-        }
-      }
-      return { actions: Number(added), expansionQueued };
+      const actions = await this.seedProductionWorklist({
+        game,
+        playerId,
+        city,
+        ranked,
+        reservedWonders,
+      });
+      return { actions, expansionQueued };
     }
     if (city.currentProduction) return { actions: 0, expansionQueued };
-    const scored = ranked[0];
-    let type: 'unit' | 'building' = scored?.value.kind ?? 'unit';
-    let id = scored?.value.id ?? 'warriors';
-    if (!scored && (city.goldPerTurn ?? 0) < 0 && !city.buildings.includes('marketplace')) {
-      type = 'building';
-      id = 'marketplace';
-    } else if (!scored && !expansionQueued) {
-      id = 'settlers';
-    }
-    if (game.unitManager.getUnitType(id)?.canFoundCity) expansionQueued = true;
-    await game.cityManager.setCityProduction(city.id, type, id, playerId);
-    if (BUILDING_TYPES[id]?.genus === 'GreatWonder') reservedWonders.add(id);
-    return { actions: 1, expansionQueued };
+    const choice = this.initialProductionChoice(game, city, ranked, expansionQueued);
+    await game.cityManager.setCityProduction(city.id, choice.type, choice.id, playerId);
+    if (BUILDING_TYPES[choice.id]?.genus === 'GreatWonder') reservedWonders.add(choice.id);
+    return { actions: 1, expansionQueued: choice.expansionQueued };
   }
 
   async executeUnitActions(game: GameInstance, playerId: string): Promise<number> {
@@ -775,75 +882,97 @@ export class FreecivAICityController {
 
     let actions = 0;
     for (const assignment of plan.assignments) {
-      const unit = game.unitManager.getUnit(assignment.unit.id);
-      if (!unit) continue;
-      const task = {
-        role: 'caravan' as const,
-        targetId: assignment.targetCity.id,
-        targetX: assignment.targetCity.x,
-        targetY: assignment.targetCity.y,
-        assignedTurn:
-          state.unitTasks[unit.id]?.role === 'caravan'
-            ? state.unitTasks[unit.id]!.assignedTurn
-            : game.currentTurn,
-      };
-      state.unitTasks[unit.id] = task;
-      if (unit.transportedBy || unit.movementLeft <= 0) continue;
-      if (unit.x === assignment.targetCity.x && unit.y === assignment.targetCity.y) {
-        if (
-          plan.releaseHelpers &&
-          game.unitManager.canUnitPerformAction(unit.id, ActionType.HELP_WONDER, unit.x, unit.y)
-        ) {
-          const result = await game.unitManager.executeUnitAction(
-            unit.id,
-            ActionType.HELP_WONDER,
-            unit.x,
-            unit.y,
-            playerId
-          );
-          if (result.success) actions++;
-        }
-        continue;
-      }
-      const path = await game.pathfindingManager.findPath(
-        unit,
-        assignment.targetCity.x,
-        assignment.targetCity.y
+      actions += await this.executeWonderHelper(
+        game,
+        playerId,
+        state,
+        assignment,
+        plan.releaseHelpers
       );
-      if (!path.valid || path.path.length < 2) {
-        const source = game.mapManager.getTile(unit.x, unit.y);
-        const target = game.mapManager.getTile(assignment.targetCity.x, assignment.targetCity.y);
-        if (
-          source &&
-          target &&
-          source.continentId > 0 &&
-          target.continentId > 0 &&
-          source.continentId !== target.continentId
-        ) {
-          state.unitTasks[unit.id]!.transportRequired = true;
-        } else {
-          delete state.unitTasks[unit.id];
-        }
-        continue;
-      }
-      if (
-        game.unitManager.canUnitPerformAction(
-          unit.id,
-          ActionType.GOTO,
-          assignment.targetCity.x,
-          assignment.targetCity.y
-        )
-      ) {
-        const result = await game.unitManager.executeUnitAction(
-          unit.id,
-          ActionType.GOTO,
-          assignment.targetCity.x,
-          assignment.targetCity.y,
-          playerId
-        );
-        if (result.success) actions++;
-      }
     }
     return actions;
+  }
+
+  private async executeWonderHelper(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState,
+    assignment: WonderHelperAssignment,
+    releaseHelpers: boolean
+  ): Promise<number> {
+    const unit = game.unitManager.getUnit(assignment.unit.id);
+    if (!unit) return 0;
+    state.unitTasks[unit.id] = {
+      role: 'caravan',
+      targetId: assignment.targetCity.id,
+      targetX: assignment.targetCity.x,
+      targetY: assignment.targetCity.y,
+      assignedTurn:
+        state.unitTasks[unit.id]?.role === 'caravan'
+          ? state.unitTasks[unit.id]!.assignedTurn
+          : game.currentTurn,
+    };
+    if (unit.transportedBy || unit.movementLeft <= 0) return 0;
+    if (unit.x === assignment.targetCity.x && unit.y === assignment.targetCity.y) {
+      if (
+        !releaseHelpers ||
+        !game.unitManager.canUnitPerformAction(unit.id, ActionType.HELP_WONDER, unit.x, unit.y)
+      ) {
+        return 0;
+      }
+      const result = await game.unitManager.executeUnitAction(
+        unit.id,
+        ActionType.HELP_WONDER,
+        unit.x,
+        unit.y,
+        playerId
+      );
+      return Number(result.success);
+    }
+    const path = await game.pathfindingManager.findPath(
+      unit,
+      assignment.targetCity.x,
+      assignment.targetCity.y
+    );
+    if (!path.valid || path.path.length < 2) {
+      this.markWonderHelperTransport(game, state, unit, assignment);
+      return 0;
+    }
+    if (
+      !game.unitManager.canUnitPerformAction(
+        unit.id,
+        ActionType.GOTO,
+        assignment.targetCity.x,
+        assignment.targetCity.y
+      )
+    ) {
+      return 0;
+    }
+    const result = await game.unitManager.executeUnitAction(
+      unit.id,
+      ActionType.GOTO,
+      assignment.targetCity.x,
+      assignment.targetCity.y,
+      playerId
+    );
+    return Number(result.success);
+  }
+
+  private markWonderHelperTransport(
+    game: GameInstance,
+    state: FreecivAIState,
+    unit: Unit,
+    assignment: WonderHelperAssignment
+  ): void {
+    const source = game.mapManager.getTile(unit.x, unit.y);
+    const target = game.mapManager.getTile(assignment.targetCity.x, assignment.targetCity.y);
+    const overseas =
+      source &&
+      target &&
+      source.continentId > 0 &&
+      target.continentId > 0 &&
+      source.continentId !== target.continentId;
+    if (overseas) state.unitTasks[unit.id]!.transportRequired = true;
+    else delete state.unitTasks[unit.id];
   }
 }

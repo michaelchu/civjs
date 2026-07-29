@@ -31,6 +31,12 @@ interface GuardPlanningContext {
   profile: AIProfile;
 }
 
+interface GuardAssignmentState {
+  assignments: Record<string, AIUnitTask>;
+  assignedUnits: Set<string>;
+  guardedUnits: Set<string>;
+}
+
 function isGuardCandidate(unit: Unit, type: UnitType | undefined): type is UnitType {
   return Boolean(
     type &&
@@ -129,23 +135,17 @@ export function chooseGuardRendezvous(
   return { x: charge.x, y: charge.y };
 }
 
-/**
- * Assess city danger and keep or create persistent guard/charge assignments.
- *
- * Freeciv squares aggregate defense to give multiple defenders positive
- * feedback. We retain that shape while using CivJS's ruleset combat values.
- *
- * @reference reference/freeciv/ai/default/daimilitary.c:assess_defense_quadratic
- * @reference reference/freeciv/ai/default/daimilitary.c:assess_danger
- * @reference reference/freeciv/ai/default/daiguard.c
- */
-export function planCityGuards(context: GuardPlanningContext): GuardPlan {
-  const candidateUnits = context.friendlyUnits.filter(
-    unit =>
-      isGuardCandidate(unit, context.getType(unit.unitTypeId)) &&
-      !['recover', 'retreat'].includes(context.existingTasks[unit.id]?.role ?? '')
-  );
-  const assessments = context.cities.map(city =>
+function defenseRating(context: GuardPlanningContext, unit: Unit): number {
+  const type = context.getType(unit.unitTypeId);
+  if (!type) return 0;
+  return context.defenderStrength?.(unit, type) ?? unitDefenseRating(unit, type);
+}
+
+function assessCities(
+  context: GuardPlanningContext,
+  candidateUnits: Unit[]
+): CityDangerAssessment[] {
+  return context.cities.map(city =>
     assessCityDanger({
       city,
       friendlyUnits: candidateUnits,
@@ -168,16 +168,33 @@ export function planCityGuards(context: GuardPlanningContext): GuardPlan {
       },
     })
   );
+}
 
+function canPreserveEscort(
+  context: GuardPlanningContext,
+  guard: Unit,
+  charge: Unit,
+  guardedUnits: Set<string>
+): boolean {
+  const guardType = context.getType(guard.unitTypeId);
+  const chargeType = context.getType(charge.unitTypeId);
+  return Boolean(
+    guardType &&
+      chargeType &&
+      !guardedUnits.has(charge.id) &&
+      chargeNeedsGuard(charge, context, chargeType) &&
+      canGuardUnit(guardType, chargeType)
+  );
+}
+
+function preserveGuardAssignments(
+  context: GuardPlanningContext,
+  candidateUnits: Unit[],
+  state: GuardAssignmentState
+): void {
   const cityById = new Map(context.cities.map(city => [city.id, city]));
   const friendlyUnitById = new Map(context.friendlyUnits.map(unit => [unit.id, unit]));
   const unitById = new Map(candidateUnits.map(unit => [unit.id, unit]));
-  const assignments: Record<string, AIUnitTask> = {};
-  const assignedUnits = new Set<string>();
-  const guardedUnits = new Set<string>();
-
-  // Preserve sane assignments so guards do not recalculate their charge every
-  // turn. Destroyed/captured charges and transformed units are dismissed.
   for (const [unitId, task] of Object.entries(context.existingTasks)) {
     if (task.role !== 'guard' && task.role !== 'defend') continue;
     const unit = unitById.get(unitId);
@@ -185,24 +202,86 @@ export function planCityGuards(context: GuardPlanningContext): GuardPlan {
     const charge =
       task.role === 'guard' && task.targetId ? friendlyUnitById.get(task.targetId) : undefined;
     if (!unit || (!city && !charge)) continue;
-    if (charge) {
-      const guardType = context.getType(unit.unitTypeId);
-      const chargeType = context.getType(charge.unitTypeId);
-      if (
-        !guardType ||
-        !chargeType ||
-        guardedUnits.has(charge.id) ||
-        !chargeNeedsGuard(charge, context, chargeType) ||
-        !canGuardUnit(guardType, chargeType)
-      ) {
-        continue;
-      }
-      guardedUnits.add(charge.id);
-    }
-    assignments[unitId] = task;
-    assignedUnits.add(unitId);
+    if (charge && !canPreserveEscort(context, unit, charge, state.guardedUnits)) continue;
+    if (charge) state.guardedUnits.add(charge.id);
+    state.assignments[unitId] = task;
+    state.assignedUnits.add(unitId);
   }
+}
 
+function assignRequiredDefenders(
+  context: GuardPlanningContext,
+  assessment: CityDangerAssessment,
+  candidateUnits: Unit[],
+  state: GuardAssignmentState
+): void {
+  let plannedDefense = candidateUnits
+    .filter(unit => state.assignments[unit.id]?.targetId === assessment.city.id)
+    .reduce((sum, unit) => sum + defenseRating(context, unit), 0);
+  const neededDefense = Math.sqrt(assessment.danger);
+  while (plannedDefense < neededDefense) {
+    const guard = candidateUnits
+      .filter(unit => !state.assignedUnits.has(unit.id))
+      .map(unit => ({
+        unit,
+        rating: defenseRating(context, unit),
+        travel: context.distance(unit.x, unit.y, assessment.city.x, assessment.city.y),
+      }))
+      .sort(
+        (a, b) => a.travel - b.travel || b.rating - a.rating || a.unit.id.localeCompare(b.unit.id)
+      )[0];
+    if (!guard) break;
+    const stationed = guard.unit.x === assessment.city.x && guard.unit.y === assessment.city.y;
+    state.assignments[guard.unit.id] = {
+      role: stationed ? 'defend' : 'guard',
+      targetId: assessment.city.id,
+      targetX: assessment.city.x,
+      targetY: assessment.city.y,
+      assignedTurn: context.turn,
+    };
+    state.assignedUnits.add(guard.unit.id);
+    plannedDefense += guard.rating;
+  }
+}
+
+function assignBaselineDefender(
+  context: GuardPlanningContext,
+  assessment: CityDangerAssessment,
+  candidateUnits: Unit[],
+  state: GuardAssignmentState
+): void {
+  if (candidateUnits.some(unit => state.assignments[unit.id]?.targetId === assessment.city.id)) {
+    return;
+  }
+  const defender = candidateUnits
+    .filter(
+      unit =>
+        unit.x === assessment.city.x &&
+        unit.y === assessment.city.y &&
+        !state.assignedUnits.has(unit.id)
+    )
+    .sort(
+      (left, right) =>
+        defenseRating(context, right) - defenseRating(context, left) ||
+        left.id.localeCompare(right.id)
+    )[0];
+  if (!defender) return;
+  state.assignments[defender.id] = {
+    role: 'defend',
+    targetId: assessment.city.id,
+    targetX: assessment.city.x,
+    targetY: assessment.city.y,
+    assignedTurn: context.turn,
+  };
+  state.assignedUnits.add(defender.id);
+}
+
+function assignCityDefenders(
+  context: GuardPlanningContext,
+  assessments: CityDangerAssessment[],
+  candidateUnits: Unit[],
+  state: GuardAssignmentState
+): void {
   const orderedCities = assessments
     .slice()
     .sort(
@@ -212,84 +291,61 @@ export function planCityGuards(context: GuardPlanningContext): GuardPlan {
         a.city.id.localeCompare(b.city.id)
     );
   for (const assessment of orderedCities) {
-    let plannedDefense = candidateUnits
-      .filter(unit => assignments[unit.id]?.targetId === assessment.city.id)
-      .reduce((sum, unit) => {
-        const type = context.getType(unit.unitTypeId);
-        return type
-          ? sum + (context.defenderStrength?.(unit, type) ?? unitDefenseRating(unit, type))
-          : sum;
-      }, 0);
-    const neededLinearDefense = Math.sqrt(assessment.danger);
-
-    while (plannedDefense < neededLinearDefense) {
-      const guard = candidateUnits
-        .filter(unit => !assignedUnits.has(unit.id))
-        .map(unit => {
-          const type = context.getType(unit.unitTypeId)!;
-          const travel = context.distance(unit.x, unit.y, assessment.city.x, assessment.city.y);
-          return {
-            unit,
-            rating: context.defenderStrength?.(unit, type) ?? unitDefenseRating(unit, type),
-            travel,
-          };
-        })
-        .sort(
-          (a, b) => a.travel - b.travel || b.rating - a.rating || a.unit.id.localeCompare(b.unit.id)
-        )[0];
-      if (!guard) break;
-      const stationed = guard.unit.x === assessment.city.x && guard.unit.y === assessment.city.y;
-      assignments[guard.unit.id] = {
-        role: stationed ? 'defend' : 'guard',
-        targetId: assessment.city.id,
-        targetX: assessment.city.x,
-        targetY: assessment.city.y,
-        assignedTurn: context.turn,
-      };
-      assignedUnits.add(guard.unit.id);
-      plannedDefense += guard.rating;
-    }
-
-    // Keep one baseline defender when danger did not already retain one.
-    // Surplus stationed defenders remain available as escorts.
-    const hasAssignedCityDefender = candidateUnits.some(
-      unit => assignments[unit.id]?.targetId === assessment.city.id
-    );
-    const baselineDefender = hasAssignedCityDefender
-      ? undefined
-      : candidateUnits
-          .filter(
-            unit =>
-              unit.x === assessment.city.x &&
-              unit.y === assessment.city.y &&
-              !assignedUnits.has(unit.id)
-          )
-          .sort((left, right) => {
-            const leftType = context.getType(left.unitTypeId)!;
-            const rightType = context.getType(right.unitTypeId)!;
-            const leftRating =
-              context.defenderStrength?.(left, leftType) ?? unitDefenseRating(left, leftType);
-            const rightRating =
-              context.defenderStrength?.(right, rightType) ?? unitDefenseRating(right, rightType);
-            return rightRating - leftRating || left.id.localeCompare(right.id);
-          })[0];
-    if (baselineDefender) {
-      const defender = baselineDefender;
-      assignments[defender.id] = {
-        role: 'defend',
-        targetId: assessment.city.id,
-        targetX: assessment.city.x,
-        targetY: assessment.city.y,
-        assignedTurn: context.turn,
-      };
-      assignedUnits.add(defender.id);
-    }
+    assignRequiredDefenders(context, assessment, candidateUnits, state);
+    assignBaselineDefender(context, assessment, candidateUnits, state);
   }
+}
 
+function rankEscortCandidates(
+  context: GuardPlanningContext,
+  charge: Unit,
+  candidateUnits: Unit[],
+  assignedUnits: Set<string>
+) {
+  const chargeType = context.getType(charge.unitTypeId)!;
+  const chargeDefense = defenseRating(context, charge);
+  return candidateUnits
+    .filter(unit => {
+      const type = context.getType(unit.unitTypeId)!;
+      return (
+        !assignedUnits.has(unit.id) &&
+        unit.id !== charge.id &&
+        type.roles?.includes('DefendGood') &&
+        canGuardUnit(type, chargeType)
+      );
+    })
+    .map(unit => {
+      const type = context.getType(unit.unitTypeId)!;
+      const travel = context.distance(unit.x, unit.y, charge.x, charge.y);
+      const strength = defenseRating(context, unit);
+      return {
+        unit,
+        travel,
+        movement: type.movement,
+        want:
+          ((strength ** 2 - chargeDefense ** 2) * 100) /
+          Math.max(1, strength ** 2) /
+          Math.pow(2, Math.floor(travel / Math.max(1, type.movement * 2))),
+      };
+    })
+    .filter(candidate => candidate.travel <= 3 * Math.max(1, candidate.movement))
+    .sort(
+      (left, right) =>
+        right.want - left.want ||
+        left.travel - right.travel ||
+        left.unit.id.localeCompare(right.unit.id)
+    );
+}
+
+function assignEscorts(
+  context: GuardPlanningContext,
+  candidateUnits: Unit[],
+  state: GuardAssignmentState
+): void {
   const charges = context.friendlyUnits
     .filter(charge => {
       const type = context.getType(charge.unitTypeId);
-      return type && chargeNeedsGuard(charge, context, type) && !guardedUnits.has(charge.id);
+      return type && chargeNeedsGuard(charge, context, type) && !state.guardedUnits.has(charge.id);
     })
     .sort((left, right) => {
       const priority = (unit: Unit) =>
@@ -297,51 +353,46 @@ export function planCityGuards(context: GuardPlanningContext): GuardPlan {
       return priority(left) - priority(right) || left.id.localeCompare(right.id);
     });
   for (const charge of charges) {
-    const chargeType = context.getType(charge.unitTypeId)!;
-    const chargeDefense =
-      context.defenderStrength?.(charge, chargeType) ?? unitDefenseRating(charge, chargeType);
-    const guard = candidateUnits
-      .filter(unit => {
-        const type = context.getType(unit.unitTypeId)!;
-        return (
-          !assignedUnits.has(unit.id) &&
-          unit.id !== charge.id &&
-          type.roles?.includes('DefendGood') &&
-          canGuardUnit(type, chargeType)
-        );
-      })
-      .map(unit => {
-        const type = context.getType(unit.unitTypeId)!;
-        const travel = context.distance(unit.x, unit.y, charge.x, charge.y);
-        const strength = context.defenderStrength?.(unit, type) ?? unitDefenseRating(unit, type);
-        return {
-          unit,
-          travel,
-          movement: type.movement,
-          want:
-            ((strength ** 2 - chargeDefense ** 2) * 100) /
-            Math.max(1, strength ** 2) /
-            Math.pow(2, Math.floor(travel / Math.max(1, type.movement * 2))),
-        };
-      })
-      .filter(candidate => candidate.travel <= 3 * Math.max(1, candidate.movement))
-      .sort(
-        (left, right) =>
-          right.want - left.want ||
-          left.travel - right.travel ||
-          left.unit.id.localeCompare(right.unit.id)
-      )[0];
+    const guard = rankEscortCandidates(context, charge, candidateUnits, state.assignedUnits)[0];
     if (!guard || guard.want <= 0) continue;
-    assignments[guard.unit.id] = {
+    state.assignments[guard.unit.id] = {
       role: 'guard',
       targetId: charge.id,
       targetX: charge.x,
       targetY: charge.y,
       assignedTurn: context.turn,
     };
-    assignedUnits.add(guard.unit.id);
-    guardedUnits.add(charge.id);
+    state.assignedUnits.add(guard.unit.id);
+    state.guardedUnits.add(charge.id);
   }
+}
 
-  return { assessments, assignments };
+/**
+ * Assess city danger and keep or create persistent guard/charge assignments.
+ *
+ * Freeciv squares aggregate defense to give multiple defenders positive
+ * feedback. We retain that shape while using CivJS's ruleset combat values.
+ *
+ * @reference reference/freeciv/ai/default/daimilitary.c:assess_defense_quadratic
+ * @reference reference/freeciv/ai/default/daimilitary.c:assess_danger
+ * @reference reference/freeciv/ai/default/daiguard.c
+ */
+export function planCityGuards(context: GuardPlanningContext): GuardPlan {
+  const candidateUnits = context.friendlyUnits.filter(
+    unit =>
+      isGuardCandidate(unit, context.getType(unit.unitTypeId)) &&
+      !['recover', 'retreat'].includes(context.existingTasks[unit.id]?.role ?? '')
+  );
+  const assessments = assessCities(context, candidateUnits);
+  const state: GuardAssignmentState = {
+    assignments: {},
+    assignedUnits: new Set(),
+    guardedUnits: new Set(),
+  };
+  preserveGuardAssignments(context, candidateUnits, state);
+
+  assignCityDefenders(context, assessments, candidateUnits, state);
+
+  assignEscorts(context, candidateUnits, state);
+  return { assessments, assignments: state.assignments };
 }

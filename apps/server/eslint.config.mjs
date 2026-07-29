@@ -61,23 +61,22 @@ export default tseslint.config(
       'max-depth': ['warn', 5],
     },
   },
-  // AI planners are branch-heavy scoring algorithms. Keep their threshold
-  // explicit and materially below the former 78+ complexity hotspots.
+  // AI planners contain formula-heavy scoring code, where nullish fallbacks
+  // count as branches. Match the ceiling used by other algorithmic modules.
   {
     files: ['src/game/ai/**/*Planner.ts'],
     rules: {
-      complexity: ['warn', 25],
-      'max-depth': ['warn', 5],
+      complexity: ['warn', 20],
+      'max-depth': ['warn', 4],
     },
   },
-  // Controllers coordinate several already-tested planners and authoritative
-  // actions. Keep a separate ceiling while continuing to flag monolithic
-  // orchestration methods above it.
+  // Controllers should remain thin orchestration around planners and
+  // authoritative actions, with tighter limits than algorithmic code.
   {
     files: ['src/game/ai/**/*Controller.ts'],
     rules: {
-      complexity: ['warn', 30],
-      'max-depth': ['warn', 5],
+      complexity: ['warn', 15],
+      'max-depth': ['warn', 4],
     },
   },
   // Disable complexity rules for tests to reduce noise

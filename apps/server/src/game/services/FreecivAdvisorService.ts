@@ -50,6 +50,40 @@ export interface AdvisorRecommendations {
   }>;
 }
 
+function governmentTechnologyIds(game: GameInstance): Set<string> {
+  const technologyIds = new Set<string>();
+  for (const government of Object.values(game.governmentManager?.getAllGovernments?.() ?? {})) {
+    for (const requirement of government.reqs ?? []) {
+      if (requirement.type.toLowerCase() === 'tech') technologyIds.add(requirement.name);
+    }
+  }
+  return technologyIds;
+}
+
+function advisorSpaceshipPlan(game: GameInstance, playerId: string) {
+  return planSpaceship({
+    enabled: (game.config?.victoryConditions ?? []).some(condition =>
+      ['science', 'spaceship'].includes(condition)
+    ),
+    playerId,
+    citiesByPlayer: new Map(
+      [...game.players.keys()].map(candidateId => [
+        candidateId,
+        game.cityManager.getPlayerCities(candidateId),
+      ])
+    ),
+    technologyCount: candidateId =>
+      game.researchManager.getPlayerResearch(candidateId)?.researchedTechs.size ?? 0,
+    spaceshipState: candidateId => game.players.get(candidateId)?.spaceshipState,
+  });
+}
+
+function storedTechnologyWants(isAI: boolean, aiState: unknown): Record<string, number> {
+  if (!isAI || !aiState || typeof aiState !== 'object') return {};
+  const techWants = (aiState as { techWants?: unknown }).techWants;
+  return techWants && typeof techWants === 'object' ? (techWants as Record<string, number>) : {};
+}
+
 /**
  * Read-only shared advisor facade. Human clients and AI execution consume the
  * same native ranking functions; requesting advice never mutates game state.
@@ -75,27 +109,7 @@ export class FreecivAdvisorService {
     const cities = game.cityManager.getPlayerCities(playerId);
     const research = game.researchManager.getPlayerResearch(playerId);
     const knownTechs = new Set(research?.researchedTechs ?? []);
-    const spaceshipPlan = planSpaceship({
-      enabled: (game.config?.victoryConditions ?? []).some(condition =>
-        ['science', 'spaceship'].includes(condition)
-      ),
-      playerId,
-      citiesByPlayer: new Map(
-        [...game.players.keys()].map(candidateId => [
-          candidateId,
-          game.cityManager.getPlayerCities(candidateId),
-        ])
-      ),
-      technologyCount: candidateId =>
-        game.researchManager.getPlayerResearch(candidateId)?.researchedTechs.size ?? 0,
-      spaceshipState: candidateId => game.players.get(candidateId)?.spaceshipState,
-    });
-    const governmentTechs = new Set<string>();
-    for (const government of Object.values(game.governmentManager?.getAllGovernments?.() ?? {})) {
-      for (const requirement of government.reqs ?? []) {
-        if (requirement.type.toLowerCase() === 'tech') governmentTechs.add(requirement.name);
-      }
-    }
+    const spaceshipPlan = advisorSpaceshipPlan(game, playerId);
     const dangerByCity = await buildAuthoritativeCityDangerAssessments({
       game,
       cities,
@@ -139,17 +153,13 @@ export class FreecivAdvisorService {
       catalogue,
       unitTypes: UNIT_TYPES,
       buildingTypes: BUILDING_TYPES,
-      governmentTechs,
+      governmentTechs: governmentTechnologyIds(game),
       militaryPressure: relations.hostile.size,
       cityCount: cities.length,
       profile,
       researchedTechs: knownTechs,
       strategicTechWants: new Map([
-        ...Object.entries(
-          player.isAI && player.aiState && typeof player.aiState.techWants === 'object'
-            ? (player.aiState.techWants as Record<string, number>)
-            : {}
-        ),
+        ...Object.entries(storedTechnologyWants(Boolean(player.isAI), player.aiState)),
         ...spaceshipPlan.technologyWants,
       ]),
     })

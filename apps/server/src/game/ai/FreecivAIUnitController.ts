@@ -7,7 +7,7 @@ import { rankCitySites } from '@game/ai/FreecivAIPlanner';
 import { createAIDecisionSource } from '@game/ai/FreecivAIDecisionSource';
 import { createAIProfile } from '@game/ai/FreecivAIProfile';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
-import type { FreecivAIState } from '@game/ai/FreecivAIStateStore';
+import type { AIUnitTask, FreecivAIState } from '@game/ai/FreecivAIStateStore';
 import { chooseGuardRendezvous, planCityGuards } from '@game/ai/FreecivAIGuardPlanner';
 import { planHunterMissileLaunches, planHunters } from '@game/ai/FreecivAIHunterPlanner';
 import {
@@ -34,7 +34,7 @@ import {
   buildCityThreatTravelTimes,
   cityThreatTravelKey,
 } from '@game/ai/FreecivAICityDangerPlanner';
-import { GAME_DEFAULT_CITYMINDIST } from '@game/managers/CityManager';
+import { GAME_DEFAULT_CITYMINDIST, type CityState } from '@game/managers/CityManager';
 
 function unitAttack(type: UnitType): number {
   return type.attack ?? type.combat ?? 0;
@@ -105,6 +105,162 @@ function isAvailableExplorer(
 export class FreecivAIUnitController {
   constructor(private readonly hostilityPolicy: DiplomacyHostilityPolicy) {}
 
+  private reservedSettlerSites(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState,
+    settlers: Unit[]
+  ): Map<string, string> {
+    const sites = new Map<string, string>();
+    for (const settler of settlers) {
+      const task = state.unitTasks[settler.id];
+      const valid =
+        task?.role === 'settle' &&
+        task.targetX !== undefined &&
+        task.targetY !== undefined &&
+        (typeof game.cityManager.canFoundCityAt !== 'function' ||
+          game.cityManager.canFoundCityAt(task.targetX, task.targetY, playerId));
+      if (!valid) continue;
+      const key = `${task.targetX},${task.targetY}`;
+      if (!sites.has(key)) sites.set(key, settler.id);
+    }
+    return sites;
+  }
+
+  private async foundAssignedCity(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState,
+    unit: Unit,
+    reservedSites: Map<string, string>
+  ): Promise<number | undefined> {
+    const task = state.unitTasks[unit.id];
+    const reached = task?.role === 'settle' && task.targetX === unit.x && task.targetY === unit.y;
+    if (!reached || !game.unitManager.canUnitPerformAction(unit.id, ActionType.FOUND_CITY)) {
+      return undefined;
+    }
+    const result = await game.unitManager.executeUnitAction(
+      unit.id,
+      ActionType.FOUND_CITY,
+      undefined,
+      undefined,
+      playerId
+    );
+    if (!result.success) return 0;
+    delete state.unitTasks[unit.id];
+    this.releaseSettlerReservation(reservedSites, unit.id);
+    return 1;
+  }
+
+  private releaseSettlerReservation(reservedSites: Map<string, string>, unitId: string): void {
+    for (const [key, ownerId] of reservedSites) {
+      if (ownerId === unitId) reservedSites.delete(key);
+    }
+  }
+
+  private rankSettlerCandidates(
+    game: GameInstance,
+    unit: Unit,
+    cities: ReturnType<GameInstance['cityManager']['getAllCities']>,
+    hostileUnits: Unit[],
+    reservedSites: Map<string, string>,
+    existingTask: AIUnitTask | undefined,
+    expansionWeight: number
+  ) {
+    const map = game.mapManager.getMapData()!;
+    return rankCitySites(
+      map.tiles
+        .flat()
+        .filter(tile => game.cityManager.canFoundCityAt!(tile.x, tile.y, unit.playerId)),
+      (x, y) => game.mapManager.getNeighbors(x, y),
+      terrain => rulesetLoader.getTerrain(terrain),
+      tile => game.mapManager.getDistance(unit.x, unit.y, tile.x, tile.y),
+      tile =>
+        cities.length === 0
+          ? Number.MAX_SAFE_INTEGER
+          : Math.min(
+              ...cities.map(city => game.mapManager.getDistance(city.x, city.y, tile.x, tile.y))
+            ),
+      tile =>
+        hostileUnits.reduce((sum, enemy) => {
+          const distance = game.mapManager.getDistance(tile.x, tile.y, enemy.x, enemy.y);
+          return distance <= 3 ? sum + 1 / Math.max(1, distance) : sum;
+        }, 0),
+      expansionWeight
+    )
+      .filter(candidate =>
+        [...reservedSites].every(([key, ownerId]) => {
+          if (ownerId === unit.id) return true;
+          const [reservedX, reservedY] = key.split(',').map(Number);
+          return (
+            game.mapManager.getDistance(
+              candidate.tile.x,
+              candidate.tile.y,
+              reservedX!,
+              reservedY!
+            ) >= GAME_DEFAULT_CITYMINDIST
+          );
+        })
+      )
+      .sort((left, right) => {
+        const isExisting = (x: number, y: number) =>
+          existingTask?.role === 'settle' &&
+          existingTask.targetX === x &&
+          existingTask.targetY === y;
+        return (
+          Number(isExisting(right.tile.x, right.tile.y)) -
+          Number(isExisting(left.tile.x, left.tile.y))
+        );
+      })
+      .slice(0, 24);
+  }
+
+  private async trySettlerCandidate(
+    game: GameInstance,
+    unit: Unit,
+    state: FreecivAIState,
+    reservedSites: Map<string, string>,
+    candidate: ReturnType<typeof rankCitySites>[number]
+  ): Promise<boolean> {
+    const isCurrentTile = candidate.tile.x === unit.x && candidate.tile.y === unit.y;
+    if (!isCurrentTile) {
+      const path = await game.pathfindingManager.findPath(unit, candidate.tile.x, candidate.tile.y);
+      if (!path.valid || path.path.length < 2) return false;
+    }
+    this.releaseSettlerReservation(reservedSites, unit.id);
+    const key = `${candidate.tile.x},${candidate.tile.y}`;
+    reservedSites.set(key, unit.id);
+    state.unitTasks[unit.id] = {
+      role: 'settle',
+      targetX: candidate.tile.x,
+      targetY: candidate.tile.y,
+      assignedTurn: game.currentTurn,
+    };
+    const action = isCurrentTile ? ActionType.FOUND_CITY : ActionType.GOTO;
+    if (isCurrentTile && !game.unitManager.canUnitPerformAction(unit.id, ActionType.FOUND_CITY)) {
+      reservedSites.delete(key);
+      delete state.unitTasks[unit.id];
+      return false;
+    }
+    const result = await game.unitManager.executeUnitAction(
+      unit.id,
+      action,
+      isCurrentTile ? undefined : candidate.tile.x,
+      isCurrentTile ? undefined : candidate.tile.y,
+      unit.playerId
+    );
+    if (result.success) {
+      if (isCurrentTile) {
+        reservedSites.delete(key);
+        delete state.unitTasks[unit.id];
+      }
+      return true;
+    }
+    reservedSites.delete(key);
+    delete state.unitTasks[unit.id];
+    return false;
+  }
+
   async foundReadyCities(
     game: GameInstance,
     playerId: string,
@@ -117,44 +273,12 @@ export class FreecivAIUnitController {
         !unit.transportedBy &&
         game.unitManager.getUnitType(unit.unitTypeId)?.canFoundCity
     );
-    const reservedSites = new Map<string, string>();
-    for (const settler of settlers) {
-      const task = state.unitTasks[settler.id];
-      if (
-        task?.role !== 'settle' ||
-        task.targetX === undefined ||
-        task.targetY === undefined ||
-        (typeof game.cityManager.canFoundCityAt === 'function' &&
-          !game.cityManager.canFoundCityAt(task.targetX, task.targetY, playerId))
-      ) {
-        continue;
-      }
-      const key = `${task.targetX},${task.targetY}`;
-      if (!reservedSites.has(key)) reservedSites.set(key, settler.id);
-    }
+    const reservedSites = this.reservedSettlerSites(game, playerId, state, settlers);
 
     for (const unit of settlers) {
-      const task = state.unitTasks[unit.id];
-      const reachedAssignedSite =
-        task?.role === 'settle' && task.targetX === unit.x && task.targetY === unit.y;
-      if (
-        reachedAssignedSite &&
-        game.unitManager.canUnitPerformAction(unit.id, ActionType.FOUND_CITY)
-      ) {
-        const result = await game.unitManager.executeUnitAction(
-          unit.id,
-          ActionType.FOUND_CITY,
-          undefined,
-          undefined,
-          playerId
-        );
-        if (result.success) {
-          actions++;
-          delete state.unitTasks[unit.id];
-          for (const [key, ownerId] of reservedSites) {
-            if (ownerId === unit.id) reservedSites.delete(key);
-          }
-        }
+      const founded = await this.foundAssignedCity(game, playerId, state, unit, reservedSites);
+      if (founded !== undefined) {
+        actions += founded;
         continue;
       }
       actions += await this.moveSettlerTowardBestSite(game, unit, state, reservedSites);
@@ -182,109 +306,19 @@ export class FreecivAIUnitController {
     const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, unit.playerId);
     const hostileUnits = hostileUnitsForPlanning(game, unit.playerId, hostileIds, profile);
     const existingTask = state.unitTasks[unit.id];
-    const candidates = rankCitySites(
-      map.tiles
-        .flat()
-        .filter(tile => game.cityManager.canFoundCityAt(tile.x, tile.y, unit.playerId)),
-      (x, y) => game.mapManager.getNeighbors(x, y),
-      terrain => rulesetLoader.getTerrain(terrain),
-      tile => game.mapManager.getDistance(unit.x, unit.y, tile.x, tile.y),
-      tile =>
-        cities.length === 0
-          ? Number.MAX_SAFE_INTEGER
-          : Math.min(
-              ...cities.map(city => game.mapManager.getDistance(city.x, city.y, tile.x, tile.y))
-            ),
-      tile =>
-        hostileUnits.reduce((sum, enemy) => {
-          const distance = game.mapManager.getDistance(tile.x, tile.y, enemy.x, enemy.y);
-          return distance <= 3 ? sum + 1 / Math.max(1, distance) : sum;
-        }, 0),
+    const candidates = this.rankSettlerCandidates(
+      game,
+      unit,
+      cities,
+      hostileUnits,
+      reservedSites,
+      existingTask,
       (profile.expansion / 100) * (profile.traits.expansionist / 50)
-    )
-      .filter(candidate =>
-        [...reservedSites].every(([key, ownerId]) => {
-          if (ownerId === unit.id) return true;
-          const [reservedX, reservedY] = key.split(',').map(Number);
-          return (
-            game.mapManager.getDistance(
-              candidate.tile.x,
-              candidate.tile.y,
-              reservedX!,
-              reservedY!
-            ) >= GAME_DEFAULT_CITYMINDIST
-          );
-        })
-      )
-      .sort((left, right) => {
-        const leftExisting =
-          existingTask?.role === 'settle' &&
-          existingTask.targetX === left.tile.x &&
-          existingTask.targetY === left.tile.y;
-        const rightExisting =
-          existingTask?.role === 'settle' &&
-          existingTask.targetX === right.tile.x &&
-          existingTask.targetY === right.tile.y;
-        return Number(rightExisting) - Number(leftExisting);
-      })
-      .slice(0, 24);
+    );
     for (const candidate of candidates) {
-      const isCurrentTile = candidate.tile.x === unit.x && candidate.tile.y === unit.y;
-      if (!isCurrentTile) {
-        const path = await game.pathfindingManager.findPath(
-          unit,
-          candidate.tile.x,
-          candidate.tile.y
-        );
-        if (!path.valid || path.path.length < 2) continue;
-      }
-      for (const [key, ownerId] of reservedSites) {
-        if (ownerId === unit.id) reservedSites.delete(key);
-      }
-      const key = `${candidate.tile.x},${candidate.tile.y}`;
-      reservedSites.set(key, unit.id);
-      state.unitTasks[unit.id] = {
-        role: 'settle',
-        targetX: candidate.tile.x,
-        targetY: candidate.tile.y,
-        assignedTurn: game.currentTurn,
-      };
-      if (isCurrentTile) {
-        if (!game.unitManager.canUnitPerformAction(unit.id, ActionType.FOUND_CITY)) {
-          reservedSites.delete(key);
-          delete state.unitTasks[unit.id];
-          continue;
-        }
-        const result = await game.unitManager.executeUnitAction(
-          unit.id,
-          ActionType.FOUND_CITY,
-          undefined,
-          undefined,
-          unit.playerId
-        );
-        if (result.success) {
-          reservedSites.delete(key);
-          delete state.unitTasks[unit.id];
-          return 1;
-        }
-        reservedSites.delete(key);
-        delete state.unitTasks[unit.id];
-        continue;
-      }
-      const result = await game.unitManager.executeUnitAction(
-        unit.id,
-        ActionType.GOTO,
-        candidate.tile.x,
-        candidate.tile.y,
-        unit.playerId
-      );
-      if (result.success) return 1;
-      reservedSites.delete(key);
-      delete state.unitTasks[unit.id];
+      if (await this.trySettlerCandidate(game, unit, state, reservedSites, candidate)) return 1;
     }
-    for (const [key, ownerId] of reservedSites) {
-      if (ownerId === unit.id) reservedSites.delete(key);
-    }
+    this.releaseSettlerReservation(reservedSites, unit.id);
     if (state.unitTasks[unit.id]?.role === 'settle') delete state.unitTasks[unit.id];
     return 0;
   }
@@ -748,61 +782,101 @@ export class FreecivAIUnitController {
       }
     }
     Object.assign(state.unitTasks, plan.assignments);
+    return this.executeGuardAssignments(game, playerId, state, plan.assignments, profile);
+  }
 
+  private async executeGuardAssignments(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState,
+    assignments: Record<string, AIUnitTask>,
+    profile: ReturnType<typeof createAIProfile>
+  ): Promise<number> {
     let actions = 0;
-    for (const [unitId, task] of Object.entries(plan.assignments).sort(([a], [b]) =>
+    for (const [unitId, task] of Object.entries(assignments).sort(([a], [b]) =>
       a.localeCompare(b)
     )) {
-      const unit = game.unitManager.getUnit(unitId);
-      const city = task.targetId ? game.cityManager.getCity?.(task.targetId) : undefined;
-      const charge = task.targetId ? game.unitManager.getUnit(task.targetId) : undefined;
-      if (!unit || (!city && !charge) || unit.movementLeft <= 0) continue;
-      if (profile.handicaps.has('away') && (unit.fortified || unit.sentryUntil !== undefined)) {
-        continue;
-      }
-      const destination = city
-        ? { x: city.x, y: city.y }
-        : chooseGuardRendezvous(
-            unit,
-            charge!,
-            state.unitTasks[charge!.id],
-            unitTypeId => game.unitManager.getUnitType(unitTypeId),
-            (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY)
-          );
-      if (unit.x === destination.x && unit.y === destination.y) {
-        if (!city) continue;
-        if (!unit.fortified && game.unitManager.canUnitPerformAction(unit.id, ActionType.FORTIFY)) {
-          const result = await game.unitManager.executeUnitAction(
-            unit.id,
-            ActionType.FORTIFY,
-            undefined,
-            undefined,
-            playerId
-          );
-          if (result.success) actions++;
-        }
-        continue;
-      }
+      actions += await this.executeGuardAssignment(
+        game,
+        playerId,
+        state,
+        unitId,
+        task,
+        profile.handicaps.has('away')
+      );
+    }
+    return actions;
+  }
+
+  private guardDestination(
+    game: GameInstance,
+    state: FreecivAIState,
+    unit: Unit,
+    task: AIUnitTask
+  ): { city?: CityState; destination: { x: number; y: number } } | undefined {
+    const city = task.targetId ? game.cityManager.getCity?.(task.targetId) : undefined;
+    const charge = task.targetId ? game.unitManager.getUnit(task.targetId) : undefined;
+    if (!city && !charge) return undefined;
+    const destination = city
+      ? { x: city.x, y: city.y }
+      : chooseGuardRendezvous(
+          unit,
+          charge!,
+          state.unitTasks[charge!.id],
+          unitTypeId => game.unitManager.getUnitType(unitTypeId),
+          (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY)
+        );
+    return { city, destination };
+  }
+
+  private async executeGuardAssignment(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState,
+    unitId: string,
+    task: AIUnitTask,
+    preserveInactive: boolean
+  ): Promise<number> {
+    const unit = game.unitManager.getUnit(unitId);
+    if (!unit || unit.movementLeft <= 0) return 0;
+    if (preserveInactive && (unit.fortified || unit.sentryUntil !== undefined)) return 0;
+    const target = this.guardDestination(game, state, unit, task);
+    if (!target) return 0;
+    if (unit.x === target.destination.x && unit.y === target.destination.y) {
       if (
-        !game.unitManager.canUnitPerformAction(
-          unit.id,
-          ActionType.GOTO,
-          destination.x,
-          destination.y
-        )
+        !target.city ||
+        unit.fortified ||
+        !game.unitManager.canUnitPerformAction(unit.id, ActionType.FORTIFY)
       ) {
-        continue;
+        return 0;
       }
       const result = await game.unitManager.executeUnitAction(
         unit.id,
-        ActionType.GOTO,
-        destination.x,
-        destination.y,
+        ActionType.FORTIFY,
+        undefined,
+        undefined,
         playerId
       );
-      if (result.success) actions++;
+      return Number(result.success);
     }
-    return actions;
+    if (
+      !game.unitManager.canUnitPerformAction(
+        unit.id,
+        ActionType.GOTO,
+        target.destination.x,
+        target.destination.y
+      )
+    ) {
+      return 0;
+    }
+    const result = await game.unitManager.executeUnitAction(
+      unit.id,
+      ActionType.GOTO,
+      target.destination.x,
+      target.destination.y,
+      playerId
+    );
+    return Number(result.success);
   }
 
   async manageHunters(
@@ -831,9 +905,17 @@ export class FreecivAIUnitController {
       if (task.role === 'hunter') delete state.unitTasks[unitId];
     }
     Object.assign(state.unitTasks, plan.assignments);
+    return this.executeHunterAssignments(game, plan.assignments, hostileUnits, profile);
+  }
 
+  private async executeHunterAssignments(
+    game: GameInstance,
+    assignments: Record<string, AIUnitTask>,
+    hostileUnits: Unit[],
+    profile: ReturnType<typeof createAIProfile>
+  ): Promise<number> {
     let actions = 0;
-    for (const [unitId, task] of Object.entries(plan.assignments).sort(([a], [b]) =>
+    for (const [unitId, task] of Object.entries(assignments).sort(([a], [b]) =>
       a.localeCompare(b)
     )) {
       const hunter = game.unitManager.getUnit(unitId);
@@ -885,41 +967,53 @@ export class FreecivAIUnitController {
     );
     let actions = 0;
     for (const launch of launches) {
-      let missile = game.unitManager.getUnit(launch.missile.id);
-      const target = game.unitManager.getUnit(launch.target.id);
-      if (!missile || !target) continue;
-      if (missile.transportedBy) {
-        if (!(await game.unitManager.unloadUnit(missile.id, hunter.x, hunter.y))) continue;
-        actions++;
-        missile = game.unitManager.getUnit(missile.id);
-        if (!missile) continue;
-      }
-      if (game.mapManager.getDistance(missile.x, missile.y, target.x, target.y) > 1) {
-        actions += await this.moveTowardMilitaryTarget(game, missile, target.x, target.y);
-        missile = game.unitManager.getUnit(missile.id);
-      }
-      if (
-        !missile ||
-        !game.unitManager.getUnit(target.id) ||
-        game.mapManager.getDistance(missile.x, missile.y, target.x, target.y) > 1
-      ) {
-        continue;
-      }
-      const missileType = game.unitManager.getUnitType(missile.unitTypeId);
-      const action = missileType?.flags?.includes('Nuclear')
-        ? ActionType.NUCLEAR_EXPLOSION
-        : ActionType.SUICIDE_ATTACK;
-      if (!game.unitManager.canUnitPerformAction(missile.id, action, target.x, target.y)) continue;
-      const result = await game.unitManager.executeUnitAction(
-        missile.id,
-        action,
-        target.x,
-        target.y,
-        missile.playerId
-      );
-      if (result.success) actions++;
+      actions += await this.launchHunterMissile(game, hunter, launch.missile, launch.target);
     }
     return actions;
+  }
+
+  private async launchHunterMissile(
+    game: GameInstance,
+    hunter: Unit,
+    plannedMissile: Unit,
+    plannedTarget: Unit
+  ): Promise<number> {
+    let actions = 0;
+    let missile = game.unitManager.getUnit(plannedMissile.id);
+    const target = game.unitManager.getUnit(plannedTarget.id);
+    if (!missile || !target) return actions;
+    if (missile.transportedBy) {
+      if (!(await game.unitManager.unloadUnit(missile.id, hunter.x, hunter.y))) return actions;
+      actions++;
+      missile = game.unitManager.getUnit(missile.id);
+      if (!missile) return actions;
+    }
+    if (game.mapManager.getDistance(missile.x, missile.y, target.x, target.y) > 1) {
+      actions += await this.moveTowardMilitaryTarget(game, missile, target.x, target.y);
+      missile = game.unitManager.getUnit(missile.id);
+    }
+    if (
+      !missile ||
+      !game.unitManager.getUnit(target.id) ||
+      game.mapManager.getDistance(missile.x, missile.y, target.x, target.y) > 1
+    ) {
+      return actions;
+    }
+    const missileType = game.unitManager.getUnitType(missile.unitTypeId);
+    const action = missileType?.flags?.includes('Nuclear')
+      ? ActionType.NUCLEAR_EXPLOSION
+      : ActionType.SUICIDE_ATTACK;
+    if (!game.unitManager.canUnitPerformAction(missile.id, action, target.x, target.y)) {
+      return actions;
+    }
+    const result = await game.unitManager.executeUnitAction(
+      missile.id,
+      action,
+      target.x,
+      target.y,
+      missile.playerId
+    );
+    return actions + Number(result.success);
   }
 
   private async moveTowardMilitaryTarget(

@@ -88,6 +88,48 @@ function bestDefender(
     )[0];
 }
 
+function canLandTactically(
+  tile: MapTile,
+  context: ParadropPlanningContext,
+  landingCity: CityState | undefined,
+  unitsByTile: ReadonlyMap<string, Unit[]>
+): boolean {
+  if (tile.cityId && !landingCity) return false;
+  if (!landingCity && (unitsByTile.get(tileKey(tile))?.length ?? 0) > 0) return false;
+  return !landingCity || context.friendlyCities.some(city => city.id === landingCity.id);
+}
+
+function tacticalTargetScore(
+  unit: Unit,
+  landingTile: MapTile,
+  targetTile: MapTile,
+  context: ParadropPlanningContext,
+  unitsByTile: ReadonlyMap<string, Unit[]>
+): { want: number; target: Unit } | undefined {
+  if (context.distance(landingTile.x, landingTile.y, targetTile.x, targetTile.y) !== 1) {
+    return undefined;
+  }
+  if (context.fogHandicap && !context.isSeen(targetTile)) return undefined;
+  const stack = (unitsByTile.get(tileKey(targetTile)) ?? []).filter(candidate =>
+    context.hostileUnits.some(hostile => hostile.id === candidate.id)
+  );
+  const defender = bestDefender(unit, stack, context);
+  if (!defender) return undefined;
+  const exposed = context.isStackProtected(targetTile) ? [defender] : stack;
+  const victimValue = exposed.reduce((sum, victim) => {
+    const type = context.getType(victim.unitTypeId);
+    return type && context.canAttack(unit, victim)
+      ? sum + actualHitpoints(victim, type) * 100
+      : sum;
+  }, 0);
+  const type = context.getType(unit.unitTypeId)!;
+  const want =
+    victimValue * context.winChance(unit, defender) +
+    context.terrainDefense(landingTile) / 10 -
+    actualHitpoints(unit, type) * 100;
+  return want > 0 ? { want, target: defender } : undefined;
+}
+
 function tacticalLandingScore(
   unit: Unit,
   tile: MapTile,
@@ -96,38 +138,17 @@ function tacticalLandingScore(
   unitsByTile: ReadonlyMap<string, Unit[]>
 ): { want: number; target: Unit } | undefined {
   const landingCity = cityByTile.get(tileKey(tile));
-  if (tile.cityId && !landingCity) return undefined;
-  if (!landingCity && (unitsByTile.get(tileKey(tile))?.length ?? 0) > 0) return undefined;
-  if (landingCity && !context.friendlyCities.some(city => city.id === landingCity.id)) {
-    return undefined;
-  }
-
+  if (!canLandTactically(tile, context, landingCity, unitsByTile)) return undefined;
   let best: { want: number; target: Unit } | undefined;
   for (const targetTile of context.tiles) {
-    if (context.distance(tile.x, tile.y, targetTile.x, targetTile.y) !== 1) continue;
-    if (context.fogHandicap && !context.isSeen(targetTile)) continue;
-    const stack = (unitsByTile.get(tileKey(targetTile)) ?? []).filter(candidate =>
-      context.hostileUnits.some(hostile => hostile.id === candidate.id)
-    );
-    const defender = bestDefender(unit, stack, context);
-    if (!defender) continue;
-    const exposed = context.isStackProtected(targetTile) ? [defender] : stack;
-    const victimValue = exposed.reduce((sum, victim) => {
-      const type = context.getType(victim.unitTypeId);
-      return type && context.canAttack(unit, victim)
-        ? sum + actualHitpoints(victim, type) * 100
-        : sum;
-    }, 0);
-    const type = context.getType(unit.unitTypeId)!;
-    const want =
-      victimValue * context.winChance(unit, defender) +
-      context.terrainDefense(tile) / 10 -
-      actualHitpoints(unit, type) * 100;
+    const candidate = tacticalTargetScore(unit, tile, targetTile, context, unitsByTile);
+    if (!candidate) continue;
     if (
-      want > 0 &&
-      (!best || want > best.want || (want === best.want && defender.id < best.target.id))
+      !best ||
+      candidate.want > best.want ||
+      (candidate.want === best.want && candidate.target.id < best.target.id)
     ) {
-      best = { want, target: defender };
+      best = candidate;
     }
   }
   return best;
@@ -293,6 +314,45 @@ export function planParadropMissions(context: ParadropPlanningContext): Paradrop
  * @reference reference/freeciv/ai/default/daiparadrop.c:calculate_want_for_paratrooper
  * @reference reference/freeciv/ai/default/daiparadrop.c:dai_choose_paratrooper
  */
+function virtualParadropWant(
+  context: VirtualParadropProductionContext,
+  type: UnitType,
+  tileByKey: ReadonlyMap<string, MapTile>,
+  existing: number,
+  cityCount: number
+): number {
+  const sourceTile = tileByKey.get(tileKey(context.city));
+  let want =
+    Math.max(0, type.defense ?? type.combat ?? 0) +
+    type.movement +
+    Math.max(0, type.attack ?? type.combat ?? 0);
+  for (const targetCity of context.cities) {
+    const targetTile = tileByKey.get(tileKey(targetCity));
+    const distance = context.distance(context.city.x, context.city.y, targetCity.x, targetCity.y);
+    const defenders = context.units.filter(
+      unit => unit.x === targetCity.x && unit.y === targetCity.y
+    ).length;
+    if (
+      !targetTile ||
+      !context.isKnown(targetTile) ||
+      distance > type.paratroopersRange ||
+      defenders > 2
+    ) {
+      continue;
+    }
+    const otherContinent =
+      sourceTile && targetTile.continentId > 0 && sourceTile.continentId !== targetTile.continentId;
+    const continentSize = otherContinent
+      ? context.tiles.filter(tile => tile.continentId === targetTile.continentId).length
+      : 0;
+    const multiplier = otherContinent ? (continentSize < 3 ? 10 : 5) : 1;
+    const allied =
+      targetCity.playerId === context.playerId || context.alliedPlayerIds.has(targetCity.playerId);
+    want += targetCity.size * multiplier * distance * (allied ? 0.5 : 1);
+  }
+  return existing > cityCount ? (want * cityCount) / existing : want;
+}
+
 export function rankVirtualParadropProduction(
   context: VirtualParadropProductionContext
 ): Map<string, number> {
@@ -315,43 +375,7 @@ export function rankVirtualParadropProduction(
       ) {
         return [];
       }
-      const sourceTile = tileByKey.get(tileKey(context.city));
-      let want =
-        Math.max(0, type.defense ?? type.combat ?? 0) +
-        type.movement +
-        Math.max(0, type.attack ?? type.combat ?? 0);
-      for (const targetCity of context.cities) {
-        const targetTile = tileByKey.get(tileKey(targetCity));
-        if (
-          !targetTile ||
-          !context.isKnown(targetTile) ||
-          context.distance(context.city.x, context.city.y, targetCity.x, targetCity.y) >
-            type.paratroopersRange ||
-          context.units.filter(unit => unit.x === targetCity.x && unit.y === targetCity.y).length >
-            2
-        ) {
-          continue;
-        }
-        const otherContinent =
-          sourceTile &&
-          targetTile.continentId > 0 &&
-          sourceTile.continentId !== targetTile.continentId;
-        const continentSize = otherContinent
-          ? context.tiles.filter(tile => tile.continentId === targetTile.continentId).length
-          : 0;
-        const multiplier = otherContinent ? (continentSize < 3 ? 10 : 5) : 1;
-        const distance = context.distance(
-          context.city.x,
-          context.city.y,
-          targetCity.x,
-          targetCity.y
-        );
-        const allied =
-          targetCity.playerId === context.playerId ||
-          context.alliedPlayerIds.has(targetCity.playerId);
-        want += targetCity.size * multiplier * distance * (allied ? 0.5 : 1);
-      }
-      if (existing > cityCount) want = (want * cityCount) / existing;
+      const want = virtualParadropWant(context, type, tileByKey, existing, cityCount);
       return want > 0 ? ([[type.id, want]] as const) : [];
     })
   );

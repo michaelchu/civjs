@@ -60,34 +60,42 @@ export function createAIState(): FreecivAIState {
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function assertOptionalNumber(value: unknown, field: string): void {
+  if (value !== undefined && typeof value !== 'number') {
+    throw new Error(`AI state ${field} is invalid`);
+  }
+}
+
+function isTreasuryGoal(value: unknown): value is AITreasuryGoal {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.cityId === 'string' &&
+    typeof value.amount === 'number' &&
+    Number.isFinite(value.amount) &&
+    typeof value.reason === 'string'
+  );
+}
+
 /**
  * Load the native CivJS AI state. This deliberately rejects partial or legacy
  * shapes: CivJS ports Freeciv behavior but does not support old AI-state
  * formats.
  */
 export function assertAIState(value: unknown): FreecivAIState {
-  if (!value || typeof value !== 'object') throw new Error('AI state is missing');
+  if (!isRecord(value)) throw new Error('AI state is missing');
   const state = value as Partial<FreecivAIState>;
   for (const field of ['diplomacy', 'unitTasks', 'cityWants', 'techWants'] as const) {
-    if (!state[field] || typeof state[field] !== 'object' || Array.isArray(state[field])) {
+    if (!isRecord(state[field])) {
       throw new Error(`AI state field ${field} is invalid`);
     }
   }
-  if (state.lastProcessedTurn !== undefined && typeof state.lastProcessedTurn !== 'number') {
-    throw new Error('AI state lastProcessedTurn is invalid');
-  }
-  if (state.lastDecisionCount !== undefined && typeof state.lastDecisionCount !== 'number') {
-    throw new Error('AI state lastDecisionCount is invalid');
-  }
-  if (
-    state.treasuryGoal !== undefined &&
-    (!state.treasuryGoal ||
-      typeof state.treasuryGoal !== 'object' ||
-      typeof state.treasuryGoal.cityId !== 'string' ||
-      typeof state.treasuryGoal.amount !== 'number' ||
-      !Number.isFinite(state.treasuryGoal.amount) ||
-      typeof state.treasuryGoal.reason !== 'string')
-  ) {
+  assertOptionalNumber(state.lastProcessedTurn, 'lastProcessedTurn');
+  assertOptionalNumber(state.lastDecisionCount, 'lastDecisionCount');
+  if (state.treasuryGoal !== undefined && !isTreasuryGoal(state.treasuryGoal)) {
     throw new Error('AI state treasuryGoal is invalid');
   }
   return state as FreecivAIState;
