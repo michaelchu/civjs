@@ -5,9 +5,9 @@ Behavioral parity target for the supported classic ruleset.
 ## Scope
 
 The vendored Freeciv classic/default AI is the required baseline. The target is
-behavioral compatibility through CivJS's authoritative managers, not a
-line-for-line C translation. `CivJSAIAdapter` is transitional and must shrink
-to orchestration as the subsystem ports below land.
+a native CivJS port of its behavior through authoritative managers, not a
+compatibility layer or line-for-line C translation. `FreecivAIOrchestrator` is the
+current orchestrator and must shrink as the subsystem ports below land.
 
 Reference code is split between `reference/freeciv/ai/default`,
 `reference/freeciv/ai/{difficulty,handicaps,aitraits}.c`,

@@ -70,10 +70,10 @@ These are scope decisions, not untracked porting gaps:
 New scope must be explicitly agreed and added here before being described as a
 porting requirement.
 
-Full Freeciv classic/default-AI behavioral parity is required scope. The
-temporary `CIVJS_AI_CONTRACT` describes only the currently landed compatibility
-slice; it is not a product boundary or an accepted replacement for the
-subsystems tracked in [`AI_PORTING_INVENTORY.md`](AI_PORTING_INVENTORY.md).
+Full Freeciv classic/default-AI functional parity is required scope. Port
+progress and remaining native subsystems are tracked directly in
+[`AI_PORTING_INVENTORY.md`](AI_PORTING_INVENTORY.md); no runtime compatibility
+contract narrows that scope.
 
 ## Verification
 

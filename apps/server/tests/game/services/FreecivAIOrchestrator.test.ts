@@ -1,4 +1,5 @@
-import { CIVJS_AI_CONTRACT, CivJSAIAdapter } from '@game/services/CivJSAIAdapter';
+import { FreecivAIOrchestrator } from '@game/services/FreecivAIOrchestrator';
+import { createAIState } from '@game/ai/FreecivAIStateStore';
 import { ActionType } from '@app-types/shared/actions';
 
 type TestUnit = {
@@ -146,7 +147,7 @@ function createScenario() {
     state: 'active',
     players: new Map([
       ['human', { id: 'human', isAI: false }],
-      ['ai', { id: 'ai', isAI: true }],
+      ['ai', { id: 'ai', isAI: true, aiState: createAIState() }],
     ]),
     researchManager: {
       getPlayerResearch: (): { currentTech: string | undefined } => ({
@@ -204,26 +205,10 @@ function createScenario() {
   };
 }
 
-describe('CivJSAIAdapter compatibility contract', () => {
-  it('publishes explicit supported behavior and non-parity boundaries', () => {
-    expect(CIVJS_AI_CONTRACT.version).toBe(2);
-    expect(CIVJS_AI_CONTRACT.supported).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining('city-founding'),
-        expect.stringContaining('worker'),
-        expect.stringContaining('military'),
-        expect.stringContaining('restart'),
-        expect.stringContaining('completion'),
-      ])
-    );
-    expect(CIVJS_AI_CONTRACT.remaining).toEqual(
-      expect.arrayContaining([expect.stringContaining('lifecycle')])
-    );
-  });
-
+describe('FreecivAIOrchestrator', () => {
   it('covers expansion, economy, research, production, workers, combat, diplomacy, and action use', async () => {
     const scenario = createScenario();
-    const actions = await new CivJSAIAdapter(scenario.diplomacyManager as any).processTurn(
+    const actions = await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
       'game',
       scenario.game as any
     );
@@ -295,7 +280,7 @@ describe('CivJSAIAdapter compatibility contract', () => {
       rulesetUnitClassFlags: ['Missile'],
     };
 
-    await new CivJSAIAdapter(scenario.diplomacyManager as any).processTurn(
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
       'game',
       scenario.game as any
     );
@@ -316,7 +301,7 @@ describe('CivJSAIAdapter compatibility contract', () => {
       nations: [{ id: 'human', relation: { state: 'peace' } }],
     });
 
-    await new CivJSAIAdapter(scenario.diplomacyManager as any).processTurn(
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
       'game',
       scenario.game as any
     );
@@ -338,7 +323,10 @@ describe('CivJSAIAdapter compatibility contract', () => {
     scenario.diplomacyManager.getSnapshot.mockResolvedValue({ nations: [] });
 
     await expect(
-      new CivJSAIAdapter(scenario.diplomacyManager as any).processTurn('game', scenario.game as any)
+      new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+        'game',
+        scenario.game as any
+      )
     ).resolves.toBe(1);
     expect(scenario.executeUnitAction).toHaveBeenCalledWith(
       'warrior',
@@ -356,7 +344,7 @@ describe('CivJSAIAdapter compatibility contract', () => {
       isAI: true,
       aiLevel: 'normal',
       aiTraits: { expansionist: 50, trader: 50, aggressive: 50, builder: 50 },
-      aiState: {},
+      aiState: createAIState(),
     } as any);
     scenario.diplomacyManager.getSnapshot.mockResolvedValue({
       nations: [
@@ -373,7 +361,7 @@ describe('CivJSAIAdapter compatibility contract', () => {
       ],
     });
 
-    await new CivJSAIAdapter(scenario.diplomacyManager as any).processTurn(
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
       'game',
       scenario.game as any
     );
@@ -408,7 +396,7 @@ describe('CivJSAIAdapter compatibility contract', () => {
     scenario.units.delete('worker');
     scenario.units.delete('scout');
 
-    await new CivJSAIAdapter(scenario.diplomacyManager as any).processTurn(
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
       'game',
       scenario.game as any
     );
@@ -442,7 +430,7 @@ describe('CivJSAIAdapter compatibility contract', () => {
     scenario.game.researchManager.getPlayerResearch = () => ({ currentTech: 'alphabet' });
     scenario.diplomacyManager.getSnapshot.mockResolvedValue({ nations: [] });
 
-    await new CivJSAIAdapter(scenario.diplomacyManager as any).processTurn(
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
       'game',
       scenario.game as any
     );
@@ -475,7 +463,7 @@ describe('CivJSAIAdapter compatibility contract', () => {
     scenario.units.get('warrior')!.movementLeft = 0;
     scenario.diplomacyManager.getSnapshot.mockResolvedValue({ nations: [] });
 
-    const actions = await new CivJSAIAdapter(scenario.diplomacyManager as any).processTurn(
+    const actions = await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
       'recovered-game',
       scenario.game as any
     );
@@ -488,15 +476,15 @@ describe('CivJSAIAdapter compatibility contract', () => {
 
   it('does not mutate a completed game and isolates an unsuitable decision', async () => {
     const scenario = createScenario();
-    const adapter = new CivJSAIAdapter(scenario.diplomacyManager as any);
+    const orchestrator = new FreecivAIOrchestrator(scenario.diplomacyManager as any);
     scenario.game.state = 'ended';
-    expect(await adapter.processTurn('ended-game', scenario.game as any)).toBe(0);
+    expect(await orchestrator.processTurn('ended-game', scenario.game as any)).toBe(0);
 
     scenario.game.state = 'active';
     scenario.game.researchManager.setCurrentResearch.mockRejectedValueOnce(
       new Error('invalid target')
     );
-    await expect(adapter.processTurn('active-game', scenario.game as any)).resolves.toBe(7);
+    await expect(orchestrator.processTurn('active-game', scenario.game as any)).resolves.toBe(7);
     expect(scenario.setCityProduction).toHaveBeenCalled();
   });
 
@@ -504,7 +492,6 @@ describe('CivJSAIAdapter compatibility contract', () => {
     const scenario = createScenario();
     const ai = scenario.game.players.get('ai') as any;
     ai.aiState = {
-      version: 1,
       diplomacy: {},
       unitTasks: {
         destroyed: { role: 'attack', assignedTurn: 1 },
@@ -518,14 +505,14 @@ describe('CivJSAIAdapter compatibility contract', () => {
       },
       techWants: {},
     };
-    const adapter = new CivJSAIAdapter(scenario.diplomacyManager as any);
+    const orchestrator = new FreecivAIOrchestrator(scenario.diplomacyManager as any);
 
-    adapter.onUnitDestroyed(
+    orchestrator.onUnitDestroyed(
       'game',
       scenario.game as any,
       { id: 'destroyed', playerId: 'enemy' } as any
     );
-    adapter.onCityInvalidated('game', scenario.game as any, 'captured-city');
+    orchestrator.onCityInvalidated('game', scenario.game as any, 'captured-city');
 
     expect(ai.aiState.unitTasks).toEqual({
       survivor: { role: 'explore', assignedTurn: 1 },
@@ -553,7 +540,7 @@ describe('CivJSAIAdapter compatibility contract', () => {
       },
     ];
 
-    await new CivJSAIAdapter(scenario.diplomacyManager as any).processTurn(
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
       'game',
       scenario.game as any
     );
@@ -597,7 +584,7 @@ describe('CivJSAIAdapter compatibility contract', () => {
     (scenario.game.cityManager as any).canCityContinueProduction = () => true;
     (scenario.game.cityManager as any).addToWorklist = addToWorklist;
 
-    await new CivJSAIAdapter(scenario.diplomacyManager as any).processTurn(
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
       'game',
       scenario.game as any
     );
@@ -624,7 +611,7 @@ describe('CivJSAIAdapter compatibility contract', () => {
     scenario.units.delete('enemy');
     scenario.diplomacyManager.getSnapshot.mockResolvedValue({ nations: [] });
 
-    await new CivJSAIAdapter(scenario.diplomacyManager as any).processTurn(
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
       'game',
       scenario.game as any
     );
@@ -638,13 +625,19 @@ describe('CivJSAIAdapter compatibility contract', () => {
     (easy.game.unitManager as any).getVisibleUnits = (playerId: string) =>
       Array.from(easy.units.values()).filter(unit => unit.playerId === playerId);
 
-    await new CivJSAIAdapter(easy.diplomacyManager as any).processTurn('game', easy.game as any);
+    await new FreecivAIOrchestrator(easy.diplomacyManager as any).processTurn(
+      'game',
+      easy.game as any
+    );
     expect(easy.attackUnit).not.toHaveBeenCalled();
 
     const hard = createScenario();
     (hard.game.players.get('ai') as any).aiLevel = 'hard';
     (hard.game.unitManager as any).getVisibleUnits = () => [];
-    await new CivJSAIAdapter(hard.diplomacyManager as any).processTurn('game', hard.game as any);
+    await new FreecivAIOrchestrator(hard.diplomacyManager as any).processTurn(
+      'game',
+      hard.game as any
+    );
     expect(hard.attackUnit).toHaveBeenCalledWith('warrior', 'enemy');
   });
 
@@ -699,7 +692,6 @@ describe('CivJSAIAdapter compatibility contract', () => {
       }
     );
     const state = {
-      version: 1 as const,
       diplomacy: {},
       cityWants: {},
       techWants: {},
@@ -714,7 +706,7 @@ describe('CivJSAIAdapter compatibility contract', () => {
     };
 
     const actions = await (
-      new CivJSAIAdapter(scenario.diplomacyManager as any) as any
+      new FreecivAIOrchestrator(scenario.diplomacyManager as any) as any
     ).manageFerries(scenario.game, 'ai', state);
 
     expect(actions).toBe(2);

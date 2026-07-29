@@ -2,9 +2,9 @@
 
 ## Definition of port-complete
 
-CivJS targets behavioral compatibility for the agreed Freeciv classic scope,
-not a literal rewrite of the C server or every upstream deployment feature. A
-feature is port-complete when:
+CivJS targets a native port with functional parity for the agreed Freeciv
+classic scope, not a compatibility layer, literal rewrite of the C server, or
+every upstream deployment feature. A feature is port-complete when:
 
 1. Server behavior is traced to `reference/freeciv/`.
 2. Client interaction, rendering, and packets are traced to
@@ -15,8 +15,8 @@ feature is port-complete when:
    coverage.
 5. The relevant status or inventory document reflects the supported result.
 
-Do not invent game rules to close a gap. If the selected references cannot be
-reused, document the compatibility decision before implementing it.
+Do not invent game rules to close a gap. If the selected reference behavior
+cannot be ported, document the intentional deviation before implementing it.
 
 ## Workflow
 

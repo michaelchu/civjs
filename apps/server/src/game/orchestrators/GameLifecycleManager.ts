@@ -48,6 +48,7 @@ import type {
   TerrainSettings,
 } from '@game/managers/GameManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { assertAIState } from '@game/ai/FreecivAIStateStore';
 import { ScenarioUnavailableError } from '@game/map/ScenarioProvider';
 
 export interface GameLifecycleService {
@@ -160,7 +161,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         : ['conquest'],
       gameState: {
         // Freeciv stores a game default skill and copies it to generated AI
-        // players. Keep easy as the compatible default, but persist the
+        // players. Keep easy as the reference default, but persist the
         // creator's selection rather than hard-coding each player.
         aiLevel: gameConfig.aiLevel || 'easy',
         terrainSettings: gameConfig.terrainSettings || {
@@ -956,17 +957,10 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       players.set(dbPlayer.id, {
         id: dbPlayer.id,
         userId: dbPlayer.userId,
-        // The null-user fallback keeps games created before isAI was persisted
-        // playable after a server restart.
-        isAI: dbPlayer.isAI || dbPlayer.userId === null,
-        aiLevel: dbPlayer.aiLevel ?? 'easy',
-        aiTraits: dbPlayer.aiTraits ?? {
-          expansionist: 50,
-          trader: 50,
-          aggressive: 50,
-          builder: 50,
-        },
-        aiState: dbPlayer.aiState ?? {},
+        isAI: dbPlayer.isAI,
+        aiLevel: dbPlayer.aiLevel,
+        aiTraits: dbPlayer.aiTraits,
+        aiState: dbPlayer.isAI ? assertAIState(dbPlayer.aiState) : dbPlayer.aiState,
         playerNumber: dbPlayer.playerNumber,
         civilization: dbPlayer.civilization,
         nation: dbPlayer.nation,

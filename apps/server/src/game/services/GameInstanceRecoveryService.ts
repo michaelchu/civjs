@@ -23,6 +23,7 @@ import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { GovernmentManager } from '@game/managers/GovernmentManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { isSettableAILevel } from '@game/ai/FreecivAIProfile';
+import { assertAIState } from '@game/ai/FreecivAIStateStore';
 
 /**
  * GameInstanceRecoveryService - Extracted game recovery operations from GameManager
@@ -137,16 +138,10 @@ export class GameInstanceRecoveryService extends BaseGameService {
       players.set(dbPlayer.id, {
         id: dbPlayer.id,
         userId: dbPlayer.userId,
-        // Older AI rows did not persist isAI; null userId is the legacy AI marker.
-        isAI: dbPlayer.isAI || dbPlayer.userId === null,
-        aiLevel: dbPlayer.aiLevel ?? 'easy',
-        aiTraits: dbPlayer.aiTraits ?? {
-          expansionist: 50,
-          trader: 50,
-          aggressive: 50,
-          builder: 50,
-        },
-        aiState: dbPlayer.aiState ?? {},
+        isAI: dbPlayer.isAI,
+        aiLevel: dbPlayer.aiLevel,
+        aiTraits: dbPlayer.aiTraits,
+        aiState: dbPlayer.isAI ? assertAIState(dbPlayer.aiState) : dbPlayer.aiState,
         playerNumber: dbPlayer.playerNumber,
         civilization: dbPlayer.civilization,
         nation: dbPlayer.nation,

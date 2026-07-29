@@ -15,6 +15,7 @@ import { RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import serverConfig from '@config';
 import { getNextPlayerColorTheme, type PlayerColor } from '../../utils/playerColors';
 import { isSettableAILevel } from '../ai/FreecivAIProfile';
+import { createAIState } from '../ai/FreecivAIStateStore';
 // PlayerState type is used in comments and method parameters but imported from GameManager
 
 export interface PlayerConnectionService {
@@ -301,7 +302,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
         isAI: true,
         aiLevel: configuredAILevel,
         aiTraits: { expansionist: 50, trader: 50, aggressive: 50, builder: 50 },
-        aiState: {},
+        aiState: createAIState(),
         isReady: true,
         taxRate: DEFAULT_TAX_RATES.tax,
         luxuryRate: DEFAULT_TAX_RATES.luxury,

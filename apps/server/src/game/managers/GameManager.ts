@@ -34,7 +34,7 @@ import {
   type TreatyClause,
   type TreatyProposal,
 } from '@game/managers/DiplomacyManager';
-import { CivJSAIAdapter } from '@game/services/CivJSAIAdapter';
+import { FreecivAIOrchestrator } from '@game/services/FreecivAIOrchestrator';
 import type { AILevel, AITraits, SettableAILevel } from '@game/ai/FreecivAIProfile';
 import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import { EndGameService } from '@game/services/EndGameService';
@@ -167,7 +167,7 @@ export class GameManager {
   private gameInstanceRecoveryService!: GameInstanceRecoveryService;
   private diplomacyManager!: DiplomacyManager;
   private hostilityPolicy!: DiplomacyHostilityPolicy;
-  private aiAdapter!: CivJSAIAdapter;
+  private aiOrchestrator!: FreecivAIOrchestrator;
   private endGameService!: EndGameService;
   private replayService!: GameReplayService;
   private nativeSaveService!: NativeSaveService;
@@ -249,7 +249,7 @@ export class GameManager {
       this.gameBroadcastManager.broadcastToGame(event.gameId, 'diplomacy_event', event);
     });
     this.hostilityPolicy = new DiplomacyHostilityPolicy(this.diplomacyManager);
-    this.aiAdapter = new CivJSAIAdapter(
+    this.aiOrchestrator = new FreecivAIOrchestrator(
       this.diplomacyManager,
       this.hostilityPolicy,
       this.databaseProvider
@@ -1197,17 +1197,19 @@ export class GameManager {
       playerId => this.sharedVisionByGame.get(gameId)?.get(playerId) ?? new Set()
     );
     gameInstance.unitManager.setUnitDestroyedObserver(unit =>
-      this.aiAdapter.onUnitDestroyed(gameId, gameInstance, unit)
+      this.aiOrchestrator.onUnitDestroyed(gameId, gameInstance, unit)
     );
     gameInstance.unitManager.setDiplomatActionExecutor(
       (playerId, unitId, actionType, targetX, targetY) =>
         this.executeDiplomatAction(gameId, playerId, unitId, actionType, targetX, targetY)
     );
     gameInstance.cityManager.setCallbacks({
-      onCityDestroyed: city => this.aiAdapter.onCityInvalidated(gameId, gameInstance, city.id),
-      onCityCaptured: city => this.aiAdapter.onCityInvalidated(gameId, gameInstance, city.id),
+      onCityDestroyed: city => this.aiOrchestrator.onCityInvalidated(gameId, gameInstance, city.id),
+      onCityCaptured: city => this.aiOrchestrator.onCityInvalidated(gameId, gameInstance, city.id),
     });
-    gameInstance.turnManager.setAIProcessor(() => this.aiAdapter.processTurn(gameId, gameInstance));
+    gameInstance.turnManager.setAIProcessor(() =>
+      this.aiOrchestrator.processTurn(gameId, gameInstance)
+    );
     gameInstance.turnManager.setDiplomacyProcessor(async () => {
       const events = await this.diplomacyManager.processTurn(gameId);
       for (const event of events) {

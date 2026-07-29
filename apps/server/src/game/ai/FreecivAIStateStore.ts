@@ -29,7 +29,6 @@ export interface AIUnitTask {
 }
 
 export interface FreecivAIState {
-  version: 1;
   lastProcessedTurn?: number;
   lastDecisionCount?: number;
   diplomacy: Record<string, AIDiplomacyMemory>;
@@ -38,19 +37,35 @@ export interface FreecivAIState {
   techWants: Record<string, number>;
 }
 
-export function normalizeAIState(value: unknown): FreecivAIState {
-  const state = value && typeof value === 'object' ? (value as Partial<FreecivAIState>) : {};
+export function createAIState(): FreecivAIState {
   return {
-    version: 1,
-    lastProcessedTurn:
-      typeof state.lastProcessedTurn === 'number' ? state.lastProcessedTurn : undefined,
-    lastDecisionCount:
-      typeof state.lastDecisionCount === 'number' ? state.lastDecisionCount : undefined,
-    diplomacy: state.diplomacy && typeof state.diplomacy === 'object' ? state.diplomacy : {},
-    unitTasks: state.unitTasks && typeof state.unitTasks === 'object' ? state.unitTasks : {},
-    cityWants: state.cityWants && typeof state.cityWants === 'object' ? state.cityWants : {},
-    techWants: state.techWants && typeof state.techWants === 'object' ? state.techWants : {},
+    diplomacy: {},
+    unitTasks: {},
+    cityWants: {},
+    techWants: {},
   };
+}
+
+/**
+ * Load the native CivJS AI state. This deliberately rejects partial or legacy
+ * shapes: CivJS ports Freeciv behavior but does not support old AI-state
+ * formats.
+ */
+export function assertAIState(value: unknown): FreecivAIState {
+  if (!value || typeof value !== 'object') throw new Error('AI state is missing');
+  const state = value as Partial<FreecivAIState>;
+  for (const field of ['diplomacy', 'unitTasks', 'cityWants', 'techWants'] as const) {
+    if (!state[field] || typeof state[field] !== 'object' || Array.isArray(state[field])) {
+      throw new Error(`AI state field ${field} is invalid`);
+    }
+  }
+  if (state.lastProcessedTurn !== undefined && typeof state.lastProcessedTurn !== 'number') {
+    throw new Error('AI state lastProcessedTurn is invalid');
+  }
+  if (state.lastDecisionCount !== undefined && typeof state.lastDecisionCount !== 'number') {
+    throw new Error('AI state lastDecisionCount is invalid');
+  }
+  return state as FreecivAIState;
 }
 
 /**

@@ -26,7 +26,9 @@ export const players = pgTable('players', {
   aiTraits: jsonb('ai_traits')
     .default({ expansionist: 50, trader: 50, aggressive: 50, builder: 50 })
     .notNull(),
-  aiState: jsonb('ai_state').default({}).notNull(),
+  aiState: jsonb('ai_state')
+    .default({ diplomacy: {}, unitTasks: {}, cityWants: {}, techWants: {} })
+    .notNull(),
   isReady: boolean('is_ready').default(false).notNull(),
   hasEndedTurn: boolean('has_ended_turn').default(false).notNull(),
   hasConceded: boolean('has_conceded').default(false).notNull(),

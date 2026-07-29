@@ -16,8 +16,8 @@ import { createAIProfile, type AIProfile } from '@game/ai/FreecivAIProfile';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { DatabaseProvider } from '@database';
 import {
+  assertAIState,
   FreecivAIStateStore,
-  normalizeAIState,
   type FreecivAIState,
 } from '@game/ai/FreecivAIStateStore';
 import { planCityGuards } from '@game/ai/FreecivAIGuardPlanner';
@@ -31,47 +31,11 @@ import { chooseGovernment } from '@game/ai/FreecivAIGovernmentPlanner';
 import { planTreasury } from '@game/ai/FreecivAITreasuryPlanner';
 
 /**
- * Versioned compatibility contract for the currently landed Freeciv AI slice.
- *
- * Full default-AI parity is the required target. This contract is a migration
- * checkpoint, not a scope boundary; `remaining` entries are required work
- * tracked in docs/AI_PORTING_INVENTORY.md.
- */
-export const CIVJS_AI_CONTRACT = {
-  version: 2,
-  supported: [
-    'found a city when a ready city-founding unit is on a legal tile',
-    'score every legal city production using domestic, expansion, defense, and military wants',
-    'aggregate research wants from unit, building, and government unlocks',
-    'adjust government and tax policy through authoritative managers',
-    'optimize AI citizen, tile, and specialist assignments with Freeciv output constraints',
-    'enable authoritative worker and exploration automation',
-    'use legal caravan, city-join, home-city, and unit-upgrade outcomes',
-    'score military targets by expected shield profit and pursue reachable targets',
-    'persist city guard assignments, reinforce danger, and fortify defenders',
-    'assign specialist hunters to persistent high-value mobile targets',
-    'pair ferryboats with passengers and execute rendezvous, loading, delivery, and unloading',
-    'plan fuel-safe air strikes, base returns, and undefended-city paradrops',
-    'plan defensive diplomats, embassies, espionage, and military-unit bribery',
-    'value incoming treaties and make proactive cease-fire, peace, and alliance proposals',
-    'persist difficulty, traits, diplomacy memory, assignments, and wants across restarts',
-    'yield game completion to the authoritative conquest evaluator',
-  ],
-  remaining: [
-    'complete lifecycle event callbacks and use persisted assignments across every advisor',
-    'complete city, technology, government, rates, spending, and worklist advisor want parity',
-    'settlement-site and worker-improvement reservation parity',
-    'complete amphibious invasion coordination, air-defense/refueling depth, and advanced espionage valuation',
-    'complete Freeciv diplomacy threat, reputation, incident, and material-clause valuation',
-  ],
-} as const;
-
-/**
  * Deterministic baseline AI that delegates all mutations to authoritative
  * managers. A failed optional decision is isolated so one unsuitable unit or
  * city cannot abort turn processing for every AI player.
  */
-export class CivJSAIAdapter {
+export class FreecivAIOrchestrator {
   private readonly hostilityPolicy: DiplomacyHostilityPolicy;
   private readonly stateStore: FreecivAIStateStore;
 
@@ -91,7 +55,7 @@ export class CivJSAIAdapter {
     for (const player of game.players.values()) {
       if (!player.isAI) continue;
       const playerId = player.id;
-      const state = normalizeAIState(player.aiState);
+      const state = assertAIState(player.aiState);
       player.aiState = state as unknown as Record<string, unknown>;
       game.visibilityManager.updatePlayerVisibility(playerId);
       const actionsBeforePlayer = actions;
@@ -146,7 +110,7 @@ export class CivJSAIAdapter {
   onUnitDestroyed(gameId: string, game: GameInstance, unit: Unit): void {
     for (const player of game.players.values()) {
       if (!player.isAI) continue;
-      const state = normalizeAIState(player.aiState);
+      const state = assertAIState(player.aiState);
       delete state.unitTasks[unit.id];
       for (const [unitId, task] of Object.entries(state.unitTasks)) {
         if (task.targetId === unit.id) delete state.unitTasks[unitId];
@@ -170,7 +134,7 @@ export class CivJSAIAdapter {
   onCityInvalidated(gameId: string, game: GameInstance, cityId: string): void {
     for (const player of game.players.values()) {
       if (!player.isAI) continue;
-      const state = normalizeAIState(player.aiState);
+      const state = assertAIState(player.aiState);
       delete state.cityWants[cityId];
       for (const [unitId, task] of Object.entries(state.unitTasks)) {
         if (task.targetId === cityId) delete state.unitTasks[unitId];
