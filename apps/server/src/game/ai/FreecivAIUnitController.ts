@@ -34,6 +34,7 @@ import {
   buildCityThreatTravelTimes,
   cityThreatTravelKey,
 } from '@game/ai/FreecivAICityDangerPlanner';
+import { GAME_DEFAULT_CITYMINDIST } from '@game/managers/CityManager';
 
 function unitAttack(type: UnitType): number {
   return type.attack ?? type.combat ?? 0;
@@ -110,14 +111,29 @@ export class FreecivAIUnitController {
     state: FreecivAIState
   ): Promise<number> {
     let actions = 0;
-    for (const unit of sortedPlayerUnits(game, playerId)) {
+    const settlers = sortedPlayerUnits(game, playerId).filter(
+      unit =>
+        unit.movementLeft > 0 &&
+        !unit.transportedBy &&
+        game.unitManager.getUnitType(unit.unitTypeId)?.canFoundCity
+    );
+    const reservedSites = new Map<string, string>();
+    for (const settler of settlers) {
+      const task = state.unitTasks[settler.id];
       if (
-        unit.movementLeft <= 0 ||
-        unit.transportedBy ||
-        !game.unitManager.getUnitType(unit.unitTypeId)?.canFoundCity
+        task?.role !== 'settle' ||
+        task.targetX === undefined ||
+        task.targetY === undefined ||
+        (typeof game.cityManager.canFoundCityAt === 'function' &&
+          !game.cityManager.canFoundCityAt(task.targetX, task.targetY, playerId))
       ) {
         continue;
       }
+      const key = `${task.targetX},${task.targetY}`;
+      if (!reservedSites.has(key)) reservedSites.set(key, settler.id);
+    }
+
+    for (const unit of settlers) {
       if (game.unitManager.canUnitPerformAction(unit.id, ActionType.FOUND_CITY)) {
         const result = await game.unitManager.executeUnitAction(
           unit.id,
@@ -126,10 +142,16 @@ export class FreecivAIUnitController {
           undefined,
           playerId
         );
-        if (result.success) actions++;
+        if (result.success) {
+          actions++;
+          delete state.unitTasks[unit.id];
+          for (const [key, ownerId] of reservedSites) {
+            if (ownerId === unit.id) reservedSites.delete(key);
+          }
+        }
         continue;
       }
-      actions += await this.moveSettlerTowardBestSite(game, unit, state);
+      actions += await this.moveSettlerTowardBestSite(game, unit, state, reservedSites);
     }
     return actions;
   }
@@ -137,7 +159,8 @@ export class FreecivAIUnitController {
   private async moveSettlerTowardBestSite(
     game: GameInstance,
     unit: Unit,
-    state: FreecivAIState
+    state: FreecivAIState,
+    reservedSites: Map<string, string>
   ): Promise<number> {
     const map = game.mapManager.getMapData?.();
     if (
@@ -152,6 +175,7 @@ export class FreecivAIUnitController {
     const cities = game.cityManager.getAllCities();
     const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, unit.playerId);
     const hostileUnits = hostileUnitsForPlanning(game, unit.playerId, hostileIds, profile);
+    const existingTask = state.unitTasks[unit.id];
     const candidates = rankCitySites(
       map.tiles
         .flat()
@@ -171,16 +195,47 @@ export class FreecivAIUnitController {
           return distance <= 3 ? sum + 1 / Math.max(1, distance) : sum;
         }, 0),
       (profile.expansion / 100) * (profile.traits.expansionist / 50)
-    ).slice(0, 24);
+    )
+      .filter(candidate =>
+        [...reservedSites].every(([key, ownerId]) => {
+          if (ownerId === unit.id) return true;
+          const [reservedX, reservedY] = key.split(',').map(Number);
+          return (
+            game.mapManager.getDistance(
+              candidate.tile.x,
+              candidate.tile.y,
+              reservedX!,
+              reservedY!
+            ) >= GAME_DEFAULT_CITYMINDIST
+          );
+        })
+      )
+      .sort((left, right) => {
+        const leftExisting =
+          existingTask?.role === 'settle' &&
+          existingTask.targetX === left.tile.x &&
+          existingTask.targetY === left.tile.y;
+        const rightExisting =
+          existingTask?.role === 'settle' &&
+          existingTask.targetX === right.tile.x &&
+          existingTask.targetY === right.tile.y;
+        return Number(rightExisting) - Number(leftExisting);
+      })
+      .slice(0, 24);
     for (const candidate of candidates) {
+      const path = await game.pathfindingManager.findPath(unit, candidate.tile.x, candidate.tile.y);
+      if (!path.valid || path.path.length < 2) continue;
+      for (const [key, ownerId] of reservedSites) {
+        if (ownerId === unit.id) reservedSites.delete(key);
+      }
+      const key = `${candidate.tile.x},${candidate.tile.y}`;
+      reservedSites.set(key, unit.id);
       state.unitTasks[unit.id] = {
         role: 'settle',
         targetX: candidate.tile.x,
         targetY: candidate.tile.y,
         assignedTurn: game.currentTurn,
       };
-      const path = await game.pathfindingManager.findPath(unit, candidate.tile.x, candidate.tile.y);
-      if (!path.valid || path.path.length < 2) continue;
       const result = await game.unitManager.executeUnitAction(
         unit.id,
         ActionType.GOTO,
@@ -188,8 +243,14 @@ export class FreecivAIUnitController {
         candidate.tile.y,
         unit.playerId
       );
-      return result.success ? 1 : 0;
+      if (result.success) return 1;
+      reservedSites.delete(key);
+      delete state.unitTasks[unit.id];
     }
+    for (const [key, ownerId] of reservedSites) {
+      if (ownerId === unit.id) reservedSites.delete(key);
+    }
+    if (state.unitTasks[unit.id]?.role === 'settle') delete state.unitTasks[unit.id];
     return 0;
   }
 

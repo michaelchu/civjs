@@ -1180,6 +1180,70 @@ describe('FreecivAIOrchestrator', () => {
     expect(hard.attackUnit).toHaveBeenCalledWith('warrior', 'enemy');
   });
 
+  it('reserves distinct city sites for multiple settlers', async () => {
+    const scenario = createScenario();
+    const first = {
+      ...scenario.units.get('settler')!,
+      id: 'a-settler',
+      x: 0,
+      y: 0,
+    };
+    const second = {
+      ...scenario.units.get('settler')!,
+      id: 'b-settler',
+      x: 0,
+      y: 1,
+    };
+    const stale = {
+      ...scenario.units.get('settler')!,
+      id: 'c-settler',
+      x: 0,
+      y: 2,
+    };
+    scenario.units.clear();
+    scenario.units.set(first.id, first);
+    scenario.units.set(second.id, second);
+    scenario.units.set(stale.id, stale);
+    (scenario.game.cityManager as any).canFoundCityAt = (x: number, y: number) =>
+      (x === 4 && y === 4) || (x === 8 && y === 8);
+    (scenario.game.unitManager as any).canUnitPerformAction = (
+      _unitId: string,
+      action: ActionType
+    ) => action !== ActionType.FOUND_CITY;
+    scenario.executeUnitAction.mockResolvedValue({ success: true });
+    (scenario.game.players.get('ai') as any).aiState.unitTasks[first.id] = {
+      role: 'settle',
+      targetX: 8,
+      targetY: 8,
+      assignedTurn: 1,
+    };
+    (scenario.game.players.get('ai') as any).aiState.unitTasks[stale.id] = {
+      role: 'settle',
+      targetX: 7,
+      targetY: 7,
+      assignedTurn: 1,
+    };
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    const tasks = (scenario.game.players.get('ai') as any).aiState.unitTasks;
+    expect(tasks['a-settler']).toMatchObject({ role: 'settle' });
+    expect(tasks['b-settler']).toMatchObject({ role: 'settle' });
+    expect(tasks['a-settler']).toMatchObject({ targetX: 8, targetY: 8 });
+    expect(tasks['c-settler']).toBeUndefined();
+    expect(
+      scenario.game.mapManager.getDistance(
+        tasks['a-settler'].targetX,
+        tasks['a-settler'].targetY,
+        tasks['b-settler'].targetX,
+        tasks['b-settler'].targetY
+      )
+    ).toBeGreaterThanOrEqual(3);
+  });
+
   it('routes ferry rendezvous to water and embarks the passenger authoritatively', async () => {
     const scenario = createScenario();
     const ferry = {
