@@ -28,6 +28,7 @@ import { planFerries } from '@game/ai/FreecivAIFerryPlanner';
 import { planAirMissions } from '@game/ai/FreecivAIAirPlanner';
 import { planDiplomatMissions } from '@game/ai/FreecivAIDiplomatPlanner';
 import { chooseGovernment } from '@game/ai/FreecivAIGovernmentPlanner';
+import { planTreasury } from '@game/ai/FreecivAITreasuryPlanner';
 
 /**
  * Versioned compatibility contract for the currently landed Freeciv AI slice.
@@ -943,25 +944,51 @@ export class CivJSAIAdapter {
     const status = await manager.getPlayerEconomicStatus(playerId);
     const cities = game.cityManager.getPlayerCities(playerId);
     const netGold = cities.reduce((sum, city) => sum + (city.goldPerTurn ?? 0), 0);
-    const unrest = cities.reduce(
-      (sum, city) => sum + city.happiness.unhappy + city.happiness.angry,
-      0
+    const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, playerId);
+    const hostileUnits = Array.from(game.unitManager.getAllUnits().values()).filter(unit =>
+      hostileIds.has(unit.playerId)
     );
-    const desired = {
-      tax: status.currentGold < 30 || netGold < 0 ? 60 : 30,
-      luxury: unrest > 0 ? 20 : 0,
-      science: 0,
-    };
-    desired.science = 100 - desired.tax - desired.luxury;
+    const plan = planTreasury({
+      currentGold: status.currentGold,
+      netGold,
+      cities,
+      unitCount: game.unitManager.getPlayerUnits(playerId).length,
+      atWar: hostileIds.size > 0,
+      unitTypes: UNIT_TYPES,
+      buildingTypes: BUILDING_TYPES,
+      buyCost: cityId => game.cityManager.calculateBuyCost(cityId),
+      threat: city =>
+        hostileUnits.reduce((sum, unit) => {
+          const distance = game.mapManager.getDistance(city.x, city.y, unit.x, unit.y);
+          if (distance > 4) return sum;
+          const type = game.unitManager.getUnitType(unit.unitTypeId);
+          return sum + (type?.attack ?? type?.combat ?? 0) / Math.max(1, distance);
+        }, 0),
+    });
+    let actions = 0;
     if (
-      status.taxRates.tax === desired.tax &&
-      status.taxRates.luxury === desired.luxury &&
-      status.taxRates.science === desired.science
+      status.taxRates.tax !== plan.rates.tax ||
+      status.taxRates.luxury !== plan.rates.luxury ||
+      status.taxRates.science !== plan.rates.science
     ) {
-      return 0;
+      const result = manager.setPlayerTaxRates({ playerId, newRates: plan.rates });
+      if (result.isValid) actions++;
     }
-    const result = manager.setPlayerTaxRates({ playerId, newRates: desired });
-    return result.isValid ? 1 : 0;
+    if (typeof game.cityManager.sellBuildingForPlayer === 'function') {
+      for (const sale of plan.sales) {
+        const result = await game.cityManager.sellBuildingForPlayer(
+          sale.cityId,
+          sale.buildingId,
+          playerId
+        );
+        if (result.success) actions++;
+      }
+    }
+    for (const cityId of plan.rushCityIds) {
+      const result = await game.cityManager.buyProduction(cityId, playerId);
+      if (result.success) actions++;
+    }
+    return actions;
   }
 
   private async automateExploration(game: GameInstance, playerId: string): Promise<number> {
