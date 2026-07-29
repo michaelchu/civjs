@@ -72,6 +72,10 @@ The first implementation steps are now in place:
   outputs, legal Currency-unlocked marketplace selection while excluding an
   existing Barracks, and threatened-city defensive production/rushing. The
   economic building and emergency defense both survive recovery.
+- A deterministic two-city lifecycle scenario now composes city growth,
+  Currency unlock, multiple full AI turns with continuous invariants, city
+  capture, and process recovery. It verifies that the surviving city, captured
+  city ownership, and researched technology all recover authoritatively.
 - The worker planner has an explicit overlapping two-city request case that
   confirms a shared tile is reserved by at most one worker. A paired-match
   benchmark scorer is available for future swapped-position strength runs.
@@ -92,9 +96,8 @@ The first implementation steps are now in place:
   server's paradrop-source legality rule.
 
 This is intentionally a foundation rather than completion of the milestone:
-longer-game behavioral baselines, long-running multi-city empire lifecycle
-coverage, and comparative strategic-strength match results remain required
-work.
+longer-game behavioral baselines and comparative strategic-strength match
+results remain required work.
 
 ## Next validation milestone: deterministic simulation matrix
 

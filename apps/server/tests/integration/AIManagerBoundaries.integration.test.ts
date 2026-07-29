@@ -252,6 +252,21 @@ describe('AI authoritative manager boundaries', () => {
     throw new Error(`Expected an unimproved roadable tile for city ${cityId}`);
   }
 
+  function findSecondCitySite(game: GameInstance, ownerId: string) {
+    const existing = game.cityManager.getPlayerCities(ownerId);
+    const map = game.mapManager.getMapData();
+    if (!map) throw new Error('Expected generated map');
+    const site = map.tiles.flat().find(
+      tile =>
+        !['ocean', 'deep_ocean', 'lake'].includes(tile.terrain) &&
+        !game.cityManager.getCityAt(tile.x, tile.y) &&
+        game.unitManager.getUnitsAt(tile.x, tile.y).length === 0 &&
+        existing.every(city => game.mapManager.getDistance(city.x, city.y, tile.x, tile.y) >= 3)
+    );
+    if (!site) throw new Error('Expected a valid second-city site');
+    return site;
+  }
+
   function findCrossContinentTransportSetup(game: GameInstance) {
     const map = game.mapManager.getMapData();
     if (!map) throw new Error('Expected generated map');
@@ -1360,6 +1375,91 @@ describe('AI authoritative manager boundaries', () => {
     gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
     const recovered = await gameManager.recoverGameInstance(scenario.gameId);
     expect(recovered?.cityManager.getCity(city.id)?.playerId).toBe(host!.playerId);
+  });
+
+  it('keeps a growing two-city AI empire valid through tech unlock, capture, and recovery', async () => {
+    const scenario = await createActiveGame(2, {
+      mapSeed: 'ai-empire-lifecycle-01',
+      maxTurns: 7,
+      victoryConditions: ['max_turns'],
+    });
+    const [host, guest] = scenario.players;
+    const firstCity = await foundPlayerCity(scenario, guest!.playerId, 'AI First Lifecycle City');
+    const secondSite = findSecondCitySite(scenario.game, guest!.playerId);
+    await gameManager.createUnit(
+      scenario.gameId,
+      guest!.playerId,
+      'settlers',
+      secondSite.x,
+      secondSite.y
+    );
+    const secondCityId = await gameManager.foundCity(
+      scenario.gameId,
+      guest!.playerId,
+      'AI Second Lifecycle City',
+      secondSite.x,
+      secondSite.y
+    );
+    const secondCity = scenario.game.cityManager.getCity(secondCityId)!;
+    expect(scenario.game.cityManager.getPlayerCities(guest!.playerId)).toHaveLength(2);
+
+    // Force a real growth transition through the full city-turn pipeline.
+    firstCity.foodStock = 19;
+    await scenario.game.cityManager.processCityTurn(firstCity.id, scenario.game.currentTurn);
+    expect(firstCity.population).toBeGreaterThanOrEqual(2);
+
+    await scenario.game.researchManager.grantTechnology(guest!.playerId, 'currency');
+    await gameManager.setPlayerAIControl(
+      scenario.gameId,
+      scenario.hostUserId,
+      host!.playerId,
+      true,
+      { aiLevel: 'easy' }
+    );
+    await gameManager.setPlayerAIControl(
+      scenario.gameId,
+      scenario.hostUserId,
+      guest!.playerId,
+      true,
+      { aiLevel: 'normal' }
+    );
+
+    const metrics = [];
+    while (scenario.game.state === 'active' && scenario.game.currentTurn < 5) {
+      await scenario.game.turnManager.processTurn();
+      assertAIValidationInvariants(scenario.game);
+      metrics.push(captureAIValidationMetrics(scenario.game));
+    }
+    expect(metrics).toHaveLength(3);
+    expect(scenario.game.researchManager.getResearchedTechs(guest!.playerId)).toContain('currency');
+
+    // A non-size-one city survives capture, which must clear only the losing
+    // empire's stale city references before the persisted recovery boundary.
+    secondCity.population = Math.max(2, secondCity.population);
+    secondCity.size = Math.max(2, secondCity.size);
+    const guestState = assertAIState(scenario.game.players.get(guest!.playerId)?.aiState);
+    guestState.cityWants[secondCity.id] = { 'building:marketplace': 100 };
+    const attackerId = await gameManager.createUnit(
+      scenario.gameId,
+      host!.playerId,
+      'warriors',
+      secondCity.x,
+      secondCity.y
+    );
+    await expect(
+      scenario.game.cityManager.captureCity(secondCity.id, host!.playerId, attackerId)
+    ).resolves.toMatchObject({ success: true });
+    expect(guestState.cityWants[secondCity.id]).toBeUndefined();
+    assertAIValidationInvariants(scenario.game);
+
+    gameManager.clearAllGames();
+    (GameManager as any).instance = null;
+    gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
+    const recovered = await gameManager.recoverGameInstance(scenario.gameId);
+    expect(recovered?.cityManager.getCity(firstCity.id)?.playerId).toBe(guest!.playerId);
+    expect(recovered?.cityManager.getCity(secondCity.id)?.playerId).toBe(host!.playerId);
+    expect(recovered?.researchManager.getResearchedTechs(guest!.playerId)).toContain('currency');
+    assertAIValidationInvariants(recovered!);
   });
 
   it('has the AI apply a feasible anti-starvation citizen allocation', async () => {
