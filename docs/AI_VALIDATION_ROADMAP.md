@@ -77,6 +77,72 @@ Initial health thresholds should detect obvious regressions without prescribing
 one preferred strategy. Thresholds can be tightened after collecting a stable
 baseline.
 
+## Empire-management validation and reference parity
+
+Full-game survival is not enough to show that the AI can manage an empire. Add
+scenario tests that exercise the complete loop from strategic need, through city
+production and worker orders, to authoritative state changes. These tests must
+cover at least:
+
+- **Worker creation:** when a city has valuable unimproved workable terrain and
+  no sufficient worker coverage, the AI should be able to select a worker unit,
+  complete it, and assign it a useful task. It should not keep producing
+  workers when existing workers already cover the empire or when food, defense,
+  or emergency production has higher priority.
+- **Terrain improvements:** workers should select and complete beneficial
+  irrigation, mines, roads/railroads, terrain transformations, and pollution or
+  fallout cleanup. Tests should verify travel, safety, task reservation,
+  prerequisite ordering, completion, and the resulting city output—not merely
+  that an improvement action was emitted.
+- **City improvements:** cities should choose legal, productive buildings and
+  avoid already-built, obsolete, impossible, or strategically inappropriate
+  improvements. Include ordinary buildings, wonders, prerequisites, upkeep,
+  production changes, and recovery from a city becoming threatened or
+  economically distressed.
+- **Intelligent city management:** each city should allocate citizens without
+  avoidable disorder or starvation, preserve required surpluses, use
+  specialists when appropriate, and change focus as happiness, danger,
+  production, food, and research conditions change. A multi-city fixture should
+  also verify that the AI coordinates shared workers and does not assign two
+  workers to the same request unnecessarily.
+- **Empire lifecycle:** run the above behaviors through founding a second city,
+  growth, war pressure, capture or loss of a city, technology unlocks, and
+  save/recovery boundaries. Assert that production queues, citizen assignments,
+  worker tasks, and city requests remain valid and are not replayed.
+
+Each scenario should record a normalized decision trace containing the input
+state, candidate choices and scores, selected action, authoritative result, and
+post-action economic deltas. Assert both functional outcomes and bounded
+quality properties, such as positive expected tile yield, no duplicate task
+reservation, no persistent city disorder, and no unexplained production or
+research idle turns. Keep quality thresholds tolerant of equivalent strategies;
+the goal is to catch obviously irrational empire management, not to require one
+exact move sequence.
+
+For every scenario, perform a reference-parity review against the corresponding
+Freeciv behavior before accepting the test. The current reference anchors are:
+
+| Behavior                                   | Reference implementation                                                                                                                                                                     | Required parity check                                                                                                                             |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Worker-unit demand and domestic production | `reference/freeciv/ai/default/daidomestic.c` (`domestic_advisor_choose_build`, worker want calculation around lines 488–532)                                                                 | Confirm worker demand reflects terrain-improvement needs, food/upkeep cost, and expansion context.                                                |
+| Worker task evaluation and safe execution  | `reference/freeciv/server/advisors/autoworkers.c` (`worker_evaluate_improvements`, `worker_evaluate_city_requests`) and `reference/freeciv/ai/default/daisettler.c` (`dai_auto_settler_run`) | Compare legal action candidates, city requests, travel/ETA competition, safety, prerequisites, and improvement benefit.                           |
+| City-building choices                      | `reference/freeciv/server/advisors/advbuilding.c` (`building_advisor`, `building_advisor_choose`) and `reference/freeciv/ai/default/daidomestic.c`                                           | Confirm impossible, unproductive, duplicate, and non-wonder-city wonder choices are excluded, while valid productive buildings remain candidates. |
+| Citizen allocation                         | `reference/freeciv/common/aicore/cm.c` (`cm_query_result`, internal `apply_solution`) and `reference/freeciv/ai/default/daicity.c` (`dai_manage_cities`)                                     | Confirm the allocation maximizes the configured city objective subject to food, happiness, specialist, and worker constraints.                    |
+
+Parity does not require identical scores or data structures. It does require
+that the TypeScript AI makes the same legality and prerequisite decisions, uses
+the same authoritative game effects, and does not omit a reference behavior
+without a documented intentional difference. Store the reference file and
+symbol reviewed with each scenario so future ruleset or AI changes do not turn
+the parity requirement into an uncheckable assertion.
+
+The minimum acceptance suite should include one focused test per behavior, one
+multi-city coordination test, one long-running empire fixture, and recovery
+variants for the worker and city-management tests. A test that only checks
+`AIWorkerPlanner` output or a city production want is not sufficient; at least
+one test in each area must execute the resulting action through `CityManager`
+or `UnitManager` and verify persisted state.
+
 ## Strategic-strength evaluation
 
 After simulation stability is established, add comparative evaluation:
