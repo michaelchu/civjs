@@ -41,11 +41,12 @@ export class FreecivAIPlayerController {
     run: AIDecisionRunner
   ): Promise<number> {
     let actions = 0;
-    actions += await run('research', () => this.domestic.selectResearch(game, playerId));
+    state.techWants = {};
     actions += await run('government', () => this.domestic.manageGovernment(game, playerId));
     actions += await run('economy', () => this.domestic.manageEconomy(game, playerId));
     actions += await run('citizens', () => this.city.manageCitizens(game, playerId));
     actions += await run('production', () => this.city.selectProduction(game, playerId, state));
+    actions += await run('research', () => this.domestic.selectResearch(game, playerId, state));
     actions += await run('expansion', () => this.units.foundReadyCities(game, playerId, state));
     actions += await run('city unit actions', () => this.city.executeUnitActions(game, playerId));
     actions += await run('workers', () => this.units.automateWorkers(game, playerId, state));

@@ -5,6 +5,7 @@ import {
   rankCityProduction,
   rankCitySites,
   rankMilitaryTargets,
+  rankResearch,
 } from '@game/ai/FreecivAIPlanner';
 
 const city = (overrides: Record<string, unknown> = {}) =>
@@ -295,6 +296,45 @@ describe('Freeciv AI want planner', () => {
     expect(choice?.value.id).toBe('alphabet');
     expect(choice?.goalId).toBe('writing');
     expect(choice?.reason).toContain('goal:writing');
+  });
+
+  it('propagates an advisor want through a prerequisite into the active choice', () => {
+    const prerequisite = {
+      id: 'alphabet',
+      name: 'Alphabet',
+      cost: 20,
+      requirements: [],
+      flags: [],
+    };
+    const goal = {
+      id: 'writing',
+      name: 'Writing',
+      cost: 40,
+      requirements: ['alphabet'],
+      flags: [],
+    };
+    const distraction = {
+      id: 'bronze',
+      name: 'Bronze',
+      cost: 10,
+      requirements: [],
+      flags: [],
+    };
+    const ranked = rankResearch({
+      available: [distraction, prerequisite],
+      catalogue: [prerequisite, goal, distraction],
+      unitTypes: {},
+      buildingTypes: {},
+      governmentTechs: new Set(),
+      militaryPressure: 0,
+      cityCount: 1,
+      strategicTechWants: new Map([['writing', 500]]),
+    });
+
+    expect(ranked[0]).toMatchObject({
+      value: { id: 'alphabet' },
+      goalId: 'writing',
+    });
   });
 
   it('suppresses unit unlock wants when its replacement is already available', () => {

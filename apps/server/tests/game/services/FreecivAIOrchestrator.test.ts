@@ -1182,10 +1182,11 @@ describe('FreecivAIOrchestrator', () => {
     expect(Object.keys(ai.aiState.cityWants.capital).length).toBeGreaterThan(0);
   });
 
-  it('keeps accumulated research on the active technology', async () => {
+  it('keeps accumulated research when a replacement want does not repay the switch penalty', async () => {
     const scenario = createScenario();
     scenario.game.researchManager.getPlayerResearch = () => ({
       currentTech: 'writing',
+      bulbsAccumulated: 100,
       researchedTechs: new Set(),
     });
     (scenario.game.researchManager as any).getTechnologyCatalogue = () => [
@@ -1201,6 +1202,34 @@ describe('FreecivAIOrchestrator', () => {
     );
 
     expect(scenario.setCurrentResearch).not.toHaveBeenCalled();
+  });
+
+  it('consumes city advisor technology wants in the same AI phase', async () => {
+    const scenario = createScenario();
+    const state = (scenario.game.players.get('ai') as any).aiState;
+    scenario.setCityProduction.mockImplementation(async () => {
+      state.techWants.writing = 1000;
+      return true;
+    });
+    scenario.game.researchManager.getPlayerResearch = () => ({
+      currentTech: 'alphabet',
+      bulbsAccumulated: 0,
+      researchedTechs: new Set(),
+    });
+    (scenario.game.researchManager as any).getTechnologyCatalogue = () => [
+      { id: 'writing', name: 'Writing', cost: 30, requirements: [], flags: [] },
+      { id: 'alphabet', name: 'Alphabet', cost: 10, requirements: [], flags: [] },
+    ];
+    scenario.units.delete('enemy');
+    scenario.diplomacyManager.getSnapshot.mockResolvedValue({ nations: [] });
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.setCurrentResearch).toHaveBeenCalledWith('ai', 'writing');
+    expect(state.techWants.writing).toBeGreaterThanOrEqual(1000);
   });
 
   it('honors the Freeciv target-visibility handicap by difficulty', async () => {

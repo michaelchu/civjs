@@ -229,6 +229,7 @@ export interface ResearchPlanningContext {
   cityCount: number;
   profile?: AIProfile;
   researchedTechs?: ReadonlySet<string>;
+  strategicTechWants?: ReadonlyMap<string, number>;
 }
 
 function normalizeId(value: string): string {
@@ -245,11 +246,16 @@ function normalizeId(value: string): string {
  *
  * @reference reference/freeciv/ai/default/daitech.c
  */
-export function chooseResearch(context: ResearchPlanningContext): AIChoice<Technology> | undefined {
+export function rankResearch(context: ResearchPlanningContext): AIChoice<Technology>[] {
   const directWants = new Map<string, { want: number; reasons: string[] }>();
   for (const tech of context.catalogue) {
     let want = 1;
     const reasons: string[] = [];
+    const strategicWant = context.strategicTechWants?.get(normalizeId(tech.id)) ?? 0;
+    if (strategicWant !== 0) {
+      want += strategicWant;
+      reasons.push('advisor');
+    }
 
     for (const unit of Object.values(context.unitTypes)) {
       if (normalizeId(unit.requiredTech ?? '') !== normalizeId(tech.id)) continue;
@@ -339,7 +345,11 @@ export function chooseResearch(context: ResearchPlanningContext): AIChoice<Techn
     };
   });
 
-  return choices.sort((a, b) => b.want - a.want || a.value.id.localeCompare(b.value.id))[0];
+  return choices.sort((a, b) => b.want - a.want || a.value.id.localeCompare(b.value.id));
+}
+
+export function chooseResearch(context: ResearchPlanningContext): AIChoice<Technology> | undefined {
+  return rankResearch(context)[0];
 }
 
 export interface MilitaryTarget {

@@ -2,12 +2,19 @@ import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { BUILDING_TYPES } from '@game/managers/CityManager';
 import type { GameInstance } from '@game/managers/GameManager';
 import { chooseGovernment } from '@game/ai/FreecivAIGovernmentPlanner';
-import { chooseResearch } from '@game/ai/FreecivAIPlanner';
+import { rankResearch } from '@game/ai/FreecivAIPlanner';
 import { createAIProfile } from '@game/ai/FreecivAIProfile';
 import { hostileUnitsForPlanning } from '@game/ai/FreecivAITargeting';
 import { planTreasury } from '@game/ai/FreecivAITreasuryPlanner';
 import { createAIDecisionSource } from '@game/ai/FreecivAIDecisionSource';
 import type { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
+import type { FreecivAIState } from '@game/ai/FreecivAIStateStore';
+import {
+  mergeTechnologyWants,
+  rankEffectTechnologyWants,
+  rankThreatTechnologyWants,
+} from '@game/ai/FreecivAITechnologyWantPlanner';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 /**
  * Executes empire-level research, government, and treasury decisions.
@@ -15,7 +22,11 @@ import type { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostility
 export class FreecivAIDomesticController {
   constructor(private readonly hostilityPolicy: DiplomacyHostilityPolicy) {}
 
-  async selectResearch(game: GameInstance, playerId: string): Promise<number> {
+  async selectResearch(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<number> {
     const research = game.researchManager.getPlayerResearch(playerId);
     const catalogue = game.researchManager.getTechnologyCatalogue?.(playerId);
     if (research?.currentTech && !catalogue) return 0;
@@ -30,8 +41,21 @@ export class FreecivAIDomesticController {
     const player = game.players.get(playerId);
     const profile = createAIProfile(player?.aiLevel, player?.aiTraits);
     const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, playerId);
-    const researchChoice = catalogue
-      ? chooseResearch({
+    const hostileUnits = hostileUnitsForPlanning(game, playerId, hostileIds, profile);
+    const knownTechs = new Set(research?.researchedTechs ?? []);
+    const advisorWants = new Map(Object.entries(state.techWants));
+    const effectWants = rankEffectTechnologyWants(cities, rulesetLoader.getEffects(), knownTechs);
+    const threatWants = rankThreatTechnologyWants({
+      cities,
+      hostileUnits,
+      unitTypes: UNIT_TYPES,
+      researchedTechs: knownTechs,
+      canBuildNow: (cityId, unitTypeId) =>
+        game.cityManager.canCityContinueProduction?.(cityId, 'unit', unitTypeId) ?? false,
+    });
+    const strategicTechWants = mergeTechnologyWants(advisorWants, effectWants, threatWants);
+    const ranked = catalogue
+      ? rankResearch({
           available,
           catalogue,
           unitTypes: UNIT_TYPES,
@@ -41,8 +65,11 @@ export class FreecivAIDomesticController {
           cityCount: cities.length,
           profile,
           researchedTechs: research?.researchedTechs,
+          strategicTechWants,
         })
-      : undefined;
+      : [];
+    state.techWants = Object.fromEntries(strategicTechWants);
+    const researchChoice = ranked[0];
     const choice =
       researchChoice?.value ??
       available.sort((a, b) => a.cost - b.cost || a.id.localeCompare(b.id))[0];
@@ -54,9 +81,16 @@ export class FreecivAIDomesticController {
     ) {
       await game.researchManager.setResearchGoal(playerId, researchChoice.goalId);
     }
-    // Freeciv retains an active target unless an advisor explicitly decides
-    // that changing it is worth the technology-switch penalty.
-    if (research?.currentTech) return 0;
+    if (research?.currentTech) {
+      if (choice.id === research.currentTech) return 0;
+      const currentWant = ranked.find(
+        candidate => candidate.value.id === research.currentTech
+      )?.want;
+      const penalty = Math.max(0, research.bulbsAccumulated ?? 0);
+      if (currentWant === undefined || (researchChoice?.want ?? 0) - currentWant <= penalty) {
+        return 0;
+      }
+    }
     if (choice.id === research?.currentTech) return 0;
     await game.researchManager.setCurrentResearch(playerId, choice.id);
     return 1;
