@@ -1,6 +1,7 @@
 import type { DatabaseProvider } from '@database';
 import { players } from '@database/schema';
 import { and, eq } from 'drizzle-orm';
+import type { ActionType } from '@app-types/shared/actions';
 
 export interface AIDiplomacyMemory {
   love: number;
@@ -25,6 +26,7 @@ export interface AIUnitTask {
   targetId?: string;
   targetX?: number;
   targetY?: number;
+  action?: ActionType;
   assignedTurn: number;
 }
 

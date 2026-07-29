@@ -10,6 +10,7 @@ import type { FreecivAIState } from '@game/ai/FreecivAIStateStore';
 import { planCityGuards } from '@game/ai/FreecivAIGuardPlanner';
 import { planHunters } from '@game/ai/FreecivAIHunterPlanner';
 import { hostileUnitsForPlanning, sortedPlayerUnits } from '@game/ai/FreecivAITargeting';
+import { planWorkerImprovements, type WorkerAssignment } from '@game/ai/FreecivAIWorkerPlanner';
 
 /**
  * Executes expansion, worker, transport, military, and special-unit decisions
@@ -107,21 +108,118 @@ export class FreecivAIUnitController {
     return 0;
   }
 
-  async automateWorkers(game: GameInstance, playerId: string): Promise<number> {
-    let actions = 0;
-    for (const unit of sortedPlayerUnits(game, playerId)) {
+  async automateWorkers(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<number> {
+    const workers = sortedPlayerUnits(game, playerId).filter(unit => {
       const type = game.unitManager.getUnitType(unit.unitTypeId);
-      if (!type?.canBuildImprovements || unit.automation) continue;
-      const result = await game.unitManager.executeUnitAction(
-        unit.id,
-        ActionType.AUTO_SETTLER,
-        undefined,
-        undefined,
-        playerId
+      return Boolean(
+        type?.canBuildImprovements &&
+          state.unitTasks[unit.id]?.role !== 'settle' &&
+          state.unitTasks[unit.id]?.role !== 'ferry'
       );
-      if (result.success) actions++;
+    });
+    const profile = createAIProfile(
+      game.players.get(playerId)?.aiLevel,
+      game.players.get(playerId)?.aiTraits
+    );
+    const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, playerId);
+    const plan = planWorkerImprovements({
+      turn: game.currentTurn,
+      playerId,
+      workers,
+      cities: game.cityManager.getPlayerCities(playerId),
+      hostileUnits: hostileUnitsForPlanning(game, playerId, hostileIds, profile),
+      existingTasks: state.unitTasks,
+      getTile: (x, y) => game.mapManager.getTile(x, y),
+      getNeighbors: (x, y) => game.mapManager.getNeighbors(x, y),
+      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+      researchedTechs:
+        game.researchManager.getPlayerResearch(playerId)?.researchedTechs ?? new Set(),
+    });
+
+    for (const [unitId, task] of Object.entries(state.unitTasks)) {
+      if (task.role === 'worker') delete state.unitTasks[unitId];
+    }
+    Object.assign(state.unitTasks, plan.tasks);
+
+    let actions = 0;
+    for (const assignment of plan.assignments) {
+      actions += await this.executeWorkerAssignment(game, playerId, state, assignment);
     }
     return actions;
+  }
+
+  private async executeWorkerAssignment(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState,
+    assignment: WorkerAssignment
+  ): Promise<number> {
+    const unit = game.unitManager.getUnit(assignment.unit.id);
+    if (!unit || unit.movementLeft <= 0) return 0;
+    if (unit.x === assignment.tile.x && unit.y === assignment.tile.y) {
+      return this.startWorkerActivity(game, playerId, state, assignment, unit);
+    }
+    return this.moveWorkerToAssignment(game, playerId, state, assignment, unit);
+  }
+
+  private async startWorkerActivity(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState,
+    assignment: WorkerAssignment,
+    unit: Unit
+  ): Promise<number> {
+    if (!game.unitManager.canUnitPerformAction(unit.id, assignment.action)) {
+      delete state.unitTasks[unit.id];
+      return 0;
+    }
+    const result = await game.unitManager.executeUnitAction(
+      unit.id,
+      assignment.action,
+      undefined,
+      undefined,
+      playerId
+    );
+    return result.success ? 1 : 0;
+  }
+
+  private async moveWorkerToAssignment(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState,
+    assignment: WorkerAssignment,
+    unit: Unit
+  ): Promise<number> {
+    if (
+      typeof game.pathfindingManager?.findPath !== 'function' ||
+      !game.unitManager.canUnitPerformAction(
+        unit.id,
+        ActionType.GOTO,
+        assignment.tile.x,
+        assignment.tile.y
+      )
+    ) {
+      delete state.unitTasks[unit.id];
+      return 0;
+    }
+    const path = await game.pathfindingManager.findPath(unit, assignment.tile.x, assignment.tile.y);
+    if (!path.valid || path.path.length < 2) {
+      delete state.unitTasks[unit.id];
+      return 0;
+    }
+    const result = await game.unitManager.executeUnitAction(
+      unit.id,
+      ActionType.GOTO,
+      assignment.tile.x,
+      assignment.tile.y,
+      playerId
+    );
+    return result.success ? 1 : 0;
   }
 
   async attackAdjacentEnemies(

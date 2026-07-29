@@ -151,8 +151,9 @@ function createScenario() {
       ['ai', { id: 'ai', isAI: true, aiState: createAIState() }],
     ]),
     researchManager: {
-      getPlayerResearch: (): { currentTech: string | undefined } => ({
+      getPlayerResearch: (): any => ({
         currentTech: undefined,
+        researchedTechs: new Set(),
       }),
       getAvailableTechnologies: () => [
         { id: 'writing', cost: 30 },
@@ -161,12 +162,14 @@ function createScenario() {
       setCurrentResearch,
     },
     cityManager: {
-      getPlayerCities: () => [
+      getPlayerCities: (): any[] => [
         {
           id: 'capital',
+          playerId: 'ai',
           currentProduction: null,
           goldPerTurn: -2,
           buildings: [],
+          workableTiles: [{ x: 3, y: 3, isWorked: true }],
         },
       ],
       setCityProduction,
@@ -191,6 +194,20 @@ function createScenario() {
     mapManager: {
       getDistance: (fromX: number, fromY: number, toX: number, toY: number) =>
         Math.max(Math.abs(fromX - toX), Math.abs(fromY - toY)),
+      getTile: (x: number, y: number) =>
+        x === 3 && y === 3
+          ? {
+              x,
+              y,
+              terrain: 'grassland',
+              owner: 'ai',
+              riverMask: 0,
+              hasRoad: false,
+              hasRailroad: false,
+              improvements: [],
+            }
+          : null,
+      getNeighbors: () => [],
     },
   };
 
@@ -231,7 +248,7 @@ describe('FreecivAIOrchestrator', () => {
     );
     expect(scenario.executeUnitAction).toHaveBeenCalledWith(
       'worker',
-      ActionType.AUTO_SETTLER,
+      ActionType.BUILD_IRRIGATION,
       undefined,
       undefined,
       'ai'
@@ -258,6 +275,37 @@ describe('FreecivAIOrchestrator', () => {
       'alliance-proposal',
       false
     );
+  });
+
+  it('reserves remote worker improvements and moves through authoritative goto', async () => {
+    const scenario = createScenario();
+    scenario.units.get('worker')!.x = 1;
+    scenario.units.get('worker')!.y = 3;
+    scenario.units.delete('enemy');
+    (scenario.game as any).pathfindingManager = {
+      findPath: jest.fn().mockResolvedValue({
+        valid: true,
+        path: [
+          { x: 1, y: 3 },
+          { x: 3, y: 3 },
+        ],
+        totalCost: 2,
+        estimatedTurns: 2,
+      }),
+    };
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.executeUnitAction).toHaveBeenCalledWith('worker', ActionType.GOTO, 3, 3, 'ai');
+    expect((scenario.game.players.get('ai') as any).aiState.unitTasks.worker).toMatchObject({
+      role: 'worker',
+      action: ActionType.BUILD_IRRIGATION,
+      targetX: 3,
+      targetY: 3,
+    });
   });
 
   it('uses nuclear consequences instead of ordinary combat for nuclear actors', async () => {
@@ -425,7 +473,6 @@ describe('FreecivAIOrchestrator', () => {
       ] as any;
     scenario.units.delete('settler');
     scenario.units.delete('enemy');
-    scenario.units.get('worker')!.automation = 'settler';
     scenario.units.get('scout')!.automation = 'explore';
     scenario.units.get('warrior')!.movementLeft = 0;
     scenario.game.researchManager.getPlayerResearch = () => ({ currentTech: 'alphabet' });
@@ -459,7 +506,6 @@ describe('FreecivAIOrchestrator', () => {
       [{ id: 'capital', currentProduction: 'settlers', goldPerTurn: 1, buildings: [] }] as any;
     scenario.units.delete('settler');
     scenario.units.delete('enemy');
-    scenario.units.get('worker')!.automation = 'settler';
     scenario.units.get('scout')!.automation = 'explore';
     scenario.units.get('warrior')!.movementLeft = 0;
     scenario.diplomacyManager.getSnapshot.mockResolvedValue({ nations: [] });
@@ -681,7 +727,7 @@ describe('FreecivAIOrchestrator', () => {
     const scenario = createScenario();
     scenario.game.researchManager.getPlayerResearch = () => ({
       currentTech: 'writing',
-      researchedTechs: [],
+      researchedTechs: new Set(),
     });
     (scenario.game.researchManager as any).getTechnologyCatalogue = () => [
       { id: 'writing', cost: 30, requirements: [] },
