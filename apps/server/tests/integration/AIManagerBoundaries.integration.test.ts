@@ -1127,6 +1127,21 @@ describe('AI authoritative manager boundaries', () => {
       'pollution'
     );
 
+    scenario.game.mapManager.updateTileProperty(target.x, target.y, 'terrain', 'hills');
+    city.workerTaskRequests = [
+      { x: target.x, y: target.y, action: ActionType.BUILD_MINE, want: 900 },
+    ];
+    worker!.movementLeft = workerType.movement;
+    expect(await unitController.automateWorkers(scenario.game, guest!.playerId, state)).toBeGreaterThan(
+      0
+    );
+    expect(worker!.orders).toEqual([{ type: 'mine' }]);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await scenario.game.unitManager.processUnitOrders(guest!.playerId);
+      if (scenario.game.mapManager.getTile(target.x, target.y)!.improvements.includes('mine')) break;
+    }
+    expect(scenario.game.mapManager.getTile(target.x, target.y)!.improvements).toContain('mine');
+
     const persistedWorker = await getTestDatabase().query.units.findFirst({
       where: eq(schema.units.id, worker!.id),
     });
