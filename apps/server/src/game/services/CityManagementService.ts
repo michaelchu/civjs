@@ -3,6 +3,7 @@ import { BaseGameService } from '@game/orchestrators/GameService';
 import { CityDataService } from '@game/services/CityDataService';
 import { logger } from '@utils/logger';
 import type { CityState } from '@game/managers/CityManager';
+import { getUniqueCityName } from '@game/constants/CityNames';
 
 /**
  * CityManagementService - High-level city operations service
@@ -64,7 +65,11 @@ export class CityManagementService extends BaseGameService {
       throw new Error('There is already a city at this location');
     }
 
-    const cityData = await gameInstance.cityManager.foundCity(x, y, name, playerId, unit?.id);
+    const uniqueName = getUniqueCityName(
+      gameInstance.cityManager.getAllCities().map(city => city.name),
+      name
+    );
+    const cityData = await gameInstance.cityManager.foundCity(x, y, uniqueName, playerId, unit?.id);
 
     if (!cityData) {
       throw new Error('Failed to found city');

@@ -178,6 +178,7 @@ export class UnitManager {
     ) => void;
     broadcastUnitDestroyed?: (gameId: string, unit: Unit) => void;
     getCityAt?: (x: number, y: number) => CityAtLocation | null;
+    getCityNames?: () => string[];
     getPlayerBuildings?: (playerId: string) => string[];
     reserveAirlift?: (
       sourceCityId: string,
@@ -264,6 +265,7 @@ export class UnitManager {
       ) => void;
       broadcastUnitDestroyed?: (gameId: string, unit: Unit) => void;
       getCityAt?: (x: number, y: number) => CityAtLocation | null;
+      getCityNames?: () => string[];
       getPlayerBuildings?: (playerId: string) => string[];
       reserveAirlift?: (
         sourceCityId: string,

@@ -308,6 +308,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
           const city = cityManager.getCityAt(x, y);
           return city ? { id: city.id, playerId: city.playerId, buildings: city.buildings } : null;
         },
+        getCityNames: () => cityManager.getAllCities().map(city => city.name),
         getPlayerBuildings: playerId =>
           cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings),
         reserveAirlift: (sourceCityId, destinationCityId, playerId, turn) =>

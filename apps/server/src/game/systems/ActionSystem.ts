@@ -15,6 +15,7 @@ import type { MapManager } from '@game/managers/MapManager';
 import type { MapTile, TerrainType } from '@game/map/MapTypes';
 import { hasClassicIrrigationSource } from '@game/rules/ClassicIrrigationRules';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { getUniqueCityName } from '@game/constants/CityNames';
 
 // Action definitions based on freeciv classic ruleset
 // @reference freeciv/common/actions.c
@@ -444,6 +445,7 @@ export class ActionSystem {
       targetY: number
     ) => Promise<boolean>;
     getCityAt?: (x: number, y: number) => { id: string; playerId: string } | null;
+    getCityNames?: () => string[];
   };
 
   constructor(
@@ -469,6 +471,7 @@ export class ActionSystem {
         targetY: number
       ) => Promise<boolean>;
       getCityAt?: (x: number, y: number) => { id: string; playerId: string } | null;
+      getCityNames?: () => string[];
     },
     private readonly mapManager?: Pick<MapManager, 'getTile' | 'getTopology'>
   ) {
@@ -1183,8 +1186,7 @@ export class ActionSystem {
     }
 
     try {
-      // Generate a default city name (GameManager could override this)
-      const cityName = `New City (${unit.x},${unit.y})`;
+      const cityName = this.generateCityName();
 
       // Call GameManager to actually found the city
       const cityId = await this.gameManagerCallback.foundCity(
@@ -1221,6 +1223,10 @@ export class ActionSystem {
         message: error.message || 'Failed to found city',
       };
     }
+  }
+
+  private generateCityName(): string {
+    return getUniqueCityName(this.gameManagerCallback?.getCityNames?.() ?? []);
   }
 
   private validateGotoInputs(unit: Unit, targetX: number, targetY: number): ActionResult | null {
