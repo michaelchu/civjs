@@ -186,6 +186,33 @@ describe('GameClient management screens', () => {
     );
   });
 
+  it('loads the shared native advisor recommendations', async () => {
+    const recommendations = {
+      playerId: 'player-1',
+      turn: 5,
+      economy: {
+        reserve: 30,
+        rates: { tax: 40, luxury: 0, science: 60 },
+        rushCityIds: [],
+        saleCandidates: [],
+      },
+      research: [],
+      cities: [],
+      workers: [],
+      exploration: [],
+      military: [],
+    };
+    socket.emit.mockImplementation(
+      (event: string, data: unknown, callback: (value: unknown) => void) => {
+        expect(event).toBe('advisor:getRecommendations');
+        expect(data).toEqual({});
+        callback({ success: true, recommendations });
+      }
+    );
+
+    await expect(gameClient.getAdvisorRecommendations()).resolves.toEqual(recommendations);
+  });
+
   it('sends city worklist and citizen-management mutations', async () => {
     socket.emit.mockImplementation(
       (_event: string, _data: unknown, callback: (value: unknown) => void) =>

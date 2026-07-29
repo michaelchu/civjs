@@ -48,6 +48,7 @@ describe('GameManagementHandler', () => {
       getPlayerById: jest.fn(),
       getGameInstance: jest.fn(),
       recoverGameInstance: jest.fn(),
+      getAdvisorRecommendations: jest.fn(),
     } as any;
 
     // Create handler
@@ -105,6 +106,35 @@ describe('GameManagementHandler', () => {
       expect(mockSocket.on).toHaveBeenCalledWith('observe_game', expect.any(Function));
       expect(mockSocket.on).toHaveBeenCalledWith('get_game_list', expect.any(Function));
       expect(mockSocket.on).toHaveBeenCalledWith('delete_game', expect.any(Function));
+      expect(mockSocket.on).toHaveBeenCalledWith(
+        'advisor:getRecommendations',
+        expect.any(Function)
+      );
+    });
+  });
+
+  describe('advisor recommendations event', () => {
+    it('returns read-only advice to the active human player', async () => {
+      handler.register(mockPacketHandler, mockIo, mockSocket);
+      activeConnections.set(mockSocketId, {
+        userId: mockUserId,
+        gameId: mockGameId,
+        role: 'player',
+      });
+      const recommendations = { playerId: mockPlayerId, turn: 4 };
+      mockGameManager.getAdvisorRecommendations.mockResolvedValue(recommendations as any);
+      const callback = jest.fn();
+      const eventHandler = (mockSocket.on as jest.Mock).mock.calls.find(
+        call => call[0] === 'advisor:getRecommendations'
+      )![1];
+
+      await eventHandler({}, callback);
+
+      expect(mockGameManager.getAdvisorRecommendations).toHaveBeenCalledWith(
+        mockGameId,
+        mockUserId
+      );
+      expect(callback).toHaveBeenCalledWith({ success: true, recommendations });
     });
   });
 

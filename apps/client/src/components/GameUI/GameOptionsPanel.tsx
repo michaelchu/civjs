@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
-import { gameClient } from '../../services/GameClient';
+import { gameClient, type AdvisorRecommendations } from '../../services/GameClient';
 import { Button } from '../ui/button';
 import {
   loadUserPreferences,
@@ -20,6 +20,8 @@ export const GameOptionsPanel: React.FC = () => {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [debugFeedback, setDebugFeedback] = useState<string | null>(null);
   const [hostControls, setHostControls] = useState<HostControls | null>(null);
+  const [advice, setAdvice] = useState<AdvisorRecommendations | null>(null);
+  const [adviceLoading, setAdviceLoading] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferences>(loadUserPreferences);
   const total = rates.tax + rates.luxury + rates.science;
 
@@ -162,6 +164,81 @@ export const GameOptionsPanel: React.FC = () => {
       </div>
 
       <div className="mt-8 max-w-3xl rounded-lg border border-gray-700 bg-gray-800 p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="font-semibold">Empire advisor</h3>
+            <p className="mt-1 text-sm text-gray-400">
+              Read-only recommendations from the same native planners used by AI players.
+            </p>
+          </div>
+          <Button
+            disabled={adviceLoading}
+            onClick={() => {
+              setAdviceLoading(true);
+              void gameClient
+                .getAdvisorRecommendations()
+                .then(setAdvice)
+                .catch(error =>
+                  setFeedback(error instanceof Error ? error.message : 'Failed to load advice')
+                )
+                .finally(() => setAdviceLoading(false));
+            }}
+          >
+            {adviceLoading ? 'Analyzing…' : advice ? 'Refresh advice' : 'Get advice'}
+          </Button>
+        </div>
+        {advice && (
+          <div className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
+            <AdviceList
+              title="Economy"
+              items={[
+                `Tax ${advice.economy.rates.tax}% · Luxury ${advice.economy.rates.luxury}% · Science ${advice.economy.rates.science}%`,
+                `Keep ${advice.economy.reserve} gold in reserve`,
+                advice.economy.rushCityIds.length
+                  ? `Rush: ${advice.economy.rushCityIds.join(', ')}`
+                  : 'No rush purchase recommended',
+              ]}
+            />
+            <AdviceList
+              title="Research"
+              items={
+                advice.research.length
+                  ? advice.research.map(
+                      choice =>
+                        `${choice.technologyId} (${Math.round(choice.want)}): ${choice.reason}`
+                    )
+                  : ['No available research recommendation']
+              }
+            />
+            <AdviceList
+              title="Cities"
+              items={advice.cities.map(city => {
+                const choice = city.production[0];
+                return choice
+                  ? `${city.cityId}: ${choice.kind} ${choice.id} (${Math.round(choice.want)})`
+                  : `${city.cityId}: keep current production`;
+              })}
+            />
+            <AdviceList
+              title="Units"
+              items={[
+                ...advice.workers.map(
+                  worker => `${worker.unitId}: ${worker.action} at ${worker.x},${worker.y}`
+                ),
+                ...advice.exploration.map(
+                  explorer => `${explorer.unitId}: explore ${explorer.x},${explorer.y}`
+                ),
+                ...advice.military.map(target => `${target.unitId}: target ${target.targetUnitId}`),
+                ...(advice.workers.length + advice.exploration.length + advice.military.length === 0
+                  ? ['No unit reassignment recommended']
+                  : []),
+              ]}
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="mt-8 max-w-3xl rounded-lg border border-gray-700 bg-gray-800 p-5">
         <h3 className="font-semibold">Multiplayer policy</h3>
         <p className="mt-1 text-sm text-gray-400">
           Turns resolve simultaneously when every human is done or the authoritative timer expires.
@@ -284,5 +361,16 @@ const Info: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
     <dt className="text-xs uppercase tracking-wide text-gray-400">{label}</dt>
     <dd className="mt-1 break-all font-medium">{value}</dd>
+  </div>
+);
+
+const AdviceList: React.FC<{ title: string; items: string[] }> = ({ title, items }) => (
+  <div className="rounded border border-gray-700 bg-gray-900 p-3">
+    <h4 className="font-medium text-gray-200">{title}</h4>
+    <ul className="mt-2 space-y-1 text-gray-400">
+      {items.map((item, index) => (
+        <li key={`${title}:${index}`}>{item}</li>
+      ))}
+    </ul>
   </div>
 );

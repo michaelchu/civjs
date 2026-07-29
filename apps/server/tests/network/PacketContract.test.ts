@@ -36,7 +36,7 @@ describe('canonical packet contract', () => {
     }
   });
 
-  it('classifies named events as lifecycle, notification, or packet compatibility', () => {
+  it('classifies named events as native, lifecycle, notification, or packet compatibility', () => {
     expect(new Set(SOCKET_EVENT_CONTRACT.map(entry => entry.event)).size).toBe(
       SOCKET_EVENT_CONTRACT.length
     );

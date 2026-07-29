@@ -22,6 +22,37 @@ import { GameSessionCoordinator, type GameSessionTarget } from './GameSessionCoo
 import { GameTransport } from './GameTransport';
 import { MapSnapshotAssembler } from './MapSnapshotAssembler';
 
+export interface AdvisorRecommendations {
+  playerId: string;
+  turn: number;
+  economy: {
+    reserve: number;
+    rates: { tax: number; luxury: number; science: number };
+    rushCityIds: string[];
+    saleCandidates: Array<{ cityId: string; buildingId: string }>;
+  };
+  research: Array<{ technologyId: string; want: number; reason: string; goalId?: string }>;
+  cities: Array<{
+    cityId: string;
+    danger: number;
+    urgency: number;
+    production: Array<{
+      kind: 'unit' | 'building';
+      id: string;
+      want: number;
+      reason: string;
+    }>;
+  }>;
+  workers: Array<{ unitId: string; x: number; y: number; action: string; want: number }>;
+  exploration: Array<{ unitId: string; x: number; y: number; want: number }>;
+  military: Array<{
+    unitId: string;
+    targetUnitId: string;
+    want: number;
+    distance: number;
+  }>;
+}
+
 // Mock government data for development
 const getMockGovernments = () => ({
   anarchy: {
@@ -2066,6 +2097,18 @@ export class GameClient {
       { playerId, isAI, ...options }
     );
     if (!response.success) throw new Error(response.error || 'Failed to transfer player control');
+  }
+
+  async getAdvisorRecommendations(): Promise<AdvisorRecommendations> {
+    const response = await this.requestSocketEvent<{
+      success: boolean;
+      recommendations?: AdvisorRecommendations;
+      error?: string;
+    }>('advisor:getRecommendations', {});
+    if (!response.success || !response.recommendations) {
+      throw new Error(response.error || 'Failed to load advisor recommendations');
+    }
+    return response.recommendations;
   }
 
   private applyGovernmentState(state: GovernmentState): void {

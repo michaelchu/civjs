@@ -695,4 +695,27 @@ describe('GameManager', () => {
       ).rejects.toThrow('already owns another civilization');
     });
   });
+
+  describe('shared advisor access', () => {
+    it('returns advice only for the requesting human controller', async () => {
+      const getRecommendations = jest.fn().mockResolvedValue({ playerId: 'human', turn: 2 });
+      (gameManager as any).advisorService = { getRecommendations };
+      const game = {
+        id: 'test-game-id',
+        players: new Map([
+          ['human', { id: 'human', userId: 'test-user', isAI: false }],
+          ['ai', { id: 'ai', userId: null, isAI: true }],
+        ]),
+      };
+      (gameManager as any).games.set('test-game-id', game);
+
+      await expect(
+        gameManager.getAdvisorRecommendations('test-game-id', 'test-user')
+      ).resolves.toEqual({ playerId: 'human', turn: 2 });
+      expect(getRecommendations).toHaveBeenCalledWith(game, 'human');
+      await expect(
+        gameManager.getAdvisorRecommendations('test-game-id', 'spectator')
+      ).rejects.toThrow('No human civilization');
+    });
+  });
 });

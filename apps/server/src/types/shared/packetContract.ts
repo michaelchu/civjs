@@ -366,7 +366,7 @@ export const ACTIVE_PACKET_CONTRACT: readonly PacketContractEntry[] = [
 export interface SocketEventContractEntry {
   event: string;
   family: string;
-  classification: 'lifecycle' | 'notification' | 'compatibility';
+  classification: 'lifecycle' | 'notification' | 'compatibility' | 'native';
   sinceVersion: number;
   canonicalPacket?: PacketType;
 }
@@ -388,6 +388,12 @@ export const SOCKET_EVENT_CONTRACT: readonly SocketEventContractEntry[] = [
     classification: 'lifecycle' as const,
     sinceVersion: 1,
   })),
+  {
+    event: 'advisor:getRecommendations',
+    family: 'advisors',
+    classification: 'native',
+    sinceVersion: 1,
+  },
   {
     event: 'join_game',
     family: 'lobby',
@@ -414,14 +420,18 @@ export const SOCKET_EVENT_CONTRACT: readonly SocketEventContractEntry[] = [
     classification: 'compatibility',
     sinceVersion: 1,
   },
-  ...['host:getControls', 'host:setPaused', 'host:setTurnTimeLimit', 'host:setPlayerAIControl'].map(
-    event => ({
-      event,
-      family: 'host_controls',
-      classification: 'compatibility' as const,
-      sinceVersion: 1,
-    })
-  ),
+  ...['host:getControls', 'host:setPaused', 'host:setTurnTimeLimit'].map(event => ({
+    event,
+    family: 'host_controls',
+    classification: 'compatibility' as const,
+    sinceVersion: 1,
+  })),
+  {
+    event: 'host:setPlayerAIControl',
+    family: 'host_controls',
+    classification: 'native',
+    sinceVersion: 1,
+  },
   {
     event: 'get_map_data',
     family: 'map',

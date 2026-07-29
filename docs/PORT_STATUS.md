@@ -12,7 +12,7 @@ CivJS supports a server-authoritative classic game with:
 
 - game creation, nation assignment, joining, observing, reconnecting, and
   persistent recovery;
-- simultaneous turns, host pause/timer controls, bounded AI participants, and
+- simultaneous turns, host pause/timer controls, native AI participants, and
   conquest victory;
 - classic map generation, terrain, resources, extras, visibility, borders,
   movement, transport, combat, huts, and worker activities;
@@ -70,10 +70,10 @@ These are scope decisions, not untracked porting gaps:
 New scope must be explicitly agreed and added here before being described as a
 porting requirement.
 
-Full Freeciv classic/default-AI functional parity is required scope. Port
-progress and remaining native subsystems are tracked directly in
-[`AI_PORTING_INVENTORY.md`](AI_PORTING_INVENTORY.md); no runtime compatibility
-contract narrows that scope.
+Full Freeciv classic/default-AI functional parity is implemented for the
+supported classic baseline. Subsystem mappings and focused evidence are tracked
+directly in [`AI_PORTING_INVENTORY.md`](AI_PORTING_INVENTORY.md); no runtime
+compatibility contract narrows that scope.
 
 ## Verification
 

@@ -188,6 +188,22 @@ export class GameManagementHandler extends BaseSocketHandler {
         callback({ success: false, error: error instanceof Error ? error.message : 'Failed' });
       }
     });
+
+    socket.on('advisor:getRecommendations', async (_data, callback) => {
+      const connection = this.getConnection(socket, this.activeConnections);
+      try {
+        if (!connection?.gameId || !connection.userId || this.isSpectator(connection)) {
+          throw new Error('Not an active player');
+        }
+        const recommendations = await this.gameManager.getAdvisorRecommendations(
+          connection.gameId,
+          connection.userId
+        );
+        callback({ success: true, recommendations });
+      } catch (error) {
+        callback({ success: false, error: error instanceof Error ? error.message : 'Failed' });
+      }
+    });
   }
 
   /**

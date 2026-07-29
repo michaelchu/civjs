@@ -44,6 +44,10 @@ import {
 } from '@game/ai/FreecivAIProfile';
 import { createAIState } from '@game/ai/FreecivAIStateStore';
 import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
+import {
+  FreecivAdvisorService,
+  type AdvisorRecommendations,
+} from '@game/services/FreecivAdvisorService';
 import { EndGameService } from '@game/services/EndGameService';
 import { GameReplayService, type GameReplay } from '@game/services/GameReplayService';
 import {
@@ -190,6 +194,7 @@ export class GameManager {
   private diplomacyManager!: DiplomacyManager;
   private hostilityPolicy!: DiplomacyHostilityPolicy;
   private aiOrchestrator!: FreecivAIOrchestrator;
+  private advisorService!: FreecivAdvisorService;
   private endGameService!: EndGameService;
   private replayService!: GameReplayService;
   private nativeSaveService!: NativeSaveService;
@@ -273,6 +278,7 @@ export class GameManager {
       if (game) this.aiOrchestrator.onDiplomacyEvent(event.gameId, game, event);
     });
     this.hostilityPolicy = new DiplomacyHostilityPolicy(this.diplomacyManager);
+    this.advisorService = new FreecivAdvisorService(this.hostilityPolicy);
     this.aiOrchestrator = new FreecivAIOrchestrator(
       this.diplomacyManager,
       this.hostilityPolicy,
@@ -2049,6 +2055,20 @@ export class GameManager {
       game.currentTurn = game.turnManager.getCurrentTurn();
       for (const candidate of game.players.values()) candidate.hasEndedTurn = false;
     }
+  }
+
+  public async getAdvisorRecommendations(
+    gameId: string,
+    userId: string
+  ): Promise<AdvisorRecommendations> {
+    let game = this.games.get(gameId);
+    if (!game) game = (await this.recoverGameInstance(gameId)) ?? undefined;
+    if (!game) throw new Error('Unable to load game');
+    const player = Array.from(game.players.values()).find(
+      candidate => candidate.userId === userId && !candidate.isAI
+    );
+    if (!player) throw new Error('No human civilization is controlled by this user');
+    return this.advisorService.getRecommendations(game, player.id);
   }
 
   public async cleanupInactiveGames(): Promise<void> {
