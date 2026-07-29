@@ -37,10 +37,27 @@ The first implementation steps are now in place:
 - Authoritative integration scenarios now cover an AI producing a terrain
   improver, completing a requested road, and selecting, completing, and
   persisting an economic city improvement.
+- `npm run test:ai-validation:matrix` runs the focused suite through a
+  25-seed, bounded terminal-state matrix using Docker PostgreSQL. Its cases
+  vary map dimensions, terrain generation settings, player count, difficulty,
+  and configured victory condition; each still has a deterministic max-turn
+  cap so a failed terminal condition cannot hang the job.
+- Selected matrix seeds inject early-, middle-, and late-game process recovery.
+  The runner checks authoritative AI state and world invariants after every
+  turn and after each recovery.
+- Matrix failures write ignored but durable JSON diagnostics under
+  `apps/server/test-results/ai-validation/`, including configuration, current
+  phase and turn, map/entity snapshot, AI planning state, failure diagnosis,
+  and a focused Docker reproduction command.
+
+The real-paratrooper city-capture scenario remains temporarily skipped because
+its mission selection still depends on generated-world visibility and combat
+timing. It is not counted as validation coverage and should be re-enabled once
+that nondeterminism is resolved.
 
 This is intentionally a foundation rather than completion of the milestone:
-the matrix is still only a small smoke set, recovery injection is not yet
-systematic, and the 25- and 100-seed scheduled runs remain required work.
+the 100-seed scheduled run, saved metric baselines, decision traces, and
+comparative strategic-strength benchmarks remain required work.
 
 ## Next validation milestone: deterministic simulation matrix
 
