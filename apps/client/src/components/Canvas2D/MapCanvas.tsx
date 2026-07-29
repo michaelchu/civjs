@@ -21,6 +21,7 @@ import {
   USER_PREFERENCES_CHANGED_EVENT,
   type UserPreferences,
 } from '../../services/UserPreferences';
+import { findInitialMapCenter } from '../../utils/initialMapCenter';
 import { shallow } from 'zustand/shallow';
 
 interface MapCanvasProps {
@@ -105,6 +106,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
   const focusedUnits = useGameStore(state => state.focusedUnits);
   const selectedUnitId = useGameStore(state => state.selectedUnitId);
   const mapData = useGameStore(state => state.mapData);
+  const hasReceivedUnitSnapshot = useGameStore(state => state.hasReceivedUnitSnapshot);
   const setViewport = useGameStore(state => state.setViewport);
   const selectUnit = useGameStore(state => state.selectUnit);
   const addToFocus = useGameStore(state => state.addToFocus);
@@ -325,53 +327,31 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       return;
     }
 
-    // Try to find user's starting position - prioritize mapData starting positions
-    let startTile = null;
-
-    // FIRST: Try to find player's assigned starting position from map generation
-    const playerStartPos = mapData?.startingPositions?.find(
-      pos => pos.playerId === currentPlayerId
-    );
-
-    if (playerStartPos) {
-      startTile = { x: playerStartPos.x, y: playerStartPos.y };
-      console.log('Found player starting position at:', startTile);
-    } else {
-      // FALLBACK 1: Try to find user's first unit (matches freeciv-web behavior)
-      const userUnits = Object.values(units).filter(unit => unit.playerId === currentPlayerId);
-      if (userUnits.length > 0) {
-        const firstUnit = userUnits[0] as { x: number; y: number };
-        startTile = { x: firstUnit.x, y: firstUnit.y };
-        console.log('Found user unit at:', startTile);
-      } else {
-        // FALLBACK 2: Try to find user's first city
-        const userCities = Object.values(cities).filter(city => city.playerId === currentPlayerId);
-        if (userCities.length > 0) {
-          const firstCity = userCities[0] as { x: number; y: number };
-          startTile = { x: firstCity.x, y: firstCity.y };
-          console.log('Found user city at:', startTile);
-        } else {
-          // FALLBACK 3: Try to find any visible tile from the game map
-          for (const tile of Object.values(map.tiles)) {
-            if (tile.visible) {
-              startTile = { x: tile.x, y: tile.y };
-              break;
-            }
-          }
-        }
-      }
-    }
+    const startTile = findInitialMapCenter({
+      mapData,
+      currentPlayerId,
+      units,
+      cities,
+      tiles: map.tiles,
+      hasReceivedUnitSnapshot,
+    });
 
     if (startTile && rendererRef.current) {
-      // Center on the starting tile (like freeciv-web's center_tile_mapcanvas)
-      const tileGui = rendererRef.current.mapToGuiVector(startTile.x, startTile.y);
-      const centeredX = tileGui.guiDx - viewport.width / 2;
-      const centeredY = tileGui.guiDy - viewport.height / 2;
+      // The viewport store still contains its 800x600 defaults during this
+      // effect's first pass. Use the current canvas props so startup centering
+      // cannot race the size synchronization effect above.
+      const centeredViewport = rendererRef.current.getViewportPositionForTile(
+        startTile.x,
+        startTile.y,
+        width,
+        height
+      );
 
       setViewport({
-        ...viewport,
-        x: centeredX,
-        y: centeredY,
+        x: centeredViewport.x,
+        y: centeredViewport.y,
+        width,
+        height,
       });
 
       // Mark as initially centered to prevent future centering
@@ -387,10 +367,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
     // Use extracted variables instead of complex expressions
     unitsCount,
     citiesCount,
+    hasReceivedUnitSnapshot,
     setViewport,
     cities,
     units,
-    viewport,
+    width,
+    height,
   ]);
 
   // Draw store changes directly; React remains responsible for interaction UI.

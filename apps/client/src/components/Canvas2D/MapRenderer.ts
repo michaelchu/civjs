@@ -564,14 +564,26 @@ export class MapRenderer {
     const centerTileX = Math.floor(mapWidth / 2);
     const centerTileY = Math.floor(mapHeight / 2);
 
-    // Convert center tile to GUI coordinates
-    const centerTileGui = this.mapToGuiVector(centerTileX, centerTileY);
+    return this.getViewportPositionForTile(centerTileX, centerTileY, viewportWidth, viewportHeight);
+  }
 
-    // Position viewport so center tile is in center of screen
-    const centerX = centerTileGui.guiDx - viewportWidth / 2;
-    const centerY = centerTileGui.guiDy - viewportHeight / 2;
-
-    return { x: centerX, y: centerY };
+  /**
+   * Position a viewport so the center of a map tile is at the center of the
+   * current canvas.
+   */
+  getViewportPositionForTile(
+    mapX: number,
+    mapY: number,
+    viewportWidth: number,
+    viewportHeight: number
+  ): { x: number; y: number } {
+    const tileGui = this.mapToGuiVector(mapX, mapY);
+    return {
+      // Keep the viewport origin on device pixels. Fractional origins make
+      // adjacent terrain sprites sample between rows and expose dark seams.
+      x: Math.round(tileGui.guiDx + this.tileWidth / 2 - viewportWidth / 2),
+      y: Math.round(tileGui.guiDy + this.tileHeight / 2 - viewportHeight / 2),
+    };
   }
 
   /**

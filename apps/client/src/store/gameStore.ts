@@ -31,6 +31,7 @@ interface GameStore extends GameState {
   currentGameId: string | null;
   activeTab: GameTab;
   viewport: MapViewport;
+  hasReceivedUnitSnapshot: boolean;
   // Legacy single selection (maintained for backward compatibility)
   selectedUnitId: string | null;
   selectedCityId: string | null;
@@ -142,6 +143,7 @@ export const useGameStore = create<GameStore>()(
       width: 800,
       height: 600,
     },
+    hasReceivedUnitSnapshot: false,
     selectedUnitId: null,
     selectedCityId: null,
 

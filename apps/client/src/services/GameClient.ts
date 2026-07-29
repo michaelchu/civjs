@@ -443,8 +443,10 @@ export class GameClient {
             updatedUnits[unitData.id] = newUnit;
           }
 
-          useGameStore.getState().updateGameState({
+          useGameStore.setState({
             units: updatedUnits,
+            hasReceivedUnitSnapshot:
+              packet.data.fullSnapshot || useGameStore.getState().hasReceivedUnitSnapshot,
           });
         }
         break;
@@ -713,8 +715,9 @@ export class GameClient {
       totalTiles: data.xsize * data.ysize,
     });
 
-    useGameStore.getState().updateGameState({
+    useGameStore.setState({
       map: this.mapSnapshots.begin(data),
+      hasReceivedUnitSnapshot: false,
     });
   }
 

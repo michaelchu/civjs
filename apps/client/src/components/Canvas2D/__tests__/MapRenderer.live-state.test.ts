@@ -49,6 +49,15 @@ describe('MapRenderer live-state updates', () => {
     vi.useRealTimers();
   });
 
+  it('centers a tile using the current canvas dimensions', () => {
+    const renderer = new MapRenderer(createContext());
+
+    expect(renderer.getViewportPositionForTile(10, 20, 1279, 667)).toEqual({
+      x: -1071,
+      y: 411,
+    });
+  });
+
   it('coalesces throttled packet bursts and renders the latest state', () => {
     vi.useFakeTimers();
     vi.setSystemTime(1000);

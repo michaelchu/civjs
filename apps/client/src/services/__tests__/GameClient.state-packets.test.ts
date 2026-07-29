@@ -27,7 +27,7 @@ describe('GameClient state-bearing packets', () => {
       cities: {},
       map: { width: 0, height: 0, tiles: {} },
     });
-    useGameStore.setState({ notifications: [] });
+    useGameStore.setState({ notifications: [], hasReceivedUnitSnapshot: false });
     useGameStore.setState({ clientState: 'running', endGameReport: undefined });
   });
 
@@ -158,6 +158,18 @@ describe('GameClient state-bearing packets', () => {
       expect.objectContaining({ known: false, visible: false })
     );
     expect(useGameStore.getState().units).toEqual({});
+    expect(useGameStore.getState().hasReceivedUnitSnapshot).toBe(true);
+  });
+
+  it('resets unit snapshot readiness when a new map snapshot begins', () => {
+    useGameStore.setState({ hasReceivedUnitSnapshot: true });
+
+    handlePacket({
+      type: PacketType.MAP_INFO,
+      data: { xsize: 2, ysize: 1, wrap_id: 0 },
+    });
+
+    expect(useGameStore.getState().hasReceivedUnitSnapshot).toBe(false);
   });
 
   it('does not synthesize resize events after a recovered map snapshot', () => {
