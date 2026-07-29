@@ -20,6 +20,7 @@ import {
   cityThreatTravelKey,
 } from '@game/ai/FreecivAICityDangerPlanner';
 import { rankVirtualMilitaryProduction } from '@game/ai/FreecivAIMilitaryProductionPlanner';
+import { rankHunterProduction } from '@game/ai/FreecivAIHunterPlanner';
 
 /**
  * Executes citizen allocation, production, worklist, and city-local unit
@@ -147,6 +148,21 @@ export class FreecivAICityController {
           typeof game.cityManager.getCityMilitaryUnhappiness === 'function' &&
           game.cityManager.getCityMilitaryUnhappiness(city.id) > 0,
       });
+      const hunterWants = rankHunterProduction({
+        gameId: game.id,
+        playerId,
+        city,
+        friendlyUnits: units,
+        hostileUnits: prospectiveUnits,
+        unitTypes: Object.values(UNIT_TYPES),
+        canBuild: unitTypeId => canContinueProduction?.(city.id, 'unit', unitTypeId) ?? false,
+        getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+        distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+        targetSelectionHandicap: profile.handicaps.has('targets'),
+      });
+      for (const [unitTypeId, want] of hunterWants) {
+        offensiveUnitWants.set(unitTypeId, Math.max(want, offensiveUnitWants.get(unitTypeId) ?? 0));
+      }
       const dangerAssessment = assessCityDanger({
         city,
         friendlyUnits: units,

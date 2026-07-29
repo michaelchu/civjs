@@ -9,7 +9,7 @@ import { createAIProfile } from '@game/ai/FreecivAIProfile';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { FreecivAIState } from '@game/ai/FreecivAIStateStore';
 import { chooseGuardRendezvous, planCityGuards } from '@game/ai/FreecivAIGuardPlanner';
-import { planHunters } from '@game/ai/FreecivAIHunterPlanner';
+import { planHunterMissileLaunches, planHunters } from '@game/ai/FreecivAIHunterPlanner';
 import {
   hostileUnitsForPlanning,
   sortedPlayerUnits,
@@ -721,6 +721,8 @@ export class FreecivAIUnitController {
       }
       const type = game.unitManager.getUnitType(hunter.unitTypeId);
       if (!type) continue;
+      actions += await this.launchHunterMissiles(game, hunter, target, hostileUnits);
+      if (!game.unitManager.getUnit(target.id)) continue;
       if (
         game.mapManager.getDistance(hunter.x, hunter.y, target.x, target.y) <= (type.range ?? 1)
       ) {
@@ -729,6 +731,70 @@ export class FreecivAIUnitController {
         continue;
       }
       actions += await this.moveTowardMilitaryTarget(game, hunter, target.x, target.y);
+      const movedHunter = game.unitManager.getUnit(hunter.id);
+      const survivingTarget = game.unitManager.getUnit(target.id);
+      if (movedHunter && survivingTarget) {
+        actions += await this.launchHunterMissiles(
+          game,
+          movedHunter,
+          survivingTarget,
+          hostileUnits
+        );
+      }
+    }
+    return actions;
+  }
+
+  private async launchHunterMissiles(
+    game: GameInstance,
+    hunter: Unit,
+    primaryTarget: Unit,
+    hostileUnits: Unit[]
+  ): Promise<number> {
+    if (typeof game.unitManager.unloadUnit !== 'function') return 0;
+    const launches = planHunterMissileLaunches(
+      hunter,
+      primaryTarget,
+      game.unitManager.getPlayerUnits(hunter.playerId),
+      hostileUnits.filter(target => Boolean(game.unitManager.getUnit(target.id))),
+      unitTypeId => game.unitManager.getUnitType(unitTypeId),
+      (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY)
+    );
+    let actions = 0;
+    for (const launch of launches) {
+      let missile = game.unitManager.getUnit(launch.missile.id);
+      const target = game.unitManager.getUnit(launch.target.id);
+      if (!missile || !target) continue;
+      if (missile.transportedBy) {
+        if (!(await game.unitManager.unloadUnit(missile.id, hunter.x, hunter.y))) continue;
+        actions++;
+        missile = game.unitManager.getUnit(missile.id);
+        if (!missile) continue;
+      }
+      if (game.mapManager.getDistance(missile.x, missile.y, target.x, target.y) > 1) {
+        actions += await this.moveTowardMilitaryTarget(game, missile, target.x, target.y);
+        missile = game.unitManager.getUnit(missile.id);
+      }
+      if (
+        !missile ||
+        !game.unitManager.getUnit(target.id) ||
+        game.mapManager.getDistance(missile.x, missile.y, target.x, target.y) > 1
+      ) {
+        continue;
+      }
+      const missileType = game.unitManager.getUnitType(missile.unitTypeId);
+      const action = missileType?.flags?.includes('Nuclear')
+        ? ActionType.NUCLEAR_EXPLOSION
+        : ActionType.SUICIDE_ATTACK;
+      if (!game.unitManager.canUnitPerformAction(missile.id, action, target.x, target.y)) continue;
+      const result = await game.unitManager.executeUnitAction(
+        missile.id,
+        action,
+        target.x,
+        target.y,
+        missile.playerId
+      );
+      if (result.success) actions++;
     }
     return actions;
   }

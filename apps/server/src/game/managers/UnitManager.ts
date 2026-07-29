@@ -4032,17 +4032,20 @@ export class UnitManager {
     const y = targetY ?? transport.y;
     if (!this.canUnloadUnit(unitId, x, y)) return false;
 
+    const remainingMovement = UNIT_TYPES[cargo.unitTypeId].rulesetUnitClassFlags.includes('Missile')
+      ? cargo.movementLeft
+      : 0;
     transport.cargoUnits = (transport.cargoUnits ?? []).filter(id => id !== unitId);
     cargo.transportedBy = undefined;
     cargo.x = x;
     cargo.y = y;
-    cargo.movementLeft = 0;
+    cargo.movementLeft = remainingMovement;
 
     await Promise.all([
       this.databaseProvider
         .getDatabase()
         .update(units)
-        .set({ transportedBy: null, x, y, movementPoints: '0' })
+        .set({ transportedBy: null, x, y, movementPoints: String(remainingMovement) })
         .where(eq(units.id, unitId)),
       this.databaseProvider
         .getDatabase()

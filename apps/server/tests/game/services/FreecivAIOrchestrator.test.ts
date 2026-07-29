@@ -683,6 +683,79 @@ describe('FreecivAIOrchestrator', () => {
     expect(scenario.attackUnit).not.toHaveBeenCalledWith('nuclear', 'enemy');
   });
 
+  it('launches a carried hunter missile through authoritative unload and suicide actions', async () => {
+    const scenario = createScenario();
+    scenario.units.delete('settler');
+    scenario.units.delete('worker');
+    scenario.units.delete('scout');
+    scenario.units.delete('warrior');
+    scenario.units.set('hunter', {
+      id: 'hunter',
+      playerId: 'ai',
+      unitTypeId: 'hunter-platform',
+      x: 4,
+      y: 4,
+      movementLeft: 3,
+      health: 100,
+      veteranLevel: 0,
+      experience: 0,
+      fortified: false,
+    });
+    scenario.units.set('missile', {
+      id: 'missile',
+      playerId: 'ai',
+      unitTypeId: 'hunter-missile',
+      x: 4,
+      y: 4,
+      movementLeft: 6,
+      health: 100,
+      veteranLevel: 0,
+      experience: 0,
+      fortified: false,
+      transportedBy: 'hunter',
+    });
+    scenario.unitTypes['hunter-platform'] = {
+      roles: ['Hunter'],
+      attack: 8,
+      defense: 2,
+      movement: 3,
+      cost: 5,
+      transport_capacity: 2,
+      cargoClasses: ['Missile'],
+      unitClass: 'naval',
+    };
+    scenario.unitTypes['hunter-missile'] = {
+      attack: 18,
+      defense: 0,
+      movement: 6,
+      cost: 60,
+      rulesetUnitClass: 'Missile',
+      rulesetUnitClassFlags: ['Missile'],
+      unitClass: 'military',
+    };
+    const unloadUnit = jest.fn(async (unitId: string) => {
+      const missile = scenario.units.get(unitId);
+      if (!missile) return false;
+      missile.transportedBy = undefined;
+      return true;
+    });
+    (scenario.game.unitManager as any).unloadUnit = unloadUnit;
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(unloadUnit).toHaveBeenCalledWith('missile', 4, 4);
+    expect(scenario.executeUnitAction).toHaveBeenCalledWith(
+      'missile',
+      ActionType.SUICIDE_ATTACK,
+      5,
+      4,
+      'ai'
+    );
+  });
+
   it('does not target players unless diplomacy says they are at war', async () => {
     const scenario = createScenario();
     scenario.diplomacyManager.getSnapshot.mockResolvedValue({

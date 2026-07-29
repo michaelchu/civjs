@@ -492,6 +492,19 @@ describe('UnitManager', () => {
       expect({ x: cargo.x, y: cargo.y }).toEqual({ x: 12, y: 10 });
     });
 
+    it('preserves missile movement when launching from a compatible transport', async () => {
+      terrain.set('10,10', 'ocean');
+      const transport = await unitManager.createUnit('player-123', 'submarine', 10, 10);
+      const missile = await unitManager.createUnit('player-123', 'cruise_missile', 10, 10);
+
+      await expect(unitManager.loadUnitOntoTransport(transport.id, missile.id)).resolves.toBe(true);
+      missile.movementLeft = UNIT_TYPES.cruise_missile.movement;
+      await expect(unitManager.unloadUnit(missile.id, 10, 10)).resolves.toBe(true);
+
+      expect(missile.transportedBy).toBeUndefined();
+      expect(missile.movementLeft).toBe(UNIT_TYPES.cruise_missile.movement);
+    });
+
     it('captures an undefended enemy city through the authoritative callback', async () => {
       let cityOwner = 'player-456';
       const captureCity = jest.fn(async () => {
