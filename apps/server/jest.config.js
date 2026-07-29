@@ -36,49 +36,49 @@ module.exports = {
       functions: 82,
       lines: 87,
     },
-    'src/game/ai/FreecivAICityController.ts': {
+    'src/game/ai/AICityController.ts': {
       statements: 78,
       branches: 65,
       functions: 62,
       lines: 80,
     },
-    'src/game/ai/FreecivAIDiplomacyController.ts': {
+    'src/game/ai/AIDiplomacyController.ts': {
       statements: 82,
       branches: 69,
       functions: 80,
       lines: 84,
     },
-    'src/game/ai/FreecivAIDomesticController.ts': {
+    'src/game/ai/AIDomesticController.ts': {
       statements: 89,
       branches: 69,
       functions: 100,
       lines: 94,
     },
-    'src/game/ai/FreecivAISpecialUnitController.ts': {
+    'src/game/ai/AISpecialUnitController.ts': {
       statements: 72,
       branches: 52,
       functions: 59,
       lines: 75,
     },
-    'src/game/ai/FreecivAITransportController.ts': {
+    'src/game/ai/AITransportController.ts': {
       statements: 79,
       branches: 58,
       functions: 50,
       lines: 82,
     },
-    'src/game/ai/FreecivAIUnitController.ts': {
+    'src/game/ai/AIUnitController.ts': {
       statements: 80,
       branches: 69,
       functions: 83,
       lines: 84,
     },
-    'src/game/ai/FreecivAISpaceshipPlanner.ts': {
+    'src/game/ai/AISpaceshipPlanner.ts': {
       statements: 97,
       branches: 75,
       functions: 90,
       lines: 100,
     },
-    'src/game/ai/FreecivAITreasuryPlanner.ts': {
+    'src/game/ai/AITreasuryPlanner.ts': {
       statements: 94,
       branches: 80,
       functions: 85,

@@ -22,8 +22,8 @@ import { Server as SocketServer } from 'socket.io';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { GovernmentManager } from '@game/managers/GovernmentManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
-import { isSettableAILevel } from '@game/ai/FreecivAIProfile';
-import { assertAIState } from '@game/ai/FreecivAIStateStore';
+import { isSettableAILevel } from '@game/ai/AIProfile';
+import { assertAIState } from '@game/ai/AIStateStore';
 import {
   completeSpaceshipPart,
   isSpaceshipPart,

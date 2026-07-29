@@ -34,20 +34,17 @@ import {
   type TreatyClause,
   type TreatyProposal,
 } from '@game/managers/DiplomacyManager';
-import { FreecivAIOrchestrator } from '@game/services/FreecivAIOrchestrator';
+import { FreecivAIOrchestrator } from '@game/services/AIOrchestrator';
 import {
   createAIProfile,
   isSettableAILevel,
   type AILevel,
   type AITraits,
   type SettableAILevel,
-} from '@game/ai/FreecivAIProfile';
-import { createAIState } from '@game/ai/FreecivAIStateStore';
+} from '@game/ai/AIProfile';
+import { createAIState } from '@game/ai/AIStateStore';
 import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
-import {
-  FreecivAdvisorService,
-  type AdvisorRecommendations,
-} from '@game/services/FreecivAdvisorService';
+import { FreecivAdvisorService, type AdvisorRecommendations } from '@game/services/AdvisorService';
 import { EndGameService } from '@game/services/EndGameService';
 import { GameReplayService, type GameReplay } from '@game/services/GameReplayService';
 import {

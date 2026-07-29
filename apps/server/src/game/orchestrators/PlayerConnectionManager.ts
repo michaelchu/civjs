@@ -14,8 +14,8 @@ import { eq } from 'drizzle-orm';
 import { RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import serverConfig from '@config';
 import { getNextPlayerColorTheme, type PlayerColor } from '../../utils/playerColors';
-import { isSettableAILevel } from '../ai/FreecivAIProfile';
-import { createAIState } from '../ai/FreecivAIStateStore';
+import { isSettableAILevel } from '../ai/AIProfile';
+import { createAIState } from '../ai/AIStateStore';
 // PlayerState type is used in comments and method parameters but imported from GameManager
 
 export interface PlayerConnectionService {

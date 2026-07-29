@@ -48,7 +48,7 @@ import type {
   TerrainSettings,
 } from '@game/managers/GameManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
-import { assertAIState } from '@game/ai/FreecivAIStateStore';
+import { assertAIState } from '@game/ai/AIStateStore';
 import { ScenarioUnavailableError } from '@game/map/ScenarioProvider';
 import {
   completeSpaceshipPart,

@@ -8,7 +8,7 @@ import {
 import * as schema from '@database/schema';
 import { eq } from 'drizzle-orm';
 import { createMockSocketServer } from '../utils/gameTestUtils';
-import { assertAIState } from '@game/ai/FreecivAIStateStore';
+import { assertAIState } from '@game/ai/AIStateStore';
 import { ActionType } from '@app-types/shared/actions';
 
 // Integration test to verify full game flow
