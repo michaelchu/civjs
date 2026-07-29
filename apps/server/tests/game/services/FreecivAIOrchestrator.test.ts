@@ -1,4 +1,5 @@
 import { FreecivAIOrchestrator } from '@game/services/FreecivAIOrchestrator';
+import { FreecivAITransportController } from '@game/ai/FreecivAITransportController';
 import { createAIState } from '@game/ai/FreecivAIStateStore';
 import { ActionType } from '@app-types/shared/actions';
 
@@ -705,9 +706,11 @@ describe('FreecivAIOrchestrator', () => {
       },
     };
 
-    const actions = await (
-      new FreecivAIOrchestrator(scenario.diplomacyManager as any) as any
-    ).manageFerries(scenario.game, 'ai', state);
+    const actions = await new FreecivAITransportController().manageFerries(
+      scenario.game as any,
+      'ai',
+      state
+    );
 
     expect(actions).toBe(2);
     expect(scenario.executeUnitAction).toHaveBeenNthCalledWith(

@@ -6,8 +6,10 @@ Behavioral parity target for the supported classic ruleset.
 
 The vendored Freeciv classic/default AI is the required baseline. The target is
 a native CivJS port of its behavior through authoritative managers, not a
-compatibility layer or line-for-line C translation. `FreecivAIOrchestrator` is the
-current orchestrator and must shrink as the subsystem ports below land.
+compatibility layer or line-for-line C translation. `FreecivAIOrchestrator`
+owns lifecycle, ordered dispatch, and state persistence; city, domestic,
+diplomacy, unit, transport, and special-unit controllers own their
+corresponding decisions.
 
 Reference code is split between `reference/freeciv/ai/default`,
 `reference/freeciv/ai/{difficulty,handicaps,aitraits}.c`,
@@ -23,11 +25,11 @@ Status language:
 
 ## Lifecycle and state
 
-| Freeciv subsystem                                      | CivJS target                                                                              | Current status                                                                                                                                                                                                                                      | Completion evidence                                                           |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `classicai.c`, `daiplayer.c`, `daidata.c`, `daihand.c` | AI module/orchestrator, phase begin/end, per-player strategic cache, restart-safe state   | Partial — creation, turn invocation, recovery, game-end gating, versioned strategic state, relationship memory, assignments, and want caches exist; mutable state is snapshotted and per-player writes are ordered; complete event callbacks do not | New-game, restart-mid-phase, control-transfer, and multi-AI integration tests |
-| `difficulty.c`, `handicaps.c`, `aitraits.c`            | Persisted difficulty, skill effects, fuzzy decisions, expansion/science/aggression traits | Partial — all release profiles, reference parameters/handicap sets, four persisted traits, selectable game-default skill, and `H_TARGETS` unit/city visibility behavior exist; seeded fuzziness and remaining handicap consumers remain             | Per-level behavioral contracts and deterministic seeded tests                 |
-| `aiiface.c`, `common/ai.h` callbacks                   | City/unit/player lifecycle and observed-state invalidation hooks                          | Partial — every authoritative unit-removal path emits one destruction callback and city destruction/capture immediately invalidates persisted tasks and city wants; creation, movement, control-transfer, and diplomacy incident callbacks remain   | Callback ordering, control-transfer, and broader cache-invalidation tests     |
+| Freeciv subsystem                                      | CivJS target                                                                              | Current status                                                                                                                                                                                                                                          | Completion evidence                                                           |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `classicai.c`, `daiplayer.c`, `daidata.c`, `daihand.c` | AI module/orchestrator, phase begin/end, per-player strategic cache, restart-safe state   | Partial — creation, turn invocation, recovery, game-end gating, strict native strategic state, relationship memory, assignments, and want caches exist; mutable state is snapshotted and per-player writes are ordered; complete event callbacks do not | New-game, restart-mid-phase, control-transfer, and multi-AI integration tests |
+| `difficulty.c`, `handicaps.c`, `aitraits.c`            | Persisted difficulty, skill effects, fuzzy decisions, expansion/science/aggression traits | Partial — all release profiles, reference parameters/handicap sets, four persisted traits, selectable game-default skill, and `H_TARGETS` unit/city visibility behavior exist; seeded fuzziness and remaining handicap consumers remain                 | Per-level behavioral contracts and deterministic seeded tests                 |
+| `aiiface.c`, `common/ai.h` callbacks                   | City/unit/player lifecycle and observed-state invalidation hooks                          | Partial — every authoritative unit-removal path emits one destruction callback and city destruction/capture immediately invalidates persisted tasks and city wants; creation, movement, control-transfer, and diplomacy incident callbacks remain       | Callback ordering, control-transfer, and broader cache-invalidation tests     |
 
 ## Economy, cities, and technology
 
