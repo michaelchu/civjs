@@ -10,7 +10,16 @@ export interface AIDiplomacyMemory {
 }
 
 export interface AIUnitTask {
-  role: 'attack' | 'defend' | 'guard' | 'settle' | 'worker' | 'explore' | 'ferry' | 'diplomat';
+  role:
+    | 'attack'
+    | 'defend'
+    | 'guard'
+    | 'hunter'
+    | 'settle'
+    | 'worker'
+    | 'explore'
+    | 'ferry'
+    | 'diplomat';
   targetId?: string;
   targetX?: number;
   targetY?: number;

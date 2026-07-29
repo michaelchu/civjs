@@ -21,6 +21,7 @@ import {
   type FreecivAIState,
 } from '@game/ai/FreecivAIStateStore';
 import { planCityGuards } from '@game/ai/FreecivAIGuardPlanner';
+import { planHunters } from '@game/ai/FreecivAIHunterPlanner';
 
 /**
  * Versioned compatibility contract for the currently landed Freeciv AI slice.
@@ -40,6 +41,7 @@ export const CIVJS_AI_CONTRACT = {
     'use legal caravan, city-join, home-city, and unit-upgrade outcomes',
     'score military targets by expected shield profit and pursue reachable targets',
     'persist city guard assignments, reinforce danger, and fortify defenders',
+    'assign specialist hunters to persistent high-value mobile targets',
     'value incoming treaties and make proactive cease-fire, peace, and alliance proposals',
     'persist difficulty, traits, diplomacy memory, assignments, and wants across restarts',
     'yield game completion to the authoritative conquest evaluator',
@@ -48,7 +50,7 @@ export const CIVJS_AI_CONTRACT = {
     'complete lifecycle event callbacks and use persisted assignments across every advisor',
     'complete city, technology, government, rates, spending, and advisor want parity',
     'settlement-site and worker-improvement reservation parity',
-    'hunters, ferries, amphibious operations, air, paradrop, and diplomat planning',
+    'ferries, amphibious operations, air, paradrop, and diplomat planning',
     'complete Freeciv diplomacy threat, reputation, incident, and material-clause valuation',
   ],
 } as const;
@@ -91,6 +93,9 @@ export class CivJSAIAdapter {
       );
       actions += await this.attempt('workers', () => this.automateWorkers(game, playerId));
       actions += await this.attempt('guards', () => this.manageCityGuards(game, playerId, state));
+      actions += await this.attempt('hunters', () =>
+        this.manageHunters(gameId, game, playerId, state)
+      );
       actions += await this.attempt('combat', () =>
         this.attackAdjacentEnemies(gameId, game, playerId, state)
       );
@@ -345,6 +350,7 @@ export class CivJSAIAdapter {
     for (const attacker of this.sortedUnits(game, playerId)) {
       if (state.unitTasks[attacker.id]?.role === 'guard') continue;
       if (state.unitTasks[attacker.id]?.role === 'defend') continue;
+      if (state.unitTasks[attacker.id]?.role === 'hunter') continue;
       const type = game.unitManager.getUnitType(attacker.unitTypeId);
       if (attacker.movementLeft <= 0 || (type?.attack ?? type?.combat ?? 0) <= 0) continue;
       if (!type) continue;
@@ -459,6 +465,50 @@ export class CivJSAIAdapter {
         playerId
       );
       if (result.success) actions++;
+    }
+    return actions;
+  }
+
+  private async manageHunters(
+    gameId: string,
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<number> {
+    const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(gameId, playerId);
+    const hostileUnits = Array.from(game.unitManager.getAllUnits().values()).filter(
+      unit => hostileIds.has(unit.playerId) && !unit.transportedBy
+    );
+    const plan = planHunters({
+      turn: game.currentTurn,
+      friendlyUnits: game.unitManager.getPlayerUnits(playerId),
+      hostileUnits,
+      existingTasks: state.unitTasks,
+      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+    });
+    for (const [unitId, task] of Object.entries(state.unitTasks)) {
+      if (task.role === 'hunter') delete state.unitTasks[unitId];
+    }
+    Object.assign(state.unitTasks, plan.assignments);
+
+    let actions = 0;
+    for (const [unitId, task] of Object.entries(plan.assignments).sort(([a], [b]) =>
+      a.localeCompare(b)
+    )) {
+      const hunter = game.unitManager.getUnit(unitId);
+      const target = task.targetId ? game.unitManager.getUnit(task.targetId) : undefined;
+      if (!hunter || !target || hunter.movementLeft <= 0) continue;
+      const type = game.unitManager.getUnitType(hunter.unitTypeId);
+      if (!type) continue;
+      if (
+        game.mapManager.getDistance(hunter.x, hunter.y, target.x, target.y) <= (type.range ?? 1)
+      ) {
+        await game.unitManager.attackUnit(hunter.id, target.id);
+        actions++;
+        continue;
+      }
+      actions += await this.moveTowardMilitaryTarget(game, hunter, target);
     }
     return actions;
   }
