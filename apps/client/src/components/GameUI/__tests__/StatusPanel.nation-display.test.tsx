@@ -1,6 +1,17 @@
-import { render } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 import { vi } from 'vitest';
 import { StatusPanel } from '../StatusPanel';
+
+type MockStatusStore = {
+  turn: number;
+  year: number;
+  phase: string;
+  clientState: string;
+  currentPlayerId: string;
+  cities: Record<string, { id?: string; playerId: string; size: number }>;
+  setActiveTab: ReturnType<typeof vi.fn>;
+  players: Record<string, Record<string, unknown>>;
+};
 
 // Mock the game store
 const mockPlayer = {
@@ -18,7 +29,12 @@ const mockPlayer = {
 const { mockUseGameStore } = vi.hoisted(() => ({
   mockUseGameStore: {
     turn: 5,
+    year: -3800,
+    phase: 'movement',
+    clientState: 'running',
     currentPlayerId: 'player-1',
+    cities: {} as Record<string, { playerId: string; size: number }>,
+    setActiveTab: vi.fn(),
     players: {
       'player-1': {
         id: 'player-1',
@@ -32,7 +48,7 @@ const { mockUseGameStore } = vi.hoisted(() => ({
         government: 'republic',
       },
     },
-  },
+  } as unknown as MockStatusStore,
 }));
 
 vi.mock('../../../store/gameStore', () => ({
@@ -42,6 +58,7 @@ vi.mock('../../../store/gameStore', () => ({
 describe('StatusPanel - Nation Display', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseGameStore.cities = {};
     mockUseGameStore.players['player-1'] = mockPlayer;
   });
 
@@ -76,5 +93,32 @@ describe('StatusPanel - Nation Display', () => {
 
     expect(getByLabelText('Gold per turn')).toHaveTextContent('(-1)');
     expect(getByLabelText('Science per turn')).toHaveTextContent('(+2)');
+  });
+
+  it('shows economy, empire, calendar and connection status in the resource bar', () => {
+    mockUseGameStore.players['player-1'] = {
+      ...mockPlayer,
+      taxRate: 60,
+      luxuryRate: 10,
+      scienceRate: 30,
+      score: 480,
+    };
+    mockUseGameStore.cities = {
+      cityOne: { id: 'cityOne', playerId: 'player-1', size: 4 },
+      cityTwo: { id: 'cityTwo', playerId: 'player-1', size: 2 },
+    };
+
+    const { getByText, getByRole } = render(<StatusPanel />);
+
+    expect(getByText('60/10/30%')).toBeInTheDocument();
+    expect(getByText('6')).toBeInTheDocument();
+    expect(getByText('480')).toBeInTheDocument();
+    expect(getByRole('button', { name: 'Open turn and calendar information' })).toHaveTextContent(
+      '3800 BC'
+    );
+    expect(getByText('Online')).toBeInTheDocument();
+
+    fireEvent.click(getByRole('button', { name: 'Open economy settings' }));
+    expect(mockUseGameStore.setActiveTab).toHaveBeenCalledWith('options');
   });
 });
