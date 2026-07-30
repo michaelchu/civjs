@@ -114,6 +114,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const hasReceivedUnitSnapshot = useGameStore(state => state.hasReceivedUnitSnapshot);
   const setViewport = useGameStore(state => state.setViewport);
   const selectUnit = useGameStore(state => state.selectUnit);
+  const selectCity = useGameStore(state => state.selectCity);
   const addToFocus = useGameStore(state => state.addToFocus);
 
   // Track click state for multi-select
@@ -570,6 +571,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
   // City overlay handlers - placed early to avoid dependency issues
   const handleOpenCityInfoOverlay = useCallback(async (city: City) => {
+    selectCity(city.id);
     setCityInfoOverlay({
       isOpen: true,
       city: city,
@@ -600,9 +602,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         error: error instanceof Error ? error.message : 'Failed to load production choices',
       });
     }
-  }, []);
+  }, [selectCity]);
 
   const handleCloseCityInfoOverlay = useCallback(() => {
+    selectCity(null);
     setCityInfoOverlay({
       isOpen: false,
       city: null,
@@ -613,7 +616,19 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       cityId: null,
       error: null,
     });
-  }, []);
+  }, [selectCity]);
+
+  useEffect(() => {
+    const handleShowCityInfo = (event: Event) => {
+      const city = (event as CustomEvent<{ city?: City; cityId?: string }>).detail?.city;
+      const cityId = (event as CustomEvent<{ city?: City; cityId?: string }>).detail?.cityId;
+      const targetCity = city ?? (cityId ? cities[cityId] : undefined);
+      if (targetCity) void handleOpenCityInfoOverlay(targetCity);
+    };
+
+    document.addEventListener('show-city-info', handleShowCityInfo);
+    return () => document.removeEventListener('show-city-info', handleShowCityInfo);
+  }, [cities, handleOpenCityInfoOverlay]);
 
   const handleMouseDown = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {

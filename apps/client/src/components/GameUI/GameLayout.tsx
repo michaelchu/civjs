@@ -18,6 +18,7 @@ import { rulesetService } from '../../services/RulesetService';
 import { resolveMusicStyle } from '../../services/PresentationResolver';
 import { GameHud } from './GameHud';
 import { HudPanel } from './HudPanel';
+import { SelectionTray } from './SelectionTray';
 
 interface GameLayoutProps {
   rulesetName?: string;
@@ -131,6 +132,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
                   <GameMenu />
                 </HudPanel>
               }
+              bottomCenter={<SelectionTray />}
             />
           </div>
 
