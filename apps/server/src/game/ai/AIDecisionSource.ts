@@ -52,11 +52,7 @@ export class FreecivAIDecisionSource {
   }
 }
 
-export function createAIDecisionSource(
-  game: GameInstance,
-  playerId: string,
-  domain: string
-): FreecivAIDecisionSource {
+function createAIDecisionSeed(game: GameInstance, playerId: string, domain: string): string {
   const player = game.players.get(playerId);
   const mapSeed = game.mapManager.getMapData?.()?.seed ?? game.id;
   // Some callers (notably lightweight simulations and migration-era saves)
@@ -64,8 +60,17 @@ export function createAIDecisionSource(
   const configuredSeed = game.config?.aiDecisionSeed;
   const decisionSeed = configuredSeed ?? game.id;
   const playerSeed = configuredSeed ? (player?.playerNumber ?? playerId) : playerId;
+  return `${mapSeed}:${decisionSeed}:${game.currentTurn}:${playerSeed}:${domain}`;
+}
+
+export function createAIDecisionSource(
+  game: GameInstance,
+  playerId: string,
+  domain: string
+): FreecivAIDecisionSource {
+  const player = game.players.get(playerId);
   return new FreecivAIDecisionSource(
-    `${mapSeed}:${decisionSeed}:${game.currentTurn}:${playerSeed}:${domain}`,
+    createAIDecisionSeed(game, playerId, domain),
     createAIProfile(player?.aiLevel, player?.aiTraits)
   );
 }

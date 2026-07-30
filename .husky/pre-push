@@ -1,0 +1,3 @@
+echo "🔍 Running full lint before push..."
+npm run lint
+echo "✅ Full lint passed!"

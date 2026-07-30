@@ -1,6 +1,6 @@
 echo "🔍 Running pre-commit checks..."
 
-echo "🧹 Checking staged files..."
+echo "🧹 Linting and formatting staged files..."
 npm run lint-staged
 
 echo "🔎 Running type checks..."
