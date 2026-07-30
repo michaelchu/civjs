@@ -102,4 +102,19 @@ describe('TurnActionCluster', () => {
 
     expect(onOpenIntelligence).toHaveBeenCalledOnce();
   });
+
+  it('opens the space-race report from the reports menu', () => {
+    const onOpenSpaceRace = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <TurnActionCluster onOpenSpaceRace={onOpenSpaceRace} />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reports' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Space race' }));
+
+    expect(onOpenSpaceRace).toHaveBeenCalledOnce();
+  });
 });

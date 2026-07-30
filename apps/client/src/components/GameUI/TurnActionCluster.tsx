@@ -7,6 +7,7 @@ import {
   Flag,
   MessageSquare,
   Radar,
+  Rocket,
   ScrollText,
   ShieldAlert,
   Sparkles,
@@ -50,7 +51,8 @@ const ReportsMenu: React.FC<{
   onOpenClimate?: () => void;
   onOpenUnitReport?: () => void;
   onOpenIntelligence?: () => void;
-}> = ({ onClose, onOpenScores, onOpenDemographics, onOpenClimate, onOpenUnitReport, onOpenIntelligence }) => {
+  onOpenSpaceRace?: () => void;
+}> = ({ onClose, onOpenScores, onOpenDemographics, onOpenClimate, onOpenUnitReport, onOpenIntelligence, onOpenSpaceRace }) => {
   const setActiveTab = useGameStore(state => state.setActiveTab);
   const openTab = (tab: Parameters<typeof setActiveTab>[0]) => {
     setActiveTab(tab);
@@ -77,6 +79,9 @@ const ReportsMenu: React.FC<{
         </button>
         <button type="button" onClick={() => { onOpenIntelligence?.(); onClose(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
           <Radar className="h-3.5 w-3.5" aria-hidden="true" /> Intelligence
+        </button>
+        <button type="button" onClick={() => { onOpenSpaceRace?.(); onClose(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
+          <Rocket className="h-3.5 w-3.5" aria-hidden="true" /> Space race
         </button>
         <button type="button" onClick={() => openTab('research')} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Research
@@ -120,7 +125,8 @@ export const TurnActionCluster: React.FC<{
   onOpenClimate?: () => void;
   onOpenUnitReport?: () => void;
   onOpenIntelligence?: () => void;
-}> = ({ onOpenScores, onOpenDemographics, onOpenClimate, onOpenUnitReport, onOpenIntelligence }) => {
+  onOpenSpaceRace?: () => void;
+}> = ({ onOpenScores, onOpenDemographics, onOpenClimate, onOpenUnitReport, onOpenIntelligence, onOpenSpaceRace }) => {
   const [reportsOpen, setReportsOpen] = React.useState(false);
   const [helpOpen, setHelpOpen] = React.useState(false);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
@@ -209,6 +215,7 @@ export const TurnActionCluster: React.FC<{
           onOpenClimate={onOpenClimate}
           onOpenUnitReport={onOpenUnitReport}
           onOpenIntelligence={onOpenIntelligence}
+          onOpenSpaceRace={onOpenSpaceRace}
         />
       )}
       {helpOpen && <HelpMenu />}
