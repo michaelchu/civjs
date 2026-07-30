@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
 import { Eye, Flag, MapPin, Radar, ShieldAlert, Swords, Users } from 'lucide-react';
 import type { City, DiplomacyNation, Player, Tile, Unit } from '../../types';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { NationInsignia } from './NationInsignia';
+import { HudDialogContent } from './HudDialogContent';
 
 interface IntelligenceReportProps {
   open: boolean;
@@ -131,7 +132,7 @@ export const IntelligenceReport: React.FC<IntelligenceReportProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto border-white/15 bg-slate-900 text-white">
+      <HudDialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-white">
             <Radar className="h-5 w-5 text-cyan-300" aria-hidden="true" />
@@ -296,7 +297,7 @@ export const IntelligenceReport: React.FC<IntelligenceReportProps> = ({
             </div>
           </section>
         </div>
-      </DialogContent>
+      </HudDialogContent>
     </Dialog>
   );
 };

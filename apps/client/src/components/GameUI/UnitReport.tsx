@@ -2,14 +2,9 @@ import React from 'react';
 import { Coins, Crosshair, Heart, Home, Shield, Swords, Wheat } from 'lucide-react';
 import type { City, Unit } from '../../types';
 import { useGameStore } from '../../store/gameStore';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '../ui/dialog';
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/Table';
+import { HudDialogContent } from './HudDialogContent';
 
 interface UnitReportProps {
   open: boolean;
@@ -55,38 +50,67 @@ export const UnitReport: React.FC<UnitReportProps> = ({
   const focusUnit = (unit: Unit) => {
     selectCity(null);
     selectUnit(unit.id);
-    document.dispatchEvent(new CustomEvent('center-map-on-tile', { detail: { x: unit.x, y: unit.y } }));
+    document.dispatchEvent(
+      new CustomEvent('center-map-on-tile', { detail: { x: unit.x, y: unit.y } })
+    );
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto border-white/15 bg-slate-900 text-white">
+      <HudDialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-white">
             <Swords className="h-5 w-5 text-cyan-300" aria-hidden="true" />
             Units and upkeep
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Your unit roster, readiness, support costs, and map locations. Foreign units are not included.
+            Your unit roster, readiness, support costs, and map locations. Foreign units are not
+            included.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5">
           <section className="grid gap-3 sm:grid-cols-5" aria-label="Unit summary">
             <SummaryCard icon={Swords} label="Total units" value={`${ownUnits.length}`} />
-            <SummaryCard icon={Crosshair} label="Ready" value={`${readyCount}`} tone="text-emerald-300" />
-            <SummaryCard icon={Shield} label="Veterans" value={`${veteranCount}`} tone="text-violet-300" />
-            <SummaryCard icon={Wheat} label="Food upkeep" value={`${totalUpkeep.food}`} tone="text-amber-300" />
-            <SummaryCard icon={Coins} label="Gold upkeep" value={`${totalUpkeep.gold}`} tone="text-amber-300" />
+            <SummaryCard
+              icon={Crosshair}
+              label="Ready"
+              value={`${readyCount}`}
+              tone="text-emerald-300"
+            />
+            <SummaryCard
+              icon={Shield}
+              label="Veterans"
+              value={`${veteranCount}`}
+              tone="text-violet-300"
+            />
+            <SummaryCard
+              icon={Wheat}
+              label="Food upkeep"
+              value={`${totalUpkeep.food}`}
+              tone="text-amber-300"
+            />
+            <SummaryCard
+              icon={Coins}
+              label="Gold upkeep"
+              value={`${totalUpkeep.gold}`}
+              tone="text-amber-300"
+            />
           </section>
 
           {ownUnits.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-white/15 bg-white/5 p-6 text-sm text-slate-400">No units are currently available.</div>
+            <div className="rounded-xl border border-dashed border-white/15 bg-white/5 p-6 text-sm text-slate-400">
+              No units are currently available.
+            </div>
           ) : (
             <section aria-labelledby="unit-roster-heading">
               <div className="mb-2 flex items-center justify-between gap-3">
-                <h3 id="unit-roster-heading" className="text-sm font-semibold text-slate-100">Unit roster</h3>
-                <span className="text-[10px] uppercase tracking-[0.12em] text-slate-500">Click a row to center map</span>
+                <h3 id="unit-roster-heading" className="text-sm font-semibold text-slate-100">
+                  Unit roster
+                </h3>
+                <span className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
+                  Click a row to center map
+                </span>
               </div>
               <Table className="border-white/10">
                 <TableHeader className="bg-slate-800">
@@ -118,11 +142,30 @@ export const UnitReport: React.FC<UnitReportProps> = ({
                           </button>
                         </TableCell>
                         <TableCell className={status.tone}>{status.label}</TableCell>
-                        <TableCell className="text-right tabular-nums text-slate-300"><span className="inline-flex items-center gap-1"><Heart className="h-3.5 w-3.5 text-rose-300" aria-hidden="true" />{unit.hp}%</span></TableCell>
-                        <TableCell className="text-right tabular-nums text-slate-300">{unit.movesLeft}/{unit.maxMoves ?? '—'}</TableCell>
-                        <TableCell className="text-slate-400"><span className="inline-flex items-center gap-1"><Home className="h-3.5 w-3.5" aria-hidden="true" />{homeCity ?? 'Unassigned'}</span></TableCell>
-                        <TableCell className="text-right text-[10px] tabular-nums text-slate-400">{formatUpkeep(unit)}</TableCell>
-                        <TableCell className="text-right tabular-nums text-slate-400"><span className="inline-flex items-center gap-1"><Crosshair className="h-3.5 w-3.5" aria-hidden="true" />{unit.x}, {unit.y}</span></TableCell>
+                        <TableCell className="text-right tabular-nums text-slate-300">
+                          <span className="inline-flex items-center gap-1">
+                            <Heart className="h-3.5 w-3.5 text-rose-300" aria-hidden="true" />
+                            {unit.hp}%
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-slate-300">
+                          {unit.movesLeft}/{unit.maxMoves ?? '—'}
+                        </TableCell>
+                        <TableCell className="text-slate-400">
+                          <span className="inline-flex items-center gap-1">
+                            <Home className="h-3.5 w-3.5" aria-hidden="true" />
+                            {homeCity ?? 'Unassigned'}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right text-[10px] tabular-nums text-slate-400">
+                          {formatUpkeep(unit)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-slate-400">
+                          <span className="inline-flex items-center gap-1">
+                            <Crosshair className="h-3.5 w-3.5" aria-hidden="true" />
+                            {unit.x}, {unit.y}
+                          </span>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -131,9 +174,12 @@ export const UnitReport: React.FC<UnitReportProps> = ({
             </section>
           )}
 
-          <p className="text-[10px] text-slate-500">{totalUpkeep.shields} shield upkeep is included in the aggregate but may be resolved through city support rules.</p>
+          <p className="text-[10px] text-slate-500">
+            {totalUpkeep.shields} shield upkeep is included in the aggregate but may be resolved
+            through city support rules.
+          </p>
         </div>
-      </DialogContent>
+      </HudDialogContent>
     </Dialog>
   );
 };
@@ -145,7 +191,9 @@ const formatUpkeep = (unit: Unit): string => {
     upkeep.food ? `${upkeep.food}F` : '',
     upkeep.shields ? `${upkeep.shields}S` : '',
     upkeep.gold ? `${upkeep.gold}G` : '',
-  ].filter(Boolean).join(' · ');
+  ]
+    .filter(Boolean)
+    .join(' · ');
 };
 
 const SummaryCard: React.FC<{

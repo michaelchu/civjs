@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Crosshair, Heart, Shield, Swords, TriangleAlert } from 'lucide-react';
 import type { Unit } from '../../types';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import { HudDialogContent } from './HudDialogContent';
 
 interface WarCalculatorProps {
   open: boolean;
@@ -73,7 +74,7 @@ export const WarCalculator: React.FC<WarCalculatorProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto border-white/15 bg-slate-900 text-white">
+      <HudDialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-white">
             <Crosshair className="h-5 w-5 text-rose-300" aria-hidden="true" />
@@ -156,7 +157,7 @@ export const WarCalculator: React.FC<WarCalculatorProps> = ({
             </>
           )}
         </div>
-      </DialogContent>
+      </HudDialogContent>
     </Dialog>
   );
 };

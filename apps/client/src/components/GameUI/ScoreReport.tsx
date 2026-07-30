@@ -1,8 +1,9 @@
 import React from 'react';
 import { BarChart3, Trophy } from 'lucide-react';
 import type { Player } from '../../types';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/Table';
+import { HudDialogContent } from './HudDialogContent';
 import { NationInsignia } from './NationInsignia';
 
 export interface ScoreSnapshot {
@@ -177,7 +178,7 @@ export const ScoreReport: React.FC<ScoreReportProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto border-white/15 bg-slate-900 text-white">
+      <HudDialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-white">
             <BarChart3 className="h-5 w-5 text-cyan-300" aria-hidden="true" />
@@ -280,7 +281,7 @@ export const ScoreReport: React.FC<ScoreReportProps> = ({
             </section>
           </div>
         )}
-      </DialogContent>
+      </HudDialogContent>
     </Dialog>
   );
 };
