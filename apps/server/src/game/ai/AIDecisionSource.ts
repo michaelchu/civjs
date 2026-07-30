@@ -59,8 +59,11 @@ export function createAIDecisionSource(
 ): FreecivAIDecisionSource {
   const player = game.players.get(playerId);
   const mapSeed = game.mapManager.getMapData?.()?.seed ?? game.id;
-  const decisionSeed = game.config.aiDecisionSeed ?? game.id;
-  const playerSeed = game.config.aiDecisionSeed ? (player?.playerNumber ?? playerId) : playerId;
+  // Some callers (notably lightweight simulations and migration-era saves)
+  // provide a partial GameInstance without the optional runtime config.
+  const configuredSeed = game.config?.aiDecisionSeed;
+  const decisionSeed = configuredSeed ?? game.id;
+  const playerSeed = configuredSeed ? (player?.playerNumber ?? playerId) : playerId;
   return new FreecivAIDecisionSource(
     `${mapSeed}:${decisionSeed}:${game.currentTurn}:${playerSeed}:${domain}`,
     createAIProfile(player?.aiLevel, player?.aiTraits)
