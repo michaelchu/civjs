@@ -166,6 +166,28 @@ Primary files:
 
 This slice should be treated as a prerequisite for all subsequent HUD slices.
 
+#### Current data boundaries and follow-up BE work
+
+The current HUD implementation must keep these fields explicit rather than
+deriving or inventing values:
+
+- **Culture:** available as `Player.culture`, with `history` as the client
+  fallback for the resource bar.
+- **Faith:** no authoritative player or economy field is currently present in
+  the BE/FE contract. Do not render a zero or repurpose luxury as faith; add a
+  ruleset-backed field and packet only if faith becomes part of the supported
+  game model.
+- **Strategic resources:** tile `resource` values are available when known,
+  but there is no aggregate per-player inventory/stockpile contract. A future
+  strategic-resource widget requires an authoritative inventory snapshot,
+  visibility rules, and update events.
+- **Diplomacy locations:** diplomacy records do not contain coordinates. Map
+  centering must use only a city or unit already present in the client’s
+  permitted snapshot; unknown nations must not receive inferred locations.
+
+These boundaries are UI acceptance constraints until the corresponding BE
+contracts are implemented and covered by packet/normalization tests.
+
 ### Slice 1 — HUD foundations
 
 Create the layout primitives and conventions needed by all later slices.
