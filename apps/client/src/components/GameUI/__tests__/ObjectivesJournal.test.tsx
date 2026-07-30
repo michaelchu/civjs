@@ -49,7 +49,9 @@ describe('ObjectivesJournal', () => {
           veteranLevel: 0,
         },
       },
-      technologies: { writing: { id: 'writing', name: 'Writing', cost: 40, requirements: [], discovered: false } },
+      technologies: {
+        writing: { id: 'writing', name: 'Writing', cost: 40, requirements: [], discovered: false },
+      },
       research: {
         currentTech: 'writing',
         bulbsAccumulated: 12,
@@ -76,7 +78,9 @@ describe('ObjectivesJournal', () => {
     render(<ObjectivesJournal />);
     fireEvent.click(screen.getByRole('button', { name: /center on alpha/i }));
     expect(useGameStore.getState().selectedCityId).toBe('city-1');
-    expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'center-map-on-tile' }));
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'center-map-on-tile' })
+    );
   });
 
   it('collapses to an urgent-count affordance', () => {
@@ -84,6 +88,15 @@ describe('ObjectivesJournal', () => {
     fireEvent.click(screen.getByRole('button', { name: /collapse objectives/i }));
     expect(screen.getByRole('button', { name: /expand objectives/i })).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument();
+  });
+
+  it('reopens the full panel when expanded from the collapsed mobile affordance', () => {
+    render(<ObjectivesJournal />);
+
+    fireEvent.click(screen.getByRole('button', { name: /collapse objectives/i }));
+    fireEvent.click(screen.getByRole('button', { name: /expand objectives/i }));
+
+    expect(screen.getByText('City attention')).toBeInTheDocument();
   });
 
   it('keeps objectives accessible through a compact mobile entry point', () => {

@@ -34,7 +34,10 @@ const SectionHeading: React.FC<{
   urgent?: boolean;
 }> = ({ icon: Icon, label, count, urgent = false }) => (
   <div className="flex items-center gap-2 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-    <Icon className={`h-3.5 w-3.5 ${urgent ? 'text-amber-300' : 'text-cyan-300'}`} aria-hidden="true" />
+    <Icon
+      className={`h-3.5 w-3.5 ${urgent ? 'text-amber-300' : 'text-cyan-300'}`}
+      aria-hidden="true"
+    />
     <span>{label}</span>
     {count !== undefined && (
       <span className={`ml-auto tabular-nums ${urgent ? 'text-amber-300' : 'text-slate-500'}`}>
@@ -60,7 +63,11 @@ const LinkRow: React.FC<{
   >
     <Icon
       className={`mt-0.5 h-4 w-4 shrink-0 ${
-        tone === 'urgent' ? 'text-amber-300' : tone === 'success' ? 'text-emerald-300' : 'text-slate-400'
+        tone === 'urgent'
+          ? 'text-amber-300'
+          : tone === 'success'
+            ? 'text-emerald-300'
+            : 'text-slate-400'
       }`}
       aria-hidden="true"
     />
@@ -70,7 +77,10 @@ const LinkRow: React.FC<{
       </span>
       <span className="mt-0.5 block truncate text-[10px] text-slate-400">{detail}</span>
     </span>
-    <LocateFixed className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-600 group-hover:text-cyan-300" aria-hidden="true" />
+    <LocateFixed
+      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-600 group-hover:text-cyan-300"
+      aria-hidden="true"
+    />
   </button>
 );
 
@@ -109,7 +119,9 @@ const ResearchObjective: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
           {technology?.name ?? formatName(techId)}
         </span>
         <span className="mt-0.5 block truncate text-[10px] text-slate-400">
-          {research?.currentTech === techId ? `${research.bulbsAccumulated} bulbs invested` : 'Goal'}
+          {research?.currentTech === techId
+            ? `${research.bulbsAccumulated} bulbs invested`
+            : 'Goal'}
           {technology ? ` · ${technology.cost} cost` : ''}
         </span>
       </span>
@@ -178,8 +190,7 @@ export const ObjectivesJournal: React.FC = () => {
     [cities, currentPlayerId]
   );
   const cityAlerts = React.useMemo(
-    () =>
-      ownedCities.filter(city => city.disorder || city.granaryTurns < 0 || !city.production),
+    () => ownedCities.filter(city => city.disorder || city.granaryTurns < 0 || !city.production),
     [ownedCities]
   );
   const pendingUnits = React.useMemo(
@@ -195,7 +206,13 @@ export const ObjectivesJournal: React.FC = () => {
   if (collapsed) {
     return (
       <HudPanel className="flex w-11 flex-col items-center gap-2 p-1.5">
-        <HudIconButton label="Expand objectives and journal" onClick={() => setCollapsed(false)}>
+        <HudIconButton
+          label="Expand objectives and journal"
+          onClick={() => {
+            setCollapsed(false);
+            setMobileOpen(true);
+          }}
+        >
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
         </HudIconButton>
         {urgentCount > 0 && (
@@ -222,94 +239,118 @@ export const ObjectivesJournal: React.FC = () => {
       <HudPanel
         className={`${mobileOpen ? 'flex' : 'hidden'} max-h-[min(36rem,calc(100vh-8rem))] w-72 flex-col overflow-hidden sm:flex`}
       >
-      <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2.5">
-        <BookOpen className="h-4 w-4 text-cyan-300" aria-hidden="true" />
-        <div className="min-w-0 flex-1">
-          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-100">Objectives</div>
-          <div className="text-[10px] text-slate-500">Journal and empire attention</div>
+        <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2.5">
+          <BookOpen className="h-4 w-4 text-cyan-300" aria-hidden="true" />
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-100">
+              Objectives
+            </div>
+            <div className="text-[10px] text-slate-500">Journal and empire attention</div>
+          </div>
+          {urgentCount > 0 && (
+            <span className="rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-amber-200">
+              {urgentCount}
+            </span>
+          )}
+          <HudIconButton
+            label="Collapse objectives and journal"
+            onClick={() => {
+              setCollapsed(true);
+              setMobileOpen(false);
+            }}
+          >
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+          </HudIconButton>
         </div>
-        {urgentCount > 0 && (
-          <span className="rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-amber-200">
-            {urgentCount}
-          </span>
-        )}
-        <HudIconButton
-          label="Collapse objectives and journal"
-          onClick={() => {
-            setCollapsed(true);
-            setMobileOpen(false);
-          }}
-        >
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-        </HudIconButton>
-      </div>
 
-      <div className="space-y-3 overflow-y-auto p-2">
-        <section>
-          <SectionHeading icon={FlaskConical} label="Research" />
-          <ResearchObjective onOpen={() => setActiveTab('research')} />
-        </section>
+        <div className="space-y-3 overflow-y-auto p-2">
+          <section>
+            <SectionHeading icon={FlaskConical} label="Research" />
+            <ResearchObjective onOpen={() => setActiveTab('research')} />
+          </section>
 
-        <section>
-          <SectionHeading icon={CircleAlert} label="City attention" count={cityAlerts.length} urgent={cityAlerts.length > 0} />
-          {cityAlerts.length > 0 ? (
-            <div className="mt-1 space-y-0.5">
-              {cityAlerts.slice(0, 4).map(city => <CityAlertRow key={city.id} city={city} />)}
-              {cityAlerts.length > 4 && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('cities')}
-                  className="w-full px-2 py-1 text-left text-[10px] text-cyan-300 hover:text-cyan-200"
-                >
-                  View {cityAlerts.length - 4} more cities
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="px-2 py-2 text-[10px] text-emerald-300/80">All cities stable</div>
-          )}
-        </section>
+          <section>
+            <SectionHeading
+              icon={CircleAlert}
+              label="City attention"
+              count={cityAlerts.length}
+              urgent={cityAlerts.length > 0}
+            />
+            {cityAlerts.length > 0 ? (
+              <div className="mt-1 space-y-0.5">
+                {cityAlerts.slice(0, 4).map(city => (
+                  <CityAlertRow key={city.id} city={city} />
+                ))}
+                {cityAlerts.length > 4 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('cities')}
+                    className="w-full px-2 py-1 text-left text-[10px] text-cyan-300 hover:text-cyan-200"
+                  >
+                    View {cityAlerts.length - 4} more cities
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="px-2 py-2 text-[10px] text-emerald-300/80">All cities stable</div>
+            )}
+          </section>
 
-        <section>
-          <SectionHeading icon={Swords} label="Awaiting orders" count={pendingUnits.length} urgent={pendingUnits.length > 0} />
-          {pendingUnits.length > 0 ? (
-            <div className="mt-1 space-y-0.5">
-              {pendingUnits.slice(0, 4).map(unit => <UnitOrderRow key={unit.id} unit={unit} />)}
-              {pendingUnits.length > 4 && (
-                <div className="px-2 py-1 text-[10px] text-slate-500">{pendingUnits.length - 4} more units pending</div>
-              )}
-            </div>
-          ) : (
-            <div className="px-2 py-2 text-[10px] text-slate-500">No units need attention</div>
-          )}
-        </section>
+          <section>
+            <SectionHeading
+              icon={Swords}
+              label="Awaiting orders"
+              count={pendingUnits.length}
+              urgent={pendingUnits.length > 0}
+            />
+            {pendingUnits.length > 0 ? (
+              <div className="mt-1 space-y-0.5">
+                {pendingUnits.slice(0, 4).map(unit => (
+                  <UnitOrderRow key={unit.id} unit={unit} />
+                ))}
+                {pendingUnits.length > 4 && (
+                  <div className="px-2 py-1 text-[10px] text-slate-500">
+                    {pendingUnits.length - 4} more units pending
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="px-2 py-2 text-[10px] text-slate-500">No units need attention</div>
+            )}
+          </section>
 
-        <section>
-          <SectionHeading icon={ScrollText} label="Recent events" count={recentEvents.length} />
-          {recentEvents.length > 0 ? (
-            <div className="mt-1 space-y-0.5">
-              {recentEvents.map(event => (
-                <div key={event.id} className="flex items-start gap-2 rounded-lg px-2 py-2">
-                  <ScrollText
-                    className={`mt-0.5 h-4 w-4 shrink-0 ${
-                      event.tone === 'error' ? 'text-rose-300' : event.tone === 'success' ? 'text-emerald-300' : 'text-slate-400'
-                    }`}
-                    aria-hidden="true"
-                  />
-                  <span className="line-clamp-2 text-[10px] leading-4 text-slate-300">{event.message}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="px-2 py-2 text-[10px] text-slate-500">No major events yet</div>
-          )}
-        </section>
+          <section>
+            <SectionHeading icon={ScrollText} label="Recent events" count={recentEvents.length} />
+            {recentEvents.length > 0 ? (
+              <div className="mt-1 space-y-0.5">
+                {recentEvents.map(event => (
+                  <div key={event.id} className="flex items-start gap-2 rounded-lg px-2 py-2">
+                    <ScrollText
+                      className={`mt-0.5 h-4 w-4 shrink-0 ${
+                        event.tone === 'error'
+                          ? 'text-rose-300'
+                          : event.tone === 'success'
+                            ? 'text-emerald-300'
+                            : 'text-slate-400'
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <span className="line-clamp-2 text-[10px] leading-4 text-slate-300">
+                      {event.message}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="px-2 py-2 text-[10px] text-slate-500">No major events yet</div>
+            )}
+          </section>
 
-        <div className="flex items-center gap-1.5 border-t border-white/10 px-2 pt-2 text-[10px] text-slate-500">
-          <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>{ownedCities.length} cities tracked</span>
+          <div className="flex items-center gap-1.5 border-t border-white/10 px-2 pt-2 text-[10px] text-slate-500">
+            <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>{ownedCities.length} cities tracked</span>
+          </div>
         </div>
-      </div>
       </HudPanel>
     </>
   );
