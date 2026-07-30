@@ -1573,6 +1573,82 @@ describe('FreecivAIOrchestrator', () => {
     });
   });
 
+  it('executes the selected caravan trade action through the authoritative unit manager', async () => {
+    const scenario = createScenario();
+    const home = {
+      id: 'home',
+      playerId: 'ai',
+      x: 1,
+      y: 1,
+      size: 4,
+      population: 4,
+      tradePerTurn: 4,
+      buildings: [],
+      tradeRoutes: [],
+      happiness: { happy: 0, content: 4, unhappy: 0, angry: 0 },
+      worklist: [],
+      workableTiles: [],
+    };
+    const destination = {
+      ...home,
+      id: 'destination',
+      x: 7,
+      y: 7,
+      tradePerTurn: 8,
+    };
+    (scenario.game.cityManager as any).getPlayerCities = () => [home, destination];
+    (scenario.game.cityManager as any).getAllCities = () => [home, destination];
+    (scenario.game.cityManager as any).getCity = (id: string) =>
+      id === home.id ? home : id === destination.id ? destination : undefined;
+    (scenario.game.cityManager as any).getCityAt = (x: number, y: number) =>
+      x === destination.x && y === destination.y ? destination : null;
+    (scenario.game.cityManager as any).calculateTradeRouteValue = () => 8;
+    scenario.unitTypes.caravan = {
+      id: 'caravan',
+      cost: 50,
+      movement: 1,
+      attack: 0,
+      defense: 1,
+      flags: ['HelpWonder', 'NonMil'],
+      rulesetUnitClass: 'land',
+      unitClass: 'civilian',
+    };
+    scenario.units.clear();
+    scenario.units.set('trade-caravan', {
+      id: 'trade-caravan',
+      playerId: 'ai',
+      unitTypeId: 'caravan',
+      homeCityId: home.id,
+      x: destination.x,
+      y: destination.y,
+      movementLeft: 3,
+      health: 100,
+      veteranLevel: 0,
+      experience: 0,
+      fortified: false,
+    } as TestUnit);
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.executeUnitAction).toHaveBeenCalledWith(
+      'trade-caravan',
+      ActionType.TRADE_ROUTE,
+      destination.x,
+      destination.y,
+      'ai'
+    );
+    expect(
+      (scenario.game.players.get('ai') as any).aiState.unitTasks['trade-caravan']
+    ).toMatchObject({
+      role: 'caravan',
+      targetId: destination.id,
+      action: ActionType.TRADE_ROUTE,
+    });
+  });
+
   it('keeps accumulated research when a replacement want does not repay the switch penalty', async () => {
     const scenario = createScenario();
     scenario.game.researchManager.getPlayerResearch = () => ({

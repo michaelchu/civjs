@@ -30,6 +30,7 @@ import { planWonderCoordination, type WonderHelperAssignment } from '@game/ai/AI
 import { planSpaceship } from '@game/ai/AISpaceshipPlanner';
 import type { DiplomaticState } from '@game/managers/DiplomacyManager';
 import type { MapTile } from '@game/map/MapTypes';
+import { planCaravanTrade, type CaravanAssignment } from '@game/ai/AITradePlanner';
 
 const unitTypesFor = (game: GameInstance) => game.unitManager.getUnitTypes?.() ?? UNIT_TYPES;
 const buildingTypesFor = (game: GameInstance) =>
@@ -521,7 +522,7 @@ export class FreecivAICityController {
         const tile = game.mapManager.getTile(x, y);
         return Boolean(
           game.cityManager.getCityAt(x, y) ||
-            tile?.improvements?.some((extra: string) => ['fortress', 'airbase'].includes(extra))
+          tile?.improvements?.some((extra: string) => ['fortress', 'airbase'].includes(extra))
         );
       },
       rateAttack: unit => game.unitManager.calculateUnitAttackRating(unit),
@@ -827,7 +828,11 @@ export class FreecivAICityController {
     return { actions: 1, expansionQueued: choice.expansionQueued };
   }
 
-  async executeUnitActions(game: GameInstance, playerId: string): Promise<number> {
+  async executeUnitActions(
+    game: GameInstance,
+    playerId: string,
+    state?: FreecivAIState
+  ): Promise<number> {
     const preferences = [
       ActionType.MARKETPLACE,
       ActionType.JOIN_CITY,
@@ -836,6 +841,13 @@ export class FreecivAICityController {
     ];
     let actions = 0;
     for (const unit of sortedPlayerUnits(game, playerId)) {
+      const task = state?.unitTasks[unit.id];
+      if (
+        task?.role === 'caravan' &&
+        (task.action === ActionType.TRADE_ROUTE || task.action === ActionType.MARKETPLACE)
+      ) {
+        continue;
+      }
       if (!game.unitManager.getUnit(unit.id)) continue;
       if (!game.cityManager.getCityAt?.(unit.x, unit.y)) continue;
       for (const action of preferences) {
@@ -856,13 +868,110 @@ export class FreecivAICityController {
     return actions;
   }
 
+  async manageCaravanTrade(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<number> {
+    const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, playerId);
+    const assignments = planCaravanTrade({
+      units: game.unitManager.getPlayerUnits(playerId),
+      cities: game.cityManager.getAllCities(),
+      getCity: cityId => game.cityManager.getCity?.(cityId),
+      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+      canTradeWith: ownerId => !hostileIds.has(ownerId),
+      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+      continent: (x, y) => game.mapManager.getTile(x, y)?.continentId,
+      tradeValue: (sourceCityId, targetCityId) =>
+        game.cityManager.calculateTradeRouteValue?.(sourceCityId, targetCityId) ?? 0,
+    });
+    const assigned = new Set(assignments.map(assignment => assignment.unit.id));
+    for (const [unitId, task] of Object.entries(state.unitTasks)) {
+      if (
+        task.role === 'caravan' &&
+        (task.action === ActionType.TRADE_ROUTE || task.action === ActionType.MARKETPLACE) &&
+        !assigned.has(unitId)
+      ) {
+        delete state.unitTasks[unitId];
+      }
+    }
+    let actions = 0;
+    for (const assignment of assignments) {
+      actions += await this.executeCaravanTrade(game, playerId, state, assignment);
+    }
+    return actions;
+  }
+
+  private async executeCaravanTrade(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState,
+    assignment: CaravanAssignment
+  ): Promise<number> {
+    const unit = game.unitManager.getUnit(assignment.unit.id);
+    if (!unit) return 0;
+    state.unitTasks[unit.id] = {
+      role: 'caravan',
+      targetId: assignment.targetCity.id,
+      targetX: assignment.targetCity.x,
+      targetY: assignment.targetCity.y,
+      action: assignment.action,
+      transportRequired: assignment.requiresTransport || undefined,
+      assignedTurn:
+        state.unitTasks[unit.id]?.role === 'caravan'
+          ? state.unitTasks[unit.id]!.assignedTurn
+          : game.currentTurn,
+    };
+    if (unit.transportedBy || unit.movementLeft <= 0) return 0;
+    if (unit.x === assignment.targetCity.x && unit.y === assignment.targetCity.y) {
+      const preferences =
+        assignment.action === ActionType.TRADE_ROUTE
+          ? [ActionType.TRADE_ROUTE, ActionType.MARKETPLACE]
+          : [ActionType.MARKETPLACE, ActionType.TRADE_ROUTE];
+      for (const action of preferences) {
+        if (!game.unitManager.canUnitPerformAction(unit.id, action, unit.x, unit.y)) continue;
+        const result = await game.unitManager.executeUnitAction(
+          unit.id,
+          action,
+          unit.x,
+          unit.y,
+          playerId
+        );
+        if (result.success) return 1;
+      }
+      return 0;
+    }
+    if (assignment.requiresTransport) return 0;
+    if (
+      !game.unitManager.canUnitPerformAction(
+        unit.id,
+        ActionType.GOTO,
+        assignment.targetCity.x,
+        assignment.targetCity.y
+      )
+    ) {
+      return 0;
+    }
+    const result = await game.unitManager.executeUnitAction(
+      unit.id,
+      ActionType.GOTO,
+      assignment.targetCity.x,
+      assignment.targetCity.y,
+      playerId
+    );
+    return Number(result.success);
+  }
+
   async manageWonderHelpers(
     game: GameInstance,
     playerId: string,
     state: FreecivAIState
   ): Promise<number> {
     const cities = game.cityManager.getPlayerCities(playerId);
-    const units = game.unitManager.getPlayerUnits(playerId);
+    const units = game.unitManager.getPlayerUnits(playerId).filter(unit => {
+      const action = state.unitTasks[unit.id]?.action;
+      return action !== ActionType.TRADE_ROUTE && action !== ActionType.MARKETPLACE;
+    });
     const plan = planWonderCoordination({
       cities,
       units,
@@ -874,7 +983,14 @@ export class FreecivAICityController {
     });
     const assignedIds = new Set(plan.assignments.map(assignment => assignment.unit.id));
     for (const [unitId, task] of Object.entries(state.unitTasks)) {
-      if (task.role === 'caravan' && !assignedIds.has(unitId)) delete state.unitTasks[unitId];
+      if (
+        task.role === 'caravan' &&
+        task.action !== ActionType.TRADE_ROUTE &&
+        task.action !== ActionType.MARKETPLACE &&
+        !assignedIds.has(unitId)
+      ) {
+        delete state.unitTasks[unitId];
+      }
     }
 
     let actions = 0;
