@@ -17,7 +17,11 @@ import { EndGamePanel } from './EndGamePanel';
 import { rulesetService } from '../../services/RulesetService';
 import { resolveMusicStyle } from '../../services/PresentationResolver';
 
-export const GameLayout: React.FC = () => {
+interface GameLayoutProps {
+  rulesetName?: string;
+}
+
+export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOverride }) => {
   const [dimensions, setDimensions] = useState({
     width: window.innerWidth,
     height: window.innerHeight,
@@ -28,8 +32,7 @@ export const GameLayout: React.FC = () => {
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
   const currentPlayer = useGameStore(state => state.players[state.currentPlayerId]);
   const researchedTechs = useGameStore(state => state.research?.researchedTechs);
-  const rulesetName =
-    (clientState as { config?: { ruleset?: string } } | null)?.config?.ruleset ?? 'civ2civ3';
+  const rulesetName = rulesetOverride ?? 'civ2civ3';
 
   useEffect(() => {
     let active = true;

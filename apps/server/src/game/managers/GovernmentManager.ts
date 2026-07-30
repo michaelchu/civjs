@@ -65,10 +65,7 @@ export function getGovernments(rulesetName: string = 'classic'): Record<string, 
 }
 
 // Get individual government
-export function getGovernment(
-  governmentId: string,
-  rulesetName: string = 'classic'
-): Government {
+export function getGovernment(governmentId: string, rulesetName: string = 'classic'): Government {
   return rulesetLoader.getGovernment(governmentId, rulesetName);
 }
 

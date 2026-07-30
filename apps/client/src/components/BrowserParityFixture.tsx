@@ -233,5 +233,5 @@ const seedFixture = (): void => {
 
 export const BrowserParityFixture = () => {
   useState(seedFixture);
-  return <GameLayout />;
+  return <GameLayout rulesetName="classic" />;
 };
