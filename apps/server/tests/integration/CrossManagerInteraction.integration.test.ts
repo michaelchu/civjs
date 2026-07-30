@@ -99,6 +99,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
     it('should complete building construction and apply effects', async () => {
       const game = gameManager.getGameInstance(gameId)!;
 
+      await game.researchManager.grantTechnology(playerId, 'pottery');
       // Set city to produce granary
       await game.cityManager.setCityProduction(cityId, 'building', 'granary', playerId);
 
