@@ -10,8 +10,6 @@ import {
 
 /**
  * CityGovernorService - Manages automated city governance and optimization
- * @reference docs/refactor/REFACTORING_PLAN.md - CityManager refactoring
- *
  * Handles all city automation operations including:
  * - Governor configuration and automation
  * - Starvation prevention

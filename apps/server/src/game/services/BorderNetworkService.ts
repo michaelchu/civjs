@@ -1,7 +1,6 @@
 /**
  * BorderNetworkService - Handles border system network communication
  * Manages client-server synchronization for border data
- * @reference docs/BORDER_SYSTEM_PORT_PLAN.md Phase 2.2
  */
 
 import { logger } from '@utils/logger';

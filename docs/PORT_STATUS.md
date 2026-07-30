@@ -77,6 +77,22 @@ compatibility contract narrows that scope. The native port includes science
 victory strategy, national spaceship-part state, launch planning, and response
 to rival ships.
 
+## Completeness and follow-up
+
+The supported classic baseline is implemented, but several breadth and parity
+improvements remain outside the release claim:
+
+- packaged audio/music and localization;
+- richer city and empire reports, saved worklists, and advanced batch
+  production/report workflows;
+- a decision on event-stream replay beyond checkpoint and archive inspection;
+- client help, reports/history, accessibility, animation, and presentation
+  polish;
+- the concrete behavioral issues tracked in [`GAMEPLAY_GAPS.md`](GAMEPLAY_GAPS.md).
+
+These are follow-up items, not evidence that the supported server-authoritative
+classic game is incomplete.
+
 ## Verification
 
 The maintained evidence includes:
@@ -90,9 +106,7 @@ The maintained evidence includes:
 - an 80×50, eight-participant generation check and 100-turn audit soak.
 
 Use [`PORTING_INVENTORY.md`](PORTING_INVENTORY.md) for detailed ruleset,
-transport, action, and evidence mappings. Use
-[`RELEASE_RUNBOOK.md`](RELEASE_RUNBOOK.md) for release gates and recovery
-procedures.
+transport, action, and evidence mappings.
 
 ## Maintenance rule
 

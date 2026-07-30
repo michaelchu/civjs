@@ -9,7 +9,6 @@ import { games } from './games';
  * Addresses Database Schema Gap: Per-player turn completion tracking
  *
  * @reference freeciv-web/javascript/packhand.js handle_end_turn()
- * @reference docs/TURN_SYSTEM_GAPS_ANALYSIS.md section 10
  */
 export const playerTurnStatus = pgTable('player_turn_status', {
   id: uuid('id').defaultRandom().primaryKey(),

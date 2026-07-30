@@ -1,6 +1,5 @@
 /**
  * Service registry for dependency management following established patterns
- * @reference docs/refactor/REFACTORING_ARCHITECTURE_PATTERNS.md Service Registration Pattern
  */
 
 import { GameService } from '@game/orchestrators/GameService';

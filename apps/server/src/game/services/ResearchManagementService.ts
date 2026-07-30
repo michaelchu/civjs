@@ -4,8 +4,6 @@ import { logger } from '@utils/logger';
 
 /**
  * ResearchManagementService - Extracted research operations from GameManager
- * @reference docs/refactor/REFACTORING_PLAN.md - Phase 1 GameManager refactoring
- *
  * Handles all research-related operations including:
  * - Research goal setting and current research management
  * - Research progress tracking and point allocation

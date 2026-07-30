@@ -1,7 +1,6 @@
 /**
  * PlayerConnectionManager - Handles all player join/leave operations and connection management
  * Extracted from GameManager.ts following the established refactoring patterns
- * @reference docs/refactor/REFACTORING_ARCHITECTURE_PATTERNS.md Manager-Service-Repository Pattern
  */
 
 import { BaseGameService } from './GameService';

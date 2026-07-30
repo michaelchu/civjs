@@ -5,8 +5,6 @@ import { UNIT_TYPES } from '@game/constants/UnitConstants';
 
 /**
  * CityProductionService - Manages city production buy/rush mechanics
- * @reference docs/refactor/REFACTORING_PLAN.md - CityManager refactoring
- *
  * Handles all production rush/buy operations including:
  * - Buy cost calculations
  * - Rush production execution

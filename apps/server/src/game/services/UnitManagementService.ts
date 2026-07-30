@@ -10,8 +10,6 @@ interface UnitBroadcaster {
 
 /**
  * UnitManagementService - Extracted unit operations from GameManager
- * @reference docs/refactor/REFACTORING_PLAN.md - Phase 1 GameManager refactoring
- *
  * Handles all unit-related operations including:
  * - Unit creation, movement, combat, and fortification
  * - Unit validation and ownership checks

@@ -7,8 +7,6 @@ import { getUniqueCityName } from '@game/constants/CityNames';
 
 /**
  * CityManagementService - High-level city operations service
- * @reference docs/refactor/REFACTORING_PLAN.md - CityManager refactoring
- *
  * Handles all high-level city-related operations including:
  * - City founding with validation and broadcasting
  * - City production management

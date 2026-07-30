@@ -7,8 +7,6 @@ import type { TradeRules } from '@shared/data/rulesets/schemas';
 
 /**
  * CityTradeRouteService - Manages trade routes between cities
- * @reference docs/refactor/REFACTORING_PLAN.md - CityManager refactoring
- *
  * Handles all trade route operations including:
  * - Trade route establishment and removal
  * - Trade revenue calculations

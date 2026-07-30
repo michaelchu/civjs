@@ -7,8 +7,7 @@ a Node.js/Socket.IO server backed by PostgreSQL and Redis.
 The project is playable locally, including creating, joining, resuming,
 advancing, and completing games. The defined roadmap is complete through
 Milestone 15 for the supported classic-ruleset scope. It is not a port of every
-Freeciv ruleset or the full upstream default AI; the exact supported scope and
-intentional exclusions are tracked in the
+Freeciv ruleset; the exact supported scope and intentional exclusions are tracked in the
 [port status](docs/PORT_STATUS.md).
 
 ## Prerequisites
@@ -132,11 +131,24 @@ and caching.
 Before adding or changing game behavior, consult the source repositories in
 `reference/freeciv/` and `reference/freeciv-web/`. New ported behavior should
 record its source file and line range and include appropriate tests. The
-[porting playbook](docs/PORTING_PLAYBOOK.md) defines the contribution
-workflow, the [porting inventory](docs/PORTING_INVENTORY.md) records technical
-contracts and evidence, and the
-[client architecture](docs/CLIENT_ARCHITECTURE.md) defines browser lifecycle
-and state boundaries.
+The primary documentation is:
+
+- [Port status](docs/PORT_STATUS.md): supported player-visible scope and
+  intentional exclusions.
+- [Porting playbook](docs/PORTING_PLAYBOOK.md): contribution and verification
+  workflow.
+- [Porting inventory](docs/PORTING_INVENTORY.md): technical contracts and
+  evidence.
+- [Gameplay gaps](docs/GAMEPLAY_GAPS.md): confirmed behavioral differences and
+  follow-up work.
+- [AI inventory](docs/AI_PORTING_INVENTORY.md): classic/default-AI mappings and
+  validation evidence.
+- [Client architecture](docs/CLIENT_ARCHITECTURE.md): browser lifecycle and
+  state boundaries.
+- [Tileset architecture](docs/TILESET_ARCHITECTURE.md): presentation-provider
+  design and supported graphics boundary.
+- [Server architecture roadmap](docs/SERVER_CORE_ARCHITECTURE_ROADMAP.md):
+  forward-looking server reliability and scaling work.
 
 ## Technology
 

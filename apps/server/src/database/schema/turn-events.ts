@@ -10,7 +10,6 @@ import { games } from './games';
  *
  * @reference freeciv/server/srv_main.c event processing
  * @reference apps/server/src/game/services/GameEventService.ts
- * @reference docs/TURN_SYSTEM_GAPS_ANALYSIS.md section 10
  */
 export const turnEvents = pgTable('turn_events', {
   id: uuid('id').defaultRandom().primaryKey(),

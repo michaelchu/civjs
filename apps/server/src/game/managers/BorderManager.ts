@@ -5,7 +5,6 @@
  * based on cities and extra structures (forts, bases).
  *
  * @reference freeciv/common/borders.c - Core border calculation logic
- * @reference docs/BORDER_SYSTEM_PORT_PLAN.md - Implementation plan Phase 1.1
  */
 
 import { logger } from '@utils/logger';

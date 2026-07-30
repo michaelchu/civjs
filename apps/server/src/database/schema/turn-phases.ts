@@ -17,7 +17,6 @@ import { games } from './games';
  * Addresses Database Schema Gap: Phase information
  *
  * @reference freeciv/server/srv_main.c turn processing phases
- * @reference docs/TURN_SYSTEM_GAPS_ANALYSIS.md section 10
  */
 export const turnPhases = pgTable(
   'turn_phases',

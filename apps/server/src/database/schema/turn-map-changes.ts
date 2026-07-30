@@ -10,7 +10,6 @@ import { games } from './games';
  *
  * @reference freeciv/server/maphand.c map modifications
  * @reference freeciv/server/cityturn.c border changes
- * @reference docs/TURN_SYSTEM_GAPS_ANALYSIS.md section 10
  */
 export const turnMapChanges = pgTable('turn_map_changes', {
   id: uuid('id').defaultRandom().primaryKey(),

@@ -161,8 +161,6 @@ export interface PlayerState {
 
 /**
  * GameManager - Refactored to use extracted service components as facade
- * @reference docs/refactor/REFACTORING_ARCHITECTURE_PATTERNS.md Manager-Service-Repository Pattern
- *
  * Now acts as a facade coordinating:
  * - GameStateManager: Database operations and persistence
  * - PlayerConnectionManager: Player join/leave operations

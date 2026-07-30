@@ -16,8 +16,6 @@ export interface CityCaptureResult {
 
 /**
  * CityCaptureService - Manages city capture and transfer mechanics
- * @reference docs/refactor/REFACTORING_PLAN.md - CityManager refactoring
- *
  * Handles all city capture operations including:
  * - City conquest mechanics
  * - City transfer between players

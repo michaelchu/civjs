@@ -1,7 +1,6 @@
 /**
  * GameStateManager - Handles all database operations and game state persistence
  * Extracted from GameManager.ts following the established refactoring patterns
- * @reference docs/refactor/REFACTORING_ARCHITECTURE_PATTERNS.md Manager-Service-Repository Pattern
  */
 
 import { BaseGameService } from './GameService';

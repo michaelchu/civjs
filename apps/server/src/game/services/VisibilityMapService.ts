@@ -4,8 +4,6 @@ import { logger } from '@utils/logger';
 
 /**
  * VisibilityMapService - Extracted visibility and map operations from GameManager
- * @reference docs/refactor/REFACTORING_PLAN.md - Phase 1 GameManager refactoring
- *
  * Handles all visibility and map-related operations including:
  * - Player visibility management and updates
  * - Tile visibility queries and map view access

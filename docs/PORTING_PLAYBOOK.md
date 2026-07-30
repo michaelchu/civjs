@@ -80,8 +80,6 @@ Playwright artifact directories.
   evidence catalogue.
 - [`CLIENT_ARCHITECTURE.md`](CLIENT_ARCHITECTURE.md): browser session,
   transport, state, and rendering boundaries.
-- [`RELEASE_RUNBOOK.md`](RELEASE_RUNBOOK.md): deployment gates, monitoring,
-  persistence compatibility, and recovery.
 
 Completed plans, checklists, and milestone narratives belong in Git history,
 not the active documentation set.

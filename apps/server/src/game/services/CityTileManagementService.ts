@@ -8,8 +8,6 @@ import { EffectsManager, EffectType, OutputType } from '@game/managers/EffectsMa
 
 /**
  * CityTileManagementService - Manages city workable tiles and citizen assignments
- * @reference docs/refactor/REFACTORING_PLAN.md - CityManager refactoring
- *
  * Handles all city-tile related operations including:
  * - Workable tile initialization and management
  * - Citizen assignment to tiles

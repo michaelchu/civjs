@@ -1,7 +1,6 @@
 /**
  * Border system network packets for CivJS
  * These packets handle border synchronization between client and server
- * @reference docs/BORDER_SYSTEM_PORT_PLAN.md Phase 2.1
  */
 
 import type { BorderSource, TileOwnership } from './BorderTypes';

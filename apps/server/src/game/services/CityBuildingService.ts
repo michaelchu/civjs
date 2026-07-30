@@ -6,8 +6,6 @@ import { EffectsManager, EffectType, OutputType } from '@game/managers/EffectsMa
 
 /**
  * CityBuildingService - Manages city buildings and their effects
- * @reference docs/refactor/REFACTORING_PLAN.md - CityManager refactoring
- *
  * Handles all building-related operations including:
  * - Building construction validation and completion
  * - Building effects application

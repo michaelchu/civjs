@@ -1,6 +1,5 @@
 /**
  * Base interface for all game services following the established architecture patterns
- * @reference docs/refactor/REFACTORING_ARCHITECTURE_PATTERNS.md Service Layer Organization
  */
 
 import { logger as baseLogger } from '@utils/logger';

@@ -1,10 +1,8 @@
 # CivJS Porting Inventory
 
 Technical evidence for the supported classic release. Use
-[`PORT_STATUS.md`](PORT_STATUS.md) for player-visible scope,
-[`CIVJS_CORE_COMPONENTS_AUDIT.md`](CIVJS_CORE_COMPONENTS_AUDIT.md) for
-high-level completeness, and [`GAMEPLAY_GAPS.md`](GAMEPLAY_GAPS.md) for known
-behavioral defects.
+[`PORT_STATUS.md`](PORT_STATUS.md) for player-visible scope and follow-up work,
+and [`GAMEPLAY_GAPS.md`](GAMEPLAY_GAPS.md) for known behavioral defects.
 
 ## Ruleset and data coverage
 

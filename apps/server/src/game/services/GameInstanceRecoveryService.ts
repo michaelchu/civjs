@@ -32,8 +32,6 @@ import {
 
 /**
  * GameInstanceRecoveryService - Extracted game recovery operations from GameManager
- * @reference docs/refactor/REFACTORING_PLAN.md - Phase 1 GameManager refactoring
- *
  * Handles all game instance recovery and restoration including:
  * - Game instance recovery from database
  * - Map data restoration and deserialization
