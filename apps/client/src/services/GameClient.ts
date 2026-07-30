@@ -1389,6 +1389,7 @@ export class GameClient {
   private applyJoinedPlayer(response: any, playerName: string, selectedNation: string): void {
     if (!response.playerId) return;
     const existingPlayers = useGameStore.getState().players ?? {};
+    const existingPlayer = existingPlayers[response.playerId];
     const finalNation =
       response.assignedNation && response.assignedNation !== 'random'
         ? response.assignedNation
@@ -1403,13 +1404,22 @@ export class GameClient {
           id: response.playerId,
           name: playerName,
           nation: finalNation,
-          color: response.assignedColor ? playerColorToHex(response.assignedColor) : '#808080',
-          gold: 50,
-          science: 0,
-          history: 0,
-          government: 'despotism',
+          color: response.assignedColor
+            ? playerColorToHex(response.assignedColor)
+            : (existingPlayer?.color ?? '#808080'),
+          gold: existingPlayer?.gold ?? 50,
+          goldPerTurn: existingPlayer?.goldPerTurn ?? 0,
+          science: existingPlayer?.science ?? 0,
+          sciencePerTurn: existingPlayer?.sciencePerTurn ?? 0,
+          taxRate: existingPlayer?.taxRate ?? 40,
+          luxuryRate: existingPlayer?.luxuryRate ?? 0,
+          scienceRate: existingPlayer?.scienceRate ?? 60,
+          score: existingPlayer?.score ?? 0,
+          history: existingPlayer?.history ?? 0,
+          culture: existingPlayer?.culture ?? 0,
+          government: existingPlayer?.government ?? 'despotism',
           isHuman: true,
-          isActive: true,
+          isActive: existingPlayer?.isActive ?? true,
         },
       },
       governments: getMockGovernments(),
