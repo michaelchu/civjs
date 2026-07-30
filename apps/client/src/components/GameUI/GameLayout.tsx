@@ -19,6 +19,8 @@ import { resolveMusicStyle } from '../../services/PresentationResolver';
 import { GameHud } from './GameHud';
 import { HudPanel } from './HudPanel';
 import { SelectionTray } from './SelectionTray';
+import { Minimap } from './Minimap';
+import { ObjectivesJournal } from './ObjectivesJournal';
 
 interface GameLayoutProps {
   rulesetName?: string;
@@ -133,6 +135,8 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
                 </HudPanel>
               }
               bottomCenter={<SelectionTray />}
+              bottomLeft={<Minimap />}
+              left={<ObjectivesJournal />}
             />
           </div>
 

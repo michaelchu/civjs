@@ -270,6 +270,29 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   }, []);
 
   useEffect(() => {
+    const handleCenterMap = (event: Event) => {
+      const detail = (event as CustomEvent<{ x?: number; y?: number }>).detail;
+      if (detail.x === undefined || detail.y === undefined || !rendererRef.current) return;
+      const centered = rendererRef.current.getViewportPositionForTile(
+        detail.x,
+        detail.y,
+        width,
+        height
+      );
+      const constrained = rendererRef.current.setMapviewOrigin(
+        centered.x,
+        centered.y,
+        width,
+        height
+      );
+      setViewport({ ...constrained, width, height });
+    };
+
+    document.addEventListener('center-map-on-tile', handleCenterMap);
+    return () => document.removeEventListener('center-map-on-tile', handleCenterMap);
+  }, [height, setViewport, width]);
+
+  useEffect(() => {
     rendererRef.current?.setFogOfWarEnabled(fogOfWarEnabled);
   }, [fogOfWarEnabled]);
 
