@@ -74,7 +74,7 @@ export const ClimateReport: React.FC<ClimateReportProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <HudDialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+      <HudDialogContent>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-white">
             <Wind className="h-5 w-5 text-cyan-300" aria-hidden="true" />

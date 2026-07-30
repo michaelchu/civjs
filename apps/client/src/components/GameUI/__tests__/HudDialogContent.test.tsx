@@ -18,7 +18,11 @@ describe('HudDialogContent', () => {
     expect(screen.getByRole('dialog')).toHaveClass(
       'bg-slate-900/95',
       'border-white/15',
-      'backdrop-blur-xl'
+      'backdrop-blur-xl',
+      'z-[2000]',
+      'h-[min(88vh,56rem)]',
+      'w-[calc(100vw-1rem)]'
     );
+    expect(document.querySelector('[data-slot="dialog-overlay"]')).toHaveClass('z-[1900]');
   });
 });
