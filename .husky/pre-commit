@@ -1,25 +1,12 @@
 echo "🔍 Running pre-commit checks..."
 
-# Run formatters first to auto-fix formatting issues
-echo "💄 Running formatters..."
-npm run format
+echo "🧹 Checking staged files..."
+npm run lint-staged
 
-# Run linters with auto-fix
-echo "📝 Running linters with auto-fix..."
-npm run lint:fix
-
-# Stage any auto-fixed files
-echo "📦 Staging auto-fixed files..."
-git add -u
-
-# Run comprehensive validation in pre-commit to catch issues early
 echo "🔎 Running type checks..."
 npm run typecheck
 
 echo "🧪 Running tests..."
 npm run test
-
-echo "🏗️ Running build..."
-npm run build
 
 echo "✅ Pre-commit checks passed!"

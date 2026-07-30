@@ -4,11 +4,6 @@
   "description": "CivJS - A modern civilization game built with TypeScript, React, and Node.js",
   "private": true,
   "scripts": {
-    "rulesets:convert": "node tools/convert-classic-rulesets.mjs",
-    "rulesets:list-reference": "node tools/convert-classic-rulesets.mjs --list",
-    "rulesets:convert-all": "node tools/convert-classic-rulesets.mjs --all",
-    "rulesets:convert-classic": "node tools/convert-classic-rulesets.mjs",
-    "rulesets:convert-civ2civ3": "node tools/convert-classic-rulesets.mjs civ2civ3",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:client": "cd apps/client && npm run dev",
     "dev:server": "cd apps/server && npm run dev",
@@ -17,14 +12,11 @@
     "build:server": "cd apps/server && npm run build",
     "start:prod": "cd apps/server && npm run start:prod",
     "test": "npm run test:unit",
-    "test:client": "cd apps/client && npm run test",
-    "test:server": "cd apps/server && npm run test:unit",
     "test:unit": "npm run test:unit:client && npm run test:unit:server",
     "test:unit:client": "cd apps/client && npm run test",
     "test:unit:server": "cd apps/server && npm run test:unit",
     "test:integration": "node tools/run-integration-tests.mjs",
     "test:integration:direct": "cd apps/server && npm run test:integration",
-    "test:integration:docker": "npm run test:integration",
     "test:ai-validation": "INTEGRATION_TEST_PATH=tests/integration/AIManagerBoundaries.integration.test.ts node tools/run-integration-tests.mjs",
     "test:ai-validation:matrix": "AI_VALIDATION_SEED_COUNT=25 AI_VALIDATION_MAX_TURNS=4 INTEGRATION_TEST_NAME_PATTERN='terminal turn limit' INTEGRATION_TEST_PATH=tests/integration/AIManagerBoundaries.integration.test.ts node tools/run-integration-tests.mjs",
     "test:ai-validation:100": "AI_VALIDATION_SEED_COUNT=100 AI_VALIDATION_MAX_TURNS=4 INTEGRATION_TEST_NAME_PATTERN='terminal turn limit' INTEGRATION_TEST_PATH=tests/integration/AIManagerBoundaries.integration.test.ts node tools/run-integration-tests.mjs",
@@ -53,16 +45,19 @@
     "typecheck": "npm run typecheck:client && npm run typecheck:server",
     "typecheck:client": "cd apps/client && npm run type-check",
     "typecheck:server": "cd apps/server && npm run type-check",
-    "clean": "cd apps/client && npm run clean && cd ../server && npm run clean && rm -rf node_modules",
+    "clean": "rm -rf apps/client/dist apps/server/dist",
+    "clean:deps": "rm -rf node_modules apps/client/node_modules apps/server/node_modules",
     "docker:up": "docker-compose up",
     "docker:build": "docker-compose up --build",
     "docker:down": "docker-compose down",
-    "prepare": "husky"
+    "prepare": "husky",
+    "lint-staged": "lint-staged"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.0",
     "concurrently": "^9.0.1",
     "husky": "^9.1.7",
+    "lint-staged": "^16.1.5",
     "prettier": "^3.9.6",
     "typescript": "^5.6.3"
   },
@@ -88,5 +83,18 @@
   "license": "MIT",
   "dependencies": {
     "zod": "^4.1.5"
+  },
+  "lint-staged": {
+    "apps/client/**/*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "apps/server/**/*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,css,md,yml,yaml}": [
+      "prettier --write"
+    ]
   }
 }
