@@ -1,13 +1,16 @@
 # CivJS
 
 CivJS is an in-progress TypeScript port of the Freeciv classic ruleset and the
-freeciv-web 2D client experience. It is a monorepo with a React/Vite client and
+freeciv-web 2D client experience. New games default to the `civ2civ3` ruleset.
+It is a monorepo with a React/Vite client and
 a Node.js/Socket.IO server backed by PostgreSQL and Redis.
 
 The project is playable locally, including creating, joining, resuming,
 advancing, and completing games. The defined roadmap is complete through
-Milestone 15 for the supported classic-ruleset scope. It is not a port of every
-Freeciv ruleset; the exact supported scope and intentional exclusions are tracked in the
+Milestone 15 for the supported classic-ruleset scope. The classic ruleset
+remains the validated parity baseline; the other packaged rulesets are not yet
+covered by the same full-support claim. It is not a port of every Freeciv
+ruleset; the exact supported scope and intentional exclusions are tracked in the
 [port status](docs/PORT_STATUS.md).
 
 ## Prerequisites

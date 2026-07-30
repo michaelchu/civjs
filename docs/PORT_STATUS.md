@@ -3,6 +3,10 @@
 **Supported baseline:** Freeciv classic ruleset and freeciv-web-compatible 2D
 client experience
 
+**Default ruleset:** `civ2civ3`. New games use `civ2civ3` unless another
+ruleset is explicitly selected; the full parity claim below still refers to
+the classic baseline.
+
 **Status:** Milestones 0–15 and the post-port parity audit are complete for the
 agreed baseline
 
@@ -27,8 +31,10 @@ CivJS supports a server-authoritative classic game with:
 - a React/Canvas 2D client exposing the supported core play surface without
   developer-console commands.
 
-The release target is the classic ruleset, conquest victory, standard 80×50
-maps, and up to eight participants.
+The release target is the `civ2civ3` default configuration, with conquest
+victory, standard 80×50 maps, and up to eight participants. The classic
+ruleset remains the validated parity baseline; the other packaged profiles
+are available as data but do not yet carry the same full-support claim.
 
 ## Ruleset and action authority
 
@@ -60,7 +66,8 @@ boundaries and invariants.
 
 These are scope decisions, not untracked porting gaps:
 
-- additional Freeciv rulesets and metaserver/deployment compatibility;
+- full gameplay parity for additional Freeciv rulesets beyond the validated
+  classic baseline;
 - literal line-for-line parity with the C server;
 - generic non-classic covert outcomes that the classic ruleset does not enable,
   including plague, suitcase-nuke, and direct gold/map theft;
