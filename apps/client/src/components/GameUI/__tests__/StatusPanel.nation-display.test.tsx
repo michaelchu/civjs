@@ -122,7 +122,9 @@ describe('StatusPanel - Nation Display', () => {
     };
 
     const onOpenDemographics = vi.fn();
-    const { getByText, getByRole, getByTitle } = render(<StatusPanel onOpenDemographics={onOpenDemographics} />);
+    const { getByText, getByRole, getByTitle } = render(
+      <StatusPanel onOpenDemographics={onOpenDemographics} />
+    );
 
     expect(getByText('60/10/30%')).toBeInTheDocument();
     expect(getByText('6')).toBeInTheDocument();
@@ -130,10 +132,7 @@ describe('StatusPanel - Nation Display', () => {
     expect(getByTitle('Trade: 5')).toBeInTheDocument();
     expect(getByTitle('Culture: 27')).toBeInTheDocument();
     expect(getByText('480')).toBeInTheDocument();
-    expect(getByRole('button', { name: 'Open demographics report' })).toHaveTextContent(
-      '3800 BC'
-    );
-    expect(getByText('Online')).toBeInTheDocument();
+    expect(getByRole('button', { name: 'Open demographics report' })).toHaveTextContent('3800 BC');
 
     fireEvent.click(getByRole('button', { name: 'Open economy settings' }));
     expect(mockUseGameStore.setActiveTab).toHaveBeenCalledWith('options');
@@ -143,15 +142,15 @@ describe('StatusPanel - Nation Display', () => {
     expect(mockUseGameStore.setActiveTab).not.toHaveBeenCalledWith('nations');
   });
 
-  it('shows pending actions alongside connection and phase status', () => {
+  it('keeps connection and phase status out of the resource bar', () => {
     mockUseGameStore.urgentFocusQueue = ['unit-1', 'unit-2'];
     render(<StatusPanel />);
 
-    expect(screen.getByText('2 pending')).toBeInTheDocument();
-    const status = screen.getByTitle('running · movement phase · 2 pending actions');
-    expect(status).toBeInTheDocument();
-    expect(status.className).toContain('flex');
-    expect(status.className).not.toContain('hidden');
+    expect(screen.queryByText('Online')).not.toBeInTheDocument();
+    expect(screen.queryByText('2 pending')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTitle('running · movement phase · 2 pending actions')
+    ).not.toBeInTheDocument();
   });
 
   it('uses authoritative city population when available', () => {

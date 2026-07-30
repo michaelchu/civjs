@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import {
   Building2,
   CalendarDays,
@@ -9,7 +10,6 @@ import {
   Palette,
   Sparkles,
   Users,
-  Wifi,
 } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { openReport } from './reportEvents';
@@ -30,6 +30,12 @@ const formatYear = (year: number | undefined): string => {
   return year < 0 ? `${Math.abs(year)} BC` : `${year} AD`;
 };
 
+const formatCompactNumber = (value: number): string =>
+  new Intl.NumberFormat('en', {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(value);
+
 const ResourceDelta: React.FC<{ label: string; value?: number }> = ({ label, value = 0 }) => (
   <span
     aria-label={`${label} per turn`}
@@ -39,6 +45,52 @@ const ResourceDelta: React.FC<{ label: string; value?: number }> = ({ label, val
     {value})
   </span>
 );
+
+const IconTooltip: React.FC<{ label: string; children: React.ReactNode }> = ({
+  label,
+  children,
+}) => {
+  const anchorRef = React.useRef<HTMLSpanElement>(null);
+  const [isVisible, setIsVisible] = React.useState(false);
+  const [position, setPosition] = React.useState({ left: 0, top: 0 });
+
+  const showTooltip = () => {
+    const bounds = anchorRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+
+    setPosition({ left: bounds.left + bounds.width / 2, top: bounds.bottom + 8 });
+    setIsVisible(true);
+  };
+
+  return (
+    <>
+      <span
+        ref={anchorRef}
+        className="inline-flex shrink-0"
+        aria-label={label}
+        title={label}
+        tabIndex={0}
+        onMouseEnter={showTooltip}
+        onMouseLeave={() => setIsVisible(false)}
+        onFocus={showTooltip}
+        onBlur={() => setIsVisible(false)}
+      >
+        {children}
+      </span>
+      {isVisible &&
+        createPortal(
+          <span
+            role="tooltip"
+            className="pointer-events-none fixed z-[2000] -translate-x-1/2 whitespace-nowrap rounded-md border border-white/15 bg-slate-950 px-2 py-1 text-[11px] font-medium text-white shadow-lg"
+            style={{ left: position.left, top: position.top }}
+          >
+            {label}
+          </span>,
+          document.body
+        )}
+    </>
+  );
+};
 
 interface ResourceMetricProps {
   label: string;
@@ -55,46 +107,14 @@ const ResourceMetric: React.FC<ResourceMetricProps> = ({
   icon: Icon,
   tone,
 }) => (
-  <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap" title={`${label}: ${value}`}>
-    <Icon className={`h-3.5 w-3.5 ${tone}`} aria-hidden="true" />
-    <span className="hidden text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400 xl:inline">
-      {label}
-    </span>
+  <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap">
+    <IconTooltip label={`${label}: ${value}`}>
+      <Icon className={`h-3.5 w-3.5 ${tone}`} aria-hidden="true" />
+    </IconTooltip>
     <span className="font-semibold tabular-nums text-slate-100">{value}</span>
     {delta !== undefined && <ResourceDelta label={label} value={delta} />}
   </div>
 );
-
-const StatusPill: React.FC<{
-  clientState: string;
-  phase: string;
-  pendingActions: number;
-  processing: boolean;
-}> = ({ clientState, phase, pendingActions, processing }) => {
-  const isRunning = clientState === 'running';
-  return (
-    <div
-      className="flex shrink-0 items-center gap-1.5 border-l border-white/10 pl-2 text-[9px] font-medium uppercase tracking-[0.1em] text-slate-400 sm:pl-3 sm:text-[10px]"
-      title={`${clientState} · ${phase} phase${pendingActions > 0 ? ` · ${pendingActions} pending actions` : ''}`}
-    >
-      <Wifi className={isRunning ? 'h-3.5 w-3.5 text-emerald-300' : 'h-3.5 w-3.5 text-amber-300'} />
-      <span>{isRunning ? 'Online' : clientState.replaceAll('_', ' ')}</span>
-      <span className="text-slate-500">·</span>
-      <span>{phase}</span>
-      {processing ? (
-        <>
-          <span className="text-slate-500">·</span>
-          <span className="text-cyan-300">Processing</span>
-        </>
-      ) : pendingActions > 0 ? (
-        <>
-          <span className="text-slate-500">·</span>
-          <span className="text-amber-200">{pendingActions} pending</span>
-        </>
-      ) : null}
-    </div>
-  );
-};
 
 const EconomyButton: React.FC<{ player: Player; onOpen: () => void }> = ({ player, onOpen }) => (
   <button
@@ -104,10 +124,11 @@ const EconomyButton: React.FC<{ player: Player; onOpen: () => void }> = ({ playe
     aria-label="Open economy settings"
     title="Open economy settings"
   >
-    <Gauge className="h-3.5 w-3.5 shrink-0 text-cyan-300" aria-hidden="true" />
-    <span className="hidden text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400 xl:inline">
-      Rates
-    </span>
+    <IconTooltip
+      label={`Rates: ${player.taxRate ?? '—'}/${player.luxuryRate ?? '—'}/${player.scienceRate ?? '—'}%`}
+    >
+      <Gauge className="h-3.5 w-3.5 text-cyan-300" aria-hidden="true" />
+    </IconTooltip>
     <span className="font-semibold tabular-nums text-slate-100">
       {player.taxRate ?? '—'}/{player.luxuryRate ?? '—'}/{player.scienceRate ?? '—'}%
     </span>
@@ -119,11 +140,7 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({
 }) => {
   const turn = useGameStore(state => state.turn);
   const year = useGameStore(state => state.year);
-  const phase = useGameStore(state => state.phase);
-  const clientState = useGameStore(state => state.clientState);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
-  const urgentFocusQueue = useGameStore(state => state.urgentFocusQueue);
-  const turnProcessingState = useGameStore(state => state.turnProcessingState);
   const currentPlayer = useGameStore(state => state.players[currentPlayerId]);
   const cities = useGameStore(state => state.cities);
   const setActiveTab = useGameStore(state => state.setActiveTab);
@@ -156,7 +173,7 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({
             {formatNationName(currentPlayer.nation)}
           </span>
           <span className="block max-w-28 truncate text-[10px] text-slate-400">
-            {currentPlayer.name}
+            {formatNationName(currentPlayer.government)}
           </span>
         </span>
       </button>
@@ -184,18 +201,16 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({
           icon={Palette}
           tone="text-violet-300"
         />
-        <div
-          className="hidden items-center gap-1.5 whitespace-nowrap md:flex"
-          title={`Trade: ${trade}`}
-        >
-          <ArrowLeftRight className="h-3.5 w-3.5 text-teal-300" aria-hidden="true" />
-          <span className="hidden text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400 xl:inline">
-            Trade
-          </span>
+        <div className="hidden items-center gap-1.5 whitespace-nowrap md:flex">
+          <IconTooltip label={`Trade: ${trade}`}>
+            <ArrowLeftRight className="h-3.5 w-3.5 text-teal-300" aria-hidden="true" />
+          </IconTooltip>
           <span className="font-semibold tabular-nums text-slate-100">{trade}</span>
         </div>
-        <div className="hidden items-center gap-1.5 whitespace-nowrap md:flex" title="Luxury rate">
-          <Sparkles className="h-3.5 w-3.5 text-fuchsia-300" aria-hidden="true" />
+        <div className="hidden items-center gap-1.5 whitespace-nowrap md:flex">
+          <IconTooltip label="Luxury rate">
+            <Sparkles className="h-3.5 w-3.5 text-fuchsia-300" aria-hidden="true" />
+          </IconTooltip>
           <span className="font-semibold tabular-nums text-slate-100">
             {currentPlayer.luxuryRate ?? '—'}%
           </span>
@@ -205,32 +220,24 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({
 
       <div className="hidden h-7 w-px bg-white/10 lg:block" aria-hidden="true" />
 
-      <div
-        className="flex items-center gap-1.5 whitespace-nowrap"
-        title={`Population: ${population} · ${ownedCities.length} cities`}
-      >
-        <Users className="h-3.5 w-3.5 text-violet-300" aria-hidden="true" />
-        <span className="font-semibold tabular-nums text-slate-100">{population}</span>
-        <span className="hidden text-slate-500 sm:inline">·</span>
-        <span className="hidden text-slate-400 sm:inline">{ownedCities.length} cities</span>
+      <div className="flex items-center gap-1.5 whitespace-nowrap">
+        <IconTooltip label={`Population: ${population} · ${ownedCities.length} cities`}>
+          <Users className="h-3.5 w-3.5 text-violet-300" aria-hidden="true" />
+        </IconTooltip>
+        <span className="font-semibold tabular-nums text-slate-100">
+          {formatCompactNumber(population)}
+        </span>
       </div>
 
       <div className="hidden items-center gap-3 lg:flex">
-        <div className="flex items-center gap-1.5 whitespace-nowrap" title="Current score">
-          <Building2 className="h-3.5 w-3.5 text-teal-300" aria-hidden="true" />
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
+          <IconTooltip label="Current score">
+            <Building2 className="h-3.5 w-3.5 text-teal-300" aria-hidden="true" />
+          </IconTooltip>
           <span className="font-semibold tabular-nums text-slate-100">
             {currentPlayer.score ?? '—'}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => openReport('government')}
-          className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
-          aria-label={`Open ${currentPlayer.government} government`}
-          title="Open government"
-        >
-          <span>{formatNationName(currentPlayer.government)}</span>
-        </button>
       </div>
 
       <div className="flex items-center gap-2 border-l border-white/10 pl-3">
@@ -248,12 +255,6 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({
           <span className="font-semibold tabular-nums text-slate-100">{turn}</span>
           <span className="hidden text-slate-400 sm:inline">· {formatYear(year)}</span>
         </button>
-        <StatusPill
-          clientState={clientState}
-          phase={phase}
-          pendingActions={urgentFocusQueue?.length ?? 0}
-          processing={turnProcessingState === 'processing'}
-        />
       </div>
     </div>
   );
