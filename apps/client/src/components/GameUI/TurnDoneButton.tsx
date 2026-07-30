@@ -27,9 +27,7 @@ export const TurnDoneButton: React.FC = () => {
 
   const getDisabledReason = () => {
     if (turnProcessingState === 'processing') return 'Turn processing is in progress';
-    if (clientState !== 'running') return `Connection is ${clientState.replaceAll('_', ' ')}`;
-    if (!currentPlayer) return 'Player data is still loading';
-    if (!currentPlayer.isActive) return 'It is not your turn';
+    if (!currentPlayer?.isActive) return 'It is not your turn';
     if (phase !== 'movement') return `Turn completion is unavailable during the ${phase} phase`;
     return undefined;
   };
@@ -49,8 +47,12 @@ export const TurnDoneButton: React.FC = () => {
       <button
         onClick={handleTurnDone}
         disabled={isDisabled}
-        aria-describedby={isDisabled && disabledReason ? 'turn-done-status' : undefined}
-        className={`flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold shadow-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-300/70 disabled:cursor-not-allowed ${
+        aria-describedby={
+          isDisabled && disabledReason && turnProcessingState !== 'processing'
+            ? 'turn-done-status'
+            : undefined
+        }
+        className={`flex h-9 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold shadow-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-300/70 disabled:cursor-not-allowed ${
           isDisabled
             ? 'border-white/10 bg-white/5 text-slate-500'
             : 'border-emerald-300/35 bg-emerald-400/20 text-emerald-100 hover:bg-emerald-400/30'
@@ -64,7 +66,7 @@ export const TurnDoneButton: React.FC = () => {
         )}
         {getButtonText()}
       </button>
-      {isDisabled && disabledReason && (
+      {isDisabled && disabledReason && turnProcessingState !== 'processing' && (
         <span
           id="turn-done-status"
           className="max-w-56 text-right text-[10px] leading-4 text-amber-200/80"

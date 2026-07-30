@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { LogOut, Menu, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { gameClient } from '../../services/GameClient';
 import { useGameStore } from '../../store/gameStore';
 import { Button } from '../ui/button';
+import { HudActionButton } from './HudActionButton';
 import {
   Dialog,
   DialogClose,
@@ -13,18 +14,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
 
 export const GameMenu: React.FC = () => {
   const navigate = useNavigate();
   const setActiveTab = useGameStore(state => state.setActiveTab);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [menuOpen]);
 
   const exitToLobby = () => {
     gameClient.disconnect();
@@ -42,41 +46,51 @@ export const GameMenu: React.FC = () => {
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/15 bg-slate-950/70 text-white shadow-lg backdrop-blur-md transition-colors hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-300/70 focus:ring-offset-2 focus:ring-offset-slate-900"
-            aria-label="Game menu"
-            title="Game menu"
-          >
-            <Menu className="h-5 w-5" aria-hidden="true" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="end"
-          className="min-w-44 border-white/15 bg-slate-950/90 text-white shadow-2xl backdrop-blur-md"
+      <HudActionButton
+        compact
+        label="Game menu"
+        icon={Menu}
+        active={menuOpen}
+        aria-expanded={menuOpen}
+        aria-controls="game-menu-popover"
+        onClick={() => setMenuOpen(value => !value)}
+      />
+      {menuOpen && (
+        <div
+          id="game-menu-popover"
+          role="dialog"
+          aria-label="Game menu"
+          className="hud-surface absolute bottom-full right-0 mb-2 min-w-44 rounded-xl border p-2 text-white"
         >
-          <DropdownMenuItem
-            className="cursor-pointer gap-2 focus:bg-white/10 focus:text-white"
-            onSelect={() => setActiveTab('options')}
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-slate-200 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+            onClick={() => {
+              setActiveTab('options');
+              setMenuOpen(false);
+            }}
           >
             <Settings className="h-4 w-4" aria-hidden="true" />
             Settings
             <span className="ml-auto text-xs text-slate-500">F6</span>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator className="bg-white/10" />
-          <DropdownMenuItem
-            className="cursor-pointer gap-2 text-rose-300 focus:bg-rose-400/15 focus:text-rose-200"
-            onSelect={() => setConfirmExit(true)}
+          </button>
+          <div className="my-1 h-px bg-white/10" />
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-rose-300 transition-colors hover:bg-rose-400/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+            onClick={() => {
+              setMenuOpen(false);
+              setConfirmExit(true);
+            }}
           >
             <LogOut className="h-4 w-4" aria-hidden="true" />
             Exit Game
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </button>
+        </div>
+      )}
 
       <Dialog open={confirmExit} onOpenChange={setConfirmExit}>
-        <DialogContent className="border-white/15 bg-slate-900/95 text-white shadow-2xl backdrop-blur-md">
+        <DialogContent className="border-white/15 bg-slate-900/90 text-white shadow-2xl backdrop-blur-xl">
           <DialogHeader>
             <DialogTitle>Exit game?</DialogTitle>
             <DialogDescription className="text-slate-400">

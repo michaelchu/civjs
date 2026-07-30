@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import type { City, Unit } from '../../types';
+import { HudActionButton } from './HudActionButton';
 import { HudIconButton } from './HudIconButton';
 import { HudPanel } from './HudPanel';
 
@@ -175,9 +176,10 @@ const UnitOrderRow: React.FC<{ unit: Unit }> = ({ unit }) => {
   );
 };
 
-export const ObjectivesJournal: React.FC = () => {
+export const ObjectivesJournal: React.FC<{ popover?: boolean }> = ({ popover = false }) => {
   const [collapsed, setCollapsed] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [popoverOpen, setPopoverOpen] = React.useState(false);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
   const setActiveTab = useGameStore(state => state.setActiveTab);
   const cities = useGameStore(state => state.cities);
@@ -203,7 +205,7 @@ export const ObjectivesJournal: React.FC = () => {
   const recentEvents = notifications.slice(-3).reverse();
   const urgentCount = cityAlerts.length + pendingUnits.length + urgentFocusQueue.length;
 
-  if (collapsed) {
+  if (!popover && collapsed) {
     return (
       <HudPanel className="flex w-11 flex-col items-center gap-2 p-1.5">
         <HudIconButton
@@ -226,132 +228,157 @@ export const ObjectivesJournal: React.FC = () => {
 
   return (
     <>
-      <HudPanel className="flex w-11 flex-col items-center gap-2 p-1.5 sm:hidden">
-        <HudIconButton label="Open objectives and journal" onClick={() => setMobileOpen(true)}>
-          <BookOpen className="h-4 w-4" aria-hidden="true" />
-        </HudIconButton>
-        {urgentCount > 0 && (
-          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400/20 px-1 text-[10px] font-semibold tabular-nums text-amber-200">
-            {urgentCount}
-          </span>
-        )}
-      </HudPanel>
-      <HudPanel
-        className={`${mobileOpen ? 'flex' : 'hidden'} max-h-[min(36rem,calc(100vh-8rem))] w-72 flex-col overflow-hidden sm:flex`}
-      >
-        <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2.5">
-          <BookOpen className="h-4 w-4 text-cyan-300" aria-hidden="true" />
-          <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-100">
-              Objectives
-            </div>
-            <div className="text-[10px] text-slate-500">Journal and empire attention</div>
-          </div>
+      {popover ? (
+        <HudActionButton
+          compact
+          label="Objectives"
+          icon={BookOpen}
+          active={popoverOpen}
+          aria-expanded={popoverOpen}
+          aria-controls="turn-objectives-menu"
+          onClick={() => setPopoverOpen(value => !value)}
+        />
+      ) : (
+        <HudPanel className="flex w-11 flex-col items-center gap-2 p-1.5 sm:hidden">
+          <HudIconButton label="Open objectives and journal" onClick={() => setMobileOpen(true)}>
+            <BookOpen className="h-4 w-4" aria-hidden="true" />
+          </HudIconButton>
           {urgentCount > 0 && (
-            <span className="rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-amber-200">
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400/20 px-1 text-[10px] font-semibold tabular-nums text-amber-200">
               {urgentCount}
             </span>
           )}
-          <HudIconButton
-            label="Collapse objectives and journal"
-            onClick={() => {
-              setCollapsed(true);
-              setMobileOpen(false);
-            }}
-          >
-            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-          </HudIconButton>
-        </div>
-
-        <div className="space-y-3 overflow-y-auto p-2">
-          <section>
-            <SectionHeading icon={FlaskConical} label="Research" />
-            <ResearchObjective onOpen={() => setActiveTab('research')} />
-          </section>
-
-          <section>
-            <SectionHeading
-              icon={CircleAlert}
-              label="City attention"
-              count={cityAlerts.length}
-              urgent={cityAlerts.length > 0}
-            />
-            {cityAlerts.length > 0 ? (
-              <div className="mt-1 space-y-0.5">
-                {cityAlerts.slice(0, 4).map(city => (
-                  <CityAlertRow key={city.id} city={city} />
-                ))}
-                {cityAlerts.length > 4 && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('cities')}
-                    className="w-full px-2 py-1 text-left text-[10px] text-cyan-300 hover:text-cyan-200"
-                  >
-                    View {cityAlerts.length - 4} more cities
-                  </button>
-                )}
+        </HudPanel>
+      )}
+      {(!popover || popoverOpen) && (
+        <HudPanel
+          id={popover ? 'turn-objectives-menu' : undefined}
+          role={popover ? 'dialog' : undefined}
+          aria-label={popover ? 'Objectives and journal' : undefined}
+          className={
+            popover
+              ? 'hud-surface absolute bottom-full right-0 mb-2 flex max-h-[min(36rem,calc(100vh-8rem))] w-72 flex-col overflow-hidden'
+              : `${mobileOpen ? 'flex' : 'hidden'} max-h-[min(36rem,calc(100vh-8rem))] w-72 flex-col overflow-hidden sm:flex`
+          }
+        >
+          <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2.5">
+            <BookOpen className="h-4 w-4 text-cyan-300" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-100">
+                Objectives
               </div>
-            ) : (
-              <div className="px-2 py-2 text-[10px] text-emerald-300/80">All cities stable</div>
+              <div className="text-[10px] text-slate-500">Journal and empire attention</div>
+            </div>
+            {urgentCount > 0 && (
+              <span className="rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-amber-200">
+                {urgentCount}
+              </span>
             )}
-          </section>
-
-          <section>
-            <SectionHeading
-              icon={Swords}
-              label="Awaiting orders"
-              count={pendingUnits.length}
-              urgent={pendingUnits.length > 0}
-            />
-            {pendingUnits.length > 0 ? (
-              <div className="mt-1 space-y-0.5">
-                {pendingUnits.slice(0, 4).map(unit => (
-                  <UnitOrderRow key={unit.id} unit={unit} />
-                ))}
-                {pendingUnits.length > 4 && (
-                  <div className="px-2 py-1 text-[10px] text-slate-500">
-                    {pendingUnits.length - 4} more units pending
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="px-2 py-2 text-[10px] text-slate-500">No units need attention</div>
-            )}
-          </section>
-
-          <section>
-            <SectionHeading icon={ScrollText} label="Recent events" count={recentEvents.length} />
-            {recentEvents.length > 0 ? (
-              <div className="mt-1 space-y-0.5">
-                {recentEvents.map(event => (
-                  <div key={event.id} className="flex items-start gap-2 rounded-lg px-2 py-2">
-                    <ScrollText
-                      className={`mt-0.5 h-4 w-4 shrink-0 ${
-                        event.tone === 'error'
-                          ? 'text-rose-300'
-                          : event.tone === 'success'
-                            ? 'text-emerald-300'
-                            : 'text-slate-400'
-                      }`}
-                      aria-hidden="true"
-                    />
-                    <span className="line-clamp-2 text-[10px] leading-4 text-slate-300">
-                      {event.message}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="px-2 py-2 text-[10px] text-slate-500">No major events yet</div>
-            )}
-          </section>
-
-          <div className="flex items-center gap-1.5 border-t border-white/10 px-2 pt-2 text-[10px] text-slate-500">
-            <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>{ownedCities.length} cities tracked</span>
+            <HudIconButton
+              label={popover ? 'Close objectives and journal' : 'Collapse objectives and journal'}
+              onClick={() => {
+                if (popover) {
+                  setPopoverOpen(false);
+                } else {
+                  setCollapsed(true);
+                  setMobileOpen(false);
+                }
+              }}
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </HudIconButton>
           </div>
-        </div>
-      </HudPanel>
+
+          <div className="space-y-3 overflow-y-auto p-2">
+            <section>
+              <SectionHeading icon={FlaskConical} label="Research" />
+              <ResearchObjective onOpen={() => setActiveTab('research')} />
+            </section>
+
+            <section>
+              <SectionHeading
+                icon={CircleAlert}
+                label="City attention"
+                count={cityAlerts.length}
+                urgent={cityAlerts.length > 0}
+              />
+              {cityAlerts.length > 0 ? (
+                <div className="mt-1 space-y-0.5">
+                  {cityAlerts.slice(0, 4).map(city => (
+                    <CityAlertRow key={city.id} city={city} />
+                  ))}
+                  {cityAlerts.length > 4 && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('cities')}
+                      className="w-full px-2 py-1 text-left text-[10px] text-cyan-300 hover:text-cyan-200"
+                    >
+                      View {cityAlerts.length - 4} more cities
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="px-2 py-2 text-[10px] text-emerald-300/80">All cities stable</div>
+              )}
+            </section>
+
+            <section>
+              <SectionHeading
+                icon={Swords}
+                label="Awaiting orders"
+                count={pendingUnits.length}
+                urgent={pendingUnits.length > 0}
+              />
+              {pendingUnits.length > 0 ? (
+                <div className="mt-1 space-y-0.5">
+                  {pendingUnits.slice(0, 4).map(unit => (
+                    <UnitOrderRow key={unit.id} unit={unit} />
+                  ))}
+                  {pendingUnits.length > 4 && (
+                    <div className="px-2 py-1 text-[10px] text-slate-500">
+                      {pendingUnits.length - 4} more units pending
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="px-2 py-2 text-[10px] text-slate-500">No units need attention</div>
+              )}
+            </section>
+
+            <section>
+              <SectionHeading icon={ScrollText} label="Recent events" count={recentEvents.length} />
+              {recentEvents.length > 0 ? (
+                <div className="mt-1 space-y-0.5">
+                  {recentEvents.map(event => (
+                    <div key={event.id} className="flex items-start gap-2 rounded-lg px-2 py-2">
+                      <ScrollText
+                        className={`mt-0.5 h-4 w-4 shrink-0 ${
+                          event.tone === 'error'
+                            ? 'text-rose-300'
+                            : event.tone === 'success'
+                              ? 'text-emerald-300'
+                              : 'text-slate-400'
+                        }`}
+                        aria-hidden="true"
+                      />
+                      <span className="line-clamp-2 text-[10px] leading-4 text-slate-300">
+                        {event.message}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-2 py-2 text-[10px] text-slate-500">No major events yet</div>
+              )}
+            </section>
+
+            <div className="flex items-center gap-1.5 border-t border-white/10 px-2 pt-2 text-[10px] text-slate-500">
+              <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>{ownedCities.length} cities tracked</span>
+            </div>
+          </div>
+        </HudPanel>
+      )}
     </>
   );
 };

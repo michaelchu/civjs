@@ -29,11 +29,9 @@ describe('GameMenu', () => {
     expect(screen.queryByRole('button', { name: /Settings screen/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Map screen/ })).toHaveClass('bg-cyan-300/15');
 
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Game menu' }), {
-      key: 'ArrowDown',
-    });
-    expect(screen.getByRole('menu')).toHaveClass('bg-slate-950/90', 'backdrop-blur-md');
-    fireEvent.click(screen.getByRole('menuitem', { name: /Settings/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Game menu' }));
+    expect(screen.getByRole('dialog', { name: 'Game menu' })).toHaveClass('hud-surface');
+    fireEvent.click(screen.getByRole('button', { name: /Settings/ }));
 
     expect(useGameStore.getState().activeTab).toBe('options');
   });
@@ -48,11 +46,9 @@ describe('GameMenu', () => {
       </MemoryRouter>
     );
 
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Game menu' }), {
-      key: 'ArrowDown',
-    });
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Exit Game' }));
-    expect(screen.getByRole('dialog')).toHaveClass('bg-slate-900/95', 'backdrop-blur-md');
+    fireEvent.click(screen.getByRole('button', { name: 'Game menu' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exit Game' }));
+    expect(screen.getByRole('dialog')).toHaveClass('bg-slate-900/90', 'backdrop-blur-xl');
     fireEvent.click(screen.getByRole('button', { name: 'Exit Game' }));
 
     expect(disconnect).toHaveBeenCalledOnce();

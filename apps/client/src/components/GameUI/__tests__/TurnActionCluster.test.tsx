@@ -64,6 +64,9 @@ describe('TurnActionCluster', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Reports' }));
     expect(screen.getByText('Reports and management')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Reports and management' })).toHaveClass(
+      'hud-surface'
+    );
     expect(screen.getByRole('button', { name: 'Reports' })).toHaveAttribute(
       'aria-expanded',
       'true'
@@ -74,6 +77,7 @@ describe('TurnActionCluster', () => {
     useGameStore.getState().setActiveTab('map');
     fireEvent.click(screen.getByRole('button', { name: 'Help' }));
     expect(screen.getByText('Command help')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Command help' })).toHaveClass('hud-surface');
     expect(useGameStore.getState().activeTab).toBe('map');
     expect(screen.getByRole('button', { name: 'Help' })).toHaveAttribute('aria-expanded', 'true');
     fireEvent.keyDown(window, { key: 'Escape' });

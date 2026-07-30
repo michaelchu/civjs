@@ -17,7 +17,6 @@ import { GameHud } from './GameHud';
 import { HudPanel } from './HudPanel';
 import { SelectionTray } from './SelectionTray';
 import { Minimap } from './Minimap';
-import { ObjectivesJournal } from './ObjectivesJournal';
 import { DiplomacyStrip } from './DiplomacyStrip';
 import { TurnActionCluster } from './TurnActionCluster';
 import { ScoreReport, type ScoreSnapshot } from './ScoreReport';
@@ -236,7 +235,6 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
               }
               bottomCenter={<SelectionTray />}
               bottomLeft={<Minimap />}
-              left={<ObjectivesJournal />}
               right={<DiplomacyStrip onOpenIntelligence={() => setIntelligenceReportOpen(true)} />}
               bottomRight={
                 <TurnActionCluster

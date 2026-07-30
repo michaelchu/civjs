@@ -42,4 +42,14 @@ describe('TurnDoneButton', () => {
     ).toBeInTheDocument();
     expect(button).toHaveAttribute('aria-describedby', 'turn-done-status');
   });
+
+  it('does not show a secondary status label while processing', () => {
+    useGameStore.setState({ turnProcessingState: 'processing' });
+    render(<TurnDoneButton />);
+
+    const button = screen.getByRole('button', { name: 'Processing...' });
+    expect(button).toBeDisabled();
+    expect(screen.queryByText('Turn processing is in progress')).not.toBeInTheDocument();
+    expect(button).not.toHaveAttribute('aria-describedby');
+  });
 });

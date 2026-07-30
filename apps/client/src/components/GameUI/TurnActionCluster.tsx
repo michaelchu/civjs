@@ -7,7 +7,6 @@ import {
   Crosshair,
   Eye,
   Flag,
-  MessageSquare,
   MoreHorizontal,
   Radar,
   Rocket,
@@ -18,48 +17,12 @@ import {
 } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { GameMenu } from './GameMenu';
+import { HudActionButton } from './HudActionButton';
 import { HudIconButton } from './HudIconButton';
 import { HudPanel } from './HudPanel';
+import { ObjectivesJournal } from './ObjectivesJournal';
 import { TurnDoneButton } from './TurnDoneButton';
 import { ChatBox } from './ChatBox';
-
-const ActionButton: React.FC<{
-  label: string;
-  icon: React.ElementType;
-  onClick?: () => void;
-  disabled?: boolean;
-  active?: boolean;
-  title?: string;
-  'aria-expanded'?: boolean;
-  'aria-controls'?: string;
-}> = ({
-  label,
-  icon: Icon,
-  onClick,
-  disabled = false,
-  active = false,
-  title,
-  'aria-expanded': ariaExpanded,
-  'aria-controls': ariaControls,
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    disabled={disabled}
-    aria-label={label}
-    aria-expanded={ariaExpanded}
-    aria-controls={ariaControls}
-    title={title ?? label}
-    className={`flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 ${
-      active
-        ? 'border-cyan-300/35 bg-cyan-300/15 text-cyan-100'
-        : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
-    } disabled:cursor-not-allowed disabled:opacity-40`}
-  >
-    <Icon className="h-4 w-4" aria-hidden="true" />
-    <span className="hidden sm:inline">{label}</span>
-  </button>
-);
 
 const ReportsMenu: React.FC<{
   onClose: () => void;
@@ -91,7 +54,7 @@ const ReportsMenu: React.FC<{
       id="turn-reports-menu"
       role="dialog"
       aria-label="Reports and management"
-      className="absolute bottom-full right-0 mb-2 w-64 rounded-xl border border-white/15 bg-slate-950/95 p-2 shadow-2xl backdrop-blur-md"
+      className="hud-surface absolute bottom-full right-0 mb-2 w-64 rounded-xl border p-2"
     >
       <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
         Reports and management
@@ -208,7 +171,7 @@ const HelpMenu: React.FC<{ onOpenCivilopedia?: () => void }> = ({ onOpenCivilope
     id="turn-help-menu"
     role="dialog"
     aria-label="Command help"
-    className="absolute bottom-full right-0 mb-2 w-64 rounded-xl border border-white/15 bg-slate-950/95 p-3 text-xs shadow-2xl backdrop-blur-md"
+    className="hud-surface absolute bottom-full right-0 mb-2 w-64 rounded-xl border p-3 text-xs"
   >
     <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
       <BookOpen className="h-4 w-4 text-cyan-300" aria-hidden="true" />
@@ -251,13 +214,12 @@ const HelpMenu: React.FC<{ onOpenCivilopedia?: () => void }> = ({ onOpenCivilope
 const MobileActionsMenu: React.FC<{
   onReports: () => void;
   onHelp: () => void;
-  onChat: () => void;
-}> = ({ onReports, onHelp, onChat }) => (
+}> = ({ onReports, onHelp }) => (
   <div
     id="turn-mobile-actions-menu"
     role="dialog"
     aria-label="More command actions"
-    className="absolute bottom-full right-0 mb-2 w-48 rounded-xl border border-white/15 bg-slate-950/95 p-2 shadow-2xl backdrop-blur-md sm:hidden"
+    className="hud-surface absolute bottom-full right-0 mb-2 w-48 rounded-xl border p-2 sm:hidden"
   >
     <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
       More actions
@@ -276,13 +238,6 @@ const MobileActionsMenu: React.FC<{
         className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-xs text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
       >
         <CircleHelp className="h-4 w-4" aria-hidden="true" /> Help
-      </button>
-      <button
-        type="button"
-        onClick={onChat}
-        className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-xs text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
-      >
-        <MessageSquare className="h-4 w-4" aria-hidden="true" /> Chat
       </button>
     </div>
   </div>
@@ -348,14 +303,13 @@ export const TurnActionCluster: React.FC<{
   };
 
   return (
-    <HudPanel className="relative flex w-[min(28rem,calc(100vw-1.5rem))] flex-col gap-2 p-2 sm:p-2.5">
-      <div className="flex items-center gap-1.5">
-        <div className="mr-auto flex items-center gap-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-          <Swords className="h-3.5 w-3.5 text-cyan-300" aria-hidden="true" />
-          Command
+    <HudPanel className="relative flex flex-col gap-2 px-3 py-2 sm:gap-4 sm:px-4">
+      <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="mr-auto">
+          <TurnDoneButton />
         </div>
         {urgentUnits.length > 0 && (
-          <ActionButton
+          <HudActionButton
             label={`Review ${urgentUnits.length} urgent action${urgentUnits.length === 1 ? '' : 's'}`}
             icon={ShieldAlert}
             onClick={reviewUrgent}
@@ -364,7 +318,8 @@ export const TurnActionCluster: React.FC<{
           />
         )}
         <div className="hidden sm:block">
-          <ActionButton
+          <HudActionButton
+            compact
             label="Reports"
             icon={ScrollText}
             onClick={() => {
@@ -377,7 +332,11 @@ export const TurnActionCluster: React.FC<{
           />
         </div>
         <div className="hidden sm:block">
-          <ActionButton
+          <ObjectivesJournal popover />
+        </div>
+        <div className="hidden sm:block">
+          <HudActionButton
+            compact
             label="Help"
             icon={CircleHelp}
             onClick={() => {
@@ -388,20 +347,6 @@ export const TurnActionCluster: React.FC<{
             aria-expanded={helpOpen}
             aria-controls="turn-help-menu"
           />
-        </div>
-        <div className="hidden sm:block">
-          <HudIconButton
-            label="Chat"
-            onClick={() => {
-              setChatOpen(value => !value);
-              setReportsOpen(false);
-              setHelpOpen(false);
-            }}
-            title="Open chat"
-            className={chatOpen ? 'bg-cyan-300/15 text-cyan-100' : undefined}
-          >
-            <MessageSquare className="h-4 w-4" aria-hidden="true" />
-          </HudIconButton>
         </div>
         <div className="sm:hidden">
           <HudIconButton
@@ -434,13 +379,6 @@ export const TurnActionCluster: React.FC<{
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-2 border-t border-white/10 pt-2">
-        <div className="hidden items-center gap-1.5 text-[10px] text-slate-500 sm:flex">
-          <Eye className="h-3.5 w-3.5" aria-hidden="true" /> Map remains active
-        </div>
-        <TurnDoneButton />
-      </div>
-
       {reportsOpen && (
         <ReportsMenu
           onClose={() => setReportsOpen(false)}
@@ -472,12 +410,6 @@ export const TurnActionCluster: React.FC<{
             setMobileActionsOpen(false);
             setReportsOpen(false);
             setHelpOpen(true);
-          }}
-          onChat={() => {
-            setMobileActionsOpen(false);
-            setReportsOpen(false);
-            setHelpOpen(false);
-            setChatOpen(true);
           }}
         />
       )}
