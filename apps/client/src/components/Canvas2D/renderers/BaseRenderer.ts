@@ -9,7 +9,9 @@ export interface RenderState {
   cities: Record<string, City>;
   players: Record<string, { color: string; name: string; nation: string }>; // Player data for border colors and validation
   selectedUnitId?: string | null;
+  selectedCityId?: string | null;
   focusedUnits?: string[];
+  urgentFocusQueue?: string[];
   gotoPath?: GotoPath | null;
   currentPlayerId?: string;
   researchedTechs?: ReadonlySet<string>;

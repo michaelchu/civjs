@@ -113,6 +113,45 @@ export class CityRenderer extends BaseRenderer {
 
     // Render city name and population
     this.renderCityText(city, screenPos, state);
+    this.renderCityAnnotation(city, screenPos, state);
+  }
+
+  private renderCityAnnotation(
+    city: City,
+    screenPos: { x: number; y: number },
+    state: RenderState
+  ): void {
+    const isSelected = state.selectedCityId === city.id;
+    const isOwnCity = city.playerId === state.currentPlayerId;
+    const needsAttention = isOwnCity && (city.disorder || city.granaryTurns < 0);
+
+    if (isSelected) {
+      const centerX = screenPos.x + this.tileWidth / 2;
+      const centerY = screenPos.y + this.tileHeight / 2;
+      this.ctx.strokeStyle = 'rgba(103, 232, 249, 0.95)';
+      this.ctx.lineWidth = 2;
+      this.ctx.beginPath();
+      this.ctx.moveTo(centerX, centerY - this.tileHeight / 2 + 3);
+      this.ctx.lineTo(centerX + this.tileWidth / 2 - 3, centerY);
+      this.ctx.lineTo(centerX, centerY + this.tileHeight / 2 - 3);
+      this.ctx.lineTo(centerX - this.tileWidth / 2 + 3, centerY);
+      this.ctx.closePath();
+      this.ctx.stroke();
+    }
+
+    if (needsAttention) {
+      const markerX = screenPos.x + this.tileWidth - 9;
+      const markerY = screenPos.y + 8;
+      this.ctx.fillStyle = city.disorder ? '#fb7185' : '#fbbf24';
+      this.ctx.beginPath();
+      this.ctx.arc(markerX, markerY, 6, 0, 2 * Math.PI);
+      this.ctx.fill();
+      this.ctx.fillStyle = '#172033';
+      this.ctx.font = 'bold 9px Arial, sans-serif';
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText('!', markerX, markerY);
+    }
   }
 
   /**

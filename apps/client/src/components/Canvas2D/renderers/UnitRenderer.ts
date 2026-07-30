@@ -142,7 +142,53 @@ export class UnitRenderer extends BaseRenderer {
       this.renderUnitHealthBar(unit, unitX, unitY);
     }
 
-    // Render unit status indicators (fortified, etc.)
+    this.renderUnitAnnotation(unit, unitX, unitY, stackSize, state);
+  }
+
+  /** Render readable labels and attention markers without changing the unit sprite. */
+  private renderUnitAnnotation(
+    unit: Unit,
+    unitX: number,
+    unitY: number,
+    stackSize: number,
+    state: RenderState
+  ): void {
+    const isOwnUnit = unit.playerId === state.currentPlayerId;
+    const isFocused = state.focusedUnits?.includes(unit.id) || state.selectedUnitId === unit.id;
+    const isUrgent = state.urgentFocusQueue?.includes(unit.id);
+
+    if (isUrgent) {
+      this.ctx.fillStyle = '#fbbf24';
+      this.ctx.beginPath();
+      this.ctx.arc(unitX + this.tileWidth - 8, unitY + 8, 6, 0, 2 * Math.PI);
+      this.ctx.fill();
+      this.ctx.fillStyle = '#172033';
+      this.ctx.font = 'bold 9px Arial, sans-serif';
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText('!', unitX + this.tileWidth - 8, unitY + 8);
+    }
+
+    if (!isOwnUnit || (!isFocused && !isUrgent)) return;
+
+    const label = unit.unitTypeId.replaceAll('_', ' ');
+    this.ctx.font = '600 10px system-ui, sans-serif';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    const labelWidth = this.ctx.measureText(label).width + 14;
+    const labelX = unitX + this.tileWidth / 2;
+    const labelY = unitY - 5;
+
+    this.ctx.fillStyle = 'rgba(15, 23, 42, 0.86)';
+    this.ctx.fillRect(labelX - labelWidth / 2, labelY - 8, labelWidth, 16);
+    this.ctx.fillStyle = '#f8fafc';
+    this.ctx.fillText(label, labelX, labelY);
+
+    if (stackSize > 1) {
+      this.ctx.fillStyle = '#67e8f9';
+      this.ctx.font = '600 9px system-ui, sans-serif';
+      this.ctx.fillText(`×${stackSize}`, labelX + labelWidth / 2 + 8, labelY);
+    }
   }
 
   /**

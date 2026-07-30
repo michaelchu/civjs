@@ -14,6 +14,7 @@ function createContext() {
     arc: vi.fn(),
     fill: vi.fn(),
     fillText: vi.fn(),
+    measureText: vi.fn().mockReturnValue({ width: 32 }),
     stroke: vi.fn(),
     imageSmoothingEnabled: false,
   } as unknown as CanvasRenderingContext2D;
@@ -169,6 +170,31 @@ describe('MapRenderer live-state updates', () => {
     expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 19, -14);
     expect(context.drawImage).toHaveBeenCalledWith(stackSprite, 19, -45);
     expect(context.fillText).not.toHaveBeenCalled();
+  });
+
+  it('renders a selected own-unit annotation label above the sprite', () => {
+    const context = createContext();
+    const renderer = new UnitRenderer(context, { getSprite: () => undefined } as never, 96, 48);
+    const unit: Unit = {
+      id: 'selected-warrior',
+      playerId: 'player-1',
+      unitTypeId: 'warriors',
+      x: 0,
+      y: 0,
+      hp: 100,
+      movesLeft: 1,
+      veteranLevel: 0,
+    };
+
+    renderer.renderUnits({
+      ...createRenderState(),
+      currentPlayerId: 'player-1',
+      selectedUnitId: unit.id,
+      focusedUnits: [unit.id],
+      units: { [unit.id]: unit },
+    });
+
+    expect(context.fillText).toHaveBeenCalledWith('warriors', expect.any(Number), expect.any(Number));
   });
 
   it('keeps unit sprites in the overdraw margin while panning', () => {
