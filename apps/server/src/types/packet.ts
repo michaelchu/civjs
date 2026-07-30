@@ -545,12 +545,13 @@ export const TurnDoneSchema = z.object({
 export const NewTurnSchema = z.object({
   turn: z.number(),
   year: z.number(),
-  phase: z.string(),
+  phase: z.enum(['movement', 'production', 'research', 'diplomacy']).optional(),
 });
 
 export const BeginTurnSchema = z.object({
   turn: z.number(),
   playerId: z.string(),
+  phase: z.enum(['movement', 'production', 'research', 'diplomacy']).optional(),
 });
 
 export const EndTurnSchema = z.object({

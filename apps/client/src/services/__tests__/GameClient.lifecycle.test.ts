@@ -28,10 +28,10 @@ describe('GameClient lifecycle events', () => {
   });
 
   it('refreshes research when the server marks the game active', () => {
-    listeners.get('game-started')?.({ gameId: 'game-1', currentTurn: 1 });
+    listeners.get('game-started')?.({ gameId: 'game-1', currentTurn: 1, phase: 'research' });
 
     expect(useGameStore.getState().clientState).toBe('running');
-    expect(useGameStore.getState().phase).toBe('movement');
+    expect(useGameStore.getState().phase).toBe('research');
     expect(socket.emit).toHaveBeenCalledWith(
       'packet',
       expect.objectContaining<Partial<Packet>>({
@@ -46,5 +46,15 @@ describe('GameClient lifecycle events', () => {
         data: {},
       })
     );
+  });
+
+  it('uses the authoritative phase from a turn-start packet', () => {
+    listeners.get('packet')?.({
+      type: PacketType.TURN_START,
+      data: { turn: 4, year: -3850, phase: 'production' },
+    } as Packet);
+
+    expect(useGameStore.getState().turn).toBe(4);
+    expect(useGameStore.getState().phase).toBe('production');
   });
 });

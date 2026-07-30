@@ -205,9 +205,9 @@ export class GameClient {
     this.socket.on('game-started', data => {
       clientLogger.debug('Game started:', data);
       useGameStore.getState().setClientState('running');
-      // Set initial game phase to movement so turn done button works
+      // Preserve the authoritative phase when the server provides it.
       useGameStore.getState().updateGameState({
-        phase: 'movement',
+        phase: data?.phase ?? 'movement',
       });
       this.refreshResearch();
     });
@@ -394,7 +394,7 @@ export class GameClient {
         clientLogger.debug('Turn started:', packet.data);
         useGameStore.getState().updateGameState({
           turn: packet.data.turn,
-          phase: 'movement', // Reset phase to movement for new turn
+          phase: packet.data.phase ?? 'movement',
           // Year should already be set by NEW_YEAR packet
         });
         // Clear turn processing UI when new turn starts

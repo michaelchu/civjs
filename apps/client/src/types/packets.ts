@@ -22,7 +22,7 @@ export interface GameStatePacket {
     map: any;
     units: Record<string, any>;
     cities: Record<string, any>;
-    phase?: 'movement' | 'research' | 'production';
+    phase?: 'movement' | 'research' | 'production' | 'diplomacy';
     year?: number;
   };
 }
@@ -94,6 +94,7 @@ export interface TurnStartPacket {
   data: {
     turn: number;
     year: number;
+    phase?: 'movement' | 'research' | 'production' | 'diplomacy';
   };
 }
 

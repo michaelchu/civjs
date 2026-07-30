@@ -379,7 +379,7 @@ export interface GovernmentState {
 export interface GameState {
   turn: number;
   year?: number; // Game year (e.g., -4000, 1950, 2000)
-  phase: 'movement' | 'research' | 'production';
+  phase: 'movement' | 'research' | 'production' | 'diplomacy';
   players: Record<string, Player>;
   currentPlayerId: string;
   map: {

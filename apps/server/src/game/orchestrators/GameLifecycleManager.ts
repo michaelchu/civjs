@@ -300,6 +300,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       this.onBroadcast?.(gameId, 'game-started', {
         gameId,
         currentTurn: 1,
+        phase: gameInstance.turnPhase,
       });
 
       this.logger.info('Game started successfully', { gameId });

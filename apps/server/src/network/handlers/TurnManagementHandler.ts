@@ -95,6 +95,7 @@ export class TurnManagementHandler extends BaseSocketHandler {
       const turnData = {
         turn: updatedGame.currentTurn,
         year: gameInstance.turnManager.getCurrentYear(),
+        phase: gameInstance.turnPhase,
       };
 
       // Send NEW_YEAR packet first (freeciv-web protocol)
