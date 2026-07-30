@@ -202,13 +202,14 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({ onO
 
       <div className="hidden h-7 w-px bg-white/10 lg:block" aria-hidden="true" />
 
+      <div className="flex items-center gap-1.5 whitespace-nowrap" title={`Population: ${population} · ${ownedCities.length} cities`}>
+        <Users className="h-3.5 w-3.5 text-violet-300" aria-hidden="true" />
+        <span className="font-semibold tabular-nums text-slate-100">{population}</span>
+        <span className="hidden text-slate-500 sm:inline">·</span>
+        <span className="hidden text-slate-400 sm:inline">{ownedCities.length} cities</span>
+      </div>
+
       <div className="hidden items-center gap-3 lg:flex">
-        <div className="flex items-center gap-1.5 whitespace-nowrap" title="Cities and population">
-          <Users className="h-3.5 w-3.5 text-violet-300" aria-hidden="true" />
-          <span className="font-semibold tabular-nums text-slate-100">{population}</span>
-          <span className="text-slate-500">·</span>
-          <span className="text-slate-400">{ownedCities.length} cities</span>
-        </div>
         <div className="flex items-center gap-1.5 whitespace-nowrap" title="Current score">
           <Building2 className="h-3.5 w-3.5 text-teal-300" aria-hidden="true" />
           <span className="font-semibold tabular-nums text-slate-100">{currentPlayer.score ?? '—'}</span>
@@ -224,7 +225,7 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({ onO
         </button>
       </div>
 
-      <div className="hidden items-center gap-2 border-l border-white/10 pl-3 sm:flex">
+      <div className="flex items-center gap-2 border-l border-white/10 pl-3">
         <button
           type="button"
           onClick={() => {
@@ -237,7 +238,7 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({ onO
         >
           <CalendarDays className="h-3.5 w-3.5 text-cyan-300" aria-hidden="true" />
           <span className="font-semibold tabular-nums text-slate-100">{turn}</span>
-          <span className="hidden text-slate-400 xl:inline">· {formatYear(year)}</span>
+          <span className="hidden text-slate-400 sm:inline">· {formatYear(year)}</span>
         </button>
         <StatusPill
           clientState={clientState}

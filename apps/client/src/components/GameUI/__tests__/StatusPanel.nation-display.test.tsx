@@ -126,6 +126,7 @@ describe('StatusPanel - Nation Display', () => {
 
     expect(getByText('60/10/30%')).toBeInTheDocument();
     expect(getByText('6')).toBeInTheDocument();
+    expect(getByTitle('Population: 6 · 2 cities')).toBeInTheDocument();
     expect(getByTitle('Trade: 5')).toBeInTheDocument();
     expect(getByTitle('Culture: 27')).toBeInTheDocument();
     expect(getByText('480')).toBeInTheDocument();
