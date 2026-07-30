@@ -12,6 +12,7 @@ import {
   Heart,
   MapPin,
   Move,
+  ListOrdered,
   Shield,
   Sparkles,
   Swords,
@@ -28,6 +29,7 @@ import { HudPanel } from './HudPanel';
 
 const formatName = (value: string): string =>
   value
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
     .split(/[_-]+/)
     .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(' ');
@@ -66,6 +68,13 @@ const Stat: React.FC<{ label: string; value: React.ReactNode; icon: React.Elemen
 
 const TrayDivider = () => <div className="h-8 w-px shrink-0 bg-white/10" aria-hidden="true" />;
 
+const getUnitOrders = (orders: unknown): Array<{ type?: unknown }> =>
+  Array.isArray(orders)
+    ? orders.filter(
+        (order): order is { type?: unknown } => typeof order === 'object' && order !== null
+      )
+    : [];
+
 const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount }) => {
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
   const clientState = useGameStore(state => state.clientState);
@@ -76,12 +85,22 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
   const canAct = isOwned && clientState === 'running' && phase === 'movement';
   const movement = `${Math.max(0, unit.movesLeft ?? 0)}/${unit.maxMoves ?? '—'}`;
   const unitLabel = formatName(unit.unitTypeId);
+  const queuedOrders = getUnitOrders(unit.orders);
+  const orderSummary =
+    queuedOrders.length > 0
+      ? `${queuedOrders.length} queued · ${formatName(String(queuedOrders[0]?.type ?? 'Order'))}`
+      : unit.activity
+        ? formatName(String(unit.activity))
+        : 'Idle';
 
   const dispatchTargetAction = (action: ActionType) => {
     document.dispatchEvent(
-      new CustomEvent(action === ActionType.GOTO ? 'activate-goto-mode' : 'activate-target-action-mode', {
-        detail: { unit, ...(action === ActionType.PATROL ? { action } : {}) },
-      })
+      new CustomEvent(
+        action === ActionType.GOTO ? 'activate-goto-mode' : 'activate-target-action-mode',
+        {
+          detail: { unit, ...(action === ActionType.PATROL ? { action } : {}) },
+        }
+      )
     );
   };
 
@@ -95,7 +114,9 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
     const success = await gameClient.requestUnitAction(unit.id, action);
     addNotification({
       tone: success ? 'success' : 'error',
-      message: success ? `${unitLabel}: ${formatName(action)} issued` : `${unitLabel}: action failed`,
+      message: success
+        ? `${unitLabel}: ${formatName(action)} issued`
+        : `${unitLabel}: action failed`,
     });
   };
 
@@ -108,7 +129,10 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
   };
 
   return (
-    <HudPanel variant="active" className="flex max-w-[min(48rem,calc(100vw-1.5rem))] items-center gap-3 px-3 py-2 sm:gap-4 sm:px-4">
+    <HudPanel
+      variant="active"
+      className="flex max-w-[min(48rem,calc(100vw-1.5rem))] items-center gap-3 px-3 py-2 sm:gap-4 sm:px-4"
+    >
       <div className="flex min-w-0 items-center gap-2">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cyan-300/30 bg-cyan-300/10 text-cyan-200">
           <Swords className="h-5 w-5" aria-hidden="true" />
@@ -119,7 +143,7 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
             {unitCount > 1 && <span className="text-[10px] text-slate-400">+{unitCount - 1}</span>}
           </div>
           <div className="max-w-36 truncate text-[10px] uppercase tracking-[0.12em] text-slate-400">
-            {unit.x}, {unit.y} · {unit.activity ? formatName(String(unit.activity)) : 'Idle'}
+            {unit.x}, {unit.y} · {orderSummary}
           </div>
         </div>
       </div>
@@ -130,8 +154,20 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
         <Stat label="HP" value={`${unit.hp}%`} icon={Heart} />
         <Stat label="Move" value={movement} icon={Move} />
         <Stat label="Rank" value={unit.veteranLevel ? 'Veteran' : 'Rookie'} icon={Shield} />
-        {unit.maxFuel ? <Stat label="Fuel" value={`${unit.fuel ?? 0}/${unit.maxFuel}`} icon={Zap} /> : null}
+        {unit.maxFuel ? (
+          <Stat label="Fuel" value={`${unit.fuel ?? 0}/${unit.maxFuel}`} icon={Zap} />
+        ) : null}
       </div>
+
+      {queuedOrders.length > 0 && (
+        <div
+          className="hidden items-center gap-1.5 rounded-md border border-cyan-300/20 bg-cyan-300/10 px-2 py-1 text-[10px] uppercase tracking-[0.08em] text-cyan-100 lg:flex"
+          title="This unit has queued orders. Order cancellation will be added when the backend action is exposed."
+        >
+          <ListOrdered className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>{queuedOrders.length} queued</span>
+        </div>
+      )}
 
       <div className="ml-auto flex items-center gap-1.5">
         <ActionButton
@@ -144,7 +180,9 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
         <ActionButton
           label={unit.fortified ? 'Sentry' : 'Fortify'}
           icon={unit.fortified ? CircleDot : Shield}
-          onClick={() => void executeAction(unit.fortified ? ActionType.SENTRY : ActionType.FORTIFY)}
+          onClick={() =>
+            void executeAction(unit.fortified ? ActionType.SENTRY : ActionType.FORTIFY)
+          }
           disabled={!canAct || !unit.capabilities?.canFortify}
           title={
             !unit.capabilities?.canFortify
@@ -174,7 +212,10 @@ const CityTray: React.FC<{ city: City }> = ({ city }) => {
   };
 
   return (
-    <HudPanel variant="active" className="flex max-w-[min(52rem,calc(100vw-1.5rem))] items-center gap-3 px-3 py-2 sm:gap-4 sm:px-4">
+    <HudPanel
+      variant="active"
+      className="flex max-w-[min(52rem,calc(100vw-1.5rem))] items-center gap-3 px-3 py-2 sm:gap-4 sm:px-4"
+    >
       <div className="flex min-w-0 items-center gap-2">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-violet-300/30 bg-violet-300/10 text-violet-200">
           <Building2 className="h-5 w-5" aria-hidden="true" />
@@ -185,7 +226,12 @@ const CityTray: React.FC<{ city: City }> = ({ city }) => {
             {city.isCapital && <Flag className="h-3.5 w-3.5 text-amber-300" aria-label="Capital" />}
           </div>
           <div className="text-[10px] uppercase tracking-[0.12em] text-slate-400">
-            Size {city.size} · {city.granaryTurns < 0 ? 'Starving' : city.granaryTurns === 0 ? 'Stable' : `Growth in ${city.granaryTurns}`}
+            Size {city.size} ·{' '}
+            {city.granaryTurns < 0
+              ? 'Starving'
+              : city.granaryTurns === 0
+                ? 'Stable'
+                : `Growth in ${city.granaryTurns}`}
           </div>
         </div>
       </div>
@@ -202,11 +248,21 @@ const CityTray: React.FC<{ city: City }> = ({ city }) => {
       <div className="ml-auto flex items-center gap-1.5">
         <div className="hidden items-center gap-1.5 text-xs text-slate-300 lg:flex">
           <span className="text-slate-500">Building</span>
-          <span className="max-w-28 truncate font-medium">{city.production?.target ?? 'Nothing'}</span>
-          {city.production && <span className="text-slate-400">· {city.production.turnsToComplete}t</span>}
+          <span className="max-w-28 truncate font-medium">
+            {city.production?.target ?? 'Nothing'}
+          </span>
+          {city.production && (
+            <span className="text-slate-400">· {city.production.turnsToComplete}t</span>
+          )}
         </div>
         <ActionButton label="Open city" icon={Building2} onClick={openCityDetails} />
-        <HudIconButton label="Clear city selection" onClick={() => { selectCity(null); selectUnit(null); }}>
+        <HudIconButton
+          label="Clear city selection"
+          onClick={() => {
+            selectCity(null);
+            selectUnit(null);
+          }}
+        >
           <ChevronRight className="h-4 w-4 rotate-90" aria-hidden="true" />
         </HudIconButton>
       </div>
@@ -226,7 +282,11 @@ export const SelectionTray: React.FC = () => {
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
   const advanceUnitFocus = useGameStore(state => state.advanceUnitFocus);
 
-  const selectedUnit = selectedUnitId ? units[selectedUnitId] : focusedUnits[0] ? units[focusedUnits[0]] : null;
+  const selectedUnit = selectedUnitId
+    ? units[selectedUnitId]
+    : focusedUnits[0]
+      ? units[focusedUnits[0]]
+      : null;
   const selectedCity = selectedCityId ? cities[selectedCityId] : null;
 
   if (selectedUnit) {
@@ -251,10 +311,16 @@ export const SelectionTray: React.FC = () => {
       <TrayDivider />
       <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.1em] text-slate-400">
         <span>{pendingUnits} pending</span>
-        {urgentFocusQueue.length > 0 && <span className="text-amber-300">{urgentFocusQueue.length} urgent</span>}
+        {urgentFocusQueue.length > 0 && (
+          <span className="text-amber-300">{urgentFocusQueue.length} urgent</span>
+        )}
       </div>
       {pendingUnits > 0 && (
-        <ActionButton label="Focus next unit" icon={ArrowRight} onClick={() => advanceUnitFocus()} />
+        <ActionButton
+          label="Focus next unit"
+          icon={ArrowRight}
+          onClick={() => advanceUnitFocus()}
+        />
       )}
       <Users className="hidden h-4 w-4 text-slate-500 sm:block" aria-hidden="true" />
     </HudPanel>

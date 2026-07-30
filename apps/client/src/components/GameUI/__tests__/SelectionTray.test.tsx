@@ -86,6 +86,19 @@ describe('SelectionTray', () => {
     expect(useGameStore.getState().selectedUnitId).toBeNull();
   });
 
+  it('shows queued order state when the unit has a command queue', () => {
+    useGameStore.setState({
+      selectedUnitId: 'unit-1',
+      focusedUnits: ['unit-1'],
+      units: { 'unit-1': { ...unit, orders: [{ type: 'goto', targetX: 6, targetY: 7 }] } },
+    });
+    render(<SelectionTray />);
+
+    expect(screen.getByText('2, 3 · 1 queued · Goto')).toBeInTheDocument();
+    expect(screen.getByText('1 queued')).toBeInTheDocument();
+    expect(screen.getByTitle(/queued orders/)).toBeInTheDocument();
+  });
+
   it('shows city production context and dispatches the city-details request', () => {
     useGameStore.setState({ selectedCityId: 'city-1', cities: { 'city-1': city } });
     const dispatchSpy = vi.spyOn(document, 'dispatchEvent');
