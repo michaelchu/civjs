@@ -14,12 +14,12 @@ export const NotificationFeed: React.FC = () => {
       {notifications.map(notification => (
         <div
           key={notification.id}
-          className={`pointer-events-auto flex items-start justify-between gap-3 rounded border p-3 text-sm shadow-lg ${
+            className={`pointer-events-auto flex items-start justify-between gap-3 rounded border p-3 text-sm shadow-lg ${
             notification.tone === 'error'
-              ? 'border-red-600 bg-red-950'
+              ? 'border-red-300/30 bg-red-950/80 text-red-50 backdrop-blur-md'
               : notification.tone === 'success'
-                ? 'border-green-600 bg-green-950'
-                : 'border-blue-600 bg-blue-950'
+                ? 'border-green-300/30 bg-green-950/80 text-green-50 backdrop-blur-md'
+                : 'border-blue-300/30 bg-blue-950/80 text-blue-50 backdrop-blur-md'
           }`}
         >
           <span>{notification.message}</span>
