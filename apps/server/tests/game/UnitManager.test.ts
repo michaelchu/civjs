@@ -116,7 +116,13 @@ describe('UnitManager', () => {
       unit.activity = { type: 'patrolling', turnsRemaining: 1, totalTurns: 2 };
 
       await expect(
-        unitManager.executeUnitAction(unit.id, ActionType.CANCEL_ORDERS, undefined, undefined, 'player-123')
+        unitManager.executeUnitAction(
+          unit.id,
+          ActionType.CANCEL_ORDERS,
+          undefined,
+          undefined,
+          'player-123'
+        )
       ).resolves.toMatchObject({
         success: true,
         message: 'Unit orders cancelled',

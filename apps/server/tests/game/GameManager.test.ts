@@ -574,6 +574,43 @@ describe('GameManager', () => {
     });
   });
 
+  describe('requestMovementRange', () => {
+    it('uses the authoritative pathfinding policy for owned units', async () => {
+      const gameId = 'test-game-id';
+      const playerId = 'test-player';
+      const unitId = 'test-unit';
+      (gameManager as any).playerToGame.set(playerId, gameId);
+
+      const unit = {
+        id: unitId,
+        playerId,
+        x: 5,
+        y: 5,
+        movementLeft: 3,
+      };
+      const findAccessibleTiles = jest.fn().mockReturnValue([
+        { x: 5, y: 5, remainingMovement: 3 },
+        { x: 6, y: 5, remainingMovement: 2 },
+      ]);
+      (gameManager as any).games.set(gameId, {
+        state: 'active',
+        unitManager: { getUnit: jest.fn().mockResolvedValue(unit) },
+        pathfindingManager: { findAccessibleTiles },
+      });
+
+      await expect(gameManager.requestMovementRange(playerId, unitId)).resolves.toEqual({
+        success: true,
+        unitId,
+        movementLeft: 3,
+        tiles: [
+          { x: 5, y: 5, remainingMovement: 3 },
+          { x: 6, y: 5, remainingMovement: 2 },
+        ],
+      });
+      expect(findAccessibleTiles).toHaveBeenCalledWith(unit);
+    });
+  });
+
   describe('error handling', () => {
     it('should handle database connection errors', async () => {
       // Mock database error during game creation by making returning throw

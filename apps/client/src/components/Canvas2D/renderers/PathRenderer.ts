@@ -1,4 +1,4 @@
-import type { GotoPath, PathTile } from '../../../services/PathfindingService';
+import type { AccessibleTile, GotoPath, PathTile } from '../../../services/PathfindingService';
 import type { MapViewport } from '../../../types';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
 
@@ -10,6 +10,10 @@ export class PathRenderer extends BaseRenderer {
    * Render goto path and debug overlays.
    */
   renderPaths(state: RenderState): void {
+    if (state.movementRange && state.movementRange.length > 1) {
+      this.renderMovementRange(state.movementRange, state.viewport);
+    }
+
     // Render goto path if available (similar to freeciv-web's path rendering)
     if (state.gotoPath && state.gotoPath.tiles.length > 1) {
       if (import.meta.env.DEV) {
@@ -24,6 +28,30 @@ export class PathRenderer extends BaseRenderer {
       // Uncomment to see the diamond grid overlay
       // this.debugRenderGrid(state.viewport, true);
     }
+  }
+
+  private renderMovementRange(tiles: AccessibleTile[], viewport: MapViewport): void {
+    this.ctx.save();
+    this.ctx.fillStyle = 'rgba(34, 211, 238, 0.12)';
+    this.ctx.strokeStyle = 'rgba(103, 232, 249, 0.42)';
+    this.ctx.lineWidth = 1;
+
+    for (const tile of tiles) {
+      if (!this.isInViewport(tile.x, tile.y, viewport)) continue;
+      const screenPos = this.mapToScreen(tile.x, tile.y, viewport);
+      const centerX = screenPos.x + this.tileWidth / 2;
+      const centerY = screenPos.y + this.tileHeight / 2;
+      this.ctx.beginPath();
+      this.ctx.moveTo(centerX, centerY - this.tileHeight / 2);
+      this.ctx.lineTo(centerX + this.tileWidth / 2, centerY);
+      this.ctx.lineTo(centerX, centerY + this.tileHeight / 2);
+      this.ctx.lineTo(centerX - this.tileWidth / 2, centerY);
+      this.ctx.closePath();
+      this.ctx.fill();
+      this.ctx.stroke();
+    }
+
+    this.ctx.restore();
   }
 
   /**
@@ -58,7 +86,11 @@ export class PathRenderer extends BaseRenderer {
       this.renderGotoLineSegment(fromPos.x, fromPos.y, toPos.x, toPos.y);
     }
 
-    this.renderDestinationMarker(gotoPath.tiles[gotoPath.tiles.length - 1], viewport, gotoPath.valid);
+    this.renderDestinationMarker(
+      gotoPath.tiles[gotoPath.tiles.length - 1],
+      viewport,
+      gotoPath.valid
+    );
 
     // Draw turn indicators at waypoints for multi-turn paths
     if (gotoPath.estimatedTurns > 1) {

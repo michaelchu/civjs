@@ -1,5 +1,5 @@
 import type { MapViewport, Unit, City, GameState } from '../../../types';
-import type { GotoPath } from '../../../services/PathfindingService';
+import type { AccessibleTile, GotoPath } from '../../../services/PathfindingService';
 import type { TilesetProvider } from '../tilesets/TilesetProvider';
 
 export interface RenderState {
@@ -13,6 +13,7 @@ export interface RenderState {
   focusedUnits?: string[];
   urgentFocusQueue?: string[];
   gotoPath?: GotoPath | null;
+  movementRange?: AccessibleTile[];
   currentPlayerId?: string;
   researchedTechs?: ReadonlySet<string>;
 }

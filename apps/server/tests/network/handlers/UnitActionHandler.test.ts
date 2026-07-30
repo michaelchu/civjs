@@ -40,6 +40,7 @@ describe('UnitActionHandler', () => {
       fortifyUnit: jest.fn(),
       createUnit: jest.fn(),
       requestPath: jest.fn(),
+      requestMovementRange: jest.fn(),
       getGameInstance: jest.fn(),
       broadcastUnitInfo: jest.fn(),
       broadcastUnitDestroyed: jest.fn(),
@@ -290,6 +291,42 @@ describe('UnitActionHandler', () => {
         targetX: 10,
         targetY: 10,
       });
+    });
+  });
+
+  describe('movement_range_request socket event', () => {
+    beforeEach(() => {
+      handler.register(mockPacketHandler, mockIo, mockSocket);
+      activeConnections.set(mockSocketId, {
+        userId: mockUserId,
+        gameId: mockGameId,
+      });
+    });
+
+    it('returns the authoritative reachable tiles to the requesting player', async () => {
+      const mockGameInstance = {
+        players: new Map([[mockPlayerId, { userId: mockUserId }]]),
+      };
+      const mockRangeResult = {
+        success: true,
+        unitId: mockUnitId,
+        movementLeft: 3,
+        tiles: [{ x: 1, y: 1, remainingMovement: 2 }],
+      };
+
+      mockGameManager.getGameInstance.mockReturnValue(mockGameInstance as any);
+      mockGameManager.requestMovementRange.mockResolvedValue(mockRangeResult);
+
+      const eventHandler = (mockSocket.on as jest.Mock).mock.calls.find(
+        call => call[0] === 'movement_range_request'
+      )[1];
+      const mockCallback = jest.fn();
+
+      await eventHandler({ unitId: mockUnitId }, mockCallback);
+
+      expect(mockGameManager.requestMovementRange).toHaveBeenCalledWith(mockPlayerId, mockUnitId);
+      expect(mockCallback).toHaveBeenCalledWith(mockRangeResult);
+      expect(mockSocket.emit).toHaveBeenCalledWith('movement_range_response', mockRangeResult);
     });
   });
 

@@ -38,6 +38,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<MapRenderer | null>(null);
   const [rendererReady, setRendererReady] = useState(false);
+  const [movementRange, setMovementRange] = useState<
+    import('../../services/PathfindingService').AccessibleTile[]
+  >([]);
   const [fogOfWarEnabled, setFogOfWarEnabled] = useState(
     () => !loadUserPreferences().disableFogOfWar
   );
@@ -116,6 +119,23 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const selectUnit = useGameStore(state => state.selectUnit);
   const selectCity = useGameStore(state => state.selectCity);
   const addToFocus = useGameStore(state => state.addToFocus);
+
+  useEffect(() => {
+    const unit = selectedUnitId ? units[selectedUnitId] : undefined;
+    if (!unit || unit.playerId !== currentPlayerId || unit.movesLeft <= 0 || unit.doneMoving) {
+      setMovementRange([]);
+      return;
+    }
+
+    let active = true;
+    setMovementRange([]);
+    pathfindingService.requestMovementRange(unit.id).then(tiles => {
+      if (active) setMovementRange(tiles ?? []);
+    });
+    return () => {
+      active = false;
+    };
+  }, [currentPlayerId, selectedUnitId, units]);
 
   // Track click state for multi-select
   const lastClickTime = useRef<number>(0);
@@ -316,13 +336,14 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           focusedUnits: state.focusedUnits,
           urgentFocusQueue: state.urgentFocusQueue,
           gotoPath: gotoMode.currentPath,
+          movementRange,
           currentPlayerId: state.currentPlayerId,
           researchedTechs: state.research?.researchedTechs,
         },
         immediate
       );
     },
-    [gotoMode.currentPath]
+    [gotoMode.currentPath, movementRange]
   );
 
   // Update canvas size

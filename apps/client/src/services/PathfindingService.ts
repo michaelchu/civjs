@@ -30,6 +30,20 @@ export interface PathResponse {
   error?: string;
 }
 
+export interface AccessibleTile {
+  x: number;
+  y: number;
+  remainingMovement: number;
+}
+
+export interface MovementRangeResponse {
+  unitId: string;
+  movementLeft: number;
+  tiles: AccessibleTile[];
+  success: boolean;
+  error?: string;
+}
+
 /**
  * Service for handling pathfinding communication between client and server
  * Based on freeciv-web's goto path system with caching and request management
@@ -116,6 +130,20 @@ export class PathfindingService {
     }
 
     return null;
+  }
+
+  /** Request the authoritative tiles reachable with the unit's current movement. */
+  async requestMovementRange(unitId: string): Promise<AccessibleTile[] | null> {
+    const socket = gameClient.getSocket();
+    if (!socket) return null;
+
+    return new Promise(resolve => {
+      const timeoutId = setTimeout(() => resolve(null), 5000);
+      socket.emit('movement_range_request', { unitId }, (response: MovementRangeResponse) => {
+        clearTimeout(timeoutId);
+        resolve(response.success ? response.tiles : null);
+      });
+    });
   }
 
   /**

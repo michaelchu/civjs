@@ -93,6 +93,10 @@ export class UnitActionHandler extends BaseSocketHandler {
     socket.on('path_request', async (data, callback) => {
       await this.handlePathRequestEvent(socket, data, callback);
     });
+
+    socket.on('movement_range_request', async (data, callback) => {
+      await this.handleMovementRangeEvent(socket, data, callback);
+    });
   }
 
   /**
@@ -632,6 +636,52 @@ export class UnitActionHandler extends BaseSocketHandler {
 
       this.safeCallback(callback, errorResponse);
       socket.emit('path_response', errorResponse);
+    }
+  }
+
+  private async handleMovementRangeEvent(
+    socket: Socket,
+    data: { unitId: string },
+    callback: (response: any) => void
+  ): Promise<void> {
+    const connection = this.getConnection(socket, this.activeConnections);
+    if (
+      !this.isAuthenticated(connection) ||
+      !this.isInGame(connection) ||
+      this.isSpectator(connection)
+    ) {
+      this.safeCallback(callback, {
+        success: false,
+        unitId: data.unitId,
+        error: 'Not authenticated or not an active player',
+        tiles: [],
+      });
+      return;
+    }
+
+    try {
+      const gameInstance = this.gameManager.getGameInstance(connection.gameId!);
+      const playerId = gameInstance ? this.resolvePlayerId(connection, gameInstance) : undefined;
+      if (!playerId) {
+        this.safeCallback(callback, {
+          success: false,
+          unitId: data.unitId,
+          error: 'Player not found',
+          tiles: [],
+        });
+        return;
+      }
+
+      const response = await this.gameManager.requestMovementRange(playerId, data.unitId);
+      this.safeCallback(callback, response);
+      socket.emit('movement_range_response', response);
+    } catch (error) {
+      this.safeCallback(callback, {
+        success: false,
+        unitId: data.unitId,
+        error: error instanceof Error ? error.message : 'Failed to calculate movement range',
+        tiles: [],
+      });
     }
   }
 

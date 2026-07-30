@@ -2265,4 +2265,43 @@ export class GameManager {
       return { success: false, error: 'Internal server error' };
     }
   }
+
+  /** Return the authoritative movement range for a player's unit. */
+  public async requestMovementRange(
+    playerId: string,
+    unitId: string
+  ): Promise<{
+    success: boolean;
+    unitId: string;
+    movementLeft?: number;
+    tiles?: Array<{ x: number; y: number; remainingMovement: number }>;
+    error?: string;
+  }> {
+    try {
+      const gameId = this.playerToGame.get(playerId);
+      if (!gameId) return { success: false, unitId, error: 'Player not in any game' };
+
+      const gameInstance = this.games.get(gameId);
+      if (!gameInstance) return { success: false, unitId, error: 'Game not found' };
+      if (gameInstance.state !== 'active') {
+        return { success: false, unitId, error: 'Game is not active' };
+      }
+
+      const unit = await gameInstance.unitManager.getUnit(unitId);
+      if (!unit) return { success: false, unitId, error: 'Unit not found' };
+      if (unit.playerId !== playerId) {
+        return { success: false, unitId, error: 'Unit does not belong to player' };
+      }
+
+      const tiles = gameInstance.pathfindingManager.findAccessibleTiles(unit);
+      return { success: true, unitId, movementLeft: unit.movementLeft, tiles };
+    } catch (error) {
+      logger.error('Error processing movement-range request', {
+        playerId,
+        unitId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return { success: false, unitId, error: 'Internal server error' };
+    }
+  }
 }
