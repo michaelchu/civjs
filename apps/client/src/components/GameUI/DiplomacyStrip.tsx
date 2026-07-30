@@ -134,7 +134,12 @@ const LeaderRow: React.FC<{ nation: DiplomacyNation; currentPlayerId: string }> 
     <div className="rounded-lg px-1 py-1 transition-colors hover:bg-white/5">
       <button
         type="button"
-        onClick={() => setActiveTab('nations')}
+        onClick={() => {
+          setActiveTab('nations');
+          document.dispatchEvent(
+            new CustomEvent('focus-nation-card', { detail: { nationId: nation.id } })
+          );
+        }}
         aria-label={`Open diplomacy card for ${nation.leaderName}`}
         className="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
       >

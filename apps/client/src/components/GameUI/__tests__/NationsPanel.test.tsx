@@ -144,6 +144,19 @@ describe('NationsPanel treaty builder', () => {
     expect(mockGameClient.respondToTreaty).toHaveBeenCalledWith('player-2', 'proposal-1', true);
   });
 
+  it('scrolls to a nation card when focused from the HUD strip', () => {
+    render(<NationsPanel />);
+    const card = document.getElementById('nation-card-player-2') as HTMLElement;
+    const scrollIntoView = vi.fn();
+    card.scrollIntoView = scrollIntoView;
+
+    document.dispatchEvent(
+      new CustomEvent('focus-nation-card', { detail: { nationId: 'player-2' } })
+    );
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' });
+  });
+
   it('does not disclose or allow actions against an unknown nation', () => {
     mockState.diplomacy.nations[0] = {
       ...mockState.diplomacy.nations[0],

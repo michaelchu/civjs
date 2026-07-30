@@ -28,6 +28,19 @@ export const NationsPanel: React.FC = () => {
   const cities = useGameStore(state => state.cities);
 
   useEffect(() => {
+    const handleFocusNation = (event: Event) => {
+      const nationId = (event as CustomEvent<{ nationId?: string }>).detail?.nationId;
+      if (!nationId) return;
+      document.getElementById(`nation-card-${nationId}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    };
+    document.addEventListener('focus-nation-card', handleFocusNation);
+    return () => document.removeEventListener('focus-nation-card', handleFocusNation);
+  }, []);
+
+  useEffect(() => {
     gameClient.requestDiplomacy();
   }, []);
 
@@ -93,7 +106,7 @@ const NationCard: React.FC<{
   }
 
   return (
-    <article className="rounded-lg border border-gray-700 bg-gray-800 p-5">
+    <article id={`nation-card-${nation.id}`} className="rounded-lg border border-gray-700 bg-gray-800 p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold capitalize">{nation.civilization}</h3>

@@ -80,8 +80,12 @@ describe('DiplomacyStrip', () => {
 
   it('opens the full diplomacy report and supports collapse', () => {
     render(<DiplomacyStrip />);
+    const dispatchSpy = vi.spyOn(document, 'dispatchEvent');
     fireEvent.click(screen.getByRole('button', { name: /open diplomacy card for pericles/i }));
     expect(useGameStore.getState().activeTab).toBe('nations');
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'focus-nation-card' })
+    );
     fireEvent.click(screen.getByRole('button', { name: /collapse diplomacy/i }));
     expect(screen.getByRole('button', { name: /expand diplomacy/i })).toBeInTheDocument();
   });
