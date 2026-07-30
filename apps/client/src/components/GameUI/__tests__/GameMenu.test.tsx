@@ -31,6 +31,7 @@ describe('GameMenu', () => {
     fireEvent.keyDown(screen.getByRole('button', { name: 'Game menu' }), {
       key: 'ArrowDown',
     });
+    expect(screen.getByRole('menu')).toHaveClass('bg-slate-950/90', 'backdrop-blur-md');
     fireEvent.click(screen.getByRole('menuitem', { name: /Settings/ }));
 
     expect(useGameStore.getState().activeTab).toBe('options');
@@ -50,6 +51,7 @@ describe('GameMenu', () => {
       key: 'ArrowDown',
     });
     fireEvent.click(screen.getByRole('menuitem', { name: 'Exit Game' }));
+    expect(screen.getByRole('dialog')).toHaveClass('bg-slate-900/95', 'backdrop-blur-md');
     fireEvent.click(screen.getByRole('button', { name: 'Exit Game' }));
 
     expect(disconnect).toHaveBeenCalledOnce();

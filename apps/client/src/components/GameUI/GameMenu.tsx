@@ -45,7 +45,7 @@ export const GameMenu: React.FC = () => {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
-            className="flex h-10 w-10 items-center justify-center rounded bg-gray-600 text-white transition-colors hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+            className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/15 bg-slate-950/70 text-white shadow-lg backdrop-blur-md transition-colors hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-300/70 focus:ring-offset-2 focus:ring-offset-slate-900"
             aria-label="Game menu"
             title="Game menu"
           >
@@ -54,19 +54,19 @@ export const GameMenu: React.FC = () => {
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="end"
-          className="min-w-44 border-gray-600 bg-gray-700 text-white"
+          className="min-w-44 border-white/15 bg-slate-950/90 text-white shadow-2xl backdrop-blur-md"
         >
           <DropdownMenuItem
-            className="cursor-pointer gap-2 focus:bg-gray-600 focus:text-white"
+            className="cursor-pointer gap-2 focus:bg-white/10 focus:text-white"
             onSelect={() => setActiveTab('options')}
           >
             <Settings className="h-4 w-4" aria-hidden="true" />
             Settings
-            <span className="ml-auto text-xs text-gray-400">F6</span>
+            <span className="ml-auto text-xs text-slate-500">F6</span>
           </DropdownMenuItem>
-          <DropdownMenuSeparator className="bg-gray-600" />
+          <DropdownMenuSeparator className="bg-white/10" />
           <DropdownMenuItem
-            className="cursor-pointer gap-2 text-red-300 focus:bg-red-950 focus:text-red-200"
+            className="cursor-pointer gap-2 text-rose-300 focus:bg-rose-400/15 focus:text-rose-200"
             onSelect={() => setConfirmExit(true)}
           >
             <LogOut className="h-4 w-4" aria-hidden="true" />
@@ -76,16 +76,19 @@ export const GameMenu: React.FC = () => {
       </DropdownMenu>
 
       <Dialog open={confirmExit} onOpenChange={setConfirmExit}>
-        <DialogContent className="border-gray-600 bg-gray-800 text-white">
+        <DialogContent className="border-white/15 bg-slate-900/95 text-white shadow-2xl backdrop-blur-md">
           <DialogHeader>
             <DialogTitle>Exit game?</DialogTitle>
-            <DialogDescription className="text-gray-300">
+            <DialogDescription className="text-slate-400">
               You will disconnect from this game and return to the lobby.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline" className="border-gray-500 bg-transparent">
+              <Button
+                variant="outline"
+                className="border-white/20 bg-white/5 text-slate-200 hover:bg-white/10"
+              >
                 Cancel
               </Button>
             </DialogClose>
