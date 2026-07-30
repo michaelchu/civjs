@@ -6,6 +6,7 @@ import {
   CircleAlert,
   Eye,
   Handshake,
+  MapPin,
   Radar,
   Shield,
   Swords,
@@ -109,8 +110,9 @@ const LeaderRow: React.FC<{
   nation: DiplomacyNation;
   currentPlayerId: string;
   color?: string;
+  knownLocation?: { x: number; y: number; label: string };
   onOpenIntelligence?: () => void;
-}> = ({ nation, currentPlayerId, color, onOpenIntelligence }) => {
+}> = ({ nation, currentPlayerId, color, knownLocation, onOpenIntelligence }) => {
   const setActiveTab = useGameStore(state => state.setActiveTab);
 
   if (!nation.known) {
@@ -162,6 +164,22 @@ const LeaderRow: React.FC<{
             <Radar className="h-3.5 w-3.5" aria-hidden="true" />
           </HudIconButton>
         )}
+        {knownLocation && (
+          <HudIconButton
+            label={`Center on known ${knownLocation.label} for ${nation.leaderName}`}
+            title={`Center on ${knownLocation.label}`}
+            className="h-7 w-7 shrink-0 text-cyan-300"
+            onClick={() =>
+              document.dispatchEvent(
+                new CustomEvent('center-map-on-tile', {
+                  detail: { x: knownLocation.x, y: knownLocation.y },
+                })
+              )
+            }
+          >
+            <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+          </HudIconButton>
+        )}
       </div>
       <div className="ml-11 mt-1 flex flex-wrap items-center gap-1.5">
         {nation.relation.embassy && <span className="text-[10px] text-slate-400">Embassy</span>}
@@ -192,6 +210,8 @@ export const DiplomacyStrip: React.FC<{ onOpenIntelligence?: () => void }> = ({
   const diplomacy = useGameStore(state => state.diplomacy);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
   const players = useGameStore(state => state.players);
+  const cities = useGameStore(state => state.cities);
+  const units = useGameStore(state => state.units);
 
   const nations = diplomacy?.nations ?? [];
   const knownNations = nations.filter(nation => nation.known && nation.isAlive);
@@ -199,6 +219,14 @@ export const DiplomacyStrip: React.FC<{ onOpenIntelligence?: () => void }> = ({
   const pendingCount = knownNations.filter(
     nation => nation.relation.proposal?.status === 'pending'
   ).length;
+  const knownLocations = Object.fromEntries(
+    knownNations.flatMap(nation => {
+      const city = Object.values(cities).find(candidate => candidate.playerId === nation.id);
+      if (city) return [[nation.id, { x: city.x, y: city.y, label: `city ${city.name}` }]];
+      const unit = Object.values(units).find(candidate => candidate.playerId === nation.id);
+      return unit ? [[nation.id, { x: unit.x, y: unit.y, label: 'unit' }]] : [];
+    })
+  );
 
   if (collapsed) {
     return (
@@ -276,6 +304,7 @@ export const DiplomacyStrip: React.FC<{ onOpenIntelligence?: () => void }> = ({
                     nation={nation}
                     currentPlayerId={currentPlayerId}
                     color={players[nation.id]?.color}
+                    knownLocation={knownLocations[nation.id]}
                     onOpenIntelligence={onOpenIntelligence}
                   />
                 ))}

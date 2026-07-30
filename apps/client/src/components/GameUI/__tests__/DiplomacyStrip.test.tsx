@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGameStore } from '../../../store/gameStore';
 import { DiplomacyStrip } from '../DiplomacyStrip';
+import type { City } from '../../../types';
 
 const { mockGameClient } = vi.hoisted(() => ({
   mockGameClient: {
@@ -115,6 +116,38 @@ describe('DiplomacyStrip', () => {
     expect(onOpenIntelligence).toHaveBeenCalledOnce();
     expect(
       screen.queryByRole('button', { name: 'Open intelligence report for Hidden Leader' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('centers on a known visible city without inferring hidden coordinates', () => {
+    useGameStore.setState({
+      cities: {
+        'city-2': {
+          id: 'city-2',
+          name: 'Athens',
+          playerId: 'player-2',
+          x: 8,
+          y: 5,
+        },
+      } as unknown as Record<string, City>,
+      units: {},
+    });
+    const dispatchSpy = vi.spyOn(document, 'dispatchEvent');
+
+    render(<DiplomacyStrip />);
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /center on known city athens for pericles/i })
+    );
+
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'center-map-on-tile',
+        detail: { x: 8, y: 5 },
+      })
+    );
+    expect(
+      screen.queryByRole('button', { name: /center on known .* hidden leader/i })
     ).not.toBeInTheDocument();
   });
 
