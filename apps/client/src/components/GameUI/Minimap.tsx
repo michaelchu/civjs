@@ -44,6 +44,8 @@ export const Minimap: React.FC = () => {
   const cities = useGameStore(state => state.cities);
   const players = useGameStore(state => state.players);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
+  const selectedCityId = useGameStore(state => state.selectedCityId);
+  const selectedUnitId = useGameStore(state => state.selectedUnitId);
 
   const drawMinimap = useCallback(() => {
     const canvas = canvasRef.current;
@@ -97,6 +99,26 @@ export const Minimap: React.FC = () => {
       context.fill();
     }
 
+    const selectedCity = selectedCityId ? cities[selectedCityId] : undefined;
+    if (selectedCity) {
+      const x = (selectedCity.x + 0.5) * cellWidth;
+      const y = (selectedCity.y + 0.5) * cellHeight;
+      context.strokeStyle = '#f8fafc';
+      context.lineWidth = 2;
+      context.strokeRect(Math.max(0, x - 4), Math.max(0, y - 4), 8, 8);
+    }
+
+    const selectedUnit = selectedUnitId ? units[selectedUnitId] : undefined;
+    if (selectedUnit) {
+      const x = (selectedUnit.x + 0.5) * cellWidth;
+      const y = (selectedUnit.y + 0.5) * cellHeight;
+      context.strokeStyle = '#67e8f9';
+      context.lineWidth = 2;
+      context.beginPath();
+      context.arc(x, y, 4.5, 0, 2 * Math.PI);
+      context.stroke();
+    }
+
     const cameraCorners = [
       inverseIsometric(viewport.x, viewport.y),
       inverseIsometric(viewport.x + viewport.width, viewport.y),
@@ -115,7 +137,7 @@ export const Minimap: React.FC = () => {
       Math.max(cellWidth, (maxX - minX) * cellWidth),
       Math.max(cellHeight, (maxY - minY) * cellHeight)
     );
-  }, [cities, currentPlayerId, map, players, units, viewport]);
+  }, [cities, currentPlayerId, map, players, selectedCityId, selectedUnitId, units, viewport]);
 
   useEffect(() => {
     drawMinimap();
@@ -136,6 +158,14 @@ export const Minimap: React.FC = () => {
       })
     );
   };
+
+  const selectedCity = selectedCityId ? cities[selectedCityId] : undefined;
+  const selectedUnit = selectedUnitId ? units[selectedUnitId] : undefined;
+  const selectionLabel = selectedCity
+    ? `, selected city ${selectedCity.name}`
+    : selectedUnit
+      ? `, selected unit ${selectedUnit.unitTypeId.replaceAll('_', ' ')}`
+      : '';
 
   if (collapsed) {
     return (
@@ -170,7 +200,7 @@ export const Minimap: React.FC = () => {
         width={MINIMAP_WIDTH}
         height={MINIMAP_HEIGHT}
         onClick={handleClick}
-        aria-label="Minimap overview"
+        aria-label={`Minimap overview${selectionLabel}`}
         className="block h-28 w-44 cursor-crosshair rounded-md border border-white/10 bg-slate-950"
       />
     </HudPanel>

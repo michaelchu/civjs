@@ -25,6 +25,8 @@ describe('Minimap', () => {
       units: {},
       cities: {},
       players: {},
+      selectedUnitId: null,
+      selectedCityId: null,
       viewport: { x: 0, y: 0, width: 800, height: 600 },
     });
   });
@@ -51,5 +53,20 @@ describe('Minimap', () => {
     expect(screen.queryByLabelText('Minimap overview')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Expand minimap' }));
     expect(screen.getByLabelText('Minimap overview')).toBeInTheDocument();
+  });
+
+  it('exposes the selected unit in the minimap context', () => {
+    useGameStore.setState({
+      selectedUnitId: 'unit-1',
+      units: {
+        'unit-1': {
+          id: 'unit-1', playerId: 'player-1', unitTypeId: 'scout',
+          x: 1, y: 1, hp: 100, movesLeft: 1, veteranLevel: 0,
+        },
+      },
+    });
+
+    render(<Minimap />);
+    expect(screen.getByLabelText('Minimap overview, selected unit scout')).toBeInTheDocument();
   });
 });
