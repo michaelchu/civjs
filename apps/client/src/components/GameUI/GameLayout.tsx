@@ -25,6 +25,7 @@ import { ScoreReport, type ScoreSnapshot } from './ScoreReport';
 import { DemographicsReport } from './DemographicsReport';
 import { ClimateReport } from './ClimateReport';
 import { UnitReport } from './UnitReport';
+import { IntelligenceReport } from './IntelligenceReport';
 
 interface GameLayoutProps {
   rulesetName?: string;
@@ -39,6 +40,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
   const [demographicsReportOpen, setDemographicsReportOpen] = useState(false);
   const [climateReportOpen, setClimateReportOpen] = useState(false);
   const [unitReportOpen, setUnitReportOpen] = useState(false);
+  const [intelligenceReportOpen, setIntelligenceReportOpen] = useState(false);
   const [scoreHistory, setScoreHistory] = useState<ScoreSnapshot[]>([]);
 
   const activeTab = useGameStore(state => state.activeTab);
@@ -54,6 +56,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
   const technologies = useGameStore(state => state.technologies);
   const turn = useGameStore(state => state.turn);
   const researchedTechs = useGameStore(state => state.research?.researchedTechs);
+  const diplomacy = useGameStore(state => state.diplomacy);
   const rulesetName = rulesetOverride ?? 'civ2civ3';
 
   useEffect(() => {
@@ -175,6 +178,17 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
         cities={cities}
         currentPlayerId={currentPlayerId}
       />
+      <IntelligenceReport
+        open={intelligenceReportOpen}
+        onOpenChange={setIntelligenceReportOpen}
+        players={players}
+        diplomacy={diplomacy}
+        cities={cities}
+        units={units}
+        tiles={tiles}
+        currentPlayerId={currentPlayerId}
+        researchedTechCount={researchedTechs?.size ?? 0}
+      />
       {/* Header with tabs and status */}
       <div className="flex items-center justify-between bg-gray-700 px-4 py-1 border-b border-gray-600">
         <GameTabs />
@@ -207,6 +221,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
                   onOpenDemographics={() => setDemographicsReportOpen(true)}
                   onOpenClimate={() => setClimateReportOpen(true)}
                   onOpenUnitReport={() => setUnitReportOpen(true)}
+                  onOpenIntelligence={() => setIntelligenceReportOpen(true)}
                 />
               }
             />

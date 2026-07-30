@@ -87,4 +87,19 @@ describe('TurnActionCluster', () => {
 
     expect(onOpenUnitReport).toHaveBeenCalledOnce();
   });
+
+  it('opens the intelligence report from the reports menu', () => {
+    const onOpenIntelligence = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <TurnActionCluster onOpenIntelligence={onOpenIntelligence} />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reports' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Intelligence' }));
+
+    expect(onOpenIntelligence).toHaveBeenCalledOnce();
+  });
 });
