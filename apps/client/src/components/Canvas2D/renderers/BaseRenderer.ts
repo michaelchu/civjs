@@ -14,6 +14,7 @@ export interface RenderState {
   urgentFocusQueue?: string[];
   gotoPath?: GotoPath | null;
   movementRange?: AccessibleTile[];
+  movementRangeOrigin?: { x: number; y: number };
   currentPlayerId?: string;
   researchedTechs?: ReadonlySet<string>;
 }

@@ -41,10 +41,12 @@ describe('PathRenderer', () => {
       moveTo: vi.fn(),
       lineTo: vi.fn(),
       closePath: vi.fn(),
+      arc: vi.fn(),
       fill: vi.fn(),
       stroke: vi.fn(),
       save: vi.fn(),
       restore: vi.fn(),
+      fillText: vi.fn(),
     } as unknown as CanvasRenderingContext2D;
     const renderer = new PathRenderer(context, {} as never, 96, 48);
 
@@ -54,10 +56,12 @@ describe('PathRenderer', () => {
         { x: 0, y: 0, remainingMovement: 3 },
         { x: 1, y: 0, remainingMovement: 2 },
       ],
+      movementRangeOrigin: { x: 0, y: 0 },
     } as never);
 
-    expect(context.fill).toHaveBeenCalledTimes(2);
+    expect(context.fill).toHaveBeenCalledTimes(3);
     expect(context.stroke).toHaveBeenCalledTimes(2);
     expect(context.moveTo).toHaveBeenCalledWith(48, 0);
+    expect(context.fillText).toHaveBeenCalledWith('1', 96, 48);
   });
 });

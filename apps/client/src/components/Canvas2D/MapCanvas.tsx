@@ -337,6 +337,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           urgentFocusQueue: state.urgentFocusQueue,
           gotoPath: gotoMode.currentPath,
           movementRange,
+          movementRangeOrigin: state.selectedUnitId
+            ? state.units[state.selectedUnitId]
+              ? { x: state.units[state.selectedUnitId].x, y: state.units[state.selectedUnitId].y }
+              : undefined
+            : undefined,
           currentPlayerId: state.currentPlayerId,
           researchedTechs: state.research?.researchedTechs,
         },

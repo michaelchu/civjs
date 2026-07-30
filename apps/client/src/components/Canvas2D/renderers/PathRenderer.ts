@@ -11,7 +11,7 @@ export class PathRenderer extends BaseRenderer {
    */
   renderPaths(state: RenderState): void {
     if (state.movementRange && state.movementRange.length > 1) {
-      this.renderMovementRange(state.movementRange, state.viewport);
+      this.renderMovementRange(state.movementRange, state.viewport, state.movementRangeOrigin);
     }
 
     // Render goto path if available (similar to freeciv-web's path rendering)
@@ -30,17 +30,22 @@ export class PathRenderer extends BaseRenderer {
     }
   }
 
-  private renderMovementRange(tiles: AccessibleTile[], viewport: MapViewport): void {
+  private renderMovementRange(
+    tiles: AccessibleTile[],
+    viewport: MapViewport,
+    origin?: { x: number; y: number }
+  ): void {
     this.ctx.save();
-    this.ctx.fillStyle = 'rgba(34, 211, 238, 0.12)';
-    this.ctx.strokeStyle = 'rgba(103, 232, 249, 0.42)';
-    this.ctx.lineWidth = 1;
 
     for (const tile of tiles) {
       if (!this.isInViewport(tile.x, tile.y, viewport)) continue;
       const screenPos = this.mapToScreen(tile.x, tile.y, viewport);
       const centerX = screenPos.x + this.tileWidth / 2;
       const centerY = screenPos.y + this.tileHeight / 2;
+      const isOrigin = tile.x === origin?.x && tile.y === origin?.y;
+      this.ctx.fillStyle = isOrigin ? 'rgba(103, 232, 249, 0.2)' : 'rgba(34, 211, 238, 0.12)';
+      this.ctx.strokeStyle = isOrigin ? 'rgba(224, 242, 254, 0.85)' : 'rgba(103, 232, 249, 0.42)';
+      this.ctx.lineWidth = isOrigin ? 2 : 1;
       this.ctx.beginPath();
       this.ctx.moveTo(centerX, centerY - this.tileHeight / 2);
       this.ctx.lineTo(centerX + this.tileWidth / 2, centerY);
@@ -49,6 +54,22 @@ export class PathRenderer extends BaseRenderer {
       this.ctx.closePath();
       this.ctx.fill();
       this.ctx.stroke();
+
+      if (!isOrigin) {
+        this.ctx.fillStyle = 'rgba(8, 47, 73, 0.86)';
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY, 8, 0, 2 * Math.PI);
+        this.ctx.fill();
+        this.ctx.fillStyle = '#ecfeff';
+        this.ctx.font = '600 9px system-ui, sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(
+          String(Math.ceil(Math.max(0, tile.remainingMovement) / 3)),
+          centerX,
+          centerY
+        );
+      }
     }
 
     this.ctx.restore();
