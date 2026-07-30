@@ -80,8 +80,9 @@ The first implementation steps are now in place:
   confirms a shared tile is reserved by at most one worker. A paired benchmark
   now runs two authoritative same-seed terminal games with easy/hard difficulty
   assignments swapped between starting positions and records normalized totals.
-  Its checked-in deterministic baseline requires hard to retain a total of at
-  least 24 and outperform easy's paired total of at least 22.
+  Its checked-in three-seed, 12-turn deterministic baseline requires hard to
+  retain a total of at least 100, exceed easy's total of at least 96, and win
+  at least one swapped-position pair.
 - The larger `npm run test:ai-validation:100` matrix runs weekly and on manual
   dispatch in `.github/workflows/ai-validation.yml`, outside normal pull-
   request feedback. The job uploads any validation diagnostics as an artifact.

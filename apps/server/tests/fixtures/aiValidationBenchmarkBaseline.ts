@@ -5,7 +5,9 @@
  */
 export const aiPairedBenchmarkBaseline = {
   mapSeed: 'ai-paired-benchmark-01',
-  maxTurns: 4,
-  hardTotal: 24,
-  easyTotal: 22,
+  maxTurns: 12,
+  seedCount: 3,
+  hardTotal: 100,
+  easyTotal: 96,
+  hardWins: 1,
 } as const;

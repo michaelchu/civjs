@@ -1880,11 +1880,15 @@ describe('AI authoritative manager boundaries', () => {
   );
 
   it('runs paired swapped-position AI benchmarks through authoritative terminal games', async () => {
-    async function runLeg(firstLevel: 'easy' | 'hard', secondLevel: 'easy' | 'hard') {
+    async function runLeg(
+      mapSeed: string,
+      firstLevel: 'easy' | 'hard',
+      secondLevel: 'easy' | 'hard'
+    ) {
       const scenario = await createActiveGame(2, {
         maxTurns: aiPairedBenchmarkBaseline.maxTurns,
         victoryConditions: ['max_turns'],
-        mapSeed: aiPairedBenchmarkBaseline.mapSeed,
+        mapSeed,
       });
       const [first, second] = scenario.players;
       await gameManager.setPlayerAIControl(
@@ -1913,22 +1917,37 @@ describe('AI authoritative manager boundaries', () => {
       };
     }
 
-    const firstLeg = await runLeg('hard', 'easy');
-    gameManager.clearAllGames();
-    (GameManager as any).instance = null;
-    gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
-    const secondLeg = await runLeg('easy', 'hard');
-
-    const hardTotal = firstLeg.first.total + secondLeg.second.total;
-    const easyTotal = firstLeg.second.total + secondLeg.first.total;
+    const seeds = Array.from(
+      { length: aiPairedBenchmarkBaseline.seedCount },
+      (_, index) => `ai-paired-benchmark-${String(index + 1).padStart(2, '0')}`
+    );
+    let hardTotal = 0;
+    let easyTotal = 0;
+    let hardWins = 0;
+    for (const mapSeed of seeds) {
+      const firstLeg = await runLeg(mapSeed, 'hard', 'easy');
+      gameManager.clearAllGames();
+      (GameManager as any).instance = null;
+      gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
+      const secondLeg = await runLeg(mapSeed, 'easy', 'hard');
+      const hardScore = firstLeg.first.total + secondLeg.second.total;
+      const easyScore = firstLeg.second.total + secondLeg.first.total;
+      hardTotal += hardScore;
+      easyTotal += easyScore;
+      hardWins += Number(
+        pairedBenchmarkWinner([
+          { ...firstLeg.first, total: hardScore },
+          { ...firstLeg.second, total: easyScore },
+        ]) === 'first'
+      );
+      gameManager.clearAllGames();
+      (GameManager as any).instance = null;
+      gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
+    }
     expect(hardTotal).toBeGreaterThanOrEqual(aiPairedBenchmarkBaseline.hardTotal);
     expect(easyTotal).toBeGreaterThanOrEqual(aiPairedBenchmarkBaseline.easyTotal);
-    expect(
-      pairedBenchmarkWinner([
-        { ...firstLeg.first, total: hardTotal },
-        { ...firstLeg.second, total: easyTotal },
-      ])
-    ).toBe('first');
+    expect(hardWins).toBeGreaterThanOrEqual(aiPairedBenchmarkBaseline.hardWins);
+    expect(hardTotal).toBeGreaterThan(easyTotal);
   });
 
   it('replays the same seeded terminal configuration with the same authoritative outcome', async () => {
