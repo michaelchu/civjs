@@ -88,6 +88,19 @@ describe('TurnActionCluster', () => {
     expect(onOpenUnitReport).toHaveBeenCalledOnce();
   });
 
+  it('exposes the empire report from the reports menu', () => {
+    render(
+      <MemoryRouter>
+        <TurnActionCluster />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reports' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Empire' }));
+
+    expect(useGameStore.getState().activeTab).toBe('cities');
+  });
+
   it('groups secondary command actions behind the narrow-screen overflow', () => {
     render(
       <MemoryRouter>
