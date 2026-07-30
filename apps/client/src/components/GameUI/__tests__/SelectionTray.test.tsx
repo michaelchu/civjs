@@ -61,6 +61,20 @@ describe('SelectionTray', () => {
       currentPlayerId: 'player-1',
       clientState: 'running',
       phase: 'movement',
+      players: {
+        'player-1': {
+          id: 'player-1',
+          name: 'Player One',
+          nation: 'roman',
+          color: '#22d3ee',
+          gold: 100,
+          science: 10,
+          history: 0,
+          government: 'despotism',
+          isHuman: true,
+          isActive: true,
+        },
+      },
       selectedUnitId: null,
       selectedCityId: null,
       focusedUnits: [],
@@ -84,8 +98,20 @@ describe('SelectionTray', () => {
 
     expect(screen.getByText('Warriors')).toBeInTheDocument();
     expect(screen.getByText('80%')).toBeInTheDocument();
+    expect(screen.getByTitle('Owner: Player One · Cargo: No cargo')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Clear unit selection' }));
     expect(useGameStore.getState().selectedUnitId).toBeNull();
+  });
+
+  it('shows transport state for cargo units', () => {
+    useGameStore.setState({
+      selectedUnitId: 'unit-1',
+      focusedUnits: ['unit-1'],
+      units: { 'unit-1': { ...unit, cargoUnits: ['unit-2', 'unit-3'] } },
+    });
+    render(<SelectionTray />);
+
+    expect(screen.getByTitle('Owner: Player One · Cargo: 2 cargo')).toBeInTheDocument();
   });
 
   it('shows queued order state when the unit has a command queue', () => {

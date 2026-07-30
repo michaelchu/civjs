@@ -78,6 +78,7 @@ const getUnitOrders = (orders: unknown): Array<{ type?: unknown }> =>
 
 const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount }) => {
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
+  const players = useGameStore(state => state.players);
   const clientState = useGameStore(state => state.clientState);
   const phase = useGameStore(state => state.phase);
   const selectUnit = useGameStore(state => state.selectUnit);
@@ -86,6 +87,12 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
   const canAct = isOwned && clientState === 'running' && phase === 'movement';
   const movement = `${Math.max(0, unit.movesLeft ?? 0)}/${unit.maxMoves ?? '—'}`;
   const unitLabel = formatName(unit.unitTypeId);
+  const ownerLabel = players[unit.playerId]?.name ?? unit.playerId;
+  const cargoSummary = unit.transportedBy
+    ? 'Transported'
+    : unit.cargoUnits && unit.cargoUnits.length > 0
+      ? `${unit.cargoUnits.length} cargo`
+      : 'No cargo';
   const queuedOrders = getUnitOrders(unit.orders);
   const orderSummary =
     queuedOrders.length > 0
@@ -145,6 +152,12 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
           </div>
           <div className="max-w-36 truncate text-[10px] uppercase tracking-[0.12em] text-slate-400">
             {unit.x}, {unit.y} · {orderSummary}
+          </div>
+          <div
+            className="max-w-44 truncate text-[10px] text-slate-500"
+            title={`Owner: ${ownerLabel} · Cargo: ${cargoSummary}`}
+          >
+            <span className="text-slate-400">Owner</span> {ownerLabel} · {cargoSummary}
           </div>
         </div>
       </div>
