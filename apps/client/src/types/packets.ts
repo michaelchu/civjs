@@ -22,6 +22,8 @@ export interface GameStatePacket {
     map: any;
     units: Record<string, any>;
     cities: Record<string, any>;
+    phase?: 'movement' | 'research' | 'production';
+    year?: number;
   };
 }
 
@@ -209,12 +211,17 @@ export interface PlayerInfoPacket {
     name: string;
     nation: string;
     team?: string;
+    teamId?: string;
     score: number;
     gold: number;
     goldPerTurn?: number;
     science: number;
     sciencePerTurn?: number;
+    taxRate?: number;
+    luxuryRate?: number;
+    scienceRate?: number;
     culture: number;
+    spaceshipState?: Record<string, unknown>;
     government: string;
     alive: boolean;
     isAI?: boolean;

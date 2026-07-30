@@ -382,11 +382,26 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
 
   private formatPlayerInfo(player: any, gameInstance: GameInstance): any {
     const research = gameInstance.researchManager?.getPlayerResearch(player.id);
+    const cities = gameInstance.cityManager?.getPlayerCities(player.id) ?? [];
+    const units = gameInstance.unitManager?.getPlayerUnits(player.id) ?? [];
+    const researchedTechs = gameInstance.researchManager?.getResearchedTechs(player.id) ?? [];
+    const history = this.playerValue(player.history, 0);
     return {
       id: player.id,
       name: this.playerValue(player.leaderName, player.civilization),
       nation: this.playerValue(player.nation, player.civilization),
-      score: 0,
+      // Keep the live score aligned with EndGameService until score updates are
+      // persisted as part of turn processing.
+      score:
+        cities.length * 100 +
+        cities.reduce(
+          (total: number, city: any) => total + (city.population ?? city.size ?? 0),
+          0
+        ) *
+          10 +
+        units.length * 20 +
+        researchedTechs.length * 50 +
+        history,
       gold: this.playerValue(player.gold, 0),
       goldPerTurn: this.playerValue(player.goldPerTurn, 0),
       science: this.playerValue(research?.bulbsAccumulated, this.playerValue(player.science, 0)),
@@ -394,7 +409,12 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         research?.bulbsLastTurn,
         this.playerValue(player.sciencePerTurn, 0)
       ),
-      culture: this.playerValue(player.history, 0),
+      culture: history,
+      taxRate: this.playerValue(player.taxRate, 40),
+      luxuryRate: this.playerValue(player.luxuryRate, 0),
+      scienceRate: this.playerValue(player.scienceRate, 60),
+      teamId: this.playerValue(player.teamId, undefined),
+      spaceshipState: this.playerValue(player.spaceshipState, undefined),
       government: this.playerValue(player.government, 'despotism'),
       alive: this.playerValue(player.isAlive, true),
       isAI: this.playerValue(player.isAI, false),
@@ -787,6 +807,19 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       transportedBy: unit.transportedBy,
       cargoUnits: this.unitValue(unit.cargoUnits, []),
       capabilities: this.getUnitCapabilities(unitType),
+      nationality: this.unitValue(unit.nationality, unit.playerId),
+      upkeep: [
+        this.unitValue(unitType?.uk_food, 0),
+        this.unitValue(unitType?.uk_shield, 0),
+        this.unitValue(unitType?.uk_gold, 0),
+      ],
+      activityTarget: this.unitValue(unit.activityTarget, unit.activity?.target),
+      occupied: this.unitValue(unit.occupied, false),
+      paradropped: this.unitValue(unit.paradropped, false),
+      doneMoving: this.unitValue(unit.doneMoving, false),
+      stay: this.unitValue(unit.stay, false),
+      facing: this.unitValue(unit.facing, 0),
+      birthTurn: this.unitValue(unit.birthTurn, unit.createdTurn),
     };
   }
 

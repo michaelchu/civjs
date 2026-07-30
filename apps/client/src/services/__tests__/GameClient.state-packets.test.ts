@@ -43,6 +43,12 @@ describe('GameClient state-bearing packets', () => {
         goldPerTurn: -2,
         science: 12,
         sciencePerTurn: 4,
+        taxRate: 40,
+        luxuryRate: 10,
+        scienceRate: 50,
+        score: 275,
+        teamId: 'team-1',
+        spaceshipState: { structurals: 2 },
         culture: 34,
         government: 'republic',
         alive: true,
@@ -68,6 +74,12 @@ describe('GameClient state-bearing packets', () => {
         culture: 34,
         color: '#ff0000',
         isHuman: false,
+        taxRate: 40,
+        luxuryRate: 10,
+        scienceRate: 50,
+        score: 275,
+        teamId: 'team-1',
+        spaceshipState: { structurals: 2 },
       })
     );
     expect(useGameStore.getState()).toEqual(expect.objectContaining({ turn: 5, year: -3840 }));
@@ -111,6 +123,51 @@ describe('GameClient state-bearing packets', () => {
         owner: 'player-2',
         visible: true,
         known: true,
+      })
+    );
+  });
+
+  it('preserves HUD-relevant unit metadata during normalization', () => {
+    handlePacket({
+      type: PacketType.UNIT_INFO,
+      data: {
+        units: [
+          {
+            id: 'unit-1',
+            owner: 'player-1',
+            type: 'warriors',
+            x: 2,
+            y: 3,
+            hp: 80,
+            movesleft: 2,
+            maxmoves: 3,
+            veteran: 1,
+            homeCity: 'city-1',
+            nationality: 'roman',
+            upkeep: [0, 1, 2],
+            activityTarget: 'road',
+            occupied: true,
+            paradropped: false,
+            doneMoving: true,
+            stay: true,
+            facing: 4,
+            birthTurn: 7,
+          },
+        ],
+      },
+    });
+
+    expect(useGameStore.getState().units['unit-1']).toEqual(
+      expect.objectContaining({
+        homeCityId: 'city-1',
+        nationality: 'roman',
+        upkeep: { food: 0, shields: 1, gold: 2 },
+        activityTarget: 'road',
+        occupied: true,
+        doneMoving: true,
+        stay: true,
+        facing: 4,
+        birthTurn: 7,
       })
     );
   });

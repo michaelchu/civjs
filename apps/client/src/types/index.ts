@@ -30,6 +30,16 @@ export interface Unit {
   fuel?: number;
   maxFuel?: number;
   veteranLevel: number;
+  homeCityId?: string;
+  upkeep?: { food: number; shields: number; gold: number };
+  nationality?: string;
+  activityTarget?: string;
+  occupied?: boolean;
+  paradropped?: boolean;
+  doneMoving?: boolean;
+  stay?: boolean;
+  facing?: number;
+  birthTurn?: number;
   fortified?: boolean;
   activity?: unknown;
   orders?: unknown;
@@ -115,6 +125,11 @@ export interface City {
   trade: number;
   // Culture system (freeciv-based)
   history: number; // Accumulated culture history
+  isCapital?: boolean;
+  foundedTurn?: number;
+  defenseStrength?: number;
+  health?: number;
+  culturePerTurn?: number;
   continentId?: number;
   // Production breakdown (total production before usage)
   prod: {
@@ -194,6 +209,9 @@ export interface City {
     partnerId: string;
     goods: string;
     value: number;
+    status?: 'active' | 'disrupted';
+    distance?: number;
+    establishedTurn?: number;
   }>;
   governor?: {
     isEnabled: boolean;
@@ -227,6 +245,12 @@ export interface Player {
   goldPerTurn?: number;
   science: number;
   sciencePerTurn?: number;
+  taxRate?: number;
+  luxuryRate?: number;
+  scienceRate?: number;
+  score?: number;
+  teamId?: string;
+  spaceshipState?: Record<string, unknown>;
   // Culture system (freeciv-based)
   history: number; // National history accumulation
   culture?: number; // Current national history plus performance and city culture
@@ -237,13 +261,7 @@ export interface Player {
 }
 
 export type DiplomaticState =
-  | 'no_contact'
-  | 'war'
-  | 'ceasefire'
-  | 'armistice'
-  | 'peace'
-  | 'alliance'
-  | 'team';
+  'no_contact' | 'war' | 'ceasefire' | 'armistice' | 'peace' | 'alliance' | 'team';
 
 export type TreatyClauseType =
   | 'ceasefire'

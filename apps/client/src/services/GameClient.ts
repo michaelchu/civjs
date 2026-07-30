@@ -335,7 +335,7 @@ export class GameClient {
       case PacketType.GAME_INFO:
         useGameStore.getState().updateGameState({
           ...packet.data,
-          phase: 'movement', // Ensure phase is set for turn system to work
+          phase: packet.data.phase ?? useGameStore.getState().phase,
         });
         useGameStore.getState().setClientState('running');
         break;
@@ -352,6 +352,12 @@ export class GameClient {
           goldPerTurn: packet.data.goldPerTurn ?? 0,
           science: packet.data.science,
           sciencePerTurn: packet.data.sciencePerTurn ?? 0,
+          taxRate: packet.data.taxRate,
+          luxuryRate: packet.data.luxuryRate,
+          scienceRate: packet.data.scienceRate,
+          score: packet.data.score,
+          teamId: packet.data.teamId ?? packet.data.team,
+          spaceshipState: packet.data.spaceshipState,
           history: players[packet.data.id]?.history ?? 0,
           culture: packet.data.culture,
           government: packet.data.government,
@@ -428,6 +434,20 @@ export class GameClient {
               fuel: unitData.fuel,
               maxFuel: unitData.maxFuel,
               veteranLevel: unitData.veteran, // Server sends 'veteran' not 'veteranLevel'
+              homeCityId: unitData.homeCity ?? undefined,
+              upkeep: {
+                food: unitData.upkeep?.[0] ?? 0,
+                shields: unitData.upkeep?.[1] ?? 0,
+                gold: unitData.upkeep?.[2] ?? 0,
+              },
+              nationality: unitData.nationality,
+              activityTarget: unitData.activityTarget,
+              occupied: unitData.occupied,
+              paradropped: unitData.paradropped,
+              doneMoving: unitData.doneMoving,
+              stay: unitData.stay,
+              facing: unitData.facing,
+              birthTurn: unitData.birthTurn,
               fortified: unitData.fortified,
               activity: unitData.activity,
               orders: unitData.orders,

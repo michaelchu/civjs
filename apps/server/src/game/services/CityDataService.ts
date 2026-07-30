@@ -47,6 +47,11 @@ export interface ClientCityData {
   shields: number;
   trade: number;
   history: number;
+  isCapital: boolean;
+  foundedTurn: number;
+  defenseStrength: number;
+  health: number;
+  culturePerTurn: number;
   continentId?: number;
 
   // Detailed production breakdown
@@ -137,6 +142,9 @@ export interface ClientCityData {
     partnerId: string;
     goods: string;
     value: number;
+    status?: 'active' | 'disrupted';
+    distance?: number;
+    establishedTurn?: number;
   }>;
 
   governor?: {
@@ -263,6 +271,13 @@ export class CityDataService {
       shields: productionPerTurn,
       trade: tradePerTurn,
       history: city.history,
+      isCapital: Boolean((city as CityState & { isCapital?: boolean }).isCapital),
+      foundedTurn: city.founded,
+      defenseStrength: city.defenseStrength ?? 1,
+      health: this.numberOrZero((city as CityState & { health?: number }).health) || 100,
+      culturePerTurn: this.numberOrZero(
+        (city as CityState & { culturePerTurn?: number }).culturePerTurn
+      ),
       continentId: city.continentId,
 
       // Freeciv-web compatible detailed breakdowns
@@ -312,6 +327,9 @@ export class CityDataService {
         partnerId: route.partnerCity,
         goods: 'Trade',
         value: route.value,
+        status: route.status,
+        distance: route.distance,
+        establishedTurn: route.establishedTurn,
       })),
       governor: city.governor
         ? {
