@@ -61,7 +61,7 @@ export const GameHud: React.FC<GameHudProps> = ({
     </HudRegion>
     <HudRegion
       name="bottom-center"
-      className="bottom-3 left-1/2 max-w-[calc(100%-2rem)] -translate-x-1/2 items-end sm:bottom-4"
+      className="bottom-28 left-1/2 max-w-[calc(100%-2rem)] -translate-x-1/2 items-end sm:bottom-4"
     >
       {bottomCenter}
     </HudRegion>

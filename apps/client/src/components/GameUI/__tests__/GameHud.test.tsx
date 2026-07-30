@@ -21,6 +21,10 @@ describe('GameHud foundations', () => {
     expect(container.querySelectorAll('[data-hud-region] > div.pointer-events-auto')).toHaveLength(
       6
     );
+    expect(container.querySelector('[data-hud-region="bottom-center"]')).toHaveClass(
+      'bottom-28',
+      'sm:bottom-4'
+    );
   });
 
   it('uses the shared transparent surface treatment by default', () => {
