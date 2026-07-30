@@ -332,6 +332,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
       effectsManager,
       rulesetName
     );
+    governmentManager.setPlayerTechsProvider(
+      playerId => new Set(researchManager.getResearchedTechs(playerId))
+    );
     cityManager.setPlayerTechsProvider(
       playerId => new Set(researchManager.getResearchedTechs(playerId))
     );
@@ -365,6 +368,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
           const city = cityManager.getCityAt(x, y);
           return city ? { id: city.id, playerId: city.playerId, buildings: city.buildings } : null;
         },
+        getPlayerNation: (playerId: string) =>
+          game.players.find((player: any) => player.id === playerId)?.nation ??
+          game.players.find((player: any) => player.id === playerId)?.civilization,
         getCityNames: () => cityManager.getAllCities().map(city => city.name),
         getPlayerBuildings: playerId =>
           cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings),

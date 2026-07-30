@@ -164,7 +164,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-006 — Submarines can attack non-native tiles
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Combat, naval units, unit flags, terrain/native-tile rules
 - **Observed behavior:** Combat validation checks attack strength, movement,
   range, and diplomatic hostility, but does not enforce the
@@ -224,7 +224,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-008 — Super Spies do not defend against diplomatic missions
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Espionage, diplomatic contests, city defense, unit flags
 - **Observed behavior:** Diplomatic missions only consider defending units with
   the `Diplomat` flag. A `SuperSpy` without the `Diplomat` flag does not defend
@@ -393,7 +393,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-013 — Every attack consumes all of the attacker's movement
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Combat, movement, ruleset effects
 - **Observed behavior:** A surviving attacker always ends the action with zero
   movement, even when it began the turn with several movement points.
@@ -565,7 +565,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-020 — City names are neither player-unique nor ruleset-driven
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** City founding, naming, nations
 - **Observed behavior:** A player may found or rename multiple cities to the
   same name. The generic action path generates `New City (x,y)` rather than
@@ -740,7 +740,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-027 — Governments can be adopted without their required technology
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Governments, research, revolution
 - **Observed behavior:** A player can initiate a revolution toward any loaded
   government regardless of researched technologies.

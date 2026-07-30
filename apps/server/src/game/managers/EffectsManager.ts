@@ -80,6 +80,7 @@ export enum EffectType {
   AIRLIFT = 'Airlift',
   MOVE_BONUS = 'Move_Bonus',
   UNIT_SHIELD_VALUE_PCT = 'Unit_Shield_Value_Pct',
+  ACTION_SUCCESS_ACTOR_MOVE_COST = 'Action_Success_Actor_Move_Cost',
   UNIT_BRIBE_COST_PCT = 'Unit_Bribe_Cost_Pct',
   INCITE_COST_PCT = 'Incite_Cost_Pct',
 

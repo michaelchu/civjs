@@ -158,6 +158,20 @@ describe('CityManager', () => {
     });
   });
 
+  describe('city naming rules', () => {
+    it('rejects duplicate names when founding or renaming cities', async () => {
+      const first = await cityManager.foundCity(10, 10, 'Rome', 'player-123');
+      await expect(cityManager.foundCity(12, 10, 'rome', 'player-123')).rejects.toThrow(
+        'already in use'
+      );
+
+      const second = await cityManager.foundCity(15, 10, 'Athens', 'player-123');
+      await expect(cityManager.renameCity(second.id, first.name, 'player-123')).resolves.toBe(
+        false
+      );
+    });
+  });
+
   describe('worker task requests', () => {
     it('records, replaces, authorizes, and clears native city requests', async () => {
       const city = await cityManager.foundCity(10, 10, 'Workers', 'player-123');

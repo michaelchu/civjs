@@ -127,6 +127,52 @@ describe('GameManager classic espionage actions', () => {
     expect(game.unitManager.removeUnit).toHaveBeenCalledWith('actor');
   });
 
+  it('uses a Super Spy as the city defender even without the Diplomat flag', async () => {
+    const city = {
+      id: 'city-1',
+      name: 'Target',
+      playerId: targetPlayerId,
+      x: 5,
+      y: 5,
+      size: 2,
+      buildings: [],
+    };
+    const { game } = installGame('spy');
+    const superSpy = {
+      id: 'super-spy',
+      playerId: targetPlayerId,
+      unitTypeId: 'leader',
+      x: 5,
+      y: 5,
+      movementLeft: 3,
+      health: 100,
+      veteranLevel: 0,
+      experience: 0,
+      fortified: false,
+    };
+    game.cityManager.getCityAt.mockReturnValue(city);
+    game.unitManager.getUnitsAt.mockReturnValue([superSpy]);
+    game.unitManager.resolveDiplomatAction = jest.fn().mockReturnValue({
+      success: true,
+      actorSurvives: true,
+    });
+
+    await manager.executeDiplomatAction(
+      gameId,
+      actorPlayerId,
+      'actor',
+      ActionType.POISON_WATER,
+      5,
+      5
+    );
+
+    expect(game.unitManager.resolveDiplomatAction).toHaveBeenCalledWith(
+      'actor',
+      ActionType.POISON_WATER,
+      'super-spy'
+    );
+  });
+
   it('bribes a lone eligible unit and charges the calculated cost', async () => {
     const target = {
       id: 'target',

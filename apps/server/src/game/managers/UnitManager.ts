@@ -208,6 +208,7 @@ export class UnitManager {
     broadcastUnitDestroyed?: (gameId: string, unit: Unit) => void;
     getCityAt?: (x: number, y: number) => CityAtLocation | null;
     getCityNames?: () => string[];
+    getPlayerNation?: (playerId: string) => string | undefined;
     getPlayerBuildings?: (playerId: string) => string[];
     reserveAirlift?: (
       sourceCityId: string,
@@ -295,6 +296,7 @@ export class UnitManager {
       broadcastUnitDestroyed?: (gameId: string, unit: Unit) => void;
       getCityAt?: (x: number, y: number) => CityAtLocation | null;
       getCityNames?: () => string[];
+      getPlayerNation?: (playerId: string) => string | undefined;
       getPlayerBuildings?: (playerId: string) => string[];
       reserveAirlift?: (
         sourceCityId: string,
@@ -1026,6 +1028,7 @@ export class UnitManager {
     );
   }
 
+  // eslint-disable-next-line complexity
   private validateCombatRange(attacker: Unit, defender: Unit, attackerType: UnitType): void {
     if (attacker.transportedBy || defender.transportedBy) {
       throw new Error('Transported units cannot directly participate in combat');
@@ -1036,6 +1039,17 @@ export class UnitManager {
       this.calculateDistance(attacker.x, attacker.y, defender.x, defender.y) > attackerType.range
     ) {
       throw new Error('Target out of range');
+    }
+    const targetTerrain = this.getTerrainAt(defender.x, defender.y);
+    const targetIsNonNative = !canUnitEnterTerrain(targetTerrain, attackerType.id);
+    const onlyNativeAttack = attackerType.flags?.includes('Only_Native_Attack') ?? false;
+    if (
+      targetIsNonNative &&
+      (onlyNativeAttack ||
+        (!attackerType.rulesetUnitClassFlags.includes('AttackNonNative') &&
+          !attackerType.flags?.includes('AttackNonNative')))
+    ) {
+      throw new Error('Unit cannot attack a non-native target tile');
     }
   }
 
@@ -1070,7 +1084,12 @@ export class UnitManager {
     }
     setup.attacker.health = Math.max(0, setup.attacker.health);
     setup.defender.health = Math.max(0, setup.defender.health);
-    setup.attacker.movementLeft = 0;
+    const moveCost = this.getActionSuccessMovementCost(
+      setup.attacker,
+      setup.attackerType,
+      'Attack'
+    );
+    setup.attacker.movementLeft = Math.max(0, setup.attacker.movementLeft - moveCost);
     return {
       attackerDamage: attackerStartingHealth - setup.attacker.health,
       defenderDamage: defenderStartingHealth - setup.defender.health,
@@ -1119,8 +1138,25 @@ export class UnitManager {
     await this.databaseProvider
       .getDatabase()
       .update(units)
-      .set(attacker ? { health: unit.health, movementPoints: '0' } : { health: unit.health })
+      .set(
+        attacker
+          ? { health: unit.health, movementPoints: String(unit.movementLeft) }
+          : { health: unit.health }
+      )
       .where(eq(units.id, unitId));
+  }
+
+  private getActionSuccessMovementCost(unit: Unit, unitType: UnitType, action: string): number {
+    const result = this.effectsManager?.calculateEffect(EffectType.ACTION_SUCCESS_ACTOR_MOVE_COST, {
+      action,
+      unitId: unit.id,
+      unitType: unitType.id,
+      unitClass: unitType.rulesetUnitClass,
+      unitClassFlags: new Set(unitType.rulesetUnitClassFlags),
+      unitTypeFlags: new Set(unitType.flags ?? []),
+    });
+    if (result?.effects.length) return Math.max(0, result.value);
+    return unitType.flags?.includes('OneAttack') ? 65535 : 6;
   }
 
   private async resolveDefenderDestruction(
@@ -2483,6 +2519,7 @@ export class UnitManager {
    * Pure action-specific diplomatic contest and escape odds for advisors.
    * Resolution consumes randomness separately in resolveDiplomatAction().
    */
+  // eslint-disable-next-line complexity
   calculateDiplomatActionOdds(
     actor: Unit,
     actionType: ActionType,
@@ -2498,14 +2535,22 @@ export class UnitManager {
     ]);
     let successChance = guaranteedActions.has(actionType) ? 100 : isSpy ? 75 : 50;
     successChance += actor.veteranLevel * 5;
+    let defenderIsSuperSpy = false;
 
     if (defender) {
       const defenderType = this.unitTypes[defender.unitTypeId];
-      if (defenderType.flags?.includes('Diplomat')) {
+      defenderIsSuperSpy = defenderType.flags?.includes('SuperSpy') ?? false;
+      const actorIsSuperSpy = actorType.flags?.includes('SuperSpy') ?? false;
+      if (defenderIsSuperSpy) {
+        successChance = 0;
+      } else if (actorIsSuperSpy) {
+        successChance = 100;
+      } else if (defenderType.flags?.includes('Diplomat')) {
         successChance -= 20 + defender.veteranLevel * 5;
       }
     }
     successChance = Math.max(5, Math.min(100, successChance));
+    if (defenderIsSuperSpy) successChance = 0;
     const escapeActions = new Set([
       ActionType.STEAL_TECH,
       ActionType.SABOTAGE_CITY,

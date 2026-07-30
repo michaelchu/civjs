@@ -36,4 +36,14 @@ describe('GovernmentManager classic progression', () => {
       revolutionTurns: 5,
     });
   });
+
+  it('checks the player research provider before allowing a government change', async () => {
+    const manager = new GovernmentManager('game-1', createMockDatabaseProvider());
+    await manager.initializePlayerGovernment('player-1');
+    manager.setPlayerTechsProvider(() => new Set());
+    await expect(manager.canChangeGovernment('player-1', 'republic')).resolves.toBe(false);
+
+    manager.setPlayerTechsProvider(() => new Set(['The Republic']));
+    await expect(manager.canChangeGovernment('player-1', 'republic')).resolves.toBe(true);
+  });
 });

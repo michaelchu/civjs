@@ -691,7 +691,8 @@ export class GameManager {
         const candidateType = this.getGameUnitType(game, candidate.unitTypeId);
         return (
           candidate.playerId !== playerId &&
-          candidateType?.flags?.includes('Diplomat') &&
+          (candidateType?.flags?.includes('Diplomat') ||
+            candidateType?.flags?.includes('SuperSpy')) &&
           !candidate.transportedBy
         );
       });

@@ -372,6 +372,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     this.borderNetworkService = this.createBorderNetworkService(borderManager);
     const researchManager = this.createResearchManager(gameId, rulesetName, effectsManager);
     await this.initializePlayerResearch(researchManager, players);
+    governmentManager.setPlayerTechsProvider(
+      playerId => new Set(researchManager.getResearchedTechs(playerId))
+    );
     const unitManager = this.createUnitManager(
       gameId,
       game,
@@ -1387,6 +1390,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
           const city = cityManager.getCityAt(x, y);
           return city ? { id: city.id, playerId: city.playerId, buildings: city.buildings } : null;
         },
+        getPlayerNation: (playerId: string) =>
+          game.players.find((player: any) => player.id === playerId)?.nation ??
+          game.players.find((player: any) => player.id === playerId)?.civilization,
         getPlayerBuildings: playerId =>
           cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings),
         reserveAirlift: (sourceCityId, destinationCityId, playerId, turn) =>

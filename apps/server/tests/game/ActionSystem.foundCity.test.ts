@@ -17,6 +17,25 @@ const makeSettler = (id: string, x: number, y: number): Unit => ({
 });
 
 describe('ActionSystem - automated city names', () => {
+  it('prefers the owning nation city list when available', async () => {
+    const foundCity = jest.fn().mockResolvedValue('city-1');
+    const actionSystem = new ActionSystem(
+      'game-1',
+      {
+        foundCity,
+        requestPath: jest.fn(),
+        getCityNames: () => [],
+        getPlayerNation: () => 'american',
+      },
+      undefined,
+      'civ2civ3'
+    );
+
+    await actionSystem.executeAction(makeSettler('settler-1', 15, 12), ActionType.FOUND_CITY);
+
+    expect(foundCity.mock.calls[0][2]).toBe('Washington');
+  });
+
   it('assigns unused names without exposing the founding coordinates', async () => {
     const foundCity = jest.fn().mockResolvedValueOnce('city-1').mockResolvedValueOnce('city-2');
     const usedNames = ['New Rome'];

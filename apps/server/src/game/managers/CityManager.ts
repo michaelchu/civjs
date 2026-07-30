@@ -705,6 +705,16 @@ export class CityManager {
   ): Promise<CityState> {
     logger.info(`Attempting to found city "${name}" at (${x}, ${y}) for player ${playerId}`);
 
+    const normalizedName = name.trim().toLowerCase();
+    if (
+      !normalizedName ||
+      Array.from(this.cities.values()).some(
+        city => city.name.trim().toLowerCase() === normalizedName
+      )
+    ) {
+      throw new Error('City name is already in use');
+    }
+
     // Validate city founding
     const validation = this.validateCityFounding(x, y, playerId, settlerId);
     if (!validation.canFound) {
@@ -2088,8 +2098,18 @@ export class CityManager {
     if (!city) return false;
 
     if (city.playerId !== playerId) return false;
+    const normalizedName = newName.trim().toLowerCase();
+    if (
+      !normalizedName ||
+      Array.from(this.cities.values()).some(
+        candidate =>
+          candidate.id !== cityId && candidate.name.trim().toLowerCase() === normalizedName
+      )
+    ) {
+      return false;
+    }
 
-    city.name = newName;
+    city.name = newName.trim();
 
     await this.saveCityToDatabase(city);
 

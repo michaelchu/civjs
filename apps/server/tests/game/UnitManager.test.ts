@@ -659,6 +659,46 @@ describe('UnitManager', () => {
       }
     });
 
+    it('charges the ruleset attack movement cost instead of clearing excess movement', async () => {
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        new EffectsManager('civ2civ3')
+      );
+      const attacker = await manager.createUnit('player-123', 'warriors', 10, 10);
+      const defender = await manager.createUnit('player-456', 'warriors', 11, 10);
+      attacker.movementLeft = 9;
+
+      await manager.attackUnit(attacker.id, defender.id);
+
+      if (manager.getUnit(attacker.id)) expect(manager.getUnit(attacker.id)!.movementLeft).toBe(3);
+    });
+
+    it('rejects a submarine attack against a non-native land tile', async () => {
+      const map = {
+        getTile: jest.fn((x: number) => ({ terrain: x === 10 ? 'ocean' : 'plains' })),
+      };
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        map as any,
+        undefined,
+        new EffectsManager('civ2civ3')
+      );
+      const submarine = await manager.createUnit('player-123', 'submarine', 10, 10);
+      const defender = await manager.createUnit('player-456', 'warriors', 11, 10);
+
+      await expect(manager.attackUnit(submarine.id, defender.id)).rejects.toThrow(
+        'non-native target tile'
+      );
+    });
+
     it('rejects attacks against friendly units', async () => {
       const friendly = await unitManager.createUnit('player-123', 'warriors', 12, 10);
       await expect(unitManager.attackUnit(attackerUnitId, friendly.id)).rejects.toThrow(
@@ -1133,6 +1173,27 @@ describe('UnitManager', () => {
       expect(unit!.movementLeft).toBe(0);
 
       // Database operations are handled by MockDatabaseProvider
+    });
+  });
+
+  describe('Super Spy diplomatic contests', () => {
+    it('gives a Super Spy attacker and defender the reference precedence', async () => {
+      const ordinary = await unitManager.createUnit('player-123', 'diplomat', 10, 10);
+      const superSpy = await unitManager.createUnit('player-456', 'leader', 11, 10);
+      expect(
+        unitManager.calculateDiplomatActionOdds(ordinary, ActionType.SABOTAGE_CITY, superSpy)
+          .successChance
+      ).toBe(0);
+
+      const superSpyAttacker = await unitManager.createUnit('player-123', 'leader', 10, 11);
+      const diplomat = await unitManager.createUnit('player-456', 'diplomat', 11, 11);
+      expect(
+        unitManager.calculateDiplomatActionOdds(
+          superSpyAttacker,
+          ActionType.SABOTAGE_CITY,
+          diplomat
+        ).successChance
+      ).toBe(1);
     });
   });
 

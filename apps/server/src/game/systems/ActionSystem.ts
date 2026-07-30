@@ -449,6 +449,7 @@ export class ActionSystem {
     ) => Promise<boolean>;
     getCityAt?: (x: number, y: number) => { id: string; playerId: string } | null;
     getCityNames?: () => string[];
+    getPlayerNation?: (playerId: string) => string | undefined;
   };
 
   constructor(
@@ -475,6 +476,7 @@ export class ActionSystem {
       ) => Promise<boolean>;
       getCityAt?: (x: number, y: number) => { id: string; playerId: string } | null;
       getCityNames?: () => string[];
+      getPlayerNation?: (playerId: string) => string | undefined;
     },
     private readonly mapManager?: Pick<MapManager, 'getTile' | 'getTopology'>,
     private readonly rulesetName: string = DEFAULT_RULESET,
@@ -1196,7 +1198,7 @@ export class ActionSystem {
     }
 
     try {
-      const cityName = this.generateCityName();
+      const cityName = this.generateCityName(unit.playerId);
 
       // Call GameManager to actually found the city
       const cityId = await this.gameManagerCallback.foundCity(
@@ -1235,8 +1237,27 @@ export class ActionSystem {
     }
   }
 
-  private generateCityName(): string {
-    return getUniqueCityName(this.gameManagerCallback?.getCityNames?.() ?? []);
+  // eslint-disable-next-line complexity
+  private generateCityName(playerId: string): string {
+    const usedNames = this.gameManagerCallback?.getCityNames?.() ?? [];
+    const nationId = this.gameManagerCallback?.getPlayerNation?.(playerId);
+    if (nationId) {
+      try {
+        const nation = rulesetLoader.getNation(nationId, this.rulesetName);
+        for (const suggestedName of nation.cities ?? []) {
+          const cityName = suggestedName.split(' (')[0]?.trim();
+          if (
+            cityName &&
+            !usedNames.some(name => name.trim().toLowerCase() === cityName.toLowerCase())
+          ) {
+            return cityName;
+          }
+        }
+      } catch {
+        // Fall back to the generic pool for custom or missing nations.
+      }
+    }
+    return getUniqueCityName(usedNames);
   }
 
   private validateGotoInputs(unit: Unit, targetX: number, targetY: number): ActionResult | null {

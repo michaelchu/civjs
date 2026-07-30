@@ -81,6 +81,7 @@ export class GovernmentManager {
   private databaseProvider: DatabaseProvider;
   private effectsManager: EffectsManager;
   private readonly rulesetName: string;
+  private playerTechsProvider: (playerId: string) => Set<string> = () => new Set();
 
   constructor(
     gameId: string,
@@ -112,6 +113,10 @@ export class GovernmentManager {
         revolutionTurns: 0,
       })
       .where(and(eq(playersTable.gameId, this.gameId), eq(playersTable.id, playerId)));
+  }
+
+  public setPlayerTechsProvider(provider: (playerId: string) => Set<string>): void {
+    this.playerTechsProvider = provider;
   }
 
   public async loadPlayerGovernment(
@@ -379,7 +384,7 @@ export class GovernmentManager {
    */
   public async canChangeGovernment(playerId: string, governmentType: string): Promise<boolean> {
     try {
-      const government = getGovernment(governmentType, this.rulesetName);
+      getGovernment(governmentType, this.rulesetName);
       const playerGov = this.playerGovernments.get(playerId);
 
       if (!playerGov) {
@@ -401,14 +406,8 @@ export class GovernmentManager {
         return true;
       }
 
-      // Check technology requirements (simplified - in full implementation would check player's techs)
-      if (government.reqs) {
-        // For integration tests, we'll allow most government changes
-        // In full implementation, this would check player's researched technologies
-        return true;
-      }
-
-      return true;
+      return this.canPlayerUseGovernment(governmentType, this.playerTechsProvider(playerId))
+        .allowed;
     } catch {
       return false;
     }

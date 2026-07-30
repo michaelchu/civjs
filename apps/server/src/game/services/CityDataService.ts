@@ -219,19 +219,7 @@ export class CityDataService {
     };
 
     // Transform buildings to client format with proper upkeep
-    const buildingTypes = dependencies.buildings.getBuildingTypes(rulesetName);
-    const buildings = city.buildings.map(buildingId => {
-      const building = buildingTypes[buildingId];
-      if (!building) {
-        throw new Error(`Building '${buildingId}' not found in ruleset '${rulesetName}'`);
-      }
-      return {
-        id: buildingId,
-        name: building.name,
-        upkeep: building.upkeep,
-        sellable: building.genus === 'Improvement',
-      };
-    });
+    const buildings = this.getClientBuildings(city, rulesetName, dependencies);
 
     // Use actual happiness data from city state
     const citizens = {
@@ -254,6 +242,7 @@ export class CityDataService {
     const worklist = city.worklist.map(item =>
       this.getClientWorklistItem(item, rulesetName, dependencies)
     );
+    const visibleCityData = this.getVisibleCityData(city, unitSnapshots, viewerPlayerId);
 
     return {
       id: city.id,
@@ -293,30 +282,9 @@ export class CityDataService {
 
       // Infrastructure
       buildings,
-      presentUnits:
-        viewerPlayerId === city.playerId
-          ? unitSnapshots
-              .filter(unit => unit.x === city.x && unit.y === city.y)
-              .map(unit => unit.id)
-          : [],
-      supportedUnits:
-        viewerPlayerId === city.playerId
-          ? unitSnapshots.filter(unit => unit.homeCityId === city.id).map(unit => unit.id)
-          : [],
-      workableTiles:
-        viewerPlayerId === city.playerId
-          ? (city.workableTiles ?? []).map(tile => ({
-              x: tile.x,
-              y: tile.y,
-              isWorked: tile.isWorked,
-              isCenter: tile.isCenter,
-              isBlocked: tile.isBlocked,
-              outputs: { ...tile.outputs },
-              terrain: tile.terrain,
-              resource: tile.resource,
-              improvements: tile.improvements ? [...tile.improvements] : undefined,
-            }))
-          : [],
+      presentUnits: visibleCityData.presentUnits,
+      supportedUnits: visibleCityData.supportedUnits,
+      workableTiles: visibleCityData.workableTiles,
 
       // Production system
       production,
@@ -345,6 +313,54 @@ export class CityDataService {
       pollution: city.pollution ?? this.calculatePollution(city),
 
       rallyPoint: undefined, // TODO: Implement rally points
+    };
+  }
+
+  private static getClientBuildings(
+    city: CityState,
+    rulesetName: string,
+    dependencies: CityDataRulesetDependencies
+  ) {
+    const buildingTypes = dependencies.buildings.getBuildingTypes(rulesetName);
+    return city.buildings.map(buildingId => {
+      const building = buildingTypes[buildingId];
+      if (!building) {
+        throw new Error(`Building '${buildingId}' not found in ruleset '${rulesetName}'`);
+      }
+      return {
+        id: buildingId,
+        name: building.name,
+        upkeep: building.upkeep,
+        sellable: building.genus === 'Improvement',
+      };
+    });
+  }
+
+  private static getVisibleCityData(
+    city: CityState,
+    units: CityUnitSnapshot[],
+    viewerPlayerId?: string
+  ) {
+    if (viewerPlayerId !== city.playerId) {
+      return { presentUnits: [], supportedUnits: [], workableTiles: [] };
+    }
+
+    return {
+      presentUnits: units
+        .filter(unit => unit.x === city.x && unit.y === city.y)
+        .map(unit => unit.id),
+      supportedUnits: units.filter(unit => unit.homeCityId === city.id).map(unit => unit.id),
+      workableTiles: (city.workableTiles ?? []).map(tile => ({
+        x: tile.x,
+        y: tile.y,
+        isWorked: tile.isWorked,
+        isCenter: tile.isCenter,
+        isBlocked: tile.isBlocked,
+        outputs: { ...tile.outputs },
+        terrain: tile.terrain,
+        resource: tile.resource,
+        improvements: tile.improvements ? [...tile.improvements] : undefined,
+      })),
     };
   }
 
