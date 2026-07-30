@@ -41,6 +41,10 @@ export class FreecivAIPlayerController {
     run: AIDecisionRunner
   ): Promise<number> {
     let actions = 0;
+    const player = game.players.get(playerId);
+    if (player?.nation === 'barbarian' || player?.civilization?.startsWith('barbarian')) {
+      return run('barbarian units', () => this.units.manageBarbarians(game, playerId, state));
+    }
     state.techWants = {};
     actions += await run('government', () => this.domestic.manageGovernment(game, playerId, state));
     actions += await run('economy', () => this.domestic.manageEconomy(game, playerId, state));

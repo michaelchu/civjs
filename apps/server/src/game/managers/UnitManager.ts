@@ -18,6 +18,7 @@ import type { TerrainType } from '@game/map/MapTypes';
 import { MapTopology } from '@game/map/MapTopology';
 import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
 import { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAllocator';
+import type { MapManager } from '@game/managers/MapManager';
 
 interface CityAtLocation {
   id: string;
@@ -352,6 +353,10 @@ export class UnitManager {
 
   public setUnitLifecycleObserver(observer: (event: UnitLifecycleEvent) => void): void {
     this.unitLifecycleObserver = observer;
+  }
+
+  public getMapManager(): MapManager | undefined {
+    return this.mapManager;
   }
 
   private getRulesetName(): string {

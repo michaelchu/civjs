@@ -103,6 +103,110 @@ function isAvailableExplorer(
 export class FreecivAIUnitController {
   constructor(private readonly hostilityPolicy: DiplomacyHostilityPolicy) {}
 
+  async manageBarbarians(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<number> {
+    const units = sortedPlayerUnits(game, playerId);
+    const leaders = units.filter(unit =>
+      game.unitManager.getUnitType(unit.unitTypeId)?.roles?.includes('BarbarianLeader')
+    );
+    const warriors = units.filter(unit => !leaders.some(leader => leader.id === unit.id));
+    let actions = 0;
+
+    for (const leader of leaders) {
+      if (leader.movementLeft <= 0) continue;
+      const guard = warriors
+        .slice()
+        .sort(
+          (left, right) =>
+            game.mapManager.getDistance(leader.x, leader.y, left.x, left.y) -
+              game.mapManager.getDistance(leader.x, leader.y, right.x, right.y) ||
+            left.id.localeCompare(right.id)
+        )[0];
+      const action =
+        guard && guard.x === leader.x && guard.y === leader.y
+          ? ActionType.SENTRY
+          : guard
+            ? ActionType.GOTO
+            : ActionType.SENTRY;
+      const targetX = action === ActionType.GOTO ? guard!.x : undefined;
+      const targetY = action === ActionType.GOTO ? guard!.y : undefined;
+      if (!game.unitManager.canUnitPerformAction(leader.id, action, targetX, targetY)) continue;
+      const result = await game.unitManager.executeUnitAction(
+        leader.id,
+        action,
+        targetX,
+        targetY,
+        playerId
+      );
+      actions += Number(result.success);
+    }
+
+    const foreignUnits = Array.from(game.unitManager.getAllUnits().values())
+      .filter(unit => unit.playerId !== playerId && !unit.transportedBy)
+      .sort((a, b) => a.id.localeCompare(b.id));
+    const foreignCities = game.cityManager
+      .getAllCities()
+      .filter(city => city.playerId !== playerId)
+      .sort((a, b) => a.id.localeCompare(b.id));
+    for (const warrior of warriors) {
+      if (!game.unitManager.getUnit(warrior.id) || warrior.movementLeft <= 0) continue;
+      if (game.unitManager.canUnitPerformAction(warrior.id, ActionType.PILLAGE)) {
+        const pillage = await game.unitManager.executeUnitAction(
+          warrior.id,
+          ActionType.PILLAGE,
+          undefined,
+          undefined,
+          playerId
+        );
+        if (pillage.success) {
+          actions++;
+          continue;
+        }
+      }
+      const adjacent = foreignUnits.find(
+        target => game.mapManager.getDistance(warrior.x, warrior.y, target.x, target.y) <= 1
+      );
+      if (adjacent) {
+        await game.unitManager.attackUnit(warrior.id, adjacent.id);
+        actions++;
+        continue;
+      }
+      const target = foreignCities
+        .slice()
+        .sort(
+          (left, right) =>
+            game.mapManager.getDistance(warrior.x, warrior.y, left.x, left.y) -
+              game.mapManager.getDistance(warrior.x, warrior.y, right.x, right.y) ||
+            left.id.localeCompare(right.id)
+        )[0];
+      if (
+        !target ||
+        !game.unitManager.canUnitPerformAction(warrior.id, ActionType.GOTO, target.x, target.y)
+      ) {
+        continue;
+      }
+      state.unitTasks[warrior.id] = {
+        role: 'attack',
+        targetId: target.id,
+        targetX: target.x,
+        targetY: target.y,
+        assignedTurn: game.currentTurn,
+      };
+      const result = await game.unitManager.executeUnitAction(
+        warrior.id,
+        ActionType.GOTO,
+        target.x,
+        target.y,
+        playerId
+      );
+      actions += Number(result.success);
+    }
+    return actions;
+  }
+
   private reservedSettlerSites(
     game: GameInstance,
     playerId: string,

@@ -20,6 +20,8 @@ import type { BorderManager } from '@game/managers/BorderManager';
 import type { VisibilityManager } from '@game/managers/VisibilityManager';
 import type { CultureManager } from '@game/managers/CultureManager';
 import { DisasterManager } from '@game/managers/DisasterManager';
+import { BarbarianManager } from '@game/managers/BarbarianManager';
+import { RandomEventsManager } from '@game/managers/RandomEventsManager';
 import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 import type { EconomicManager } from '@game/systems/Economic/EconomicManager';
 import type { GovernmentManager } from '@game/managers/GovernmentManager';
@@ -142,22 +144,88 @@ export class TurnManager {
       turn: this.currentTurn,
     }));
     this.broadcastManager = broadcastManager;
+    const disasterManager = new DisasterManager(
+      gameId,
+      DisasterManager.createRulesetConfig(rulesetName),
+      cityManager,
+      databaseProvider,
+      economicManager,
+      random
+    );
+    const rulesetSettings = (
+      rulesetLoader.loadGameRulesRuleset(rulesetName).settings.set as
+        Array<{ name: string; value: unknown }> | undefined
+    )?.reduce<Record<string, unknown>>((settings, entry) => {
+      settings[entry.name] = entry.value;
+      return settings;
+    }, {});
+    const configuredBarbarianRate = rulesetSettings?.barbarians;
+    const barbarianRate =
+      typeof configuredBarbarianRate === 'number'
+        ? Math.max(0, Math.min(4, Math.floor(configuredBarbarianRate)))
+        : ({
+            DISABLED: 0,
+            HUTS_ONLY: 0,
+            NORMAL: 2,
+            FREQUENT: 3,
+            HORDES: 4,
+          }[String(configuredBarbarianRate ?? 'NORMAL').toUpperCase()] ?? 2);
+    const onsetBarbarian =
+      typeof rulesetSettings?.onsetbarbs === 'number' ? rulesetSettings.onsetbarbs : 60;
+    const mapManager =
+      typeof (unitManager as any).getMapManager === 'function'
+        ? (unitManager as any).getMapManager()
+        : {
+            getMapData: () => null,
+            getDistance: (x1: number, y1: number, x2: number, y2: number) =>
+              Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2)),
+          };
+    const barbarianManager = new BarbarianManager(
+      gameId,
+      {
+        rate: barbarianRate,
+        onsetTurn: onsetBarbarian,
+        landBarbarianChance: 100,
+        seaBarbarianChance: 100,
+        minDistanceFromCity: 3,
+        maxDistanceFromCity: 8,
+        unitsPerSpawn: { min: 2, max: 4 },
+        leaderChance: 100,
+      },
+      unitManager,
+      mapManager,
+      broadcastManager,
+      databaseProvider,
+      random
+    );
+    const randomEventsManager = new RandomEventsManager(
+      gameId,
+      {
+        barbarianRate,
+        onsetBarbarian,
+        disastersEnabled: false,
+        disasterFrequency: 0,
+        randomMovementsEnabled: false,
+        resourceChangesEnabled: false,
+        resourceChangeFrequency: 0,
+        goodyHutsEnabled: false,
+        barbarianHutChance: 0,
+      },
+      barbarianManager,
+      disasterManager,
+      unitManager,
+      mapManager,
+      broadcastManager
+    );
     this.turnPhaseService = new TurnPhaseService(
       gameId,
       this.turnProcessingService,
       this.turnCoordinationService,
       this.turnPacketService,
       this.gameEventService,
-      undefined, // randomEventsManager - not passed yet
+      randomEventsManager,
       this.cultureManager,
-      new DisasterManager(
-        gameId,
-        DisasterManager.createRulesetConfig(rulesetName),
-        cityManager,
-        databaseProvider,
-        economicManager,
-        random
-      ),
+      disasterManager,
       databaseProvider,
       random,
       identities

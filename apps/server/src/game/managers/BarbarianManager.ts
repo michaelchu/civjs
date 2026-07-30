@@ -15,7 +15,10 @@ import type { UnitManager } from './UnitManager';
 import type { MapManager } from './MapManager';
 import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 import type { DatabaseProvider } from '@database/DatabaseProvider';
-import { barbarianTribes } from '@database/schema';
+import { barbarianTribes, players } from '@database/schema';
+import { and, eq } from 'drizzle-orm';
+import { createAIState } from '@game/ai/AIStateStore';
+import { ActionType } from '@app-types/shared/actions';
 
 export interface BarbarianSpawnLocation {
   x: number;
@@ -75,9 +78,6 @@ export interface BarbarianTribe {
 export class BarbarianManager {
   private gameId: string;
   private config: BarbarianSpawnConfig;
-  // private unitManager: UnitManager; // Placeholder for future use
-  // private mapManager: MapManager; // Placeholder for future use
-  // private broadcastManager: GameBroadcastManager; // Placeholder for future use
   private databaseProvider: DatabaseProvider;
 
   private activeBarbarians: Map<string, BarbarianTribe> = new Map();
@@ -90,17 +90,15 @@ export class BarbarianManager {
   constructor(
     gameId: string,
     config: BarbarianSpawnConfig,
-    _unitManager: UnitManager,
-    _mapManager: MapManager,
+    private readonly unitManager: UnitManager,
+    private readonly mapManager: MapManager,
     _broadcastManager: GameBroadcastManager,
     databaseProvider: DatabaseProvider,
-    private readonly random: RandomSource = Math.random
+    private readonly random: RandomSource = Math.random,
+    private readonly playerFactory?: (type: BarbarianType) => Promise<string | null>
   ) {
     this.gameId = gameId;
     this.config = config;
-    // this.unitManager = unitManager; // Placeholder for future use
-    // this.mapManager = mapManager; // Placeholder for future use
-    // this.broadcastManager = broadcastManager; // Placeholder for future use
     this.databaseProvider = databaseProvider;
   }
 
@@ -116,6 +114,8 @@ export class BarbarianManager {
       mapFactor: 0,
     };
 
+    await this.manageActiveBarbarianUnits();
+
     // Check if barbarians are disabled or it's too early
     if (this.config.rate === 0 || turn < this.config.onsetTurn) {
       return result;
@@ -130,7 +130,9 @@ export class BarbarianManager {
     try {
       // Calculate number of spawn attempts based on map size and rate
       // @reference freeciv/server/barbarian.c:751 n = map_num_tiles() / MAP_FACTOR;
-      const mapSize = 10000; // TODO: Replace with await this.mapManager.getMapSize() when available
+      const mapData = this.mapManager.getMapData();
+      const mapSize = mapData ? mapData.width * mapData.height : 0;
+      if (mapSize === 0) return result;
       const mapFactor = Math.max(1, Math.floor(mapSize / BarbarianManager.MAP_FACTOR));
       const spawnAttempts = mapFactor * (this.config.rate - 1);
 
@@ -173,6 +175,97 @@ export class BarbarianManager {
   }
 
   /**
+   * Existing uprisings remain aggressive even on turns where no new group is
+   * summoned. Land units pillage first, then attack adjacent foreigners, then
+   * advance toward the nearest city; leaders stay with their stack.
+   *
+   * @reference reference/freeciv/ai/default/daiunit.c:dai_military_findjob
+   * @reference reference/freeciv/ai/default/daiunit.c:dai_manage_barbarian_leader
+   */
+  private async manageActiveBarbarianUnits(): Promise<void> {
+    const cityTiles = this.mapManager
+      .getMapData()
+      ?.tiles.flat()
+      .filter(tile => tile.cityId);
+    for (const tribe of this.getActiveBarbarians()) {
+      const units = tribe.unitIds
+        .map(id => this.unitManager.getUnit(id))
+        .filter(unit => Boolean(unit));
+      const warriors = units.filter(
+        unit => !this.unitManager.getUnitType(unit!.unitTypeId)?.roles?.includes('BarbarianLeader')
+      );
+      for (const unit of units) {
+        if (!unit || unit.movementLeft <= 0) continue;
+        const type = this.unitManager.getUnitType(unit.unitTypeId);
+        if (type?.roles?.includes('BarbarianLeader')) {
+          const guard = warriors
+            .slice()
+            .sort(
+              (left, right) =>
+                this.mapManager.getDistance(unit.x, unit.y, left!.x, left!.y) -
+                  this.mapManager.getDistance(unit.x, unit.y, right!.x, right!.y) ||
+                left!.id.localeCompare(right!.id)
+            )[0];
+          const action =
+            guard && (guard!.x !== unit.x || guard!.y !== unit.y)
+              ? ActionType.GOTO
+              : ActionType.SENTRY;
+          const targetX = action === ActionType.GOTO ? guard!.x : undefined;
+          const targetY = action === ActionType.GOTO ? guard!.y : undefined;
+          if (this.unitManager.canUnitPerformAction(unit.id, action, targetX, targetY)) {
+            await this.unitManager.executeUnitAction(
+              unit.id,
+              action,
+              targetX,
+              targetY,
+              tribe.playerId
+            );
+          }
+          continue;
+        }
+        if (this.unitManager.canUnitPerformAction(unit.id, ActionType.PILLAGE)) {
+          const result = await this.unitManager.executeUnitAction(
+            unit.id,
+            ActionType.PILLAGE,
+            undefined,
+            undefined,
+            tribe.playerId
+          );
+          if (result.success) continue;
+        }
+        const adjacent = Array.from(this.unitManager.getAllUnits().values())
+          .filter(other => other.playerId !== tribe.playerId)
+          .find(other => this.mapManager.getDistance(unit.x, unit.y, other.x, other.y) <= 1);
+        if (adjacent) {
+          await this.unitManager.attackUnit(unit.id, adjacent.id);
+          continue;
+        }
+        const target = cityTiles
+          ?.slice()
+          .sort(
+            (left, right) =>
+              this.mapManager.getDistance(unit.x, unit.y, left.x, left.y) -
+                this.mapManager.getDistance(unit.x, unit.y, right.x, right.y) ||
+              left.x - right.x ||
+              left.y - right.y
+          )[0];
+        if (
+          target &&
+          this.unitManager.canUnitPerformAction(unit.id, ActionType.GOTO, target.x, target.y)
+        ) {
+          await this.unitManager.executeUnitAction(
+            unit.id,
+            ActionType.GOTO,
+            target.x,
+            target.y,
+            tribe.playerId
+          );
+        }
+      }
+    }
+  }
+
+  /**
    * Attempt to spawn a single barbarian group
    * @reference freeciv/server/barbarian.c:587 try_summon_barbarians()
    */
@@ -186,8 +279,7 @@ export class BarbarianManager {
     };
 
     try {
-      // 1. Find suitable spawn location (placeholder)
-      const location = null; // await this.findBarbarianSpawnLocation();
+      const location = this.findBarbarianSpawnLocation();
       if (!location) {
         spawn.error = 'No suitable spawn location found';
         return spawn;
@@ -196,7 +288,7 @@ export class BarbarianManager {
       spawn.location = location;
 
       // 2. Determine barbarian type based on location
-      spawn.spawnType = this.determineBarbarianType(location || ({} as BarbarianSpawnLocation));
+      spawn.spawnType = this.determineBarbarianType(location);
 
       // 3. Create or get barbarian player
       const barbarianPlayerId = await this.getOrCreateBarbarianPlayer(spawn.spawnType);
@@ -237,9 +329,49 @@ export class BarbarianManager {
     return spawn;
   }
 
-  // PLACEHOLDER: Find a suitable location for barbarian spawning
-  // This method would be implemented when MapManager has the required methods
-  // @reference freeciv/server/barbarian.c:587-650 location finding logic
+  /**
+   * Choose an unoccupied wilderness tile in the configured city-distance
+   * band. City tiles are read from the authoritative map snapshot.
+   *
+   * @reference freeciv/server/barbarian.c:587-650
+   */
+  private findBarbarianSpawnLocation(): BarbarianSpawnLocation | null {
+    const map = this.mapManager.getMapData();
+    if (!map) return null;
+    const tiles = map.tiles.flat();
+    const cityTiles = tiles.filter(tile => tile.cityId);
+    const occupied = new Set(
+      Array.from(this.unitManager.getAllUnits().values()).map(unit => `${unit.x},${unit.y}`)
+    );
+    const candidates = tiles
+      .filter(tile => !tile.cityId && !occupied.has(`${tile.x},${tile.y}`))
+      .map(tile => {
+        const nearest =
+          cityTiles.length === 0
+            ? this.config.maxDistanceFromCity
+            : Math.min(
+                ...cityTiles.map(city =>
+                  this.mapManager.getDistance(tile.x, tile.y, city.x, city.y)
+                )
+              );
+        return {
+          x: tile.x,
+          y: tile.y,
+          tileId: `${tile.x},${tile.y}`,
+          terrain: String(tile.terrain),
+          isLand: tile.continentId > 0,
+          isSea: tile.continentId === 0,
+          distanceToNearestCity: nearest,
+        };
+      })
+      .filter(
+        location =>
+          location.distanceToNearestCity >= this.config.minDistanceFromCity &&
+          location.distanceToNearestCity <= this.config.maxDistanceFromCity
+      )
+      .sort((left, right) => left.x - right.x || left.y - right.y);
+    return candidates.length > 0 ? candidates[randomInt(this.random, candidates.length)]! : null;
+  }
 
   /**
    * Determine barbarian type based on spawn location
@@ -266,15 +398,36 @@ export class BarbarianManager {
    */
   private async getOrCreateBarbarianPlayer(_type: BarbarianType): Promise<string | null> {
     try {
-      // Check if we have an existing barbarian player of this type
-      // const existingBarbarian = await this.findAvailableBarbarianPlayer(type);
-      // if (existingBarbarian) {
-      //   return existingBarbarian;
-      // }
-
-      // Create new barbarian player (placeholder)
-      // const barbarianPlayerId = await this.createBarbarianPlayer(type);
-      return null; // barbarianPlayerId;
+      if (this.playerFactory) return this.playerFactory(_type);
+      const database = this.databaseProvider.getDatabase();
+      const civilization = `barbarian-${_type}`;
+      const existing = await database.query.players.findFirst({
+        where: and(eq(players.gameId, this.gameId), eq(players.civilization, civilization)),
+      });
+      if (existing) return existing.id;
+      const existingPlayers = await database.query.players.findMany({
+        where: eq(players.gameId, this.gameId),
+      });
+      const playerNumber =
+        existingPlayers.reduce((highest, player) => Math.max(highest, player.playerNumber), -1) + 1;
+      const [created] = await database
+        .insert(players)
+        .values({
+          gameId: this.gameId,
+          userId: null,
+          playerNumber,
+          nation: 'barbarian',
+          civilization,
+          leaderName: this.generateBarbarianName(_type),
+          color: { r: 128, g: 32, b: 32 },
+          isAI: true,
+          aiLevel: 'hard',
+          aiState: createAIState(),
+          isReady: true,
+          connectionStatus: 'connected',
+        })
+        .returning();
+      return created?.id ?? null;
     } catch (error) {
       logger.error('Error getting/creating barbarian player', {
         gameId: this.gameId,
@@ -284,12 +437,6 @@ export class BarbarianManager {
       return null;
     }
   }
-
-  // PLACEHOLDER: Find an available barbarian player of the specified type
-  // This method would be implemented in a full barbarian system
-
-  // PLACEHOLDER: Create a new barbarian player/civilization
-  // This method would be implemented when player/civilization system is ready
 
   /**
    * Spawn barbarian units at the specified location
@@ -359,11 +506,8 @@ export class BarbarianManager {
    * Get appropriate unit types for barbarian spawning
    */
   private async getBarbarianUnitTypes(type: BarbarianType): Promise<string[]> {
-    // This would be loaded from rulesets/configuration
-    // For now, return basic barbarian unit types
-
     const landUnits = ['warriors', 'archers', 'horsemen'];
-    const seaUnits = ['trireme', 'galley'];
+    const seaUnits = ['trireme'];
 
     switch (type) {
       case BarbarianType.SEA_BARBARIAN:
@@ -374,33 +518,32 @@ export class BarbarianManager {
       default:
         return landUnits;
     }
+    return [];
   }
 
   /**
    * Spawn a single barbarian unit
    */
   private async spawnBarbarianUnit(
-    _barbarianPlayerId: string,
-    _location: BarbarianSpawnLocation,
-    _unitType: string
+    barbarianPlayerId: string,
+    location: BarbarianSpawnLocation,
+    unitType: string
   ): Promise<string | null> {
     try {
-      // Placeholder implementation
-      // const unitId = await this.unitManager.createUnit({
-      //   playerId: barbarianPlayerId,
-      //   type: unitType,
-      //   position: { x: location.x, y: location.y },
-      //   tileId: location.tileId,
-      //   isBarbarianUnit: true,
-      // });
-
-      return null; // unitId;
+      if (!this.unitManager.getUnitType(unitType)) return null;
+      const unit = await this.unitManager.createUnit(
+        barbarianPlayerId,
+        unitType,
+        location.x,
+        location.y
+      );
+      return unit.id;
     } catch (error) {
       logger.error('Error spawning barbarian unit', {
         gameId: this.gameId,
-        barbarianPlayerId: _barbarianPlayerId,
-        unitType: _unitType,
-        location: _location,
+        barbarianPlayerId,
+        unitType,
+        location,
         error: error instanceof Error ? error.message : error,
       });
       return null;
@@ -416,7 +559,7 @@ export class BarbarianManager {
     }
 
     const tribe: BarbarianTribe = {
-      id: `barbarian_tribe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `${spawn.barbarianPlayerId}:${turn}:${spawn.location.tileId}`,
       playerId: spawn.barbarianPlayerId,
       spawnTurn: turn,
       spawnLocation: spawn.location,
