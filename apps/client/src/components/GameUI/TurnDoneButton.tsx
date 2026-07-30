@@ -42,23 +42,36 @@ export const TurnDoneButton: React.FC = () => {
     return 'Turn Done';
   };
 
+  const disabledReason = getDisabledReason();
+
   return (
-    <button
-      onClick={handleTurnDone}
-      disabled={isDisabled}
-      className={`flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold shadow-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-300/70 disabled:cursor-not-allowed ${
-        isDisabled
-          ? 'border-white/10 bg-white/5 text-slate-500'
-          : 'border-emerald-300/35 bg-emerald-400/20 text-emerald-100 hover:bg-emerald-400/30'
-      }`}
-      title={getDisabledReason() ?? 'End your turn (Shift+Enter)'}
-    >
-      {turnProcessingState === 'processing' ? (
-        <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
-      ) : (
-        <Check className="h-4 w-4" aria-hidden="true" />
+    <div className="flex flex-col items-end gap-1">
+      <button
+        onClick={handleTurnDone}
+        disabled={isDisabled}
+        aria-describedby={isDisabled && disabledReason ? 'turn-done-status' : undefined}
+        className={`flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold shadow-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-300/70 disabled:cursor-not-allowed ${
+          isDisabled
+            ? 'border-white/10 bg-white/5 text-slate-500'
+            : 'border-emerald-300/35 bg-emerald-400/20 text-emerald-100 hover:bg-emerald-400/30'
+        }`}
+        title={disabledReason ?? 'End your turn (Shift+Enter)'}
+      >
+        {turnProcessingState === 'processing' ? (
+          <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+        ) : (
+          <Check className="h-4 w-4" aria-hidden="true" />
+        )}
+        {getButtonText()}
+      </button>
+      {isDisabled && disabledReason && (
+        <span
+          id="turn-done-status"
+          className="max-w-56 text-right text-[10px] leading-4 text-amber-200/80"
+        >
+          {disabledReason}
+        </span>
       )}
-      {getButtonText()}
-    </button>
+    </div>
   );
 };

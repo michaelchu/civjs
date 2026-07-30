@@ -12,9 +12,16 @@ describe('TurnDoneButton', () => {
       turnProcessingState: 'idle',
       players: {
         'player-1': {
-          id: 'player-1', name: 'Leader', nation: 'rome', color: '#22d3ee',
-          gold: 0, science: 0, history: 0, government: 'republic',
-          isHuman: true, isActive: true,
+          id: 'player-1',
+          name: 'Leader',
+          nation: 'rome',
+          color: '#22d3ee',
+          gold: 0,
+          science: 0,
+          history: 0,
+          government: 'republic',
+          isHuman: true,
+          isActive: true,
         },
       },
     });
@@ -30,5 +37,9 @@ describe('TurnDoneButton', () => {
       'title',
       'Turn completion is unavailable during the research phase'
     );
+    expect(
+      screen.getByText('Turn completion is unavailable during the research phase')
+    ).toBeInTheDocument();
+    expect(button).toHaveAttribute('aria-describedby', 'turn-done-status');
   });
 });
