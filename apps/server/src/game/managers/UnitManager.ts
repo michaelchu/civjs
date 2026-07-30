@@ -2276,35 +2276,20 @@ export class UnitManager {
     if (![ActionType.AUTO_EXPLORE, ActionType.AUTO_SETTLER].includes(actionType)) {
       await this.clearAutomation(unit);
     }
-    if (actionType === ActionType.PARADROP) {
-      return this.executeParadrop(unit, targetX, targetY);
-    }
-    if (actionType === ActionType.AIRLIFT) {
-      return this.executeAirlift(unit, targetX, targetY);
-    }
-    if (actionType === ActionType.BOMBARD) {
-      return this.executeBombard(unit, targetX, targetY);
-    }
-    if (actionType === ActionType.NUCLEAR_EXPLOSION) {
-      return this.executeNuclearExplosion(unit, targetX, targetY);
-    }
-    if (actionType === ActionType.COLLECT_RANSOM) {
-      return this.executeCollectRansom(unit, targetX, targetY);
-    }
-    if (actionType === ActionType.SUICIDE_ATTACK) {
-      return this.executeSuicideAttack(unit, targetX, targetY);
-    }
+    const directAction = this.getDirectUnitAction(unit, actionType);
+    if (directAction) return directAction(targetX, targetY);
+
+    return this.executeFallbackUnitAction(unit, actionType, targetX, targetY);
+  }
+
+  private async executeFallbackUnitAction(
+    unit: Unit,
+    actionType: ActionType,
+    targetX?: number,
+    targetY?: number
+  ): Promise<ActionResult> {
     if (
-      [
-        ActionType.ESTABLISH_EMBASSY,
-        ActionType.BRIBE_UNIT,
-        ActionType.STEAL_TECH,
-        ActionType.INVESTIGATE_CITY,
-        ActionType.INCITE_CITY,
-        ActionType.SABOTAGE_CITY,
-        ActionType.SABOTAGE_UNIT,
-        ActionType.POISON_WATER,
-      ].includes(actionType) &&
+      this.isDiplomatAction(actionType) &&
       this.diplomatActionExecutor &&
       targetX !== undefined &&
       targetY !== undefined
@@ -2313,44 +2298,6 @@ export class UnitManager {
     }
     if (actionType === ActionType.AUTO_EXPLORE || actionType === ActionType.AUTO_SETTLER) {
       return this.setAutomation(unit, actionType);
-    }
-
-    if (actionType === ActionType.LOAD_UNIT) {
-      const transport = this.findAvailableTransportAt(unit, targetX ?? unit.x, targetY ?? unit.y);
-      const loaded = transport ? await this.loadUnitOntoTransport(transport.id, unit.id) : false;
-      return {
-        success: loaded,
-        message: loaded ? 'Unit loaded' : 'No compatible transport with available capacity',
-      };
-    }
-    if (actionType === ActionType.UNLOAD_UNIT) {
-      const unloaded = await this.unloadUnit(unit.id, targetX ?? unit.x, targetY ?? unit.y);
-      return {
-        success: unloaded,
-        message: unloaded ? 'Unit unloaded' : 'Unit cannot unload on the target tile',
-      };
-    }
-    if (actionType === ActionType.GOTO) {
-      return this.executeAuthoritativeGoto(unit, targetX, targetY);
-    }
-    if (actionType === ActionType.PATROL) {
-      return this.executePatrol(unit, targetX, targetY);
-    }
-    if (
-      [
-        ActionType.MARKETPLACE,
-        ActionType.HELP_WONDER,
-        ActionType.JOIN_CITY,
-        ActionType.DISBAND_UNIT_RECOVER,
-      ].includes(actionType)
-    ) {
-      return this.executeCityUnitAction(unit, actionType, targetX, targetY);
-    }
-    if (actionType === ActionType.CHANGE_HOME_CITY) {
-      return this.executeChangeHomeCity(unit, targetX, targetY);
-    }
-    if (actionType === ActionType.UPGRADE_UNIT) {
-      return this.executeUpgradeUnit(unit);
     }
     if (
       [ActionType.BUILD_FORTRESS, ActionType.BUILD_AIRBASE].includes(actionType) &&
@@ -2368,6 +2315,82 @@ export class UnitManager {
     }
 
     return result;
+  }
+
+  private getDirectUnitAction(
+    unit: Unit,
+    actionType: ActionType
+  ): ((targetX?: number, targetY?: number) => Promise<ActionResult>) | undefined {
+    const handlers: Partial<
+      Record<ActionType, (targetX?: number, targetY?: number) => Promise<ActionResult>>
+    > = {
+      [ActionType.PARADROP]: (targetX, targetY) => this.executeParadrop(unit, targetX, targetY),
+      [ActionType.AIRLIFT]: (targetX, targetY) => this.executeAirlift(unit, targetX, targetY),
+      [ActionType.BOMBARD]: (targetX, targetY) => this.executeBombard(unit, targetX, targetY),
+      [ActionType.NUCLEAR_EXPLOSION]: (targetX, targetY) =>
+        this.executeNuclearExplosion(unit, targetX, targetY),
+      [ActionType.COLLECT_RANSOM]: (targetX, targetY) =>
+        this.executeCollectRansom(unit, targetX, targetY),
+      [ActionType.SUICIDE_ATTACK]: (targetX, targetY) =>
+        this.executeSuicideAttack(unit, targetX, targetY),
+      [ActionType.LOAD_UNIT]: (targetX, targetY) =>
+        this.executeLoadUnitAction(unit, targetX, targetY),
+      [ActionType.UNLOAD_UNIT]: (targetX, targetY) =>
+        this.executeUnloadUnitAction(unit, targetX, targetY),
+      [ActionType.GOTO]: (targetX, targetY) =>
+        this.executeAuthoritativeGoto(unit, targetX, targetY),
+      [ActionType.PATROL]: (targetX, targetY) => this.executePatrol(unit, targetX, targetY),
+      [ActionType.MARKETPLACE]: (targetX, targetY) =>
+        this.executeCityUnitAction(unit, actionType, targetX, targetY),
+      [ActionType.HELP_WONDER]: (targetX, targetY) =>
+        this.executeCityUnitAction(unit, actionType, targetX, targetY),
+      [ActionType.JOIN_CITY]: (targetX, targetY) =>
+        this.executeCityUnitAction(unit, actionType, targetX, targetY),
+      [ActionType.DISBAND_UNIT_RECOVER]: (targetX, targetY) =>
+        this.executeCityUnitAction(unit, actionType, targetX, targetY),
+      [ActionType.CHANGE_HOME_CITY]: (targetX, targetY) =>
+        this.executeChangeHomeCity(unit, targetX, targetY),
+      [ActionType.UPGRADE_UNIT]: () => this.executeUpgradeUnit(unit),
+    };
+    return handlers[actionType];
+  }
+
+  private async executeLoadUnitAction(
+    unit: Unit,
+    targetX?: number,
+    targetY?: number
+  ): Promise<ActionResult> {
+    const transport = this.findAvailableTransportAt(unit, targetX ?? unit.x, targetY ?? unit.y);
+    const loaded = transport ? await this.loadUnitOntoTransport(transport.id, unit.id) : false;
+    return {
+      success: loaded,
+      message: loaded ? 'Unit loaded' : 'No compatible transport with available capacity',
+    };
+  }
+
+  private async executeUnloadUnitAction(
+    unit: Unit,
+    targetX?: number,
+    targetY?: number
+  ): Promise<ActionResult> {
+    const unloaded = await this.unloadUnit(unit.id, targetX ?? unit.x, targetY ?? unit.y);
+    return {
+      success: unloaded,
+      message: unloaded ? 'Unit unloaded' : 'Unit cannot unload on the target tile',
+    };
+  }
+
+  private isDiplomatAction(actionType: ActionType): boolean {
+    return [
+      ActionType.ESTABLISH_EMBASSY,
+      ActionType.BRIBE_UNIT,
+      ActionType.STEAL_TECH,
+      ActionType.INVESTIGATE_CITY,
+      ActionType.INCITE_CITY,
+      ActionType.SABOTAGE_CITY,
+      ActionType.SABOTAGE_UNIT,
+      ActionType.POISON_WATER,
+    ].includes(actionType);
   }
 
   private async executeCityUnitAction(
@@ -3109,90 +3132,101 @@ export class UnitManager {
     const unit = this.units.get(unitId);
     if (!unit) return false;
 
-    if (actionType === ActionType.LOAD_UNIT) {
-      return Boolean(this.findAvailableTransportAt(unit, targetX ?? unit.x, targetY ?? unit.y));
-    }
-    if (actionType === ActionType.UNLOAD_UNIT) {
-      return this.canUnloadUnit(unitId, targetX ?? unit.x, targetY ?? unit.y);
-    }
-    if (actionType === ActionType.PARADROP) {
-      return this.canParadrop(unit, targetX, targetY);
-    }
-    if (actionType === ActionType.AIRLIFT) {
-      return this.canAirlift(unit, targetX, targetY);
-    }
-    if (actionType === ActionType.BOMBARD) {
-      return this.canBombard(unit, targetX, targetY);
-    }
-    if (actionType === ActionType.NUCLEAR_EXPLOSION) {
-      return this.canNuclearExplode(unit, targetX, targetY);
-    }
-    if (actionType === ActionType.COLLECT_RANSOM) {
-      return this.canTargetCombatUnit(unit, targetX, targetY);
-    }
-    if (actionType === ActionType.SUICIDE_ATTACK) {
-      return (
-        this.unitTypes[unit.unitTypeId].rulesetUnitClassFlags.includes('Missile') &&
-        this.canTargetCombatUnit(unit, targetX, targetY)
-      );
-    }
-    if (actionType === ActionType.AUTO_EXPLORE) {
-      return this.unitTypes[unit.unitTypeId].movement > 0;
-    }
-    if (actionType === ActionType.AUTO_SETTLER) {
-      return this.unitTypes[unit.unitTypeId].canBuildImprovements;
-    }
-    if (actionType === ActionType.PATROL) {
-      return Boolean(
-        targetX !== undefined &&
-          targetY !== undefined &&
-          unit.movementLeft > 0 &&
-          (unit.x !== targetX || unit.y !== targetY) &&
-          this.isValidPosition(targetX, targetY)
-      );
-    }
-    if (
-      [
-        ActionType.MARKETPLACE,
-        ActionType.HELP_WONDER,
-        ActionType.JOIN_CITY,
-        ActionType.DISBAND_UNIT_RECOVER,
-      ].includes(actionType)
-    ) {
-      return (
-        targetX !== undefined &&
-        targetY !== undefined &&
-        this.canPerformCityUnitAction(unit, actionType, targetX, targetY)
-      );
-    }
-    if (actionType === ActionType.CHANGE_HOME_CITY) {
-      const city =
-        targetX === undefined || targetY === undefined
-          ? null
-          : this.gameManagerCallback?.getCityAt?.(targetX, targetY);
-      return Boolean(
-        city &&
-          city.playerId === unit.playerId &&
-          unit.x === targetX &&
-          unit.y === targetY &&
-          unit.homeCityId &&
-          !this.unitTypes[unit.unitTypeId].flags?.includes('NoHome')
-      );
-    }
-    if (actionType === ActionType.UPGRADE_UNIT) {
-      const city = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
-      const from = this.unitTypes[unit.unitTypeId];
-      const to = from ? this.getBestUpgrade(from, unit.playerId) : undefined;
-      return Boolean(city && city.playerId === unit.playerId && to);
-    }
+    const directCheck = this.getDirectUnitActionCheck(unit, actionType);
+    if (directCheck) return directCheck(targetX, targetY);
+
     if (actionType === ActionType.BUILD_FORTRESS) {
-      if (!this.playerTechsProvider(unit.playerId).has('construction')) return false;
+      return (
+        this.playerTechsProvider(unit.playerId).has('construction') &&
+        this.actionSystem.canUnitPerformAction(unit, actionType, targetX, targetY)
+      );
     }
     if (actionType === ActionType.BUILD_AIRBASE) {
-      if (!this.playerTechsProvider(unit.playerId).has('radio')) return false;
+      return (
+        this.playerTechsProvider(unit.playerId).has('radio') &&
+        this.actionSystem.canUnitPerformAction(unit, actionType, targetX, targetY)
+      );
     }
 
     return this.actionSystem.canUnitPerformAction(unit, actionType, targetX, targetY);
+  }
+
+  private getDirectUnitActionCheck(
+    unit: Unit,
+    actionType: ActionType
+  ): ((targetX?: number, targetY?: number) => boolean) | undefined {
+    const checks: Partial<Record<ActionType, (targetX?: number, targetY?: number) => boolean>> = {
+      [ActionType.LOAD_UNIT]: (targetX, targetY) =>
+        Boolean(this.findAvailableTransportAt(unit, targetX ?? unit.x, targetY ?? unit.y)),
+      [ActionType.UNLOAD_UNIT]: (targetX, targetY) =>
+        this.canUnloadUnit(unit.id, targetX ?? unit.x, targetY ?? unit.y),
+      [ActionType.PARADROP]: (targetX, targetY) => this.canParadrop(unit, targetX, targetY),
+      [ActionType.AIRLIFT]: (targetX, targetY) => this.canAirlift(unit, targetX, targetY),
+      [ActionType.BOMBARD]: (targetX, targetY) => this.canBombard(unit, targetX, targetY),
+      [ActionType.NUCLEAR_EXPLOSION]: (targetX, targetY) =>
+        this.canNuclearExplode(unit, targetX, targetY),
+      [ActionType.COLLECT_RANSOM]: (targetX, targetY) =>
+        this.canTargetCombatUnit(unit, targetX, targetY),
+      [ActionType.SUICIDE_ATTACK]: (targetX, targetY) =>
+        this.unitTypes[unit.unitTypeId].rulesetUnitClassFlags.includes('Missile') &&
+        this.canTargetCombatUnit(unit, targetX, targetY),
+      [ActionType.AUTO_EXPLORE]: () => this.unitTypes[unit.unitTypeId].movement > 0,
+      [ActionType.AUTO_SETTLER]: () => this.unitTypes[unit.unitTypeId].canBuildImprovements,
+      [ActionType.PATROL]: (targetX, targetY) =>
+        targetX !== undefined &&
+        targetY !== undefined &&
+        unit.movementLeft > 0 &&
+        (unit.x !== targetX || unit.y !== targetY) &&
+        this.isValidPosition(targetX, targetY),
+      [ActionType.MARKETPLACE]: (targetX, targetY) =>
+        this.canPerformCityUnitActionAtTarget(unit, actionType, targetX, targetY),
+      [ActionType.HELP_WONDER]: (targetX, targetY) =>
+        this.canPerformCityUnitActionAtTarget(unit, actionType, targetX, targetY),
+      [ActionType.JOIN_CITY]: (targetX, targetY) =>
+        this.canPerformCityUnitActionAtTarget(unit, actionType, targetX, targetY),
+      [ActionType.DISBAND_UNIT_RECOVER]: (targetX, targetY) =>
+        this.canPerformCityUnitActionAtTarget(unit, actionType, targetX, targetY),
+      [ActionType.CHANGE_HOME_CITY]: (targetX, targetY) =>
+        this.canChangeHomeCity(unit, targetX, targetY),
+      [ActionType.UPGRADE_UNIT]: () => this.canUpgradeUnit(unit),
+    };
+    return checks[actionType];
+  }
+
+  private canPerformCityUnitActionAtTarget(
+    unit: Unit,
+    actionType: ActionType,
+    targetX?: number,
+    targetY?: number
+  ): boolean {
+    return (
+      targetX !== undefined &&
+      targetY !== undefined &&
+      this.canPerformCityUnitAction(unit, actionType, targetX, targetY)
+    );
+  }
+
+  private canChangeHomeCity(unit: Unit, targetX?: number, targetY?: number): boolean {
+    if (targetX === undefined || targetY === undefined) return false;
+    const city = this.gameManagerCallback?.getCityAt?.(targetX, targetY);
+    const unitType = this.unitTypes[unit.unitTypeId];
+    if (!city) return false;
+    if (city.playerId !== unit.playerId) return false;
+    if (unit.x !== targetX) return false;
+    if (unit.y !== targetY) return false;
+    if (!unit.homeCityId) return false;
+    return this.canUnitHaveHomeCity(unitType);
+  }
+
+  private canUnitHaveHomeCity(unitType: UnitType): boolean {
+    return !unitType.flags?.includes('NoHome');
+  }
+
+  private canUpgradeUnit(unit: Unit): boolean {
+    const city = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
+    const from = this.unitTypes[unit.unitTypeId];
+    const to = from ? this.getBestUpgrade(from, unit.playerId) : undefined;
+    return Boolean(city && city.playerId === unit.playerId && to);
   }
 
   /**
