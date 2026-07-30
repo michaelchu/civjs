@@ -25,6 +25,15 @@ export const TurnDoneButton: React.FC = () => {
     phase !== 'movement' ||
     turnProcessingState === 'processing';
 
+  const getDisabledReason = () => {
+    if (turnProcessingState === 'processing') return 'Turn processing is in progress';
+    if (clientState !== 'running') return `Connection is ${clientState.replaceAll('_', ' ')}`;
+    if (!currentPlayer) return 'Player data is still loading';
+    if (!currentPlayer.isActive) return 'It is not your turn';
+    if (phase !== 'movement') return `Turn completion is unavailable during the ${phase} phase`;
+    return undefined;
+  };
+
   const getButtonText = () => {
     if (turnProcessingState === 'processing') return 'Processing...';
     if (clientState !== 'running') return 'Waiting...';
@@ -42,7 +51,7 @@ export const TurnDoneButton: React.FC = () => {
           ? 'border-white/10 bg-white/5 text-slate-500'
           : 'border-emerald-300/35 bg-emerald-400/20 text-emerald-100 hover:bg-emerald-400/30'
       }`}
-      title={isDisabled ? 'You cannot end your turn right now' : 'End your turn (Shift+Enter)'}
+      title={getDisabledReason() ?? 'End your turn (Shift+Enter)'}
     >
       {turnProcessingState === 'processing' ? (
         <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
