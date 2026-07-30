@@ -692,7 +692,7 @@ export class GameManagementHandler extends BaseSocketHandler {
       id: player.id,
       name: value('leaderName', player.civilization),
       nation: value('nation', player.civilization),
-      score: 0,
+      score: value('score', 0),
       gold: value('gold', 0),
       science: value('science', 0),
       culture: value('history', 0),

@@ -113,6 +113,34 @@ describe('GameManagementHandler', () => {
     });
   });
 
+  describe('snapshot player formatting', () => {
+    it('preserves an authoritative persisted score during recovery', () => {
+      const snapshotPlayer = (handler as any).formatSnapshotPlayer({
+        id: mockPlayerId,
+        civilization: 'Romans',
+        color: { r: 180, g: 40, b: 40 },
+        score: 275,
+      });
+
+      expect(snapshotPlayer).toEqual(
+        expect.objectContaining({
+          id: mockPlayerId,
+          score: 275,
+        })
+      );
+    });
+
+    it('defaults score when older player state has no score field', () => {
+      const snapshotPlayer = (handler as any).formatSnapshotPlayer({
+        id: mockPlayerId,
+        civilization: 'Romans',
+        color: { r: 180, g: 40, b: 40 },
+      });
+
+      expect(snapshotPlayer.score).toBe(0);
+    });
+  });
+
   describe('advisor recommendations event', () => {
     it('returns read-only advice to the active human player', async () => {
       handler.register(mockPacketHandler, mockIo, mockSocket);
