@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import type { City, Player } from '../../types';
+import { NationInsignia } from './NationInsignia';
 
 const formatNationName = (nation: string): string => {
   if (nation === 'random') return 'Random';
@@ -31,9 +32,7 @@ const formatYear = (year: number | undefined): string => {
 const ResourceDelta: React.FC<{ label: string; value?: number }> = ({ label, value = 0 }) => (
   <span
     aria-label={`${label} per turn`}
-    className={
-      value > 0 ? 'text-emerald-300' : value < 0 ? 'text-rose-300' : 'text-slate-400'
-    }
+    className={value > 0 ? 'text-emerald-300' : value < 0 ? 'text-rose-300' : 'text-slate-400'}
   >
     ({value >= 0 ? '+' : ''}
     {value})
@@ -65,12 +64,12 @@ const ResourceMetric: React.FC<ResourceMetricProps> = ({
   </div>
 );
 
-const StatusPill: React.FC<{ clientState: string; phase: string; pendingActions: number; processing: boolean }> = ({
-  clientState,
-  phase,
-  pendingActions,
-  processing,
-}) => {
+const StatusPill: React.FC<{
+  clientState: string;
+  phase: string;
+  pendingActions: number;
+  processing: boolean;
+}> = ({ clientState, phase, pendingActions, processing }) => {
   const isRunning = clientState === 'running';
   return (
     <div
@@ -114,7 +113,9 @@ const EconomyButton: React.FC<{ player: Player; onOpen: () => void }> = ({ playe
   </button>
 );
 
-export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({ onOpenDemographics }) => {
+export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({
+  onOpenDemographics,
+}) => {
   const turn = useGameStore(state => state.turn);
   const year = useGameStore(state => state.year);
   const phase = useGameStore(state => state.phase);
@@ -130,7 +131,9 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({ onO
     return <div className="px-2 text-sm text-slate-400">Loading civilization status…</div>;
   }
 
-  const ownedCities = Object.values(cities).filter((city: City) => city.playerId === currentPlayerId);
+  const ownedCities = Object.values(cities).filter(
+    (city: City) => city.playerId === currentPlayerId
+  );
   const population = ownedCities.reduce(
     (total, city) => total + (city.actualPopulation ?? city.size),
     0
@@ -146,11 +149,7 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({ onO
         aria-label={`Open ${formatNationName(currentPlayer.nation)} government`}
         title={`${formatNationName(currentPlayer.nation)} · ${currentPlayer.name}`}
       >
-        <span
-          className="h-6 w-6 shrink-0 rounded-md border border-white/30 shadow-inner"
-          style={{ backgroundColor: currentPlayer.color }}
-          aria-hidden="true"
-        />
+        <NationInsignia color={currentPlayer.color} name={formatNationName(currentPlayer.nation)} />
         <span className="hidden min-w-0 sm:block">
           <span className="block max-w-28 truncate font-semibold text-slate-100">
             {formatNationName(currentPlayer.nation)}
@@ -184,7 +183,10 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({ onO
           icon={Palette}
           tone="text-violet-300"
         />
-        <div className="hidden items-center gap-1.5 whitespace-nowrap md:flex" title={`Trade: ${trade}`}>
+        <div
+          className="hidden items-center gap-1.5 whitespace-nowrap md:flex"
+          title={`Trade: ${trade}`}
+        >
           <ArrowLeftRight className="h-3.5 w-3.5 text-teal-300" aria-hidden="true" />
           <span className="hidden text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400 xl:inline">
             Trade
@@ -202,7 +204,10 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({ onO
 
       <div className="hidden h-7 w-px bg-white/10 lg:block" aria-hidden="true" />
 
-      <div className="flex items-center gap-1.5 whitespace-nowrap" title={`Population: ${population} · ${ownedCities.length} cities`}>
+      <div
+        className="flex items-center gap-1.5 whitespace-nowrap"
+        title={`Population: ${population} · ${ownedCities.length} cities`}
+      >
         <Users className="h-3.5 w-3.5 text-violet-300" aria-hidden="true" />
         <span className="font-semibold tabular-nums text-slate-100">{population}</span>
         <span className="hidden text-slate-500 sm:inline">·</span>
@@ -212,7 +217,9 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({ onO
       <div className="hidden items-center gap-3 lg:flex">
         <div className="flex items-center gap-1.5 whitespace-nowrap" title="Current score">
           <Building2 className="h-3.5 w-3.5 text-teal-300" aria-hidden="true" />
-          <span className="font-semibold tabular-nums text-slate-100">{currentPlayer.score ?? '—'}</span>
+          <span className="font-semibold tabular-nums text-slate-100">
+            {currentPlayer.score ?? '—'}
+          </span>
         </div>
         <button
           type="button"

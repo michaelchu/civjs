@@ -3,6 +3,7 @@ import { BarChart3, Trophy } from 'lucide-react';
 import type { Player } from '../../types';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/Table';
+import { NationInsignia } from './NationInsignia';
 
 export interface ScoreSnapshot {
   turn: number;
@@ -146,11 +147,7 @@ const ScoreChart: React.FC<{
       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 px-2 text-[10px] text-slate-400">
         {players.map(player => (
           <span key={player.id} className="inline-flex items-center gap-1.5">
-            <span
-              className="h-2 w-2 rounded-full"
-              style={{ backgroundColor: player.color }}
-              aria-hidden="true"
-            />
+            <NationInsignia color={player.color} name={player.name} size="sm" shape="dot" />
             {player.name}
           </span>
         ))}
@@ -248,12 +245,11 @@ export const ScoreReport: React.FC<ScoreReportProps> = ({
                         <TableCell className="text-slate-300">{index + 1}</TableCell>
                         <TableCell className="font-medium text-slate-100">
                           <span className="inline-flex items-center gap-2">
-                            <span
-                              className="h-2 w-2 rounded-full"
-                              style={{
-                                backgroundColor: player.color || palette[index % palette.length],
-                              }}
-                              aria-hidden="true"
+                            <NationInsignia
+                              color={player.color || palette[index % palette.length]}
+                              name={player.name}
+                              size="sm"
+                              shape="dot"
                             />
                             {formatNation(player.nation)}
                           </span>
