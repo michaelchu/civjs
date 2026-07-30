@@ -197,6 +197,7 @@ export const DiplomacyStrip: React.FC<{ onOpenIntelligence?: () => void }> = ({
   onOpenIntelligence,
 }) => {
   const [collapsed, setCollapsed] = React.useState(false);
+  const [mobileOpen, setMobileOpen] = React.useState(false);
   const diplomacy = useGameStore(state => state.diplomacy);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
 
@@ -207,8 +208,14 @@ export const DiplomacyStrip: React.FC<{ onOpenIntelligence?: () => void }> = ({
 
   if (collapsed) {
     return (
-      <HudPanel className="flex w-11 flex-col items-center gap-2 p-1.5 sm:flex">
-        <HudIconButton label="Expand diplomacy" onClick={() => setCollapsed(false)}>
+      <HudPanel className="flex w-11 flex-col items-center gap-2 p-1.5">
+        <HudIconButton
+          label="Expand diplomacy"
+          onClick={() => {
+            setCollapsed(false);
+            setMobileOpen(true);
+          }}
+        >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
         </HudIconButton>
         {pendingCount > 0 && (
@@ -221,7 +228,18 @@ export const DiplomacyStrip: React.FC<{ onOpenIntelligence?: () => void }> = ({
   }
 
   return (
-    <HudPanel className="hidden max-h-[min(36rem,calc(100vh-8rem))] w-72 flex-col overflow-hidden sm:flex">
+    <>
+      <HudPanel className={`${mobileOpen ? 'hidden' : 'flex'} w-11 flex-col items-center gap-2 p-1.5 sm:hidden`}>
+        <HudIconButton label="Open diplomacy" onClick={() => setMobileOpen(true)}>
+          <Users className="h-4 w-4 text-cyan-300" aria-hidden="true" />
+        </HudIconButton>
+        {(knownNations.length > 0 || unknownCount > 0) && (
+          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-cyan-400/15 px-1 text-[10px] font-semibold tabular-nums text-cyan-200">
+            {knownNations.length + unknownCount}
+          </span>
+        )}
+      </HudPanel>
+      <HudPanel className={`${mobileOpen ? 'flex' : 'hidden'} max-h-[min(36rem,calc(100vh-8rem))] w-72 flex-col overflow-hidden sm:flex`}>
       <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2.5">
         <Users className="h-4 w-4 text-cyan-300" aria-hidden="true" />
         <div className="min-w-0 flex-1">
@@ -233,7 +251,13 @@ export const DiplomacyStrip: React.FC<{ onOpenIntelligence?: () => void }> = ({
             {pendingCount}
           </span>
         )}
-        <HudIconButton label="Collapse diplomacy" onClick={() => setCollapsed(true)}>
+        <HudIconButton
+          label="Collapse diplomacy"
+          onClick={() => {
+            setCollapsed(true);
+            setMobileOpen(false);
+          }}
+        >
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
         </HudIconButton>
       </div>
@@ -287,6 +311,7 @@ export const DiplomacyStrip: React.FC<{ onOpenIntelligence?: () => void }> = ({
           </>
         )}
       </div>
-    </HudPanel>
+      </HudPanel>
+    </>
   );
 };

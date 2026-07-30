@@ -103,4 +103,13 @@ describe('DiplomacyStrip', () => {
       screen.queryByRole('button', { name: 'Open intelligence report for Hidden Leader' })
     ).not.toBeInTheDocument();
   });
+
+  it('keeps diplomacy accessible through a compact mobile entry point', () => {
+    render(<DiplomacyStrip />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open diplomacy' }));
+
+    expect(screen.getByText('Known world leaders')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /collapse diplomacy/i })).toBeInTheDocument();
+  });
 });
