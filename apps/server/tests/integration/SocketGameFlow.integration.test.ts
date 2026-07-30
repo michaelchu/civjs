@@ -157,6 +157,7 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
         maxPlayers: 2,
         mapWidth: 40,
         mapHeight: 25,
+        ruleset: 'classic',
         selectedNation: 'roman',
       },
     });
@@ -319,7 +320,7 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     // - classic corruption removes 1 trade from this capital;
     // - 30/30/40 tax rates distribute 3 trade as 1/1/1 and 5 as 2/1/2
     //   (gold/luxury/science), using Freeciv's largest-remainder allocation;
-    // - 20 stored food grows the city from size 1 to size 2.
+    // - 20 stored food grows the city at each population threshold.
     //
     // Keep this table explicit: it is an external expectation for the full turn
     // pipeline, not a restatement of the production implementation.
@@ -592,17 +593,17 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       },
       {
         turn: 21,
-        population: 2,
-        foodStock: 20,
+        population: 3,
+        foodStock: 0,
         shieldStock: 20,
         food: 2,
         shields: 1,
-        trade: 5,
-        science: 2,
+        trade: 7,
+        science: 3,
         goldOutput: 2,
-        luxury: 1,
+        luxury: 2,
         cumulativeGold: 31,
-        cumulativeScience: 31,
+        cumulativeScience: 32,
       },
     ];
 
@@ -751,8 +752,8 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     const cityAfterTwentyTurns = gameManager.getGameInstance(gameId)?.cityManager.getCity(cityId);
     expect(cityAfterTwentyTurns).toMatchObject({
       id: cityId,
-      population: 2,
-      foodStock: 20,
+      population: 3,
+      foodStock: 0,
     });
     expect(cityAfterTwentyTurns!.productionPerTurn).toBeGreaterThan(0);
     expect(cityAfterTwentyTurns!.tradePerTurn).toBeGreaterThan(0);

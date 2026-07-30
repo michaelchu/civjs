@@ -1,4 +1,3 @@
-import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { DatabaseProvider } from '@database';
 import { governmentChanges, players as playersTable } from '@database/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -61,20 +60,20 @@ export interface PlayerGovernment {
 }
 
 // Load governments from ruleset system
-export function getGovernments(rulesetName: string = DEFAULT_RULESET): Record<string, Government> {
+export function getGovernments(rulesetName: string = 'classic'): Record<string, Government> {
   return rulesetLoader.getGovernments(rulesetName);
 }
 
 // Get individual government
 export function getGovernment(
   governmentId: string,
-  rulesetName: string = DEFAULT_RULESET
+  rulesetName: string = 'classic'
 ): Government {
   return rulesetLoader.getGovernment(governmentId, rulesetName);
 }
 
 // Get revolution government type
-export function getRevolutionGovernment(rulesetName: string = DEFAULT_RULESET): string {
+export function getRevolutionGovernment(rulesetName: string = 'classic'): string {
   return rulesetLoader.getRevolutionGovernment(rulesetName);
 }
 
@@ -83,6 +82,7 @@ export class GovernmentManager {
   private gameId: string;
   private databaseProvider: DatabaseProvider;
   private effectsManager: EffectsManager;
+  private readonly rulesetName: string;
 
   constructor(
     gameId: string,
@@ -93,6 +93,7 @@ export class GovernmentManager {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
     this.effectsManager = effectsManager || new EffectsManager();
+    this.rulesetName = this.effectsManager.getRulesetName();
   }
 
   public async initializePlayerGovernment(playerId: string): Promise<void> {
@@ -161,13 +162,13 @@ export class GovernmentManager {
     if (requestedGovernment === playerGov.currentGovernment) {
       return { success: false, message: 'Already using this government' };
     }
-    if (requestedGovernment === getRevolutionGovernment()) {
+    if (requestedGovernment === getRevolutionGovernment(this.rulesetName)) {
       return { success: false, message: 'Anarchy cannot be selected as a target government' };
     }
 
     // Validate requested government exists
     try {
-      getGovernment(requestedGovernment);
+      getGovernment(requestedGovernment, this.rulesetName);
     } catch {
       return { success: false, message: 'Invalid government type' };
     }
@@ -213,9 +214,12 @@ export class GovernmentManager {
 
   public async processRevolutionTurn(playerId: string): Promise<string | null> {
     const playerGov = this.playerGovernments.get(playerId);
-    if (!playerGov || playerGov.revolutionTurns <= 0) {
+    if (!playerGov) {
       return null;
     }
+
+    playerGov.revolutionTurns = Math.max(0, Number(playerGov.revolutionTurns) || 0);
+    if (playerGov.revolutionTurns <= 0) return null;
 
     playerGov.revolutionTurns--;
 
@@ -284,7 +288,7 @@ export class GovernmentManager {
   ): { allowed: boolean; reason?: string } {
     let government: Government;
     try {
-      government = getGovernment(governmentId);
+      government = getGovernment(governmentId, this.rulesetName);
     } catch {
       return { allowed: false, reason: 'Government does not exist' };
     }
@@ -322,7 +326,7 @@ export class GovernmentManager {
 
     let government: Government;
     try {
-      government = getGovernment(playerGov.currentGovernment);
+      government = getGovernment(playerGov.currentGovernment, this.rulesetName);
     } catch {
       return playerName;
     }
@@ -340,7 +344,7 @@ export class GovernmentManager {
     available: boolean;
     reason?: string;
   }[] {
-    const governments = getGovernments();
+    const governments = getGovernments(this.rulesetName);
     return Object.entries(governments).map(([id, government]) => {
       const check = this.canPlayerUseGovernment(id, playerResearchedTechs);
       return {
@@ -360,12 +364,12 @@ export class GovernmentManager {
   }
 
   public getAllGovernments(): Record<string, Government> {
-    return getGovernments();
+    return getGovernments(this.rulesetName);
   }
 
   public getGovernmentById(governmentId: string): Government | null {
     try {
-      return getGovernment(governmentId);
+      return getGovernment(governmentId, this.rulesetName);
     } catch {
       return null;
     }
@@ -377,7 +381,7 @@ export class GovernmentManager {
    */
   public async canChangeGovernment(playerId: string, governmentType: string): Promise<boolean> {
     try {
-      const government = getGovernment(governmentType);
+      const government = getGovernment(governmentType, this.rulesetName);
       const playerGov = this.playerGovernments.get(playerId);
 
       if (!playerGov) {
@@ -466,7 +470,7 @@ export class GovernmentManager {
     }
 
     try {
-      getGovernment(playerGov.currentGovernment); // Validate government exists
+      getGovernment(playerGov.currentGovernment, this.rulesetName); // Validate government exists
       const context: EffectContext = {
         playerId,
         government: playerGov.currentGovernment,
