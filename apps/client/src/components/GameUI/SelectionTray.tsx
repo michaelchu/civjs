@@ -48,7 +48,7 @@ const ActionButton: React.FC<{
     disabled={disabled}
     title={title ?? label}
     aria-label={label}
-    className="flex h-9 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 text-xs font-medium text-slate-200 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 disabled:cursor-not-allowed disabled:opacity-40"
+    className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 text-xs font-medium text-slate-200 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 disabled:cursor-not-allowed disabled:opacity-40"
   >
     <Icon className="h-4 w-4" aria-hidden="true" />
     <span className="hidden sm:inline">{label}</span>
@@ -139,7 +139,7 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
   return (
     <HudPanel
       variant="active"
-      className="flex max-w-[min(48rem,calc(100vw-1.5rem))] items-center gap-3 px-3 py-2 sm:gap-4 sm:px-4"
+      className="flex max-w-[min(48rem,calc(100vw-1.5rem))] items-center gap-3 overflow-x-auto px-3 py-2 sm:gap-4 sm:px-4"
     >
       <div className="flex min-w-0 items-center gap-2">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cyan-300/30 bg-cyan-300/10 text-cyan-200">
@@ -237,7 +237,7 @@ const CityTray: React.FC<{ city: City }> = ({ city }) => {
   return (
     <HudPanel
       variant="active"
-      className="flex max-w-[min(52rem,calc(100vw-1.5rem))] items-center gap-3 px-3 py-2 sm:gap-4 sm:px-4"
+      className="flex max-w-[min(52rem,calc(100vw-1.5rem))] items-center gap-3 overflow-x-auto px-3 py-2 sm:gap-4 sm:px-4"
     >
       <div className="flex min-w-0 items-center gap-2">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-violet-300/30 bg-violet-300/10 text-violet-200">
@@ -328,7 +328,7 @@ export const SelectionTray: React.FC = () => {
   ).length;
 
   return (
-    <HudPanel className="flex max-w-[min(34rem,calc(100vw-1.5rem))] items-center gap-3 px-3 py-2 sm:px-4">
+    <HudPanel className="flex max-w-[min(34rem,calc(100vw-1.5rem))] items-center gap-3 overflow-x-auto px-3 py-2 sm:px-4">
       <div className="flex items-center gap-2 text-xs text-slate-300">
         <Crosshair className="h-4 w-4 text-cyan-300" aria-hidden="true" />
         <span className="hidden sm:inline">Select a unit or city</span>
