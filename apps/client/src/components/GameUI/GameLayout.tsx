@@ -21,6 +21,7 @@ import { HudPanel } from './HudPanel';
 import { SelectionTray } from './SelectionTray';
 import { Minimap } from './Minimap';
 import { ObjectivesJournal } from './ObjectivesJournal';
+import { DiplomacyStrip } from './DiplomacyStrip';
 
 interface GameLayoutProps {
   rulesetName?: string;
@@ -137,6 +138,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
               bottomCenter={<SelectionTray />}
               bottomLeft={<Minimap />}
               left={<ObjectivesJournal />}
+              right={<DiplomacyStrip />}
             />
           </div>
 
