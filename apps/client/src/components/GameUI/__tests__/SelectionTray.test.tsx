@@ -114,6 +114,23 @@ describe('SelectionTray', () => {
     expect(screen.getByTitle('Owner: Player One · Cargo: 2 cargo')).toBeInTheDocument();
   });
 
+  it('explains why unit actions are unavailable', () => {
+    useGameStore.setState({
+      selectedUnitId: 'unit-1',
+      focusedUnits: ['unit-1'],
+      phase: 'research',
+    });
+    render(<SelectionTray />);
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Actions unavailable during the research phase'
+    );
+    expect(screen.getByRole('button', { name: 'Go to' })).toHaveAttribute(
+      'aria-describedby',
+      'unit-action-status'
+    );
+  });
+
   it('shows queued order state when the unit has a command queue', () => {
     useGameStore.setState({
       selectedUnitId: 'unit-1',

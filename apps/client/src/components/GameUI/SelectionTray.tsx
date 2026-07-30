@@ -41,13 +41,15 @@ const ActionButton: React.FC<{
   onClick: () => void;
   disabled?: boolean;
   title?: string;
-}> = ({ label, icon: Icon, onClick, disabled = false, title }) => (
+  describedBy?: string;
+}> = ({ label, icon: Icon, onClick, disabled = false, title, describedBy }) => (
   <button
     type="button"
     onClick={onClick}
     disabled={disabled}
     title={title ?? label}
     aria-label={label}
+    aria-describedby={describedBy}
     className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 text-xs font-medium text-slate-200 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 disabled:cursor-not-allowed disabled:opacity-40"
   >
     <Icon className="h-4 w-4" aria-hidden="true" />
@@ -100,6 +102,15 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
       : unit.activity
         ? formatName(String(unit.activity))
         : 'Idle';
+  const actionStatus = !isOwned
+    ? 'You do not control this unit'
+    : clientState !== 'running'
+      ? `Actions unavailable while connection is ${clientState.replaceAll('_', ' ')}`
+      : phase !== 'movement'
+        ? `Actions unavailable during the ${phase} phase`
+        : !unit.capabilities?.canFortify
+          ? 'Fortify is unavailable for this unit'
+          : undefined;
 
   const dispatchTargetAction = (action: ActionType) => {
     document.dispatchEvent(
@@ -183,6 +194,17 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
         </div>
       )}
 
+      {actionStatus && (
+        <div
+          id="unit-action-status"
+          role="status"
+          className="max-w-52 shrink-0 truncate text-[10px] text-amber-200/80"
+          title={actionStatus}
+        >
+          {actionStatus}
+        </div>
+      )}
+
       <div className="ml-auto flex items-center gap-1.5">
         {queuedOrders.length > 0 && (
           <ActionButton
@@ -190,6 +212,7 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
             icon={X}
             onClick={() => void executeAction(ActionType.CANCEL_ORDERS)}
             disabled={!canAct}
+            describedBy={!canAct && actionStatus ? 'unit-action-status' : undefined}
             title={canAct ? 'Cancel all queued orders' : 'Unit cannot act right now'}
           />
         )}
@@ -198,6 +221,7 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
           icon={MapPin}
           onClick={() => void executeAction(ActionType.GOTO)}
           disabled={!canAct}
+          describedBy={!canAct && actionStatus ? 'unit-action-status' : undefined}
           title={canAct ? 'Select a destination on the map' : 'Unit cannot act right now'}
         />
         <ActionButton
@@ -207,6 +231,7 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
             void executeAction(unit.fortified ? ActionType.SENTRY : ActionType.FORTIFY)
           }
           disabled={!canAct || !unit.capabilities?.canFortify}
+          describedBy={!canAct || !unit.capabilities?.canFortify ? 'unit-action-status' : undefined}
           title={
             !unit.capabilities?.canFortify
               ? 'This unit cannot fortify'
@@ -250,7 +275,11 @@ const CityTray: React.FC<{ city: City }> = ({ city }) => {
           </div>
           <div
             className="text-[10px] uppercase tracking-[0.12em] text-slate-400"
-            title={city.actualPopulation === undefined ? 'Population uses city-size fallback' : 'Population'}
+            title={
+              city.actualPopulation === undefined
+                ? 'Population uses city-size fallback'
+                : 'Population'
+            }
           >
             Pop {city.actualPopulation ?? city.size} ·{' '}
             {city.granaryTurns < 0
