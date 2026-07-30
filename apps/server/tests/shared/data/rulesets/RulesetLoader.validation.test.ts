@@ -86,6 +86,41 @@ describe('RulesetLoader validation', () => {
     const loader = new RulesetLoader(join(__dirname, '../../../../src/shared/data/rulesets'));
 
     expect(() => loader.validateRuleset('civ2civ3')).not.toThrow();
+    expect(Object.keys(loader.getNations('civ2civ3')).sort()).toEqual(
+      [
+        'american',
+        'aztec',
+        'babylonian',
+        'chinese',
+        'egyptian',
+        'english',
+        'french',
+        'german',
+        'greek',
+        'indian',
+        'iroquois',
+        'japanese',
+        'persian',
+        'roman',
+        'russian',
+        'zulu',
+        'arab',
+        'celtic',
+        'carthaginian',
+        'korean',
+        'mongol',
+        'ottoman',
+        'spanish',
+        'viking',
+        'byzantine',
+        'dutch',
+        'hittite',
+        'inca',
+        'mayan',
+        'portuguese',
+        'sumerian',
+      ].sort()
+    );
     expect(loader.getUnits('civ2civ3').settlers).toMatchObject({
       pop_cost: 2,
       flags: expect.arrayContaining(['Workers', 'Cities']),

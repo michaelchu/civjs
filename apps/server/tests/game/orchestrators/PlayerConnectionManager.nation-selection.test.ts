@@ -1,7 +1,6 @@
 // Mock playerColors FIRST, before any imports
 jest.mock('@utils/playerColors', () => ({
   getNextPlayerColorTheme: jest.fn(() => {
-    console.log('Mock getNextPlayerColorTheme called');
     return {
       primary: { r: 255, g: 0, b: 255 }, // Magenta for testing
       secondary: { r: 255, g: 255, b: 255 },
