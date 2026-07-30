@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { MapCanvas } from '../Canvas2D/MapCanvas';
-import { GameTabs } from './GameTabs';
 import { StatusPanel } from './StatusPanel';
 import { TechnologyTree } from '../Research/TechnologyTree';
 import { GovernmentPanel } from './GovernmentPanel';
@@ -27,6 +26,9 @@ import { IntelligenceReport } from './IntelligenceReport';
 import { SpaceRaceReport } from './SpaceRaceReport';
 import { WarCalculator } from './WarCalculator';
 import { CivilopediaDialog } from './CivilopediaDialog';
+import { ReportDialog } from './ReportDialog';
+import { ReportRail } from './ReportRail';
+import { openReport } from './reportEvents';
 
 interface GameLayoutProps {
   rulesetName?: string;
@@ -45,6 +47,10 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
   const [spaceRaceReportOpen, setSpaceRaceReportOpen] = useState(false);
   const [warCalculatorOpen, setWarCalculatorOpen] = useState(false);
   const [civilopediaOpen, setCivilopediaOpen] = useState(false);
+  const [governmentReportOpen, setGovernmentReportOpen] = useState(false);
+  const [researchReportOpen, setResearchReportOpen] = useState(false);
+  const [diplomacyReportOpen, setDiplomacyReportOpen] = useState(false);
+  const [empireReportOpen, setEmpireReportOpen] = useState(false);
   const [scoreHistory, setScoreHistory] = useState<ScoreSnapshot[]>([]);
 
   const activeTab = useGameStore(state => state.activeTab);
@@ -106,7 +112,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
   }, []);
 
   const calculateCanvasSize = () => {
-    const headerHeight = 52; // Combined tab header and status bar height (reduced)
+    const headerHeight = 0;
     const padding = 0; // Remove padding to use full space
 
     return {
@@ -129,6 +135,18 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
       return [...withoutCurrentTurn, { turn, scores }].slice(-40);
     });
   }, [players, turn]);
+
+  useEffect(() => {
+    const handleOpenReport = (event: Event) => {
+      const report = (event as CustomEvent<{ report?: string }>).detail?.report;
+      if (report === 'government') setGovernmentReportOpen(true);
+      if (report === 'research') setResearchReportOpen(true);
+      if (report === 'diplomacy') setDiplomacyReportOpen(true);
+      if (report === 'empire') setEmpireReportOpen(true);
+    };
+    document.addEventListener('open-report', handleOpenReport);
+    return () => document.removeEventListener('open-report', handleOpenReport);
+  }, []);
 
   if (clientState === 'initial' || clientState === 'connecting') {
     return (
@@ -211,17 +229,11 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
         onOpenChange={setCivilopediaOpen}
         technologies={technologies}
       />
-      {/* Header with tabs and status */}
-      <div className="flex items-center justify-between border-b border-white/10 bg-slate-950/45 px-4 py-1 backdrop-blur-md">
-        <GameTabs />
-      </div>
-
       {/* Main content area */}
       <div className="flex-1 overflow-hidden flex flex-col">
         {/* Primary content */}
         <div className="flex-1 relative">
-          {/* Keep MapCanvas mounted but hidden to avoid reloading tileset */}
-          <div className={`h-full relative ${activeTab === 'map' ? 'block' : 'hidden'}`}>
+          <div className={`h-full relative ${activeTab === 'options' ? 'hidden' : 'block'}`}>
             <MapCanvas
               width={canvasSize.width}
               height={canvasSize.height}
@@ -235,7 +247,17 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
               }
               bottomCenter={<SelectionTray />}
               bottomLeft={<Minimap />}
-              right={<DiplomacyStrip onOpenIntelligence={() => setIntelligenceReportOpen(true)} />}
+              left={
+                <div className="flex flex-col items-center gap-2">
+                  <ReportRail
+                    onOpenGovernment={() => openReport('government')}
+                    onOpenResearch={() => openReport('research')}
+                    onOpenDiplomacy={() => openReport('diplomacy')}
+                    onOpenEmpire={() => openReport('empire')}
+                  />
+                  <DiplomacyStrip />
+                </div>
+              }
               bottomRight={
                 <TurnActionCluster
                   onOpenScores={() => setScoreReportOpen(true)}
@@ -251,29 +273,44 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
             />
           </div>
 
-          <div className={`${activeTab === 'government' ? 'block' : 'hidden'}`}>
-            <GovernmentPanel />
-          </div>
-
-          <div
-            className={`h-full w-full relative ${activeTab === 'research' ? 'block' : 'hidden'}`}
-          >
-            <TechnologyTree />
-          </div>
-
-          <div className={`h-full ${activeTab === 'nations' ? 'block' : 'hidden'}`}>
-            <NationsPanel />
-          </div>
-
-          <div className={`h-full ${activeTab === 'cities' ? 'block' : 'hidden'}`}>
-            <CitiesPanel />
-          </div>
-
           <div className={`h-full ${activeTab === 'options' ? 'block' : 'hidden'}`}>
             <GameOptionsPanel />
           </div>
         </div>
       </div>
+
+      <ReportDialog
+        open={governmentReportOpen}
+        onOpenChange={setGovernmentReportOpen}
+        title="Government"
+        description="Review your current government and manage a revolution."
+      >
+        <GovernmentPanel />
+      </ReportDialog>
+      <ReportDialog
+        open={researchReportOpen}
+        onOpenChange={setResearchReportOpen}
+        title="Research"
+        description="Review the technology tree and choose your next research goal."
+      >
+        <TechnologyTree />
+      </ReportDialog>
+      <ReportDialog
+        open={diplomacyReportOpen}
+        onOpenChange={setDiplomacyReportOpen}
+        title="Diplomacy"
+        description="Review nations, treaties, and diplomatic actions."
+      >
+        <NationsPanel />
+      </ReportDialog>
+      <ReportDialog
+        open={empireReportOpen}
+        onOpenChange={setEmpireReportOpen}
+        title="Empire"
+        description="Review and manage your cities, production, and governors."
+      >
+        <CitiesPanel />
+      </ReportDialog>
     </div>
   );
 };

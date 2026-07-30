@@ -12,6 +12,7 @@ import {
   Wifi,
 } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
+import { openReport } from './reportEvents';
 import type { City, Player } from '../../types';
 import { NationInsignia } from './NationInsignia';
 
@@ -144,7 +145,7 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({
     <div className="flex min-w-max items-center gap-2 text-xs sm:gap-3">
       <button
         type="button"
-        onClick={() => setActiveTab('government')}
+        onClick={() => openReport('government')}
         className="flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
         aria-label={`Open ${formatNationName(currentPlayer.nation)} government`}
         title={`${formatNationName(currentPlayer.nation)} · ${currentPlayer.name}`}
@@ -223,7 +224,7 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({
         </div>
         <button
           type="button"
-          onClick={() => setActiveTab('government')}
+          onClick={() => openReport('government')}
           className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
           aria-label={`Open ${currentPlayer.government} government`}
           title="Open government"
@@ -237,7 +238,7 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({
           type="button"
           onClick={() => {
             if (onOpenDemographics) onOpenDemographics();
-            else setActiveTab('nations');
+            else openReport('diplomacy');
           }}
           className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
           aria-label="Open demographics report"

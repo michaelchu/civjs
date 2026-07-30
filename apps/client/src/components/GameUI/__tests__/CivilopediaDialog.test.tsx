@@ -6,7 +6,11 @@ import { CivilopediaDialog } from '../CivilopediaDialog';
 
 const technologies: Record<string, Technology> = {
   writing: {
-    id: 'writing', name: 'Writing', cost: 20, requirements: [], discovered: true,
+    id: 'writing',
+    name: 'Writing',
+    cost: 20,
+    requirements: [],
+    discovered: true,
     description: 'Enables written knowledge.',
   },
 };
@@ -27,11 +31,15 @@ describe('CivilopediaDialog', () => {
     expect(screen.getByRole('heading', { name: 'Civilopedia' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Command controls' })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole('textbox', { name: 'Search Civilopedia' }), { target: { value: 'combat' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search Civilopedia' }), {
+      target: { value: 'combat' },
+    });
     expect(screen.getByRole('heading', { name: 'Combat and war calculator' })).toBeInTheDocument();
     expect(screen.queryByText('Command controls')).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole('textbox', { name: 'Search Civilopedia' }), { target: { value: '' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search Civilopedia' }), {
+      target: { value: '' },
+    });
     fireEvent.click(screen.getByRole('button', { name: /^Technology/ }));
     expect(screen.getByRole('button', { name: /Writing/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Writing Technology/ }));
@@ -40,6 +48,7 @@ describe('CivilopediaDialog', () => {
 
   it('opens the research screen from the technology reference', () => {
     const onOpenChange = vi.fn();
+    const dispatchSpy = vi.spyOn(document, 'dispatchEvent');
     useGameStore.setState({
       activeTab: 'map',
       research: {
@@ -55,7 +64,9 @@ describe('CivilopediaDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Technology/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Open Research' }));
 
-    expect(useGameStore.getState().activeTab).toBe('research');
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'open-report', detail: { report: 'research' } })
+    );
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

@@ -23,6 +23,7 @@ import { HudPanel } from './HudPanel';
 import { ObjectivesJournal } from './ObjectivesJournal';
 import { TurnDoneButton } from './TurnDoneButton';
 import { ChatBox } from './ChatBox';
+import { openReport } from './reportEvents';
 
 const ReportsMenu: React.FC<{
   onClose: () => void;
@@ -43,12 +44,6 @@ const ReportsMenu: React.FC<{
   onOpenSpaceRace,
   onOpenWarCalculator,
 }) => {
-  const setActiveTab = useGameStore(state => state.setActiveTab);
-  const openTab = (tab: Parameters<typeof setActiveTab>[0]) => {
-    setActiveTab(tab);
-    onClose();
-  };
-
   return (
     <div
       id="turn-reports-menu"
@@ -102,7 +97,10 @@ const ReportsMenu: React.FC<{
         </button>
         <button
           type="button"
-          onClick={() => openTab('cities')}
+          onClick={() => {
+            onClose();
+            openReport('empire');
+          }}
           className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
         >
           <Building2 className="h-3.5 w-3.5" aria-hidden="true" /> Empire
@@ -139,21 +137,30 @@ const ReportsMenu: React.FC<{
         </button>
         <button
           type="button"
-          onClick={() => openTab('research')}
+          onClick={() => {
+            onClose();
+            openReport('research');
+          }}
           className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
         >
           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Research
         </button>
         <button
           type="button"
-          onClick={() => openTab('nations')}
+          onClick={() => {
+            onClose();
+            openReport('diplomacy');
+          }}
           className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
         >
           <Flag className="h-3.5 w-3.5" aria-hidden="true" /> Diplomacy
         </button>
         <button
           type="button"
-          onClick={() => openTab('government')}
+          onClick={() => {
+            onClose();
+            openReport('government');
+          }}
           className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
         >
           <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" /> Government

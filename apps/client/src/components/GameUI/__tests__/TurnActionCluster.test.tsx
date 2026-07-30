@@ -72,7 +72,7 @@ describe('TurnActionCluster', () => {
       'true'
     );
     fireEvent.click(screen.getByRole('button', { name: /research/i }));
-    expect(useGameStore.getState().activeTab).toBe('research');
+    expect(useGameStore.getState().activeTab).toBe('map');
 
     useGameStore.getState().setActiveTab('map');
     fireEvent.click(screen.getByRole('button', { name: 'Help' }));
@@ -109,7 +109,7 @@ describe('TurnActionCluster', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reports' }));
     fireEvent.click(screen.getByRole('button', { name: 'Empire' }));
 
-    expect(useGameStore.getState().activeTab).toBe('cities');
+    expect(useGameStore.getState().activeTab).toBe('map');
   });
 
   it('groups secondary command actions behind the narrow-screen overflow', () => {

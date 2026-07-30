@@ -1,20 +1,8 @@
 import React from 'react';
-import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  CircleAlert,
-  Eye,
-  Handshake,
-  MapPin,
-  Radar,
-  Shield,
-  Swords,
-  Users,
-  X,
-} from 'lucide-react';
+import { Eye, Handshake, Shield, Swords, Users } from 'lucide-react';
 import { gameClient } from '../../services/GameClient';
 import { useGameStore } from '../../store/gameStore';
+import { openReport } from './reportEvents';
 import type { DiplomacyNation, DiplomaticState } from '../../types';
 import { HudIconButton } from './HudIconButton';
 import { HudPanel } from './HudPanel';
@@ -62,286 +50,161 @@ const RelationBadge: React.FC<{ state: DiplomaticState }> = ({ state }) => {
   );
 };
 
-const ProposalActions: React.FC<{ nation: DiplomacyNation; currentPlayerId: string }> = ({
-  nation,
-  currentPlayerId,
-}) => {
-  const proposal = nation.relation.proposal;
-  if (!proposal || proposal.status !== 'pending') return null;
-
-  const incoming = proposal.recipientId === currentPlayerId;
-  return (
-    <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-amber-300/20 bg-amber-300/10 px-2 py-1.5">
-      <CircleAlert className="h-3.5 w-3.5 shrink-0 text-amber-300" aria-hidden="true" />
-      <span className="min-w-0 flex-1 truncate text-[10px] text-amber-100">
-        {incoming ? 'Incoming proposal' : 'Proposal pending'}
-      </span>
-      {incoming ? (
-        <>
-          <HudIconButton
-            label={`Accept proposal from ${nation.leaderName}`}
-            className="h-6 w-6 text-emerald-200"
-            onClick={() => gameClient.respondToTreaty(nation.id, proposal.id, true)}
-          >
-            <Check className="h-3.5 w-3.5" aria-hidden="true" />
-          </HudIconButton>
-          <HudIconButton
-            label={`Reject proposal from ${nation.leaderName}`}
-            className="h-6 w-6 text-rose-200"
-            onClick={() => gameClient.respondToTreaty(nation.id, proposal.id, false)}
-          >
-            <X className="h-3.5 w-3.5" aria-hidden="true" />
-          </HudIconButton>
-        </>
-      ) : (
-        <HudIconButton
-          label={`Cancel proposal to ${nation.leaderName}`}
-          className="h-6 w-6 text-slate-300"
-          onClick={() => gameClient.cancelTreaty(nation.id, proposal.id)}
-        >
-          <X className="h-3.5 w-3.5" aria-hidden="true" />
-        </HudIconButton>
-      )}
-    </div>
-  );
-};
-
 const LeaderRow: React.FC<{
   nation: DiplomacyNation;
-  currentPlayerId: string;
   color?: string;
-  knownLocation?: { x: number; y: number; label: string };
-  onOpenIntelligence?: () => void;
-}> = ({ nation, currentPlayerId, color, knownLocation, onOpenIntelligence }) => {
-  const setActiveTab = useGameStore(state => state.setActiveTab);
+}> = ({ nation, color }) => {
+  return <NationButton nation={nation} color={color} />;
+};
 
-  if (!nation.known) {
-    return (
-      <div className="flex items-center gap-2 rounded-lg px-2 py-2">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-500">
-          <Shield className="h-4 w-4" aria-hidden="true" />
-        </div>
-        <div className="min-w-0">
-          <div className="text-xs font-medium text-slate-300">Unknown nation</div>
-          <div className="text-[10px] text-slate-500">Identity hidden until contact</div>
-        </div>
-      </div>
-    );
-  }
+const NationButton: React.FC<{
+  nation: DiplomacyNation;
+  color?: string;
+}> = ({ nation, color }) => {
+  const known = nation.known;
+  const proposalPending = nation.relation.proposal?.status === 'pending';
+  const hasRelationshipDetails =
+    nation.relation.embassy ||
+    nation.relation.sharedVision ||
+    nation.relation.givesSharedVision ||
+    proposalPending;
+  const label = known ? `Open diplomacy card for ${nation.leaderName}` : 'Unknown nation';
 
   return (
-    <div className="rounded-lg px-1 py-1 transition-colors hover:bg-white/5">
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTab('nations');
+    <div className="group relative">
+      <HudIconButton
+        label={label}
+        hideTitle
+        className="relative h-9 w-9 rounded-lg p-0"
+        onClick={() => {
+          openReport('diplomacy');
+          if (known) {
             document.dispatchEvent(
               new CustomEvent('focus-nation-card', { detail: { nationId: nation.id } })
             );
-          }}
-          aria-label={`Open diplomacy card for ${nation.leaderName}`}
-          className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
-        >
-          <NationInsignia color={color ?? '#0e7490'} name={nation.civilization} size="lg" />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-xs font-semibold text-slate-100">
-              {nation.leaderName}
-            </span>
-            <span className="block truncate text-[10px] text-slate-500">
-              {nation.civilization} · {nation.isAI ? 'AI' : 'Human'}
-            </span>
-          </span>
-          <RelationBadge state={nation.relation.state} />
-        </button>
-        {onOpenIntelligence && (
-          <HudIconButton
-            label={`Open intelligence report for ${nation.leaderName}`}
-            title="Open intelligence report"
-            className="h-7 w-7 shrink-0 text-sky-300"
-            onClick={onOpenIntelligence}
-          >
-            <Radar className="h-3.5 w-3.5" aria-hidden="true" />
-          </HudIconButton>
+          }
+        }}
+      >
+        {known ? (
+          <NationInsignia color={color ?? '#0e7490'} name={nation.civilization} size="md" />
+        ) : (
+          <Shield className="h-4 w-4 text-slate-500" aria-hidden="true" />
         )}
-        {knownLocation && (
-          <HudIconButton
-            label={`Center on known ${knownLocation.label} for ${nation.leaderName}`}
-            title={`Center on ${knownLocation.label}`}
-            className="h-7 w-7 shrink-0 text-cyan-300"
-            onClick={() =>
-              document.dispatchEvent(
-                new CustomEvent('center-map-on-tile', {
-                  detail: { x: knownLocation.x, y: knownLocation.y },
-                })
-              )
-            }
-          >
-            <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-          </HudIconButton>
+        {proposalPending && (
+          <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-slate-950 bg-amber-300" />
+        )}
+      </HudIconButton>
+
+      <div className="hud-surface pointer-events-none absolute left-full top-0 z-40 ml-2 hidden w-max max-w-[calc(100vw-5rem)] rounded-xl border p-3 text-left group-hover:block group-focus-within:block">
+        {known ? (
+          <div className="space-y-3">
+            <div className="flex items-start gap-2">
+              <NationInsignia color={color ?? '#0e7490'} name={nation.civilization} size="md" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-xs font-semibold text-slate-100">
+                  {nation.leaderName}
+                </div>
+                <div className="truncate text-[10px] text-slate-500">
+                  {nation.civilization} · {nation.isAI ? 'AI' : 'Human'}
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <RelationBadge state={nation.relation.state} />
+              {nation.relation.attitude !== undefined && (
+                <span className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] text-slate-400">
+                  Attitude {nation.relation.attitude}
+                </span>
+              )}
+            </div>
+            {hasRelationshipDetails && (
+              <div className="flex flex-wrap gap-x-2 gap-y-1 text-[10px] text-slate-400">
+                {nation.relation.embassy && <span>Embassy</span>}
+                {nation.relation.sharedVision && (
+                  <span className="inline-flex items-center gap-1 text-sky-300">
+                    <Eye className="h-3 w-3" aria-hidden="true" /> Receiving vision
+                  </span>
+                )}
+                {nation.relation.givesSharedVision && (
+                  <span className="inline-flex items-center gap-1 text-sky-300">
+                    <Eye className="h-3 w-3" aria-hidden="true" /> Giving vision
+                  </span>
+                )}
+                {proposalPending && <span className="text-amber-200">Proposal pending</span>}
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="text-xs font-medium text-slate-300">Unknown nation</div>
+            <div className="mt-1 text-[10px] text-slate-500">Identity hidden until contact</div>
+          </>
         )}
       </div>
-      <div className="ml-11 mt-1 flex flex-wrap items-center gap-1.5">
-        {nation.relation.embassy && <span className="text-[10px] text-slate-400">Embassy</span>}
-        {nation.relation.sharedVision && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-sky-300">
-            <Eye className="h-3 w-3" aria-hidden="true" /> Receiving vision
-          </span>
-        )}
-        {nation.relation.givesSharedVision && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-sky-300">
-            <Eye className="h-3 w-3" aria-hidden="true" /> Giving vision
-          </span>
-        )}
-        {nation.relation.attitude !== undefined && (
-          <span className="text-[10px] text-slate-500">Attitude {nation.relation.attitude}</span>
-        )}
-      </div>
-      <ProposalActions nation={nation} currentPlayerId={currentPlayerId} />
     </div>
   );
 };
 
-export const DiplomacyStrip: React.FC<{ onOpenIntelligence?: () => void }> = ({
-  onOpenIntelligence,
-}) => {
-  const [collapsed, setCollapsed] = React.useState(false);
-  const [mobileOpen, setMobileOpen] = React.useState(false);
+export const DiplomacyStrip: React.FC = () => {
+  React.useEffect(() => {
+    gameClient.requestDiplomacy();
+  }, []);
+
   const diplomacy = useGameStore(state => state.diplomacy);
-  const currentPlayerId = useGameStore(state => state.currentPlayerId);
   const players = useGameStore(state => state.players);
-  const cities = useGameStore(state => state.cities);
-  const units = useGameStore(state => state.units);
 
   const nations = diplomacy?.nations ?? [];
   const knownNations = nations.filter(nation => nation.known && nation.isAlive);
   const unknownCount = nations.filter(nation => !nation.known && nation.isAlive).length;
-  const pendingCount = knownNations.filter(
-    nation => nation.relation.proposal?.status === 'pending'
-  ).length;
-  const knownLocations = Object.fromEntries(
-    knownNations.flatMap(nation => {
-      const city = Object.values(cities).find(candidate => candidate.playerId === nation.id);
-      if (city) return [[nation.id, { x: city.x, y: city.y, label: `city ${city.name}` }]];
-      const unit = Object.values(units).find(candidate => candidate.playerId === nation.id);
-      return unit ? [[nation.id, { x: unit.x, y: unit.y, label: 'unit' }]] : [];
-    })
-  );
-
-  if (collapsed) {
-    return (
-      <HudPanel className="flex w-11 flex-col items-center gap-2 p-1.5">
-        <HudIconButton
-          label="Expand diplomacy"
-          onClick={() => {
-            setCollapsed(false);
-            setMobileOpen(true);
-          }}
-        >
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-        </HudIconButton>
-        {pendingCount > 0 && (
-          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400/20 px-1 text-[10px] font-semibold tabular-nums text-amber-200">
-            {pendingCount}
-          </span>
-        )}
-      </HudPanel>
-    );
-  }
 
   return (
-    <>
-      <HudPanel
-        className={`${mobileOpen ? 'hidden' : 'flex'} w-11 flex-col items-center gap-2 p-1.5 sm:hidden`}
-      >
-        <HudIconButton label="Open diplomacy" onClick={() => setMobileOpen(true)}>
+    <HudPanel className="flex w-11 flex-col items-center gap-1.5 overflow-visible p-1.5">
+      {!diplomacy ? (
+        <HudIconButton
+          label="Open diplomacy"
+          title="Loading diplomacy"
+          onClick={() => openReport('diplomacy')}
+        >
           <Users className="h-4 w-4 text-cyan-300" aria-hidden="true" />
         </HudIconButton>
-        {(knownNations.length > 0 || unknownCount > 0) && (
-          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-cyan-400/15 px-1 text-[10px] font-semibold tabular-nums text-cyan-200">
-            {knownNations.length + unknownCount}
-          </span>
-        )}
-      </HudPanel>
-      <HudPanel
-        className={`${mobileOpen ? 'flex' : 'hidden'} max-h-[min(36rem,calc(100vh-8rem))] w-72 flex-col overflow-hidden sm:flex`}
-      >
-        <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2.5">
-          <Users className="h-4 w-4 text-cyan-300" aria-hidden="true" />
-          <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-100">
-              Diplomacy
-            </div>
-            <div className="text-[10px] text-slate-500">Known world leaders</div>
-          </div>
-          {pendingCount > 0 && (
-            <span className="rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-amber-200">
-              {pendingCount}
-            </span>
-          )}
-          <HudIconButton
-            label="Collapse diplomacy"
-            onClick={() => {
-              setCollapsed(true);
-              setMobileOpen(false);
-            }}
-          >
-            <ChevronRight className="h-4 w-4" aria-hidden="true" />
-          </HudIconButton>
-        </div>
-
-        <div className="overflow-y-auto p-2">
-          {!diplomacy ? (
-            <div className="px-2 py-3 text-xs text-slate-400">Loading diplomatic intelligence…</div>
-          ) : knownNations.length === 0 && unknownCount === 0 ? (
-            <div className="px-2 py-3 text-xs text-slate-400">No other nations in this game</div>
+      ) : (
+        <>
+          {knownNations.length === 0 && unknownCount === 0 ? (
+            <HudIconButton
+              label="Open diplomacy"
+              title="No other nations"
+              onClick={() => openReport('diplomacy')}
+            >
+              <Users className="h-4 w-4 text-cyan-300" aria-hidden="true" />
+            </HudIconButton>
           ) : (
             <>
-              <div className="space-y-1">
-                {knownNations.map(nation => (
-                  <LeaderRow
-                    key={nation.id}
-                    nation={nation}
-                    currentPlayerId={currentPlayerId}
-                    color={players[nation.id]?.color}
-                    knownLocation={knownLocations[nation.id]}
-                    onOpenIntelligence={onOpenIntelligence}
-                  />
-                ))}
-                {Array.from({ length: unknownCount }, (_, index) => (
-                  <LeaderRow
-                    key={`unknown-${index}`}
-                    nation={{
-                      id: `unknown-${index}`,
-                      civilization: '',
-                      leaderName: '',
-                      isAlive: true,
-                      isAI: false,
-                      known: false,
-                      relation: {
-                        state: 'no_contact',
-                        sinceTurn: 0,
-                        embassy: false,
-                        sharedVision: false,
-                      },
-                    }}
-                    currentPlayerId={currentPlayerId}
-                    onOpenIntelligence={onOpenIntelligence}
-                  />
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={() => useGameStore.getState().setActiveTab('nations')}
-                className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[10px] font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
-              >
-                Open diplomacy report
-                <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
+              {knownNations.map(nation => (
+                <LeaderRow key={nation.id} nation={nation} color={players[nation.id]?.color} />
+              ))}
+              {Array.from({ length: unknownCount }, (_, index) => (
+                <LeaderRow
+                  key={`unknown-${index}`}
+                  nation={{
+                    id: `unknown-${index}`,
+                    civilization: '',
+                    leaderName: '',
+                    isAlive: true,
+                    isAI: false,
+                    known: false,
+                    relation: {
+                      state: 'no_contact',
+                      sinceTurn: 0,
+                      embassy: false,
+                      sharedVision: false,
+                    },
+                  }}
+                />
+              ))}
             </>
           )}
-        </div>
-      </HudPanel>
-    </>
+        </>
+      )}
+    </HudPanel>
   );
 };

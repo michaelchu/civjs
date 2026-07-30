@@ -21,10 +21,7 @@ const HudRegion: React.FC<HudRegionProps> = ({ name, className, children }) => {
   if (!children) return null;
 
   return (
-    <div
-      data-hud-region={name}
-      className={cn('pointer-events-none absolute flex', className)}
-    >
+    <div data-hud-region={name} className={cn('pointer-events-none absolute flex', className)}>
       <div className="pointer-events-auto">{children}</div>
     </div>
   );
@@ -44,13 +41,10 @@ export const GameHud: React.FC<GameHudProps> = ({
     data-game-hud
     className={cn('pointer-events-none absolute inset-0 z-[1000] overflow-hidden', className)}
   >
-    <HudRegion
-      name="top"
-      className="inset-x-3 top-3 justify-center sm:inset-x-4 sm:top-4"
-    >
+    <HudRegion name="top" className="inset-x-3 top-3 justify-center sm:inset-x-4 sm:top-4">
       {top}
     </HudRegion>
-    <HudRegion name="left" className="bottom-24 left-3 top-20 items-start sm:left-4">
+    <HudRegion name="left" className="bottom-24 left-3 top-20 items-center sm:left-4">
       {left}
     </HudRegion>
     <HudRegion name="right" className="bottom-24 right-3 top-20 items-start sm:right-4">

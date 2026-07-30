@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
+import { openReport } from './reportEvents';
 import type { Technology } from '../../types';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { HudDialogContent } from './HudDialogContent';
@@ -220,10 +221,8 @@ export const CivilopediaDialog: React.FC<CivilopediaDialogProps> = ({
 
   const selectedTopic = topics.find(topic => topic.id === selectedId) ?? filteredTopics[0];
   const SelectedTopicIcon = selectedTopic?.icon ?? BookOpen;
-  const setActiveTab = useGameStore(state => state.setActiveTab);
-
   const openResearch = () => {
-    setActiveTab('research');
+    openReport('research');
     onOpenChange(false);
   };
 

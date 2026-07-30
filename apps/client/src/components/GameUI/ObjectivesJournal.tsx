@@ -13,6 +13,7 @@ import {
   Swords,
 } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
+import { openReport } from './reportEvents';
 import type { City, Unit } from '../../types';
 import { HudActionButton } from './HudActionButton';
 import { HudIconButton } from './HudIconButton';
@@ -181,7 +182,6 @@ export const ObjectivesJournal: React.FC<{ popover?: boolean }> = ({ popover = f
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [popoverOpen, setPopoverOpen] = React.useState(false);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
-  const setActiveTab = useGameStore(state => state.setActiveTab);
   const cities = useGameStore(state => state.cities);
   const units = useGameStore(state => state.units);
   const notifications = useGameStore(state => state.notifications);
@@ -292,7 +292,7 @@ export const ObjectivesJournal: React.FC<{ popover?: boolean }> = ({ popover = f
           <div className="space-y-3 overflow-y-auto p-2">
             <section>
               <SectionHeading icon={FlaskConical} label="Research" />
-              <ResearchObjective onOpen={() => setActiveTab('research')} />
+              <ResearchObjective onOpen={() => openReport('research')} />
             </section>
 
             <section>
@@ -310,7 +310,7 @@ export const ObjectivesJournal: React.FC<{ popover?: boolean }> = ({ popover = f
                   {cityAlerts.length > 4 && (
                     <button
                       type="button"
-                      onClick={() => setActiveTab('cities')}
+                      onClick={() => openReport('empire')}
                       className="w-full px-2 py-1 text-left text-[10px] text-cyan-300 hover:text-cyan-200"
                     >
                       View {cityAlerts.length - 4} more cities
