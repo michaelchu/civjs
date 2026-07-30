@@ -130,9 +130,7 @@ export class CityRenderer extends BaseRenderer {
       const middleY = screenPos.y + this.tileHeight / 2;
       const bottomY = screenPos.y + this.tileHeight - 2;
 
-      this.ctx.fillStyle = tile.isWorked
-        ? 'rgba(52, 211, 153, 0.18)'
-        : 'rgba(34, 211, 238, 0.1)';
+      this.ctx.fillStyle = tile.isWorked ? 'rgba(52, 211, 153, 0.18)' : 'rgba(34, 211, 238, 0.1)';
       this.ctx.strokeStyle = tile.isWorked
         ? 'rgba(52, 211, 153, 0.7)'
         : 'rgba(103, 232, 249, 0.45)';
@@ -155,7 +153,8 @@ export class CityRenderer extends BaseRenderer {
   ): void {
     const isSelected = state.selectedCityId === city.id;
     const isOwnCity = city.playerId === state.currentPlayerId;
-    const needsAttention = isOwnCity && (city.disorder || city.granaryTurns < 0 || !city.production);
+    const needsAttention =
+      isOwnCity && (city.disorder || city.granaryTurns < 0 || !city.production);
 
     if (isSelected) {
       const centerX = screenPos.x + this.tileWidth / 2;
@@ -183,7 +182,7 @@ export class CityRenderer extends BaseRenderer {
       this.ctx.arc(markerX, markerY, 6, 0, 2 * Math.PI);
       this.ctx.fill();
       this.ctx.fillStyle = '#172033';
-      this.ctx.font = 'bold 9px Arial, sans-serif';
+      this.ctx.font = 'bold 9px system-ui, sans-serif';
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'middle';
       this.ctx.fillText('!', markerX, markerY);
@@ -339,20 +338,31 @@ export class CityRenderer extends BaseRenderer {
     const bannerY = screenPos.y + this.tileHeight - 2;
 
     // Prepare text content
-    const cityName = city.name.toUpperCase();
-    const cityPop = (city.actualPopulation ?? city.size).toString();
+    const cityName = `${city.name.charAt(0).toUpperCase()}${city.name.slice(1)}`;
+    const cityPop =
+      city.actualPopulation === undefined
+        ? city.size.toString()
+        : Math.floor(city.actualPopulation / 10000).toString();
     const labelScale = 1.2;
     const fontSize = Math.floor(CityRenderer.BASE_FONT_SIZE * this.cityScale * labelScale);
-    this.ctx.font = `${fontSize}px Arial, sans-serif`;
+    this.ctx.font = `${fontSize}px system-ui, sans-serif`;
 
-    // Measure text dimensions
+    const productionLabel = city.production
+      ? `${city.production.target === 'capitalization' ? 'Wealth' : `${city.production.target.charAt(0).toUpperCase()}${city.production.target.slice(1)}`} · ${city.production.turnsToComplete}`
+      : 'Idle';
+    const productionFontSize = Math.max(8, fontSize - 1);
+
+    // Measure both rows so the banner expands to fit whichever label is wider.
     const nameMetrics = this.ctx.measureText(cityName);
+    this.ctx.font = `${productionFontSize}px system-ui, sans-serif`;
+    const productionMetrics = this.ctx.measureText(productionLabel);
 
     // Layout constants
     const popSquareSize = fontSize + 8; // Square size for population
     const textPadding = 6;
     const rowHeight = fontSize + 4;
-    const rightSectionWidth = Math.max(nameMetrics.width, 80) + textPadding * 2; // Min width for production
+    const rightSectionWidth =
+      Math.max(nameMetrics.width, productionMetrics.width, 80) + textPadding * 2;
     const totalWidth = popSquareSize + rightSectionWidth;
     const totalHeight = rowHeight * 2;
 
@@ -360,6 +370,7 @@ export class CityRenderer extends BaseRenderer {
     const bannerX = centerX - totalWidth / 2;
     const popSquareX = bannerX;
     const rightSectionX = bannerX + popSquareSize;
+    const rightSectionCenterX = rightSectionX + rightSectionWidth / 2;
 
     // Draw main background (dark teal/green like in reference)
     this.ctx.fillStyle = 'rgba(40, 80, 80, 0.9)';
@@ -404,9 +415,9 @@ export class CityRenderer extends BaseRenderer {
     this.ctx.fillText(cityPop, popCenterX, popCenterY);
 
     // Draw city name (top right section)
-    const nameX = rightSectionX + textPadding;
+    const nameX = rightSectionCenterX;
     const nameY = bannerY + fontSize;
-    this.ctx.textAlign = 'left';
+    this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'alphabetic';
 
     // Name shadow
@@ -417,12 +428,9 @@ export class CityRenderer extends BaseRenderer {
     this.ctx.fillStyle = 'white';
     this.ctx.fillText(cityName, nameX, nameY);
 
-    const productionLabel = city.production
-      ? `${city.production.target} · ${city.production.turnsToComplete}t`
-      : 'IDLE PRODUCTION';
     const productionY = bannerY + rowHeight + fontSize - 1;
-    this.ctx.font = `${Math.max(8, fontSize - 1)}px Arial, sans-serif`;
+    this.ctx.font = `${productionFontSize}px system-ui, sans-serif`;
     this.ctx.fillStyle = city.production ? 'rgba(203, 213, 225, 0.9)' : '#fbbf24';
-    this.ctx.fillText(productionLabel.slice(0, 24), nameX, productionY);
+    this.ctx.fillText(productionLabel, rightSectionCenterX, productionY);
   }
 }

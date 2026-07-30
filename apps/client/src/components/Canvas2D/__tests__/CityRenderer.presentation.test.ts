@@ -109,12 +109,7 @@ describe('CityRenderer presentation state', () => {
       fillText: vi.fn(),
       measureText: vi.fn().mockReturnValue({ width: 32 }),
     } as unknown as CanvasRenderingContext2D;
-    const renderer = new CityRenderer(
-      context,
-      { getSprite: () => undefined } as never,
-      96,
-      48
-    );
+    const renderer = new CityRenderer(context, { getSprite: () => undefined } as never, 96, 48);
     const city = {
       id: 'known',
       name: 'Alpha',
@@ -122,11 +117,17 @@ describe('CityRenderer presentation state', () => {
       x: 0,
       y: 0,
       size: 3,
-      actualPopulation: 7,
+      actualPopulation: 70000,
       buildings: [],
       granaryTurns: 4,
       disorder: false,
-      production: { target: 'granary', type: 'building', progress: 7, cost: 30, turnsToComplete: 3 },
+      production: {
+        target: 'granary',
+        type: 'building',
+        progress: 7,
+        cost: 30,
+        turnsToComplete: 3,
+      },
     } as unknown as City;
 
     renderer.renderCities({
@@ -136,7 +137,11 @@ describe('CityRenderer presentation state', () => {
       players: { self: { color: '#22d3ee' } },
     } as unknown as RenderState);
 
-    expect(context.fillText).toHaveBeenCalledWith('granary · 3t', expect.any(Number), expect.any(Number));
+    expect(context.fillText).toHaveBeenCalledWith(
+      'Granary · 3',
+      expect.any(Number),
+      expect.any(Number)
+    );
     expect(context.fillText).toHaveBeenCalledWith('7', expect.any(Number), expect.any(Number));
   });
 
@@ -154,12 +159,7 @@ describe('CityRenderer presentation state', () => {
       fillText: vi.fn(),
       measureText: vi.fn().mockReturnValue({ width: 32 }),
     } as unknown as CanvasRenderingContext2D;
-    const renderer = new CityRenderer(
-      context,
-      { getSprite: () => undefined } as never,
-      96,
-      48
-    );
+    const renderer = new CityRenderer(context, { getSprite: () => undefined } as never, 96, 48);
     const city = {
       id: 'known',
       name: 'Alpha',
