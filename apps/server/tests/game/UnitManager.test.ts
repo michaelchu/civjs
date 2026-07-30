@@ -1780,6 +1780,22 @@ describe('UnitManager', () => {
       expect(unitManager.getUnit(escort.id)).toBeUndefined();
     });
 
+    it('treats a barbarian attacker as hostile without a diplomacy record', async () => {
+      const db = mockDbProvider.getDatabase() as any;
+      db.query.players.findFirst.mockImplementation(({ where }: any) => {
+        void where;
+        return Promise.resolve({ nation: 'barbarian', civilization: 'barbarian-land' });
+      });
+      unitManager.setHostilityProvider(async () => false);
+      const attacker = await unitManager.createUnit('barbarian-player', 'horsemen', 10, 10);
+      const defender = await unitManager.createUnit('player-123', 'warriors', 11, 10);
+
+      await expect(unitManager.attackUnit(attacker.id, defender.id)).resolves.toMatchObject({
+        attackerId: attacker.id,
+        defenderId: defender.id,
+      });
+    });
+
     it('resolves and persists a hut reward when movement enters the tile', async () => {
       const map = makeMap(true);
       const manager = new UnitManager(

@@ -1003,15 +1003,27 @@ export class UnitManager {
   private async getHostilePlayers(attacker: Unit, defender: Unit): Promise<Set<string>> {
     const players = new Set(this.getUnitsAt(defender.x, defender.y).map(unit => unit.playerId));
     const hostilePlayers = new Set<string>();
+    const attackerIsBarbarian = await this.isBarbarianPlayer(attacker.playerId);
     for (const playerId of players) {
       if (
         playerId !== attacker.playerId &&
-        (!this.hostilityProvider || (await this.hostilityProvider(attacker.playerId, playerId)))
+        (attackerIsBarbarian ||
+          !this.hostilityProvider ||
+          (await this.hostilityProvider(attacker.playerId, playerId)))
       ) {
         hostilePlayers.add(playerId);
       }
     }
     return hostilePlayers;
+  }
+
+  private async isBarbarianPlayer(playerId: string): Promise<boolean> {
+    const player = await this.databaseProvider.getDatabase().query.players.findFirst({
+      where: eq(players.id, playerId),
+    });
+    return Boolean(
+      player?.nation === 'barbarian' || player?.civilization?.toLowerCase().startsWith('barbarian')
+    );
   }
 
   private validateCombatRange(attacker: Unit, defender: Unit, attackerType: UnitType): void {
@@ -3258,7 +3270,10 @@ export class UnitManager {
     const victim = await this.databaseProvider.getDatabase().query.players.findFirst({
       where: eq(players.id, victimPlayerId),
     });
-    if (victim?.nation !== 'barbarian' && victim?.civilization.toLowerCase() !== 'barbarian') {
+    if (
+      victim?.nation !== 'barbarian' &&
+      !victim?.civilization.toLowerCase().startsWith('barbarian')
+    ) {
       return { success: false, message: 'Ransom can only be collected from barbarians' };
     }
     const requested = targets.length * rulesetLoader.getGameParameters().ransom_gold;
