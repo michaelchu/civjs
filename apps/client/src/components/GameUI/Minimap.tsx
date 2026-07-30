@@ -40,6 +40,7 @@ export const Minimap: React.FC = () => {
   const [collapsed, setCollapsed] = React.useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const draggingRef = useRef(false);
+  const redrawFrameRef = useRef<number | null>(null);
   const map = useGameStore(state => state.map);
   const viewport = useGameStore(state => state.viewport);
   const units = useGameStore(state => state.units);
@@ -147,7 +148,16 @@ export const Minimap: React.FC = () => {
   }, [cities, currentPlayerId, map, players, selectedCityId, selectedUnitId, units, viewport]);
 
   useEffect(() => {
-    drawMinimap();
+    const frameId = window.requestAnimationFrame(() => {
+      redrawFrameRef.current = null;
+      drawMinimap();
+    });
+    redrawFrameRef.current = frameId;
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      if (redrawFrameRef.current === frameId) redrawFrameRef.current = null;
+    };
   }, [drawMinimap]);
 
   const centerFromPointer = (clientX: number, clientY: number) => {
