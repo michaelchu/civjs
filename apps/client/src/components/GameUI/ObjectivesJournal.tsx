@@ -165,6 +165,7 @@ const UnitOrderRow: React.FC<{ unit: Unit }> = ({ unit }) => {
 
 export const ObjectivesJournal: React.FC = () => {
   const [collapsed, setCollapsed] = React.useState(false);
+  const [mobileOpen, setMobileOpen] = React.useState(false);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
   const setActiveTab = useGameStore(state => state.setActiveTab);
   const cities = useGameStore(state => state.cities);
@@ -193,7 +194,7 @@ export const ObjectivesJournal: React.FC = () => {
 
   if (collapsed) {
     return (
-      <HudPanel className="flex w-11 flex-col items-center gap-2 p-1.5 sm:flex">
+      <HudPanel className="flex w-11 flex-col items-center gap-2 p-1.5">
         <HudIconButton label="Expand objectives and journal" onClick={() => setCollapsed(false)}>
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
         </HudIconButton>
@@ -207,7 +208,20 @@ export const ObjectivesJournal: React.FC = () => {
   }
 
   return (
-    <HudPanel className="hidden max-h-[min(36rem,calc(100vh-8rem))] w-72 flex-col overflow-hidden sm:flex">
+    <>
+      <HudPanel className="flex w-11 flex-col items-center gap-2 p-1.5 sm:hidden">
+        <HudIconButton label="Open objectives and journal" onClick={() => setMobileOpen(true)}>
+          <BookOpen className="h-4 w-4" aria-hidden="true" />
+        </HudIconButton>
+        {urgentCount > 0 && (
+          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400/20 px-1 text-[10px] font-semibold tabular-nums text-amber-200">
+            {urgentCount}
+          </span>
+        )}
+      </HudPanel>
+      <HudPanel
+        className={`${mobileOpen ? 'flex' : 'hidden'} max-h-[min(36rem,calc(100vh-8rem))] w-72 flex-col overflow-hidden sm:flex`}
+      >
       <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2.5">
         <BookOpen className="h-4 w-4 text-cyan-300" aria-hidden="true" />
         <div className="min-w-0 flex-1">
@@ -219,7 +233,13 @@ export const ObjectivesJournal: React.FC = () => {
             {urgentCount}
           </span>
         )}
-        <HudIconButton label="Collapse objectives and journal" onClick={() => setCollapsed(true)}>
+        <HudIconButton
+          label="Collapse objectives and journal"
+          onClick={() => {
+            setCollapsed(true);
+            setMobileOpen(false);
+          }}
+        >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
         </HudIconButton>
       </div>
@@ -290,6 +310,7 @@ export const ObjectivesJournal: React.FC = () => {
           <span>{ownedCities.length} cities tracked</span>
         </div>
       </div>
-    </HudPanel>
+      </HudPanel>
+    </>
   );
 };

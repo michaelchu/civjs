@@ -85,4 +85,13 @@ describe('ObjectivesJournal', () => {
     expect(screen.getByRole('button', { name: /expand objectives/i })).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument();
   });
+
+  it('keeps objectives accessible through a compact mobile entry point', () => {
+    render(<ObjectivesJournal />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open objectives and journal' }));
+
+    expect(screen.getByText('City attention')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /collapse objectives/i })).toBeInTheDocument();
+  });
 });
