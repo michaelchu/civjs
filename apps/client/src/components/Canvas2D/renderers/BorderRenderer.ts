@@ -269,7 +269,8 @@ export class BorderRenderer extends BaseRenderer {
     const x = canvasX + 47; // Fixed offset matching freeciv-web
     const y = canvasY + 3;
 
-    ctx.lineWidth = drawThickBorders ? 3 : 2;
+    const lineWidth = drawThickBorders ? 3.5 : 2.5;
+    ctx.lineWidth = lineWidth;
     ctx.lineCap = 'butt';
 
     // Handle animated borders
@@ -320,6 +321,16 @@ export class BorderRenderer extends BaseRenderer {
         break;
     }
 
+    // Add a modest dark contrast edge so low-contrast nation colors remain
+    // readable over both bright terrain and dark terrain.
+    ctx.lineWidth = lineWidth + 2;
+    ctx.strokeStyle = 'rgba(8, 15, 28, 0.72)';
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.stroke();
+
+    ctx.lineWidth = lineWidth;
+    ctx.strokeStyle = drawTertiaryColors ? color3 : color;
     ctx.stroke();
 
     // Draw secondary and tertiary colors following freeciv-web pattern
@@ -397,6 +408,7 @@ export class BorderRenderer extends BaseRenderer {
     const y = canvasY + 25;
 
     ctx.beginPath();
+
     ctx.fillStyle = color + '20'; // Add transparency (not in original but useful)
 
     // EXACT freeciv-web diamond coordinates (lines 832-836)
