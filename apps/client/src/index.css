@@ -112,6 +112,11 @@ canvas {
 }
 
 :root {
+  --hud-surface: rgb(15 23 42 / 78%);
+  --hud-surface-elevated: rgb(15 23 42 / 90%);
+  --hud-surface-active: rgb(30 41 59 / 88%);
+  --hud-border: rgb(148 163 184 / 24%);
+  --hud-shadow: 0 10px 30px rgb(0 0 0 / 24%);
   --radius: 0.625rem;
   --background: var(--color-civ-cream); /* #f8f5f0 */
   --foreground: var(--color-civ-brown); /* #3e2723 */
@@ -146,6 +151,26 @@ canvas {
   --sidebar-accent-foreground: var(--color-civ-brown); /* #3e2723 */
   --sidebar-border: var(--color-civ-sage); /* #e0d6c9 */
   --sidebar-ring: var(--color-civ-green); /* #418845 */
+}
+
+.hud-surface {
+  background: var(--hud-surface);
+  border-color: var(--hud-border);
+  box-shadow: var(--hud-shadow);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.hud-surface-elevated {
+  background: var(--hud-surface-elevated);
+}
+
+.hud-surface-active {
+  background: var(--hud-surface-active);
+}
+
+.hud-surface-opaque {
+  background: rgb(15 23 42 / 96%);
 }
 
 .dark {

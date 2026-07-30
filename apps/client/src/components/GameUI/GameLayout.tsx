@@ -16,6 +16,8 @@ import { useKeyboardControls } from '../../hooks/useKeyboardControls';
 import { EndGamePanel } from './EndGamePanel';
 import { rulesetService } from '../../services/RulesetService';
 import { resolveMusicStyle } from '../../services/PresentationResolver';
+import { GameHud } from './GameHud';
+import { HudPanel } from './HudPanel';
 
 interface GameLayoutProps {
   rulesetName?: string;
@@ -108,11 +110,6 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
       {/* Header with tabs and status */}
       <div className="flex items-center justify-between bg-gray-700 px-4 py-1 border-b border-gray-600">
         <GameTabs />
-        <div className="flex items-center space-x-4">
-          <StatusPanel />
-          <TurnDoneButton />
-          <GameMenu />
-        </div>
       </div>
 
       {/* Main content area */}
@@ -126,21 +123,15 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
               height={canvasSize.height}
               rulesetName={rulesetName}
             />
-
-            {/* Overlay UI elements - COMMENTED OUT */}
-            {/* <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end pointer-events-none">
-              {/* Chat box */}
-            {/* <div className="w-80 pointer-events-auto">
-                <ChatBox />
-              </div> */}
-
-            {/* Overview mini-map would go here */}
-            {/* <div className="w-48 h-32 bg-gray-900 bg-opacity-80 border border-gray-600 rounded pointer-events-auto">
-                <div className="p-2 text-sm text-gray-300">
-                  Mini-map placeholder
-                </div>
-              </div> */}
-            {/* </div> */}
+            <GameHud
+              top={
+                <HudPanel className="flex max-w-full items-center gap-3 px-3 py-2 sm:gap-5 sm:px-4">
+                  <StatusPanel />
+                  <TurnDoneButton />
+                  <GameMenu />
+                </HudPanel>
+              }
+            />
           </div>
 
           <div className={`${activeTab === 'government' ? 'block' : 'hidden'}`}>
