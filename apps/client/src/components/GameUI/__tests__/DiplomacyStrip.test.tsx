@@ -18,6 +18,20 @@ describe('DiplomacyStrip', () => {
     useGameStore.setState({
       activeTab: 'map',
       currentPlayerId: 'player-1',
+      players: {
+        'player-2': {
+          id: 'player-2',
+          name: 'Pericles',
+          nation: 'greek',
+          color: '#22c55e',
+          gold: 0,
+          science: 0,
+          history: 0,
+          government: 'despotism',
+          isHuman: false,
+          isActive: true,
+        },
+      },
       diplomacy: {
         playerId: 'player-1',
         nations: [
@@ -70,6 +84,8 @@ describe('DiplomacyStrip', () => {
     expect(screen.getByText('Peace')).toBeInTheDocument();
     expect(screen.getByText('Unknown nation')).toBeInTheDocument();
     expect(screen.queryByText('Hidden Leader')).not.toBeInTheDocument();
+    const insignia = leaderButton.querySelector('span[style]');
+    expect(insignia).toHaveStyle({ backgroundColor: '#22c55e' });
   });
 
   it('keeps incoming treaty actions available in the strip', () => {
@@ -94,9 +110,7 @@ describe('DiplomacyStrip', () => {
     const onOpenIntelligence = vi.fn();
     render(<DiplomacyStrip onOpenIntelligence={onOpenIntelligence} />);
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Open intelligence report for Pericles' })
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Open intelligence report for Pericles' }));
 
     expect(onOpenIntelligence).toHaveBeenCalledOnce();
     expect(

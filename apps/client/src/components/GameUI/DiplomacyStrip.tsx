@@ -108,8 +108,9 @@ const ProposalActions: React.FC<{ nation: DiplomacyNation; currentPlayerId: stri
 const LeaderRow: React.FC<{
   nation: DiplomacyNation;
   currentPlayerId: string;
+  color?: string;
   onOpenIntelligence?: () => void;
-}> = ({ nation, currentPlayerId, onOpenIntelligence }) => {
+}> = ({ nation, currentPlayerId, color, onOpenIntelligence }) => {
   const setActiveTab = useGameStore(state => state.setActiveTab);
 
   if (!nation.known) {
@@ -140,7 +141,7 @@ const LeaderRow: React.FC<{
           aria-label={`Open diplomacy card for ${nation.leaderName}`}
           className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
         >
-          <NationInsignia color="#0e7490" name={nation.civilization} size="lg" />
+          <NationInsignia color={color ?? '#0e7490'} name={nation.civilization} size="lg" />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-xs font-semibold text-slate-100">
               {nation.leaderName}
@@ -190,6 +191,7 @@ export const DiplomacyStrip: React.FC<{ onOpenIntelligence?: () => void }> = ({
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const diplomacy = useGameStore(state => state.diplomacy);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
+  const players = useGameStore(state => state.players);
 
   const nations = diplomacy?.nations ?? [];
   const knownNations = nations.filter(nation => nation.known && nation.isAlive);
@@ -273,6 +275,7 @@ export const DiplomacyStrip: React.FC<{ onOpenIntelligence?: () => void }> = ({
                     key={nation.id}
                     nation={nation}
                     currentPlayerId={currentPlayerId}
+                    color={players[nation.id]?.color}
                     onOpenIntelligence={onOpenIntelligence}
                   />
                 ))}
