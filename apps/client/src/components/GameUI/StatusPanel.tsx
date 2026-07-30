@@ -138,7 +138,7 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({ onO
   const trade = ownedCities.reduce((total, city) => total + (city.trade ?? 0), 0);
 
   return (
-    <div className="flex min-w-0 max-w-full items-center gap-2 text-xs sm:gap-3">
+    <div className="flex min-w-max items-center gap-2 text-xs sm:gap-3">
       <button
         type="button"
         onClick={() => setActiveTab('government')}

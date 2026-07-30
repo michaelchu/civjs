@@ -230,7 +230,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
             />
             <GameHud
               top={
-                <HudPanel className="flex max-w-full items-center gap-3 px-3 py-2 sm:gap-5 sm:px-4">
+                <HudPanel className="flex max-w-full items-center gap-3 overflow-x-auto px-3 py-2 sm:gap-5 sm:px-4">
                   <StatusPanel onOpenDemographics={() => setDemographicsReportOpen(true)} />
                 </HudPanel>
               }
