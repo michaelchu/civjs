@@ -21,6 +21,7 @@ import { playEndGameSound } from './UserPreferences';
 import { GameSessionCoordinator, type GameSessionTarget } from './GameSessionCoordinator';
 import { GameTransport } from './GameTransport';
 import { MapSnapshotAssembler } from './MapSnapshotAssembler';
+import { clientLogger } from '../utils/logger';
 
 export interface AdvisorRecommendations {
   playerId: string;
@@ -152,7 +153,7 @@ export class GameClient {
 
   constructor(transport = new GameTransport(SERVER_URL)) {
     this.transport = transport;
-    console.log('Connecting to server:', SERVER_URL);
+    clientLogger.info('Connecting to server:', SERVER_URL);
   }
 
   async connect(): Promise<void> {
@@ -168,11 +169,11 @@ export class GameClient {
       },
       {
         connected: () => {
-          console.log('Connected to game server');
+          clientLogger.info('Connected to game server');
           useGameStore.getState().setClientState('connecting');
         },
         disconnected: () => {
-          console.log('Disconnected from game server');
+          clientLogger.info('Disconnected from game server');
           this.session.disconnected();
           this.mapSnapshots.cancel();
           useGameStore.getState().setClientState('initial');
@@ -181,7 +182,7 @@ export class GameClient {
           console.error('Connection error:', error);
         },
         reconnected: attemptNumber => {
-          console.log(`Reconnected to server after ${attemptNumber} attempts`);
+          clientLogger.info(`Reconnected to server after ${attemptNumber} attempts`);
           void this.resumeSession();
         },
         reconnectError: error => {
@@ -202,7 +203,7 @@ export class GameClient {
     // Legacy event handlers removed - now handled via structured packets
 
     this.socket.on('game-started', data => {
-      console.log('Game started:', data);
+      clientLogger.debug('Game started:', data);
       useGameStore.getState().setClientState('running');
       // Set initial game phase to movement so turn done button works
       useGameStore.getState().updateGameState({
@@ -213,7 +214,7 @@ export class GameClient {
 
     // Handle unit movement updates
     this.socket.on('unit_moved', data => {
-      console.log('Unit moved:', data);
+      clientLogger.debug('Unit moved:', data);
       const { units } = useGameStore.getState();
       if (units[data.unitId]) {
         useGameStore.getState().updateGameState({
@@ -235,7 +236,7 @@ export class GameClient {
 
     // Handle unit destruction (e.g., settler consumed by city founding)
     this.socket.on('unit_destroyed', data => {
-      console.log('Unit destroyed:', data);
+      clientLogger.debug('Unit destroyed:', data);
       const { units } = useGameStore.getState();
       if (units[data.unitId]) {
         const newUnits = { ...units };
@@ -257,7 +258,7 @@ export class GameClient {
 
     // Handle city founding
     this.socket.on('city_founded', data => {
-      console.log('City founded:', data);
+      clientLogger.debug('City founded:', data);
       const { cities } = useGameStore.getState();
       const newCities = { ...cities };
       // Use the actual city data sent from the server
@@ -269,7 +270,7 @@ export class GameClient {
 
     // Handle bulk city data updates with calculated production rates
     this.socket.on('cities_updated', data => {
-      console.log('Cities updated with production data:', data);
+      clientLogger.debug('Cities updated with production data:', data);
 
       if (data.cities) {
         useGameStore.getState().updateGameState({
@@ -299,7 +300,7 @@ export class GameClient {
 
     // Handle production completion events
     this.socket.on('production:completed', data => {
-      console.log('Production completed:', data);
+      clientLogger.debug('Production completed:', data);
       const { cityId, productionType, productionId, newUnitId } = data;
 
       if (productionType === 'unit' && newUnitId) {
@@ -327,7 +328,7 @@ export class GameClient {
 
     // Debug log for border packets
     if (packet.type >= 240 && packet.type <= 244) {
-      console.log(`📡 Received border packet: ${packetName} (${packet.type})`, packet.data);
+      clientLogger.debug(`📡 Received border packet: ${packetName} (${packet.type})`, packet.data);
     }
 
     switch (packet.type) {
@@ -340,7 +341,7 @@ export class GameClient {
         break;
 
       case PacketType.PLAYER_INFO: {
-        console.log('Player info received:', packet.data);
+        clientLogger.debug('Player info received:', packet.data);
         const { players } = useGameStore.getState();
         const updatedPlayer = {
           id: packet.data.id,
@@ -375,7 +376,7 @@ export class GameClient {
           year: packet.data.year,
           // TODO: Add calendar fragments support in Phase 2
         });
-        console.log('Game state updated with new year:', {
+        clientLogger.debug('Game state updated with new year:', {
           turn: packet.data.turn,
           year: packet.data.year,
           fragments: packet.data.fragments,
@@ -384,7 +385,7 @@ export class GameClient {
 
       case PacketType.TURN_START:
       case PacketType.BEGIN_TURN:
-        console.log('Turn started:', packet.data);
+        clientLogger.debug('Turn started:', packet.data);
         useGameStore.getState().updateGameState({
           turn: packet.data.turn,
           phase: 'movement', // Reset phase to movement for new turn
@@ -408,7 +409,7 @@ export class GameClient {
         break;
 
       case PacketType.UNIT_INFO:
-        console.log('Unit info:', packet.data);
+        clientLogger.debug('Unit info:', packet.data);
         if (packet.data.units && Array.isArray(packet.data.units)) {
           const { units } = useGameStore.getState();
           const updatedUnits = packet.data.fullSnapshot ? {} : { ...units };
@@ -452,7 +453,7 @@ export class GameClient {
         break;
 
       case PacketType.UNIT_MOVE_REPLY:
-        console.log('Unit move reply:', packet.data);
+        clientLogger.debug('Unit move reply:', packet.data);
         if (packet.data.success) {
           const { units } = useGameStore.getState();
           if (units[packet.data.unitId]) {
@@ -474,7 +475,7 @@ export class GameClient {
         break;
 
       case PacketType.CITY_FOUND_REPLY:
-        console.log('City found reply:', packet.data);
+        clientLogger.debug('City found reply:', packet.data);
         if (packet.data.success) {
           // City info will come via separate CITY_INFO packet
           console.log('City founded successfully:', packet.data.cityId);
@@ -484,7 +485,7 @@ export class GameClient {
         break;
 
       case PacketType.CITY_INFO: {
-        console.log('City info:', packet.data);
+        clientLogger.debug('City info:', packet.data);
         const { cities } = useGameStore.getState();
         useGameStore.getState().updateGameState({
           cities: {
@@ -496,7 +497,7 @@ export class GameClient {
       }
 
       case PacketType.RESEARCH_SET_REPLY:
-        console.log('Research set reply:', packet.data);
+        clientLogger.debug('Research set reply:', packet.data);
         if (packet.data.success && packet.data.availableTechs) {
           const availableTechs = packet.data.availableTechs as Array<{
             id: string;
@@ -577,7 +578,7 @@ export class GameClient {
         break;
 
       case PacketType.SERVER_JOIN_REPLY:
-        console.log('Server join reply:', packet.data);
+        clientLogger.debug('Server join reply:', packet.data);
         if (packet.data.accepted) {
           console.log('Successfully joined server as:', packet.data.playerId);
         } else {
@@ -587,7 +588,7 @@ export class GameClient {
 
       case PacketType.CONNECT_MSG:
       case PacketType.SERVER_MESSAGE:
-        console.log('Connection message:', packet.data);
+        clientLogger.debug('Connection message:', packet.data);
         if (packet.data.type === 'error') {
           console.error('Server error:', packet.data.message);
           useGameStore.getState().addNotification({ message: packet.data.message, tone: 'error' });
@@ -595,7 +596,7 @@ export class GameClient {
         break;
 
       case PacketType.CHAT_MSG:
-        console.log('Chat message:', packet.data);
+        clientLogger.debug('Chat message:', packet.data);
         useGameStore.getState().addNotification({
           message: packet.data.message,
           tone: packet.data.type === 'error' ? 'error' : 'info',

@@ -212,7 +212,7 @@ Key variables:
 - `DATABASE_URL` - PostgreSQL connection string
 - `REDIS_URL` - Redis connection string
 - `NODE_ENV` - Environment (development/production)
-- `LOG_LEVEL` - Logging level (debug/info/warn/error)
+- `LOG_LEVEL` - Logging level (debug/info/warn/error). Defaults to `warn`; use `info` or `debug` for gameplay diagnostics.
 
 ## Contributing
 

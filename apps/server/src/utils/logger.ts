@@ -1,7 +1,9 @@
 import winston from 'winston';
 import path from 'path';
 
-const logLevel = process.env.LOG_LEVEL || 'info';
+// Do not flood the console during normal gameplay. Set LOG_LEVEL=info or debug
+// explicitly when investigating turn processing or packet flow.
+const logLevel = process.env.LOG_LEVEL || 'warn';
 
 const logFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),

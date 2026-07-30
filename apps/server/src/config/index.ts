@@ -51,7 +51,9 @@ const config = ConfigSchema.parse({
     minCityDistance: parseInt(process.env.MIN_CITY_DISTANCE || '3', 10),
   },
   logging: {
-    level: (process.env.LOG_LEVEL || 'info') as any,
+    // Gameplay emits many informational events. Keep the normal console useful
+    // by requiring an explicit LOG_LEVEL=info/debug when those details are needed.
+    level: (process.env.LOG_LEVEL || 'warn') as any,
   },
 });
 
