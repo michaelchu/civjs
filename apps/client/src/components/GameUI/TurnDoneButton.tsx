@@ -1,4 +1,5 @@
 import React from 'react';
+import { Check, LoaderCircle } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { gameClient } from '../../services/GameClient';
 
@@ -32,24 +33,22 @@ export const TurnDoneButton: React.FC = () => {
     return 'Turn Done';
   };
 
-  const getButtonStyle = () => {
-    if (isDisabled) {
-      return 'bg-gray-600 text-gray-400 cursor-not-allowed';
-    }
-    return 'bg-green-600 hover:bg-green-700 text-white cursor-pointer';
-  };
-
   return (
     <button
       onClick={handleTurnDone}
       disabled={isDisabled}
-      className={`
-        px-6 py-2 rounded font-medium transition-colors duration-200
-        focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800
-        ${getButtonStyle()}
-      `}
+      className={`flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold shadow-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-300/70 disabled:cursor-not-allowed ${
+        isDisabled
+          ? 'border-white/10 bg-white/5 text-slate-500'
+          : 'border-emerald-300/35 bg-emerald-400/20 text-emerald-100 hover:bg-emerald-400/30'
+      }`}
       title={isDisabled ? 'You cannot end your turn right now' : 'End your turn (Shift+Enter)'}
     >
+      {turnProcessingState === 'processing' ? (
+        <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+      ) : (
+        <Check className="h-4 w-4" aria-hidden="true" />
+      )}
       {getButtonText()}
     </button>
   );

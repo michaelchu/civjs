@@ -4,8 +4,6 @@ import { MapCanvas } from '../Canvas2D/MapCanvas';
 import { GameTabs } from './GameTabs';
 import { StatusPanel } from './StatusPanel';
 // import { ChatBox } from './ChatBox'; // Commented out while ChatBox is disabled
-import { TurnDoneButton } from './TurnDoneButton';
-import { GameMenu } from './GameMenu';
 import { TechnologyTree } from '../Research/TechnologyTree';
 import { GovernmentPanel } from './GovernmentPanel';
 import { CitiesPanel } from './CitiesPanel';
@@ -22,6 +20,7 @@ import { SelectionTray } from './SelectionTray';
 import { Minimap } from './Minimap';
 import { ObjectivesJournal } from './ObjectivesJournal';
 import { DiplomacyStrip } from './DiplomacyStrip';
+import { TurnActionCluster } from './TurnActionCluster';
 
 interface GameLayoutProps {
   rulesetName?: string;
@@ -131,14 +130,13 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
               top={
                 <HudPanel className="flex max-w-full items-center gap-3 px-3 py-2 sm:gap-5 sm:px-4">
                   <StatusPanel />
-                  <TurnDoneButton />
-                  <GameMenu />
                 </HudPanel>
               }
               bottomCenter={<SelectionTray />}
               bottomLeft={<Minimap />}
               left={<ObjectivesJournal />}
               right={<DiplomacyStrip />}
+              bottomRight={<TurnActionCluster />}
             />
           </div>
 

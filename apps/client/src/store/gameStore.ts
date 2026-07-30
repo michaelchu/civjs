@@ -60,6 +60,7 @@ interface GameStore extends GameState {
   clearFocus: () => void;
   advanceUnitFocus: (sameType?: boolean) => void;
   setUrgentFocus: (unitId: string) => void;
+  acknowledgeUrgentFocus: (unitId?: string) => void;
 
   // Research actions
   updateResearchState: (researchState: Partial<ResearchState>) => void;
@@ -341,6 +342,14 @@ export const useGameStore = create<GameStore>()(
     setUrgentFocus: (unitId: string) => {
       set(state => ({
         urgentFocusQueue: addToUrgentFocus(state.urgentFocusQueue, unitId),
+      }));
+    },
+
+    acknowledgeUrgentFocus: (unitId?: string) => {
+      set(state => ({
+        urgentFocusQueue: unitId
+          ? state.urgentFocusQueue.filter(id => id !== unitId)
+          : state.urgentFocusQueue.slice(1),
       }));
     },
 
