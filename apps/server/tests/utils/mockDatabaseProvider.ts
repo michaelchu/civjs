@@ -32,6 +32,7 @@ export class MockDatabaseProvider implements DatabaseProvider {
       values: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
       onConflictDoNothing: jest.fn().mockReturnThis(),
+      onConflictDoUpdate: jest.fn().mockReturnThis(),
       // Mock insert operations to return objects with generated IDs
       returning,
       query: {

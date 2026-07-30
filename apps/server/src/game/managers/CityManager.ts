@@ -1261,26 +1261,13 @@ export class CityManager {
           city.workableTiles?.filter(t => t.isWorked).map(t => ({ x: t.x, y: t.y })) || [],
       };
 
-      // Use upsert pattern that works in both production and test environments
-      const dbOperation = async () => {
-        try {
-          // Try insert first
-          await db.insert(cities).values([cityData]);
-        } catch (error: any) {
-          // If constraint violation (PostgreSQL or SQLite), try update instead
-          if (
-            error?.code === 'SQLITE_CONSTRAINT' ||
-            error?.constraint === 'PRIMARY' ||
-            error?.code === '23505' || // PostgreSQL unique violation
-            error?.cause?.code === '23505' ||
-            (error?.message && error.message.includes('duplicate key'))
-          ) {
-            await db.update(cities).set(cityData).where(eq(cities.id, city.id));
-          } else {
-            throw error;
-          }
-        }
-      };
+      // Use a native upsert so normal city saves do not emit an expected
+      // duplicate-key ERROR in PostgreSQL before falling back to an update.
+      const dbOperation = () =>
+        db.insert(cities).values(cityData).onConflictDoUpdate({
+          target: cities.id,
+          set: cityData,
+        });
 
       // Apply timeout in all environments to prevent database hangs
       const DB_OPERATION_TIMEOUT = process.env.NODE_ENV === 'test' ? 5000 : 10000; // 5s for tests, 10s for production
