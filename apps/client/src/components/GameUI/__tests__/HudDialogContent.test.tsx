@@ -21,7 +21,9 @@ describe('HudDialogContent', () => {
       'backdrop-blur-xl',
       'z-[2000]',
       'h-[min(88vh,56rem)]',
-      'w-[calc(100vw-1rem)]'
+      'w-[calc(100vw-1rem)]',
+      'sm:w-[75vw]',
+      'sm:max-w-[75vw]'
     );
     expect(document.querySelector('[data-slot="dialog-overlay"]')).toHaveClass('z-[1900]');
   });
