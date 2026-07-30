@@ -1136,6 +1136,34 @@ describe('UnitManager', () => {
     });
   });
 
+  describe('city-targeted unit actions', () => {
+    it('allows configured adjacent-city caravan actions but rejects farther cities', async () => {
+      const cityAwareManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          executeCityUnitAction: jest.fn(),
+          getCityAt: (x: number, _y: number) =>
+            x === 11 || x === 12 ? { id: `city-${x}`, playerId: 'player-123' } : null,
+        },
+        new EffectsManager('civ2civ3')
+      );
+      const caravan = await cityAwareManager.createUnit('player-123', 'caravan', 10, 10);
+      expect(
+        (cityAwareManager as any).canPerformCityUnitAction(caravan, ActionType.HELP_WONDER, 11, 10)
+      ).toBe(true);
+      expect(
+        (cityAwareManager as any).canPerformCityUnitAction(caravan, ActionType.HELP_WONDER, 12, 10)
+      ).toBe(false);
+    });
+  });
+
   describe('unit healing', () => {
     let unitId: string;
 
@@ -1766,18 +1794,34 @@ describe('UnitManager', () => {
         gold: 500,
       });
       const collector = await unitManager.createUnit('player-123', 'warriors', 10, 10);
-      const leader = await unitManager.createUnit('barbarian-player', 'warriors', 11, 10);
-      const escort = await unitManager.createUnit('barbarian-player', 'archers', 11, 10);
+      const leader = await unitManager.createUnit('barbarian-player', 'barbarian_leader', 11, 10);
 
       await expect(
         unitManager.executeUnitAction(collector.id, ActionType.COLLECT_RANSOM, 11, 10, 'player-123')
       ).resolves.toMatchObject({
         success: true,
         targetDestroyed: true,
-        message: expect.stringContaining('200 gold'),
+        message: expect.stringContaining('100 gold'),
       });
       expect(unitManager.getUnit(leader.id)).toBeUndefined();
-      expect(unitManager.getUnit(escort.id)).toBeUndefined();
+    });
+
+    it('does not ransom a barbarian leader protected by an ordinary escort', async () => {
+      const db = mockDbProvider.getDatabase() as any;
+      db.query.players.findFirst.mockResolvedValue({
+        nation: 'barbarian',
+        civilization: 'Barbarian',
+        gold: 500,
+      });
+      const collector = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      const leader = await unitManager.createUnit('barbarian-player', 'barbarian_leader', 11, 10);
+      const escort = await unitManager.createUnit('barbarian-player', 'warriors', 11, 10);
+
+      await expect(
+        unitManager.executeUnitAction(collector.id, ActionType.COLLECT_RANSOM, 11, 10, 'player-123')
+      ).resolves.toMatchObject({ success: false });
+      expect(unitManager.getUnit(leader.id)).toBeDefined();
+      expect(unitManager.getUnit(escort.id)).toBeDefined();
     });
 
     it('treats a barbarian attacker as hostile without a diplomacy record', async () => {

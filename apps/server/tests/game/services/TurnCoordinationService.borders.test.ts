@@ -1,6 +1,27 @@
 import { TurnCoordinationService } from '@game/services/TurnCoordinationService';
 
 describe('TurnCoordinationService border updates', () => {
+  it('preserves fortification during turn UI reset', async () => {
+    const fortified = {
+      id: 'unit-1',
+      playerId: 'player-1',
+      movementLeft: 0,
+      health: 100,
+      fortified: true,
+    };
+    const service = new TurnCoordinationService(
+      'game-1',
+      {} as any,
+      { updatePlayerVisibility: jest.fn() } as any,
+      { getPlayerUnits: jest.fn(() => [fortified]), getAllUnits: jest.fn(() => new Map()) } as any,
+      { getAllCities: jest.fn(() => []) } as any
+    );
+
+    await service.resetUIState(['player-1']);
+
+    expect(fortified.fortified).toBe(true);
+  });
+
   it('recalculates once and includes players who have cities but no units', async () => {
     const borderManager = {
       recalculateAllBorders: jest.fn(() => ({

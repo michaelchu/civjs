@@ -421,7 +421,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-014 — Disbanding a unit into production recovers twice as many shields
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Units, city production, disbanding
 - **Observed behavior:** `Disband Unit Recover` contributes the unit's full
   build cost to city production.
@@ -445,7 +445,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-015 — Help Wonder and production-recovery actions reject adjacent cities
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Unit actions, cities, action ranges
 - **Observed behavior:** A caravan or disbanding unit must occupy the target
   city's center tile; selecting an adjacent city fails.
@@ -512,7 +512,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-018 — Ordinary escorts do not protect a Barbarian Leader from ransom
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Collect Ransom, barbarians, unit stacks
 - **Observed behavior:** Collect Ransom destroys every barbarian unit on the
   target tile and pays ransom for every destroyed unit.
@@ -666,7 +666,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-024 — Fortified units lose fortification at every turn start
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Unit activities, defense, turn coordination
 - **Observed behavior:** A fortified unit's defensive state is cleared when
   the next turn begins.
@@ -942,7 +942,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-033 — Roads on desert and tundra tiles provide no trade
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Tile output, roads, terrain rules
 - **Observed behavior:** A road adds one trade only when the terrain identifier
   is hard-coded as grassland or plains; `civ2civ3` desert and tundra roads

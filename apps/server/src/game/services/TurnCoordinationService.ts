@@ -232,11 +232,9 @@ export class TurnCoordinationService {
         waitingUnitsCleared++;
       }
 
-      // Reset fortified state for units that were waiting
-      // In freeciv-web, units get fresh movement each turn
-      if (unit.fortified) {
-        unit.fortified = false;
-      }
+      // Fortification is a persistent activity. It is cleared only by an
+      // authoritative order, movement, combat, transport, or ownership
+      // transition, not by the start of a new turn.
 
       // Clear any temporary "patrolling" activity from previous turn
       if (unit.activity?.type === 'patrolling') {

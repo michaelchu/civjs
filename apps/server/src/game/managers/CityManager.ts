@@ -15,7 +15,7 @@ import {
 import type { BuildingCultureRequirement } from '@shared/data/rulesets/schemas';
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
-import { EffectsManager } from '@game/managers/EffectsManager';
+import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import type { GovernmentManager } from '@game/managers/GovernmentManager';
 import {
   CityFoundingValidationService,
@@ -2315,9 +2315,7 @@ export class CityManager {
     return true;
   }
 
-  /**
-   * Recover a disbanded unit's full ruleset shield value in a friendly city.
-   */
+  /** Recover a disbanded unit's ruleset shield value in a friendly city. */
   public async recoverUnitShields(
     cityId: string,
     playerId: string,
@@ -2382,8 +2380,16 @@ export class CityManager {
         message = `Added ${unitType.cost} shields to the wonder`;
         break;
       case ActionType.DISBAND_UNIT_RECOVER:
-        success = await this.recoverUnitShields(city.id, playerId, unitType.cost);
-        message = `Recovered ${unitType.cost} shields`;
+        {
+          const shieldValuePct =
+            100 +
+            (this.effectsManager.calculateEffect(EffectType.UNIT_SHIELD_VALUE_PCT, {
+              action: 'Disband Unit Recover',
+            }).value ?? 0);
+          const recoveredShields = Math.max(0, Math.floor((unitType.cost * shieldValuePct) / 100));
+          success = await this.recoverUnitShields(city.id, playerId, recoveredShields);
+          message = `Recovered ${recoveredShields} shields`;
+        }
         break;
       case ActionType.MARKETPLACE: {
         const revenue = homeCityId

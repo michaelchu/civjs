@@ -494,11 +494,16 @@ export class CityTileManagementService extends BaseGameService {
     mapTile: any,
     terrain: string
   ): { food: number; shields: number; trade: number } {
-    if (
-      (mapTile?.hasRoad || mapTile?.improvements?.includes('road')) &&
-      ['grassland', 'plains'].includes(terrain)
-    )
-      outputs.trade += 1;
+    if (mapTile?.hasRoad || mapTile?.improvements?.includes('road')) {
+      const rules = this.ruleset.getTerrain(terrain, this.rulesetName) as {
+        road_trade_incr_pct?: number;
+      };
+      const roadTradePct = rules.road_trade_incr_pct ?? 0;
+      // Freeciv's road increment is expressed as a percentage of the
+      // terrain's one-trade baseline, so a 100% road bonus still contributes
+      // one trade on terrains whose raw trade output is zero.
+      outputs.trade += Math.floor((Math.max(1, outputs.trade) * roadTradePct) / 100);
+    }
     if ((mapTile?.riverMask ?? 0) !== 0) outputs.trade += 1;
     return outputs;
   }

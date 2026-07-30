@@ -2701,20 +2701,36 @@ export class UnitManager {
   ): boolean {
     const city = this.gameManagerCallback?.getCityAt?.(targetX, targetY);
     const unitType = this.unitTypes[unit.unitTypeId];
-    if (!this.hasValidCityUnitActionTarget(unit, city, unitType, targetX, targetY)) return false;
+    if (!this.hasValidCityUnitActionTarget(unit, actionType, city, unitType, targetX, targetY))
+      return false;
     return this.getCityUnitActionValidator(unit, unitType)[actionType]?.() ?? false;
   }
 
   private hasValidCityUnitActionTarget(
     unit: Unit,
+    actionType: ActionType,
     city: CityAtLocation | null | undefined,
     unitType: UnitType | undefined,
     targetX: number,
     targetY: number
   ): city is CityAtLocation {
     if (!city || !unitType || !this.gameManagerCallback?.executeCityUnitAction) return false;
-    if (unit.x !== targetX || unit.y !== targetY) return false;
+    const maxRange = this.getCityUnitActionMaxRange(actionType);
+    const distance = this.calculateDistance(unit.x, unit.y, targetX, targetY);
+    if (distance > maxRange) return false;
     return city.playerId === unit.playerId;
+  }
+
+  private getCityUnitActionMaxRange(actionType: ActionType): number {
+    const rangeKey =
+      actionType === ActionType.HELP_WONDER
+        ? 'help_wonder_max_range'
+        : 'disband_unit_recover_max_range';
+    const actions = rulesetLoader.loadActionsRuleset(this.getRulesetName()) as unknown as {
+      settings?: Record<string, unknown>;
+    };
+    const range = actions.settings?.[rangeKey];
+    return typeof range === 'number' ? range : 0;
   }
 
   private getCityUnitActionValidator(
@@ -3275,6 +3291,14 @@ export class UnitManager {
       !victim?.civilization.toLowerCase().startsWith('barbarian')
     ) {
       return { success: false, message: 'Ransom can only be collected from barbarians' };
+    }
+    if (
+      targets.some(target => !this.unitTypes[target.unitTypeId]?.flags?.includes('ProvidesRansom'))
+    ) {
+      return {
+        success: false,
+        message: 'Cannot collect ransom while an ordinary barbarian unit provides protection',
+      };
     }
     const requested = targets.length * rulesetLoader.getGameParameters().ransom_gold;
     const ransom = Math.min(requested, victim.gold);

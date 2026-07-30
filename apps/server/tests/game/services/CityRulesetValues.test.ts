@@ -168,6 +168,23 @@ describe('ruleset-backed city values', () => {
     });
   });
 
+  it.each(['desert', 'tundra'])('applies the ruleset road trade bonus on %s', terrain => {
+    const cityState = city({ population: 1 });
+    const cities = new Map([[cityState.id, cityState]]);
+    const map = mapFor(terrain);
+    const mapTile = (map.getTile as jest.Mock)();
+    mapTile.improvements = ['road'];
+    mapTile.hasRoad = true;
+    const service = new CityTileManagementService(cities, map, 5, {
+      getTerrain: (terrainName: string) => rulesetLoader.getTerrain(terrainName, 'civ2civ3'),
+      getCivstyle: () => rulesetLoader.getCivstyle('civ2civ3'),
+    });
+
+    service.initializeWorkableTiles(cityState);
+
+    expect(service.calculateCityOutputs(cityState.id).trade).toBe(1);
+  });
+
   it('recalculates worked-tile output after an improvement changes the map', () => {
     const cityState = city({ population: 1 });
     const cities = new Map([[cityState.id, cityState]]);

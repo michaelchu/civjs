@@ -131,6 +131,31 @@ describe('CityManager', () => {
       await expect(cityManager.helpWonder(city.id, 'player-123', 50)).resolves.toBe(false);
       await expect(cityManager.helpWonder(city.id, 'player-456', 50)).resolves.toBe(false);
     });
+
+    it('recovers half of a disbanded unit cost through the action path', async () => {
+      const civ2civ3CityManager = new CityManager(
+        gameId,
+        mockDbProvider,
+        new EffectsManager('civ2civ3')
+      );
+      civ2civ3CityManager.setMapManager(mockMapManager);
+      civ2civ3CityManager.setPlayerGovernmentProvider(() => 'despotism');
+      await civ2civ3CityManager.initialize();
+      const city = await civ2civ3CityManager.foundCity(10, 10, 'Recycle', 'player-123');
+      city.currentProduction = 'warriors';
+
+      const result = await civ2civ3CityManager.executeUnitCityAction(
+        ActionType.DISBAND_UNIT_RECOVER,
+        'player-123',
+        'caravan',
+        undefined,
+        city.x,
+        city.y
+      );
+
+      expect(result).toMatchObject({ success: true, message: 'Recovered 25 shields' });
+      expect(city.productionStock).toBe(25);
+    });
   });
 
   describe('worker task requests', () => {
