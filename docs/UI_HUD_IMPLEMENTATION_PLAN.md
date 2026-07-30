@@ -103,6 +103,37 @@ Acceptance criteria:
 
 ## Work breakdown
 
+## Implementation status — July 30, 2026
+
+Status reflects the current codebase, including the latest committed HUD and
+synchronization work. “Complete” means the planned UI surface is implemented
+at the current contract boundary; it does not include deferred visual polish,
+future art assets, or backend capabilities explicitly called out as
+unavailable.
+
+| Slice                                              | Status                      | Current assessment                                                                                                                                                                                                                                                                                                            |
+| -------------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0. Authoritative data contract and synchronization | **Partial / high priority** | Authoritative phase is now propagated through game-start and turn-start packets. Score remains inconsistent between live player info and snapshot paths; tax/luxury/science rates and related contract tests still need completion. Unit and city fields are largely present, but normalization coverage should be tightened. |
+| 1. HUD foundations                                 | **Complete**                | `GameHud`, shared HUD surfaces/buttons, named regions, map-first composition, pointer-event handling, responsive layout, and overlay/dialog integration are implemented.                                                                                                                                                      |
+| 2. Persistent top resource bar                     | **Complete**                | `StatusPanel` exposes resources, deltas, turn/year, government, nation identity placeholder, phase, connection, and pending-action state with report/government entry points.                                                                                                                                                 |
+| 3. Bottom contextual selection tray                | **Complete**                | `SelectionTray` supports no selection, unit selection, city selection, capability-aware actions, disabled explanations, focus queues, and city details access.                                                                                                                                                                |
+| 4. Map annotations and selection feedback          | **Complete**                | City and unit labels, production/status indicators, selected-state feedback, movement/path preview, destination markers, and pending order presentation are implemented in the 2D renderers and map interaction layer.                                                                                                        |
+| 5. Minimap / overview map                          | **Complete**                | The minimap renders known terrain/ownership, cities and units, viewport context, selected markers, click navigation, collapse behavior, and narrow-screen handling.                                                                                                                                                           |
+| 6. Left objectives / journal panel                 | **Complete**                | `ObjectivesJournal` exposes research/objectives, city attention, units awaiting orders, recent events, urgency, navigation, collapse, and mobile behavior.                                                                                                                                                                    |
+| 7. Right diplomacy / leader strip                  | **Partial**                 | `DiplomacyStrip` supports known nations, relationship/proposal summaries, leader identity placeholders, treaty actions, intelligence access, collapse, and mobile behavior. Embassy/shared-vision indicators and coordinate-based map centering remain blocked by unavailable backend data.                                   |
+| 8. Bottom-right turn and global action cluster     | **Complete**                | End-turn, blocked-turn explanations, urgent-action review, reports, settings, help/Civilopedia, chat entry, keyboard dismissal, and responsive overflow are implemented.                                                                                                                                                      |
+| 9. Reports and information panels                  | **Complete**                | Scores/history, demographics, climate, unit, intelligence, space race, war calculator, and Civilopedia surfaces are implemented and accessible from the HUD.                                                                                                                                                                  |
+
+### Current implementation position
+
+The persistent HUD milestone is implemented. High-priority work should now
+focus on completing Slice 0 before additional polish: unify authoritative
+score/economy data across all snapshot paths, verify FE normalization for the
+fields already emitted by the BE, and add regression coverage. Diplomacy
+capabilities that require new backend contracts should remain explicitly
+blocked rather than inferred in the UI. Visual polish, final assets, and
+non-critical interaction refinements remain deferred.
+
 ### Slice 0 — Authoritative data contract and synchronization cleanup
 
 Complete this slice before implementing persistent HUD components. The HUD will expose more game state continuously, so missing or lossy FE normalization becomes much more visible once the map is surrounded by status panels.
