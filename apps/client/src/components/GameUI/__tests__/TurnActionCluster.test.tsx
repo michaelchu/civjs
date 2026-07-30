@@ -64,6 +64,10 @@ describe('TurnActionCluster', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Reports' }));
     expect(screen.getByText('Reports and management')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reports' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
     fireEvent.click(screen.getByRole('button', { name: /research/i }));
     expect(useGameStore.getState().activeTab).toBe('research');
 
@@ -71,6 +75,9 @@ describe('TurnActionCluster', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Help' }));
     expect(screen.getByText('Command help')).toBeInTheDocument();
     expect(useGameStore.getState().activeTab).toBe('map');
+    expect(screen.getByRole('button', { name: 'Help' })).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByText('Command help')).not.toBeInTheDocument();
   });
 
   it('opens the unit report from the reports menu', () => {

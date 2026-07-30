@@ -30,12 +30,25 @@ const ActionButton: React.FC<{
   disabled?: boolean;
   active?: boolean;
   title?: string;
-}> = ({ label, icon: Icon, onClick, disabled = false, active = false, title }) => (
+  'aria-expanded'?: boolean;
+  'aria-controls'?: string;
+}> = ({
+  label,
+  icon: Icon,
+  onClick,
+  disabled = false,
+  active = false,
+  title,
+  'aria-expanded': ariaExpanded,
+  'aria-controls': ariaControls,
+}) => (
   <button
     type="button"
     onClick={onClick}
     disabled={disabled}
     aria-label={label}
+    aria-expanded={ariaExpanded}
+    aria-controls={ariaControls}
     title={title ?? label}
     className={`flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 ${
       active
@@ -57,7 +70,16 @@ const ReportsMenu: React.FC<{
   onOpenIntelligence?: () => void;
   onOpenSpaceRace?: () => void;
   onOpenWarCalculator?: () => void;
-}> = ({ onClose, onOpenScores, onOpenDemographics, onOpenClimate, onOpenUnitReport, onOpenIntelligence, onOpenSpaceRace, onOpenWarCalculator }) => {
+}> = ({
+  onClose,
+  onOpenScores,
+  onOpenDemographics,
+  onOpenClimate,
+  onOpenUnitReport,
+  onOpenIntelligence,
+  onOpenSpaceRace,
+  onOpenWarCalculator,
+}) => {
   const setActiveTab = useGameStore(state => state.setActiveTab);
   const openTab = (tab: Parameters<typeof setActiveTab>[0]) => {
     setActiveTab(tab);
@@ -65,67 +87,161 @@ const ReportsMenu: React.FC<{
   };
 
   return (
-    <div className="absolute bottom-full right-0 mb-2 w-64 rounded-xl border border-white/15 bg-slate-950/95 p-2 shadow-2xl backdrop-blur-md">
+    <div
+      id="turn-reports-menu"
+      role="dialog"
+      aria-label="Reports and management"
+      className="absolute bottom-full right-0 mb-2 w-64 rounded-xl border border-white/15 bg-slate-950/95 p-2 shadow-2xl backdrop-blur-md"
+    >
       <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
         Reports and management
       </div>
       <div className="mt-1 grid grid-cols-2 gap-1">
-        <button type="button" onClick={() => { onOpenScores?.(); onClose(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
+        <button
+          type="button"
+          onClick={() => {
+            onOpenScores?.();
+            onClose();
+          }}
+          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+        >
           <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" /> Scores
         </button>
-        <button type="button" onClick={() => { onOpenDemographics?.(); onClose(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
+        <button
+          type="button"
+          onClick={() => {
+            onOpenDemographics?.();
+            onClose();
+          }}
+          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+        >
           <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" /> Demographics
         </button>
-        <button type="button" onClick={() => { onOpenClimate?.(); onClose(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
+        <button
+          type="button"
+          onClick={() => {
+            onOpenClimate?.();
+            onClose();
+          }}
+          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+        >
           <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" /> Climate
         </button>
-        <button type="button" onClick={() => { onOpenUnitReport?.(); onClose(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
+        <button
+          type="button"
+          onClick={() => {
+            onOpenUnitReport?.();
+            onClose();
+          }}
+          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+        >
           <Swords className="h-3.5 w-3.5" aria-hidden="true" /> Units
         </button>
-        <button type="button" onClick={() => openTab('cities')} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
+        <button
+          type="button"
+          onClick={() => openTab('cities')}
+          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+        >
           <Building2 className="h-3.5 w-3.5" aria-hidden="true" /> Empire
         </button>
-        <button type="button" onClick={() => { onOpenIntelligence?.(); onClose(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
+        <button
+          type="button"
+          onClick={() => {
+            onOpenIntelligence?.();
+            onClose();
+          }}
+          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+        >
           <Radar className="h-3.5 w-3.5" aria-hidden="true" /> Intelligence
         </button>
-        <button type="button" onClick={() => { onOpenSpaceRace?.(); onClose(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
+        <button
+          type="button"
+          onClick={() => {
+            onOpenSpaceRace?.();
+            onClose();
+          }}
+          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+        >
           <Rocket className="h-3.5 w-3.5" aria-hidden="true" /> Space race
         </button>
-        <button type="button" onClick={() => { onOpenWarCalculator?.(); onClose(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
+        <button
+          type="button"
+          onClick={() => {
+            onOpenWarCalculator?.();
+            onClose();
+          }}
+          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+        >
           <Crosshair className="h-3.5 w-3.5" aria-hidden="true" /> War calculator
         </button>
-        <button type="button" onClick={() => openTab('research')} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
+        <button
+          type="button"
+          onClick={() => openTab('research')}
+          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+        >
           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Research
         </button>
-        <button type="button" onClick={() => openTab('nations')} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
+        <button
+          type="button"
+          onClick={() => openTab('nations')}
+          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+        >
           <Flag className="h-3.5 w-3.5" aria-hidden="true" /> Diplomacy
         </button>
-        <button type="button" onClick={() => openTab('government')} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
+        <button
+          type="button"
+          onClick={() => openTab('government')}
+          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+        >
           <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" /> Government
         </button>
       </div>
       <div className="mt-2 border-t border-white/10 px-2 pt-2 text-[10px] text-slate-500">
-          Help and Civilopedia are available from the Help menu.
+        Help and Civilopedia are available from the Help menu.
       </div>
     </div>
   );
 };
 
 const HelpMenu: React.FC<{ onOpenCivilopedia?: () => void }> = ({ onOpenCivilopedia }) => (
-  <div className="absolute bottom-full right-0 mb-2 w-64 rounded-xl border border-white/15 bg-slate-950/95 p-3 text-xs shadow-2xl backdrop-blur-md">
+  <div
+    id="turn-help-menu"
+    role="dialog"
+    aria-label="Command help"
+    className="absolute bottom-full right-0 mb-2 w-64 rounded-xl border border-white/15 bg-slate-950/95 p-3 text-xs shadow-2xl backdrop-blur-md"
+  >
     <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
       <BookOpen className="h-4 w-4 text-cyan-300" aria-hidden="true" />
       Command help
     </div>
     <div className="mt-2 space-y-1.5 text-[10px] text-slate-400">
-      <div className="flex justify-between gap-3"><span>End turn</span><kbd>Shift + Enter</kbd></div>
-      <div className="flex justify-between gap-3"><span>Advance unit focus</span><kbd>Tab</kbd></div>
-      <div className="flex justify-between gap-3"><span>Open action menu</span><kbd>Space</kbd></div>
-      <div className="flex justify-between gap-3"><span>Map / Government / Research</span><kbd>F1–F3</kbd></div>
-      <div className="flex justify-between gap-3"><span>Diplomacy / Cities / Settings</span><kbd>F4–F6</kbd></div>
+      <div className="flex justify-between gap-3">
+        <span>End turn</span>
+        <kbd>Shift + Enter</kbd>
+      </div>
+      <div className="flex justify-between gap-3">
+        <span>Advance unit focus</span>
+        <kbd>Tab</kbd>
+      </div>
+      <div className="flex justify-between gap-3">
+        <span>Open action menu</span>
+        <kbd>Space</kbd>
+      </div>
+      <div className="flex justify-between gap-3">
+        <span>Map / Government / Research</span>
+        <kbd>F1–F3</kbd>
+      </div>
+      <div className="flex justify-between gap-3">
+        <span>Diplomacy / Cities / Settings</span>
+        <kbd>F4–F6</kbd>
+      </div>
     </div>
     <div className="mt-3 border-t border-white/10 pt-2 text-[10px] text-slate-500">
-      <button type="button" onClick={onOpenCivilopedia} className="flex w-full items-center justify-between rounded px-1 py-1 text-left text-cyan-300 hover:bg-cyan-300/10 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
+      <button
+        type="button"
+        onClick={onOpenCivilopedia}
+        className="flex w-full items-center justify-between rounded px-1 py-1 text-left text-cyan-300 hover:bg-cyan-300/10 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+      >
         Open Civilopedia <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
     </div>
@@ -138,6 +254,8 @@ const MobileActionsMenu: React.FC<{
   onChat: () => void;
 }> = ({ onReports, onHelp, onChat }) => (
   <div
+    id="turn-mobile-actions-menu"
+    role="dialog"
     aria-label="More command actions"
     className="absolute bottom-full right-0 mb-2 w-48 rounded-xl border border-white/15 bg-slate-950/95 p-2 shadow-2xl backdrop-blur-md sm:hidden"
   >
@@ -179,7 +297,16 @@ export const TurnActionCluster: React.FC<{
   onOpenSpaceRace?: () => void;
   onOpenWarCalculator?: () => void;
   onOpenCivilopedia?: () => void;
-}> = ({ onOpenScores, onOpenDemographics, onOpenClimate, onOpenUnitReport, onOpenIntelligence, onOpenSpaceRace, onOpenWarCalculator, onOpenCivilopedia }) => {
+}> = ({
+  onOpenScores,
+  onOpenDemographics,
+  onOpenClimate,
+  onOpenUnitReport,
+  onOpenIntelligence,
+  onOpenSpaceRace,
+  onOpenWarCalculator,
+  onOpenCivilopedia,
+}) => {
   const [reportsOpen, setReportsOpen] = React.useState(false);
   const [helpOpen, setHelpOpen] = React.useState(false);
   const [chatOpen, setChatOpen] = React.useState(false);
@@ -190,6 +317,21 @@ export const TurnActionCluster: React.FC<{
   const acknowledgeUrgentFocus = useGameStore(state => state.acknowledgeUrgentFocus);
   const selectUnit = useGameStore(state => state.selectUnit);
   const selectCity = useGameStore(state => state.selectCity);
+
+  React.useEffect(() => {
+    if (!reportsOpen && !helpOpen && !chatOpen && !mobileActionsOpen) return undefined;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setReportsOpen(false);
+      setHelpOpen(false);
+      setChatOpen(false);
+      setMobileActionsOpen(false);
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [chatOpen, helpOpen, mobileActionsOpen, reportsOpen]);
 
   const urgentUnits = urgentFocusQueue
     .map(unitId => units[unitId])
@@ -225,22 +367,36 @@ export const TurnActionCluster: React.FC<{
           <ActionButton
             label="Reports"
             icon={ScrollText}
-            onClick={() => { setReportsOpen(value => !value); setHelpOpen(false); }}
+            onClick={() => {
+              setReportsOpen(value => !value);
+              setHelpOpen(false);
+            }}
             active={reportsOpen}
+            aria-expanded={reportsOpen}
+            aria-controls="turn-reports-menu"
           />
         </div>
         <div className="hidden sm:block">
           <ActionButton
             label="Help"
             icon={CircleHelp}
-            onClick={() => { setHelpOpen(value => !value); setReportsOpen(false); }}
+            onClick={() => {
+              setHelpOpen(value => !value);
+              setReportsOpen(false);
+            }}
             active={helpOpen}
+            aria-expanded={helpOpen}
+            aria-controls="turn-help-menu"
           />
         </div>
         <div className="hidden sm:block">
           <HudIconButton
             label="Chat"
-            onClick={() => { setChatOpen(value => !value); setReportsOpen(false); setHelpOpen(false); }}
+            onClick={() => {
+              setChatOpen(value => !value);
+              setReportsOpen(false);
+              setHelpOpen(false);
+            }}
             title="Open chat"
             className={chatOpen ? 'bg-cyan-300/15 text-cyan-100' : undefined}
           >
@@ -252,6 +408,8 @@ export const TurnActionCluster: React.FC<{
             label="More actions"
             onClick={() => setMobileActionsOpen(value => !value)}
             title="More command actions"
+            aria-expanded={mobileActionsOpen}
+            aria-controls="turn-mobile-actions-menu"
             className={mobileActionsOpen ? 'bg-cyan-300/15 text-cyan-100' : undefined}
           >
             <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
@@ -295,7 +453,14 @@ export const TurnActionCluster: React.FC<{
           onOpenWarCalculator={onOpenWarCalculator}
         />
       )}
-      {helpOpen && <HelpMenu onOpenCivilopedia={onOpenCivilopedia} />}
+      {helpOpen && (
+        <HelpMenu
+          onOpenCivilopedia={() => {
+            setHelpOpen(false);
+            onOpenCivilopedia?.();
+          }}
+        />
+      )}
       {mobileActionsOpen && (
         <MobileActionsMenu
           onReports={() => {
