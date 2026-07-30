@@ -907,7 +907,7 @@ export class UnitManager {
   private hasCityAtEitherEndpoint(fromX: number, fromY: number, toX: number, toY: number): boolean {
     return Boolean(
       this.gameManagerCallback?.getCityAt?.(fromX, fromY) ||
-        this.gameManagerCallback?.getCityAt?.(toX, toY)
+      this.gameManagerCallback?.getCityAt?.(toX, toY)
     );
   }
 
@@ -1134,7 +1134,7 @@ export class UnitManager {
     const tile = this.mapManager?.getTile(defender.x, defender.y);
     return Boolean(
       city ||
-        tile?.improvements?.some((extra: string) => extra === 'fortress' || extra === 'airbase')
+      tile?.improvements?.some((extra: string) => extra === 'fortress' || extra === 'airbase')
     );
   }
 
@@ -2277,8 +2277,8 @@ export class UnitManager {
     const city = this.gameManagerCallback?.getCityAt?.(x, y);
     return Boolean(
       city &&
-        city.playerId !== unit.playerId &&
-        !this.alliedPlayersProvider?.(unit.playerId).has(city.playerId)
+      city.playerId !== unit.playerId &&
+      !this.alliedPlayersProvider?.(unit.playerId).has(city.playerId)
     );
   }
 
@@ -2319,6 +2319,7 @@ export class UnitManager {
     }
     this.units.delete(unitId);
     await this.databaseProvider.getDatabase().delete(units).where(eq(units.id, unitId));
+    this.identities.releaseUuid(unitId);
     // All authoritative removals, including combat collateral and cargo loss,
     // pass through this method. Notify once here so clients and AI lifecycle
     // state cannot miss a path or receive duplicate path-specific events.
@@ -2816,10 +2817,10 @@ export class UnitManager {
   private isParadropActorReady(unit: Unit, unitType: UnitType): boolean {
     return Boolean(
       unitType.flags?.includes('Paratroopers') &&
-        unitType.paratroopersRange > 0 &&
-        !unit.transportedBy &&
-        unit.lastActionTurn !== (this.currentTurnProvider?.() ?? 1) &&
-        unit.movementLeft >= SINGLE_MOVE
+      unitType.paratroopersRange > 0 &&
+      !unit.transportedBy &&
+      unit.lastActionTurn !== (this.currentTurnProvider?.() ?? 1) &&
+      unit.movementLeft >= SINGLE_MOVE
     );
   }
 
@@ -3158,9 +3159,9 @@ export class UnitManager {
     const y = targetY ?? unit.y;
     return Boolean(
       type.flags?.includes('Nuclear') &&
-        unit.movementLeft > 0 &&
-        this.isValidPosition(x, y) &&
-        this.calculateDistance(unit.x, unit.y, x, y) <= Math.max(1, type.range)
+      unit.movementLeft > 0 &&
+      this.isValidPosition(x, y) &&
+      this.calculateDistance(unit.x, unit.y, x, y) <= Math.max(1, type.range)
     );
   }
 
@@ -3229,8 +3230,8 @@ export class UnitManager {
   ): boolean {
     return Boolean(
       tile &&
-        !['ocean', 'coast', 'deep_ocean', 'lake'].includes(tile.terrain) &&
-        !tile.improvements.includes('fallout')
+      !['ocean', 'coast', 'deep_ocean', 'lake'].includes(tile.terrain) &&
+      !tile.improvements.includes('fallout')
     );
   }
 
@@ -4556,9 +4557,9 @@ export class UnitManager {
     const cargo = this.unitTypes[cargoType];
     return Boolean(
       transport &&
-        cargo &&
-        (transport.transport_capacity ?? 0) > 0 &&
-        transport.cargoClasses.includes(cargo.rulesetUnitClass ?? '')
+      cargo &&
+      (transport.transport_capacity ?? 0) > 0 &&
+      transport.cargoClasses.includes(cargo.rulesetUnitClass ?? '')
     );
   }
 

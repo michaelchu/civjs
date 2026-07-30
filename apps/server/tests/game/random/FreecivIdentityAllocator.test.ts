@@ -22,4 +22,21 @@ describe('FreecivIdentityAllocator', () => {
     expect(parseInt(identities.nextUuid().slice(0, 8), 16)).toBe(413);
     expect(identities.getState()).toBe(413);
   });
+
+  it('skips reserved identities after wrapping and reuses released unit identities', () => {
+    const identities = new FreecivIdentityAllocator(249_999, [1, 2]);
+
+    expect(parseInt(identities.nextUuid().slice(0, 8), 16)).toBe(3);
+    identities.release(2);
+    identities.setState(1);
+    expect(parseInt(identities.nextUuid().slice(0, 8), 16)).toBe(2);
+  });
+
+  it('reserves identity zero permanently', () => {
+    const identities = new FreecivIdentityAllocator(249_999, [1]);
+
+    expect(identities.isReserved(0)).toBe(true);
+    identities.release(0);
+    expect(identities.isReserved(0)).toBe(true);
+  });
 });

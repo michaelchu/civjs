@@ -619,11 +619,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
     const allocated = [...unitIds, ...cityIds]
       .map(record => Number.parseInt(record.id.slice(0, 8), 16))
       .filter(value => Number.isInteger(value) && value > 0 && value < 250_000);
-    const identityNumber = Math.max(
-      Number.isInteger(stored) ? stored : FREECIV_IDENTITY_NUMBER_SKIP,
-      ...allocated
-    );
-    return new FreecivIdentityAllocator(identityNumber);
+    const identityNumber = Number.isInteger(stored) ? stored : FREECIV_IDENTITY_NUMBER_SKIP;
+    return new FreecivIdentityAllocator(identityNumber, allocated);
   }
 
   private getUnitSupport(city: any, unitManager: any, cityManager: any): any[] {
