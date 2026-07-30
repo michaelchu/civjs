@@ -122,6 +122,7 @@ describe('CityRenderer presentation state', () => {
       x: 0,
       y: 0,
       size: 3,
+      actualPopulation: 7,
       buildings: [],
       granaryTurns: 4,
       disorder: false,
@@ -136,6 +137,7 @@ describe('CityRenderer presentation state', () => {
     } as unknown as RenderState);
 
     expect(context.fillText).toHaveBeenCalledWith('granary · 3t', expect.any(Number), expect.any(Number));
+    expect(context.fillText).toHaveBeenCalledWith('7', expect.any(Number), expect.any(Number));
   });
 
   it('renders the selected city workable-area tiles', () => {

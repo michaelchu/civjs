@@ -130,7 +130,10 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({ onO
   }
 
   const ownedCities = Object.values(cities).filter((city: City) => city.playerId === currentPlayerId);
-  const population = ownedCities.reduce((total, city) => total + city.size, 0);
+  const population = ownedCities.reduce(
+    (total, city) => total + (city.actualPopulation ?? city.size),
+    0
+  );
   const trade = ownedCities.reduce((total, city) => total + (city.trade ?? 0), 0);
 
   return (

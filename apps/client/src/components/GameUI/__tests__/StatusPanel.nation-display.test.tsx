@@ -8,7 +8,10 @@ type MockStatusStore = {
   phase: string;
   clientState: string;
   currentPlayerId: string;
-  cities: Record<string, { id?: string; playerId: string; size: number; trade?: number }>;
+  cities: Record<
+    string,
+    { id?: string; playerId: string; size: number; actualPopulation?: number; trade?: number }
+  >;
   setActiveTab: ReturnType<typeof vi.fn>;
   players: Record<string, Record<string, unknown>>;
   urgentFocusQueue?: string[];
@@ -140,5 +143,15 @@ describe('StatusPanel - Nation Display', () => {
 
     expect(screen.getByText('2 pending')).toBeInTheDocument();
     expect(screen.getByTitle('running · movement phase · 2 pending actions')).toBeInTheDocument();
+  });
+
+  it('uses authoritative city population when available', () => {
+    mockUseGameStore.cities = {
+      cityOne: { id: 'cityOne', playerId: 'player-1', size: 4, actualPopulation: 7, trade: 3 },
+      cityTwo: { id: 'cityTwo', playerId: 'player-1', size: 2, actualPopulation: 5, trade: 2 },
+    };
+    render(<StatusPanel />);
+
+    expect(screen.getByText('12')).toBeInTheDocument();
   });
 });

@@ -248,8 +248,11 @@ const CityTray: React.FC<{ city: City }> = ({ city }) => {
             <span className="max-w-36 truncate text-sm font-semibold text-white">{city.name}</span>
             {city.isCapital && <Flag className="h-3.5 w-3.5 text-amber-300" aria-label="Capital" />}
           </div>
-          <div className="text-[10px] uppercase tracking-[0.12em] text-slate-400">
-            Size {city.size} ·{' '}
+          <div
+            className="text-[10px] uppercase tracking-[0.12em] text-slate-400"
+            title={city.actualPopulation === undefined ? 'Population uses city-size fallback' : 'Population'}
+          >
+            Pop {city.actualPopulation ?? city.size} ·{' '}
             {city.granaryTurns < 0
               ? 'Starving'
               : city.granaryTurns === 0

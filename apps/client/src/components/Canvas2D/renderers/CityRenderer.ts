@@ -340,7 +340,7 @@ export class CityRenderer extends BaseRenderer {
 
     // Prepare text content
     const cityName = city.name.toUpperCase();
-    const cityPop = city.size.toString();
+    const cityPop = (city.actualPopulation ?? city.size).toString();
     const labelScale = 1.2;
     const fontSize = Math.floor(CityRenderer.BASE_FONT_SIZE * this.cityScale * labelScale);
     this.ctx.font = `${fontSize}px Arial, sans-serif`;
