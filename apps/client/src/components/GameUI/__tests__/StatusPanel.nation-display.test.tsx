@@ -8,7 +8,7 @@ type MockStatusStore = {
   phase: string;
   clientState: string;
   currentPlayerId: string;
-  cities: Record<string, { id?: string; playerId: string; size: number }>;
+  cities: Record<string, { id?: string; playerId: string; size: number; trade?: number }>;
   setActiveTab: ReturnType<typeof vi.fn>;
   players: Record<string, Record<string, unknown>>;
 };
@@ -104,15 +104,16 @@ describe('StatusPanel - Nation Display', () => {
       score: 480,
     };
     mockUseGameStore.cities = {
-      cityOne: { id: 'cityOne', playerId: 'player-1', size: 4 },
-      cityTwo: { id: 'cityTwo', playerId: 'player-1', size: 2 },
+      cityOne: { id: 'cityOne', playerId: 'player-1', size: 4, trade: 3 },
+      cityTwo: { id: 'cityTwo', playerId: 'player-1', size: 2, trade: 2 },
     };
 
     const onOpenDemographics = vi.fn();
-    const { getByText, getByRole } = render(<StatusPanel onOpenDemographics={onOpenDemographics} />);
+    const { getByText, getByRole, getByTitle } = render(<StatusPanel onOpenDemographics={onOpenDemographics} />);
 
     expect(getByText('60/10/30%')).toBeInTheDocument();
     expect(getByText('6')).toBeInTheDocument();
+    expect(getByTitle('Trade: 5')).toBeInTheDocument();
     expect(getByText('480')).toBeInTheDocument();
     expect(getByRole('button', { name: 'Open demographics report' })).toHaveTextContent(
       '3800 BC'

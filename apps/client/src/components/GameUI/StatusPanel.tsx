@@ -5,6 +5,7 @@ import {
   Coins,
   FlaskConical,
   Gauge,
+  ArrowLeftRight,
   Sparkles,
   Users,
   Wifi,
@@ -115,6 +116,7 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({ onO
 
   const ownedCities = Object.values(cities).filter((city: City) => city.playerId === currentPlayerId);
   const population = ownedCities.reduce((total, city) => total + city.size, 0);
+  const trade = ownedCities.reduce((total, city) => total + (city.trade ?? 0), 0);
 
   return (
     <div className="flex min-w-0 max-w-full items-center gap-2 text-xs sm:gap-3">
@@ -157,6 +159,13 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({ onO
           icon={FlaskConical}
           tone="text-sky-300"
         />
+        <div className="hidden items-center gap-1.5 whitespace-nowrap md:flex" title={`Trade: ${trade}`}>
+          <ArrowLeftRight className="h-3.5 w-3.5 text-teal-300" aria-hidden="true" />
+          <span className="hidden text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400 xl:inline">
+            Trade
+          </span>
+          <span className="font-semibold tabular-nums text-slate-100">{trade}</span>
+        </div>
         <div className="hidden items-center gap-1.5 whitespace-nowrap md:flex" title="Luxury rate">
           <Sparkles className="h-3.5 w-3.5 text-fuchsia-300" aria-hidden="true" />
           <span className="font-semibold tabular-nums text-slate-100">
