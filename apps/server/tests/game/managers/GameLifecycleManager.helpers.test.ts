@@ -1,6 +1,7 @@
 import { GameLifecycleManager } from '@game/orchestrators/GameLifecycleManager';
 import { GameStateManager } from '@game/orchestrators/GameStateManager';
 import { gameState } from '@database/redis';
+import { FreecivRandom } from '@game/random/FreecivRandom';
 
 // Minimal stubs for dependencies
 const stubIo = {} as any;
@@ -32,6 +33,22 @@ function createManager(overrides?: {
 }
 
 describe('GameLifecycleManager helper behavior', () => {
+  test('stores the configured Freeciv seed and its warmed initial state', () => {
+    const manager = createManager();
+
+    const data = (manager as any).buildGameData(
+      {
+        name: 'seeded',
+        hostId: 'host',
+        randomSeed: 1234,
+      },
+      'classic'
+    );
+
+    expect(data.gameState.randomSeed).toBe(1234);
+    expect(data.gameState.randomState).toEqual(new FreecivRandom(1234).getState());
+  });
+
   test('uses a configured map seed when constructing a map manager for replayable games', () => {
     const manager = createManager();
     const terrainSettings = {

@@ -7,7 +7,7 @@ import { BaseGameService } from './GameService';
 import { DatabaseProvider } from '@database';
 import { gameState } from '@database/redis';
 import { games, players } from '@database/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { TerrainSettings } from '@game/managers/GameManager';
 import type { MapManager } from '@game/managers/MapManager';
 
@@ -239,11 +239,11 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
       .set({
         mapSeed: mapData.seed,
         mapData: serializedMapData,
-        gameState: {
+        gameState: sql`coalesce(${games.gameState}, '{}'::jsonb) || ${JSON.stringify({
           terrainSettings: terrainSettings || null,
           mapGenerated: true,
           generatedAt: mapData.generatedAt.toISOString(),
-        },
+        })}::jsonb`,
         updatedAt: new Date(),
       })
       .where(eq(games.id, gameId));

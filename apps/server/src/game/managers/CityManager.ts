@@ -1,6 +1,7 @@
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 /* eslint-disable complexity */
-import { randomUUID } from 'crypto';
+import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
+import { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAllocator';
 import { logger } from '@utils/logger';
 import { DatabaseProvider } from '@database';
 import { cities, games } from '@database/schema';
@@ -363,7 +364,9 @@ export class CityManager {
     effectsManager: EffectsManager,
     callbacks: CityManagerCallbacks = {},
     private readonly unitTypes: Record<string, UnitType> = rulesetUnitsService.getUnitTypes(),
-    private readonly buildingTypes: Record<string, BuildingType> = BUILDING_TYPES
+    private readonly buildingTypes: Record<string, BuildingType> = BUILDING_TYPES,
+    private readonly random: RandomSource = Math.random,
+    private readonly identities: FreecivIdentityAllocator = new FreecivIdentityAllocator()
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
@@ -492,7 +495,7 @@ export class CityManager {
       this.cities,
       this.updateTradeRoutesOnPlayerChange.bind(this),
       undefined,
-      undefined,
+      this.random,
       this.buildingTypes
     );
 
@@ -715,7 +718,7 @@ export class CityManager {
       throw new Error(validation.errorMessage);
     }
 
-    const cityId = randomUUID();
+    const cityId = this.identities.nextUuid();
     // @reference reference/freeciv/server/citytools.c:639-690
     const currentTurn = this.currentTurnProvider?.() ?? 1;
 
@@ -2155,7 +2158,7 @@ export class CityManager {
    */
   public async destroyDisasterBuilding(
     cityId: string,
-    random: () => number = Math.random
+    random: RandomSource = this.random
   ): Promise<string | null> {
     const city = this.cities.get(cityId);
     if (!city) return null;
@@ -2167,7 +2170,7 @@ export class CityManager {
       }
     });
     if (candidates.length === 0) return null;
-    const buildingId = candidates[Math.floor(random() * candidates.length)];
+    const buildingId = candidates[randomInt(random, candidates.length)];
     city.buildings = city.buildings.filter(building => building !== buildingId);
     this.calculateCityOutputs(city.id);
     this.applyCityHappiness(city.id);
@@ -2181,7 +2184,7 @@ export class CityManager {
   public async placeDisasterExtra(
     cityId: string,
     extra: 'pollution' | 'fallout',
-    random: () => number = Math.random
+    random: RandomSource = this.random
   ): Promise<boolean> {
     const city = this.cities.get(cityId);
     if (!city || !this.mapManager) return false;
@@ -2195,7 +2198,7 @@ export class CityManager {
           !(tile.improvements ?? []).includes(extra)
       );
     if (candidates.length === 0) return false;
-    const tile = candidates[Math.floor(random() * candidates.length)]!;
+    const tile = candidates[randomInt(random, candidates.length)]!;
     this.mapManager.updateTileProperty(tile.x, tile.y, 'improvements', [
       ...(tile.improvements ?? []),
       extra,

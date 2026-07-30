@@ -1,4 +1,6 @@
 import { TurnPhase, TurnPhaseService } from '@game/services/TurnPhaseService';
+import { FreecivRandom } from '@game/random/FreecivRandom';
+import { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAllocator';
 
 describe('TurnPhaseService recovery checkpoints', () => {
   it('skips phase implementations that already have durable successful checkpoints', async () => {
@@ -41,5 +43,61 @@ describe('TurnPhaseService recovery checkpoints', () => {
     expect(result.phases).toHaveLength(11);
     expect(processing.resetPlayerUnitMovement).not.toHaveBeenCalled();
     expect(packets.sendProcessingStepPacket).not.toHaveBeenCalled();
+  });
+
+  it('restores the shared Freeciv stream from each skipped durable phase', async () => {
+    const random = new FreecivRandom(77);
+    const identities = new FreecivIdentityAllocator();
+    const checkpointSource = new FreecivRandom(77);
+    const checkpoints = new Map<TurnPhase, ReturnType<FreecivRandom['getState']>>();
+    for (const phase of Object.values(TurnPhase)) {
+      checkpointSource.next(100);
+      checkpoints.set(phase, checkpointSource.getState());
+    }
+    const events = {
+      registerEventHandler: jest.fn(),
+      emitEvent: jest.fn(),
+      processQueuedEvents: jest
+        .fn()
+        .mockResolvedValue({ eventsProcessed: 0, achievementsUnlocked: 0 }),
+    };
+    const service = new TurnPhaseService(
+      'game-1',
+      {} as any,
+      {} as any,
+      {
+        sendProcessingStepPacket: jest.fn(),
+        sendFreezeClientPacket: jest.fn(),
+        sendTurnProcessingError: jest.fn(),
+      } as any,
+      events as any,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      random,
+      identities
+    );
+    (service as any).getOrCreatePhaseRecord = jest.fn(async (phase: TurnPhase) => ({
+      id: phase,
+      completed: {
+        phase,
+        success: true,
+        duration: 1,
+        playersProcessed: 0,
+        itemsProcessed: 0,
+        errors: [],
+        data: {
+          randomState: checkpoints.get(phase),
+          identityNumber: 200 + Object.values(TurnPhase).indexOf(phase),
+        },
+      },
+    }));
+
+    await service.executePhaseProcessing(3, -3920, []);
+
+    expect(random.getState()).toEqual(checkpointSource.getState());
+    expect(random.next(1000)).toBe(checkpointSource.next(1000));
+    expect(identities.getState()).toBe(200 + Object.values(TurnPhase).length - 1);
   });
 });

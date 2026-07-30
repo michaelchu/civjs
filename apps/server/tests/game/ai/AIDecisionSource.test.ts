@@ -4,37 +4,33 @@ import {
   FreecivAIDecisionSource,
 } from '@game/ai/AIDecisionSource';
 import { createAIProfile } from '@game/ai/AIProfile';
+import { FreecivRandom } from '@game/random/FreecivRandom';
 
 describe('Freeciv AI decision source', () => {
-  it('replays the same keyed decision without depending on call order', () => {
-    const first = new FreecivAIDecisionSource('seed:turn:player', createAIProfile('easy'));
-    const second = new FreecivAIDecisionSource('seed:turn:player', createAIProfile('easy'));
+  it('consumes the shared Freeciv sequence in call order', () => {
+    const first = new FreecivAIDecisionSource(new FreecivRandom(7), createAIProfile('easy'));
+    const second = new FreecivAIDecisionSource(new FreecivRandom(7), createAIProfile('easy'));
 
     first.sample('unrelated');
 
-    expect(first.sample('target:1')).toBe(second.sample('target:1'));
-    expect(first.fuzzy('target:1', true)).toBe(second.fuzzy('target:1', true));
+    expect(first.sample('target:1')).not.toBe(second.sample('target:1'));
   });
 
-  it('includes game seed, turn, player, and domain in factory decisions', () => {
+  it('uses the game-owned stream across AI domains and players', () => {
+    const random = new FreecivRandom(7);
     const game = {
       id: 'game-1',
       currentTurn: 7,
       players: new Map([['ai-1', { aiLevel: 'easy' }]]),
-      mapManager: { getMapData: () => ({ seed: 'map-seed' }) },
+      random,
     } as any;
+    const expected = new FreecivRandom(7);
 
     const first = createAIDecisionSource(game, 'ai-1', 'military');
-    const same = createAIDecisionSource(game, 'ai-1', 'military');
     const otherDomain = createAIDecisionSource(game, 'ai-1', 'treasury');
 
-    expect(first.sample('choice')).toBe(same.sample('choice'));
-    expect(first.sample('choice')).not.toBe(otherDomain.sample('choice'));
-
-    game.currentTurn = 8;
-    expect(first.sample('choice')).not.toBe(
-      createAIDecisionSource(game, 'ai-1', 'military').sample('choice')
-    );
+    expect(first.sample('choice')).toBe(expected.next(0xffff_ffff) / 0xffff_ffff);
+    expect(otherDomain.sample('choice')).toBe(expected.next(0xffff_ffff) / 0xffff_ffff);
   });
 
   it('matches Freeciv boolean-flip fuzziness by difficulty', () => {

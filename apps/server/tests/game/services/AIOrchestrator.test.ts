@@ -195,6 +195,9 @@ function createScenario() {
   };
   const game = {
     state: 'active',
+    random: {
+      next: () => 999,
+    },
     players: new Map([
       ['human', { id: 'human', isAI: false }],
       ['ai', { id: 'ai', isAI: true, aiState: createAIState() }],

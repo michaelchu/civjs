@@ -11,6 +11,7 @@ import { disasters } from '@database/schema';
 import type { CityManager, CityState } from './CityManager';
 import type { EconomicManager } from '@game/systems/Economic/EconomicManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
 import { logger } from '@utils/logger';
 
 const DISASTER_BASE_RARITY = 1_000_000;
@@ -72,7 +73,7 @@ export class DisasterManager {
     private readonly cityManager: CityManager,
     private readonly databaseProvider: DatabaseProvider,
     private readonly economicManager?: EconomicManager,
-    private readonly random: () => number = Math.random
+    private readonly random: RandomSource = Math.random
   ) {}
 
   static createRulesetConfig(
@@ -106,7 +107,7 @@ export class DisasterManager {
       for (const definition of this.config.definitions) {
         if (!this.requirementsMet(city, definition.requirements)) continue;
         if (
-          Math.floor(this.random() * DISASTER_BASE_RARITY) >=
+          randomInt(this.random, DISASTER_BASE_RARITY) >=
           this.config.frequency * definition.frequency
         ) {
           continue;

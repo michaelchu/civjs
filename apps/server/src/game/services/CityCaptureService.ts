@@ -5,6 +5,7 @@ import {
   rulesetBuildingsService,
   type RulesetBuildingsService,
 } from '@game/services/RulesetBuildingsService';
+import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
 
 export interface CityCaptureResult {
   success: boolean;
@@ -34,7 +35,7 @@ export class CityCaptureService extends BaseGameService {
       RulesetBuildingsService,
       'getBuildingTypes'
     > = rulesetBuildingsService,
-    private readonly random: () => number = Math.random,
+    private readonly random: RandomSource = Math.random,
     private readonly buildingTypes?: Readonly<Record<string, Pick<{ genus: string }, 'genus'>>>
   ) {
     super(logger);
@@ -173,7 +174,8 @@ export class CityCaptureService extends BaseGameService {
     const buildingTypes = this.buildingTypes ?? this.buildingsService.getBuildingTypes();
     city.buildings = city.buildings.filter(buildingId => {
       const genus = buildingTypes[buildingId]?.genus;
-      if (genus !== 'SmallWonder' && !(genus === 'Improvement' && this.random() < 0.2)) return true;
+      if (genus !== 'SmallWonder' && !(genus === 'Improvement' && randomInt(this.random, 100) < 20))
+        return true;
       destroyed.push(buildingId);
       return false;
     });

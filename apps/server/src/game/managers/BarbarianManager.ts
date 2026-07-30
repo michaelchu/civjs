@@ -10,6 +10,7 @@
  */
 
 import { logger } from '@utils/logger';
+import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
 import type { UnitManager } from './UnitManager';
 import type { MapManager } from './MapManager';
 import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
@@ -92,7 +93,8 @@ export class BarbarianManager {
     _unitManager: UnitManager,
     _mapManager: MapManager,
     _broadcastManager: GameBroadcastManager,
-    databaseProvider: DatabaseProvider
+    databaseProvider: DatabaseProvider,
+    private readonly random: RandomSource = Math.random
   ) {
     this.gameId = gameId;
     this.config = config;
@@ -243,8 +245,8 @@ export class BarbarianManager {
    * Determine barbarian type based on spawn location
    */
   private determineBarbarianType(location: BarbarianSpawnLocation): BarbarianType {
-    const landRoll = Math.random() * 100;
-    const seaRoll = Math.random() * 100;
+    const landRoll = randomInt(this.random, 100);
+    const seaRoll = randomInt(this.random, 100);
 
     const canSpawnLand = location.isLand && landRoll < this.config.landBarbarianChance;
     const canSpawnSea = location.isSea && seaRoll < this.config.seaBarbarianChance;
@@ -303,15 +305,14 @@ export class BarbarianManager {
     try {
       // Determine number of units to spawn
       const unitCount =
-        Math.floor(
-          Math.random() * (this.config.unitsPerSpawn.max - this.config.unitsPerSpawn.min + 1)
-        ) + this.config.unitsPerSpawn.min;
+        randomInt(this.random, this.config.unitsPerSpawn.max - this.config.unitsPerSpawn.min + 1) +
+        this.config.unitsPerSpawn.min;
 
       // Get appropriate unit types for barbarians
       const unitTypes = await this.getBarbarianUnitTypes(type);
 
       // Spawn leader unit (if chance permits)
-      const shouldSpawnLeader = Math.random() * 100 < this.config.leaderChance;
+      const shouldSpawnLeader = randomInt(this.random, 100) < this.config.leaderChance;
       if (shouldSpawnLeader) {
         const leaderId = await this.spawnBarbarianUnit(
           barbarianPlayerId,
@@ -325,7 +326,7 @@ export class BarbarianManager {
 
       // Spawn regular units
       for (let i = 0; i < unitCount; i++) {
-        const unitType = unitTypes[Math.floor(Math.random() * unitTypes.length)];
+        const unitType = unitTypes[randomInt(this.random, unitTypes.length)];
         const unitId = await this.spawnBarbarianUnit(barbarianPlayerId, location, unitType);
 
         if (unitId) {
@@ -461,7 +462,7 @@ export class BarbarianManager {
     const seaNames = ['Sea Peoples', 'Pirates', 'Raiders', 'Corsairs', 'Vikings'];
 
     const names = type === BarbarianType.SEA_BARBARIAN ? seaNames : landNames;
-    return names[Math.floor(Math.random() * names.length)];
+    return names[randomInt(this.random, names.length)];
   }
 
   /**

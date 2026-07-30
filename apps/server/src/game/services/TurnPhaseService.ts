@@ -20,6 +20,8 @@ import { GameEventService, GameEventType } from './GameEventService';
 import type { DatabaseProvider } from '@database';
 import { turnPhases, NewTurnPhase } from '@database/schema/turn-phases';
 import { and, eq } from 'drizzle-orm';
+import { FreecivRandom, isFreecivRandomState } from '@game/random/FreecivRandom';
+import { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAllocator';
 
 export enum TurnPhase {
   // Phase 1: Begin turn processing
@@ -119,7 +121,9 @@ export class TurnPhaseService {
     randomEventsManager?: RandomEventsManager,
     cultureManager?: CultureManager,
     disasterManager?: DisasterManager,
-    private readonly databaseProvider?: DatabaseProvider
+    private readonly databaseProvider?: DatabaseProvider,
+    private readonly random?: FreecivRandom,
+    private readonly identities?: FreecivIdentityAllocator
   ) {
     this.gameId = gameId;
     this.turnProcessingService = turnProcessingService;
@@ -304,6 +308,10 @@ export class TurnPhaseService {
   }
 
   private getPhaseUpdate(result: PhaseResult, startTime: Date, endTime: Date): any {
+    const phaseData = {
+      ...(result.data || {}),
+      ...this.authoritativeCheckpoint(result.success),
+    };
     return {
       status: result.success ? 'completed' : 'failed',
       startedAt: startTime,
@@ -311,12 +319,29 @@ export class TurnPhaseService {
       duration: result.duration,
       success: result.success,
       errorMessage: result.errors.join('; ') || null,
-      phaseData: result.data || {},
+      phaseData,
       playersProcessed: result.playersProcessed,
       unitsProcessed: result.data?.unitsProcessed || 0,
       citiesProcessed: result.data?.citiesProcessed || 0,
       actionsProcessed: result.data?.actionsProcessed || 0,
     };
+  }
+
+  private authoritativeCheckpoint(success: boolean): Record<string, unknown> {
+    if (!success) return {};
+    return {
+      ...(this.random ? { randomState: this.random.getState() } : {}),
+      ...(this.identities ? { identityNumber: this.identities.getState() } : {}),
+    };
+  }
+
+  private restoreAuthoritativeCheckpoint(data: any): void {
+    const randomState = data?.randomState;
+    if (this.random && isFreecivRandomState(randomState)) this.random.setState(randomState);
+    const identityNumber = data?.identityNumber;
+    if (this.identities && Number.isInteger(identityNumber)) {
+      this.identities.setState(identityNumber);
+    }
   }
 
   /**
@@ -384,6 +409,7 @@ export class TurnPhaseService {
 
         const phaseRecord = await this.getOrCreatePhaseRecord(phase, i + 1);
         if (phaseRecord.completed) {
+          this.restoreAuthoritativeCheckpoint(phaseRecord.completed.data);
           result.phases.push(phaseRecord.completed);
           logger.info('Skipping durably completed turn phase', {
             gameId: this.gameId,

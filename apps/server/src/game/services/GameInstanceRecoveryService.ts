@@ -1,6 +1,11 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { DatabaseProvider } from '@database';
-import { games, players as playerRecords } from '@database/schema';
+import {
+  cities as cityRecords,
+  games,
+  players as playerRecords,
+  units as unitRecords,
+} from '@database/schema';
 import { GameInstance, PlayerState, TurnPhase, GameState } from '@game/managers/GameManager';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { logger } from '@utils/logger';
@@ -31,6 +36,15 @@ import {
   isSpaceshipPart,
   normalizeSpaceshipState,
 } from '@game/services/SpaceshipService';
+import {
+  FreecivRandom,
+  generateFreecivGameSeed,
+  isFreecivRandomState,
+} from '@game/random/FreecivRandom';
+import {
+  FREECIV_IDENTITY_NUMBER_SKIP,
+  FreecivIdentityAllocator,
+} from '@game/random/FreecivIdentityAllocator';
 
 /**
  * GameInstanceRecoveryService - Extracted game recovery operations from GameManager
@@ -139,7 +153,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
 
   private buildPlayersMap(game: any, gameId: string): Map<string, PlayerState> {
     const players = new Map<string, PlayerState>();
-    for (const dbPlayer of game.players) {
+    for (const dbPlayer of [...game.players].sort(
+      (left, right) => left.playerNumber - right.playerNumber
+    )) {
       players.set(dbPlayer.id, {
         id: dbPlayer.id,
         userId: dbPlayer.userId,
@@ -244,11 +260,20 @@ export class GameInstanceRecoveryService extends BaseGameService {
     mapManager: MapManager;
     economicManager: EconomicManager;
     governmentManager: GovernmentManager;
+    random: FreecivRandom;
+    identities: FreecivIdentityAllocator;
   }> {
     // Create managers in dependency order
     const rulesetName = game.ruleset ?? 'civ2civ3';
     const effectsManager = new EffectsManager(rulesetName);
-    const governmentManager = new GovernmentManager(gameId, this.databaseProvider, effectsManager);
+    const random = await this.createGameRandom(gameId, game);
+    const identities = await this.createGameIdentities(gameId, game);
+    const governmentManager = new GovernmentManager(
+      gameId,
+      this.databaseProvider,
+      effectsManager,
+      random
+    );
     for (const player of game.players) {
       await governmentManager.loadPlayerGovernment(
         player.id,
@@ -292,7 +317,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
         },
       },
       rulesetUnitsService.getUnitTypes(rulesetName),
-      rulesetBuildingsService.getPlayableBuildingTypes(rulesetName)
+      rulesetBuildingsService.getPlayableBuildingTypes(rulesetName),
+      random,
+      identities
     );
     cityManager.setMapManager(mapManager);
     cityManager.setMapChangedCallback((changedGameId, mapData) =>
@@ -363,8 +390,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
           this.broadcastManager.broadcastMapData(changedGameId, mapData),
       },
       effectsManager,
-      undefined,
-      rulesetUnitsService.getUnitTypes(rulesetName)
+      random,
+      rulesetUnitsService.getUnitTypes(rulesetName),
+      identities
     );
     cityManager.setCallbacks({
       onCityProductionComplete: async (city, item) => {
@@ -504,7 +532,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
       economicManager,
       governmentManager,
       effectsManager,
-      game.ruleset ?? 'civ2civ3'
+      game.ruleset ?? 'civ2civ3',
+      random,
+      identities
     );
 
     const playerIds = Array.from(players.keys());
@@ -532,7 +562,68 @@ export class GameInstanceRecoveryService extends BaseGameService {
       mapManager,
       economicManager,
       governmentManager,
+      random,
+      identities,
     };
+  }
+
+  private async createGameRandom(gameId: string, game: any): Promise<FreecivRandom> {
+    const storedState = (game.gameState as any)?.randomState;
+    if (isFreecivRandomState(storedState)) return new FreecivRandom(storedState);
+
+    const randomSeed = this.validRandomSeed((game.gameState as any)?.randomSeed);
+    const random = new FreecivRandom(randomSeed);
+    const identityNumber = Number.isInteger((game.gameState as any)?.identityNumber)
+      ? (game.gameState as any).identityNumber
+      : FREECIV_IDENTITY_NUMBER_SKIP;
+    await this.databaseProvider
+      .getDatabase()
+      .update(games)
+      .set({
+        gameState: sql`coalesce(${games.gameState}, '{}'::jsonb) || ${JSON.stringify({
+          randomSeed,
+          randomState: random.getState(),
+          identityNumber,
+        })}::jsonb`,
+      })
+      .where(eq(games.id, gameId));
+    if (!game.gameState || typeof game.gameState !== 'object') game.gameState = {};
+    game.gameState.randomSeed = randomSeed;
+    game.gameState.randomState = random.getState();
+    game.gameState.identityNumber = identityNumber;
+    return random;
+  }
+
+  private validRandomSeed(storedSeed: unknown): number {
+    return Number.isInteger(storedSeed) &&
+      (storedSeed as number) >= 0 &&
+      (storedSeed as number) <= 0xffff_ffff
+      ? (storedSeed as number)
+      : generateFreecivGameSeed();
+  }
+
+  private async createGameIdentities(gameId: string, game: any): Promise<FreecivIdentityAllocator> {
+    const stored = (game.gameState as any)?.identityNumber;
+    const [unitIds, cityIds] = await Promise.all([
+      this.databaseProvider
+        .getDatabase()
+        .select({ id: unitRecords.id })
+        .from(unitRecords)
+        .where(eq(unitRecords.gameId, gameId)),
+      this.databaseProvider
+        .getDatabase()
+        .select({ id: cityRecords.id })
+        .from(cityRecords)
+        .where(eq(cityRecords.gameId, gameId)),
+    ]);
+    const allocated = [...unitIds, ...cityIds]
+      .map(record => Number.parseInt(record.id.slice(0, 8), 16))
+      .filter(value => Number.isInteger(value) && value > 0 && value < 250_000);
+    const identityNumber = Math.max(
+      Number.isInteger(stored) ? stored : FREECIV_IDENTITY_NUMBER_SKIP,
+      ...allocated
+    );
+    return new FreecivIdentityAllocator(identityNumber);
   }
 
   private getUnitSupport(city: any, unitManager: any, cityManager: any): any[] {
@@ -580,6 +671,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       borderManager: BorderManager;
       mapManager: MapManager;
       governmentManager: GovernmentManager;
+      random: FreecivRandom;
+      identities: FreecivIdentityAllocator;
     }
   ): GameInstance {
     return {
@@ -601,6 +694,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
         aiLevel: isSettableAILevel((game.gameState as any)?.aiLevel)
           ? (game.gameState as any).aiLevel
           : 'easy',
+        randomSeed: game.gameState.randomSeed,
       },
       state: game.status as GameState,
       pauseReason: game.pauseReason ?? undefined,
@@ -618,6 +712,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       pathfindingManager: managers.pathfindingManager,
       borderManager: managers.borderManager,
       governmentManager: managers.governmentManager,
+      random: managers.random,
+      identities: managers.identities,
       lastActivity: new Date(),
     } as unknown as GameInstance;
   }

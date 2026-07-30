@@ -16,6 +16,8 @@ import { EffectsManager, EffectType, type EffectContext } from '@game/managers/E
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { TerrainType } from '@game/map/MapTypes';
 import { MapTopology } from '@game/map/MapTopology';
+import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
+import { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAllocator';
 
 interface CityAtLocation {
   id: string;
@@ -326,10 +328,11 @@ export class UnitManager {
       broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
     },
     effectsManager?: EffectsManager,
-    private readonly random: () => number = Math.random,
+    private readonly random: RandomSource = Math.random,
     private readonly unitTypes: Record<string, UnitType> = rulesetUnitsService.getUnitTypes(
       'classic'
-    )
+    ),
+    private readonly identities: FreecivIdentityAllocator = new FreecivIdentityAllocator()
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
@@ -466,11 +469,13 @@ export class UnitManager {
 
     const creation = this.getUnitCreationValues(playerId, unitTypeId, unitType, x, y);
     const { veteranLevel, createdTurn, movementPoints } = creation;
+    const unitId = this.identities.nextUuid();
     // Save to database and get the generated ID
     const [dbUnit] = await this.databaseProvider
       .getDatabase()
       .insert(units)
       .values({
+        id: unitId,
         gameId: this.gameId,
         playerId,
         unitType: unitTypeId,
@@ -746,7 +751,7 @@ export class UnitManager {
   }
 
   private async resolveHutReward(unit: Unit): Promise<void> {
-    const chance = Math.floor(this.random() * 14);
+    const chance = randomInt(this.random, 14);
     if (chance <= 4) return this.resolveHutGold(unit, chance);
     if (chance <= 7) return this.resolveHutTechnology(unit);
     if (chance <= 9) return this.resolveHutMercenary(unit);
@@ -1036,8 +1041,10 @@ export class UnitManager {
     const defenderStartingHealth = setup.defender.health;
     while (setup.attacker.health > 0 && setup.defender.health > 0) {
       if (
-        this.random() * (setup.attackerStrength + setup.defenderStrength) >=
-        setup.defenderStrength
+        randomInt(
+          this.random,
+          Math.max(1, Math.floor(setup.attackerStrength + setup.defenderStrength))
+        ) >= setup.defenderStrength
       ) {
         setup.defender.health -= damagePerAttackerWin;
       } else {
@@ -1317,7 +1324,7 @@ export class UnitManager {
   private async maybePromoteAfterCombat(unit: Unit): Promise<boolean> {
     const raiseChances = [50, 33, 20, 0];
     const chance = raiseChances[unit.veteranLevel] ?? 0;
-    if (chance <= 0 || this.random() * 100 >= chance) {
+    if (chance <= 0 || randomInt(this.random, 100) >= chance) {
       return false;
     }
 
@@ -1531,7 +1538,7 @@ export class UnitManager {
       maxUnitsOnTile: this.getUnitsAt(unit.x, unit.y).filter(candidate => !candidate.transportedBy)
         .length,
     }).value;
-    if (retirementChance > 0 && this.random() * 100 < retirementChance) {
+    if (retirementChance > 0 && randomInt(this.random, 100) < retirementChance) {
       await this.destroyUnit(unit.id);
     }
   }
@@ -2443,8 +2450,9 @@ export class UnitManager {
 
     const defender = defenderId ? this.units.get(defenderId) : undefined;
     const odds = this.calculateDiplomatActionOdds(actor, actionType, defender);
-    const success = this.random() < odds.successChance;
-    const actorSurvives = success && odds.escapeChance > 0 && this.random() < odds.escapeChance;
+    const success = randomInt(this.random, 100) < odds.successChance * 100;
+    const actorSurvives =
+      success && odds.escapeChance > 0 && randomInt(this.random, 100) < odds.escapeChance * 100;
     return {
       success,
       actorSurvives,
@@ -3207,7 +3215,7 @@ export class UnitManager {
     const falloutPositions = this.getMapTopology().getPositionsWithinRadius(centerX, centerY, 1);
     for (const { x, y } of falloutPositions) {
       const tile = this.mapManager?.getTile(x, y);
-      if (this.canReceiveNuclearFallout(tile) && this.random() >= 0.5) {
+      if (this.canReceiveNuclearFallout(tile) && randomInt(this.random, 2) === 1) {
         this.mapManager!.updateTileProperty(x, y, 'improvements', [
           ...tile!.improvements,
           'fallout',

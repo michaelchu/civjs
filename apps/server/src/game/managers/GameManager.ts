@@ -60,6 +60,8 @@ import {
   calculateDiplomatInciteCost,
 } from '@game/services/DiplomatActionEconomics';
 import { rulesetUnitsService, type UnitType } from '@game/services/RulesetUnitsService';
+import type { FreecivRandom } from '@game/random/FreecivRandom';
+import type { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAllocator';
 
 // Freeciv dai_incident_simple() converts action badness into MAX_AI_LOVE / 35
 // victim penalties. CivJS stores love on the same -1000..1000 scale.
@@ -106,8 +108,8 @@ export interface GameConfig {
   terrainSettings?: TerrainSettings;
   /** Default difficulty assigned to AI players created for this game. */
   aiLevel?: SettableAILevel;
-  /** Optional stable seed used by deterministic AI benchmark/replay scenarios. */
-  aiDecisionSeed?: string;
+  /** Freeciv-compatible seed for the authoritative gameplay random stream. */
+  randomSeed?: number;
 }
 
 export interface GameInstance {
@@ -123,6 +125,8 @@ export interface GameInstance {
   visibilityManager: VisibilityManager;
   cityManager: CityManager;
   researchManager: ResearchManager;
+  random: FreecivRandom;
+  identities: FreecivIdentityAllocator;
   pathfindingManager: PathfindingManager;
   borderManager: BorderManager;
   governmentManager?: GovernmentManager;

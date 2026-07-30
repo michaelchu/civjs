@@ -9,13 +9,15 @@ import { DEFAULT_TAX_RATES } from '@game/systems/Economic/constants/EconomicCons
 import { DatabaseProvider } from '@database';
 import { gameState } from '@database/redis';
 import { games, players } from '@database/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import serverConfig from '@config';
 import { getNextPlayerColorTheme, type PlayerColor } from '../../utils/playerColors';
 import { isSettableAILevel } from '../ai/AIProfile';
 import { createAIState } from '../ai/AIStateStore';
+import { createOrderedUuid } from '@game/random/FreecivIdentityAllocator';
+import { FreecivRandom, isFreecivRandomState, randomInt } from '@game/random/FreecivRandom';
 // PlayerState type is used in comments and method parameters but imported from GameManager
 
 export interface PlayerConnectionService {
@@ -94,10 +96,12 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     const playerNumber = game.players.length + 1;
 
     // Validate and select nation
+    const lobbyRandom = this.getLobbyRandom(game);
     const selectedNation = await this.validateAndSelectNation(
       civilization,
       game.players,
-      game.ruleset ?? DEFAULT_RULESET
+      game.ruleset ?? DEFAULT_RULESET,
+      lobbyRandom
     );
 
     // Get next available color theme from predefined palette
@@ -125,6 +129,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     };
 
     const playerData = {
+      id: createOrderedUuid(playerNumber),
       gameId,
       userId,
       playerNumber,
@@ -142,6 +147,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       .insert(players)
       .values(playerData)
       .returning();
+    await this.persistLobbyRandomIfUsed(gameId, civilization, lobbyRandom);
 
     // Track player to game mapping
     this.playerToGame.set(newPlayer.id, gameId);
@@ -296,6 +302,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       };
 
       const aiPlayerData = {
+        id: createOrderedUuid(playerNumber),
         gameId,
         userId: null, // AI players have null userId
         playerNumber,
@@ -373,7 +380,8 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
   private async validateAndSelectNation(
     civilization: string | undefined,
     existingPlayers: any[],
-    rulesetName: string
+    rulesetName: string,
+    random?: FreecivRandom
   ): Promise<string> {
     // Validate nation is not already taken (reference: freeciv/server/plrhand.c:2129)
     if (civilization && civilization !== 'random') {
@@ -389,22 +397,58 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     }
 
     return civilization === 'random'
-      ? this.selectRandomNation(existingPlayers, rulesetName)
+      ? this.selectRandomNation(existingPlayers, rulesetName, random)
       : civilization || 'american';
   }
 
-  private selectRandomNation(existingPlayers: any[], rulesetName: string): string {
+  private selectRandomNation(
+    existingPlayers: any[],
+    rulesetName: string,
+    random?: FreecivRandom
+  ): string {
     try {
       const nations = RulesetLoader.getInstance().loadNationsRuleset(rulesetName).nations;
       const taken = new Set(existingPlayers.map(player => player.civilization));
       const available = Object.values(nations)
         .filter(nation => nation.is_playable !== false && !taken.has(nation.id))
         .map(nation => nation.id);
-      return available.length ? available[Math.floor(Math.random() * available.length)] : 'random';
+      return available.length
+        ? available[
+            random
+              ? randomInt(random, available.length)
+              : Math.floor(Math.random() * available.length)
+          ]
+        : 'random';
     } catch (error) {
       this.logger.warn('Failed to load nations for random selection, using default', error);
       return 'american';
     }
+  }
+
+  private getLobbyRandom(game: any): FreecivRandom | undefined {
+    const state = game.gameState?.randomState;
+    if (isFreecivRandomState(state)) return new FreecivRandom(state);
+    const seed = game.gameState?.randomSeed;
+    return Number.isInteger(seed) && seed >= 0 && seed <= 0xffff_ffff
+      ? new FreecivRandom(seed)
+      : undefined;
+  }
+
+  private async persistLobbyRandomIfUsed(
+    gameId: string,
+    civilization: string | undefined,
+    random: FreecivRandom | undefined
+  ): Promise<void> {
+    if (civilization !== 'random' || !random) return;
+    await this.databaseProvider
+      .getDatabase()
+      .update(games)
+      .set({
+        gameState: sql`coalesce(${games.gameState}, '{}'::jsonb) || ${JSON.stringify({
+          randomState: random.getState(),
+        })}::jsonb`,
+      })
+      .where(eq(games.id, gameId));
   }
 
   /**

@@ -17,6 +17,7 @@ import {
   writeAIValidationFailureArtifact,
 } from '../utils/aiValidation';
 import { pairedBenchmarkWinner, scoreAIValidationPlayer } from '../utils/aiValidationBenchmark';
+import { FreecivRandom } from '@game/random/FreecivRandom';
 import { createMockSocketServer } from '../utils/gameTestUtils';
 import {
   clearAllTables,
@@ -124,7 +125,7 @@ describe('AI authoritative manager boundaries', () => {
         | 'mapWidth'
         | 'mapHeight'
         | 'terrainSettings'
-        | 'aiDecisionSeed'
+        | 'randomSeed'
       >
     > = {}
   ): Promise<TestGame> {
@@ -1897,7 +1898,7 @@ describe('AI authoritative manager boundaries', () => {
         maxTurns: aiPairedBenchmarkBaseline.maxTurns,
         victoryConditions: ['max_turns'],
         mapSeed,
-        aiDecisionSeed: mapSeed,
+        randomSeed: 0xc1f0_0000 + Number(mapSeed.slice(-2)),
       });
       const [first, second] = scenario.players;
       await gameManager.setPlayerAIControl(
@@ -1953,9 +1954,9 @@ describe('AI authoritative manager boundaries', () => {
       (GameManager as any).instance = null;
       gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
     }
-    expect(hardTotal).toBeGreaterThanOrEqual(aiPairedBenchmarkBaseline.hardTotal);
-    expect(easyTotal).toBeGreaterThanOrEqual(aiPairedBenchmarkBaseline.easyTotal);
-    expect(hardWins).toBeGreaterThanOrEqual(aiPairedBenchmarkBaseline.hardWins);
+    expect(hardTotal).toBe(aiPairedBenchmarkBaseline.hardTotal);
+    expect(easyTotal).toBe(aiPairedBenchmarkBaseline.easyTotal);
+    expect(hardWins).toBe(aiPairedBenchmarkBaseline.hardWins);
     expect(hardTotal).toBeGreaterThan(easyTotal);
   }, 120_000);
 
@@ -1965,6 +1966,7 @@ describe('AI authoritative manager boundaries', () => {
         maxTurns: 4,
         victoryConditions: ['max_turns'],
         mapSeed: gameSeed,
+        randomSeed: 0xc1f0_1001,
       });
       for (const player of scenario.players) {
         await gameManager.setPlayerAIControl(
@@ -1985,5 +1987,31 @@ describe('AI authoritative manager boundaries', () => {
     gameManager.clearAllGames();
     const second = await runReplay('ai-validation-replay-01');
     expect(second).toBe(first);
+  });
+
+  it('restores the Freeciv random and identity streams at the authoritative turn boundary', async () => {
+    const scenario = await createActiveGame(2, {
+      maxTurns: 4,
+      victoryConditions: ['max_turns'],
+      mapSeed: 'freeciv-stream-recovery-01',
+      randomSeed: 0xc1f0_2001,
+    });
+    scenario.game.random.next(1000);
+    scenario.game.identities.nextUuid();
+    await scenario.game.turnManager.processTurn();
+
+    const expectedRandomState = scenario.game.random.getState();
+    const expectedIdentityNumber = scenario.game.identities.getState();
+    const expectedNext = new FreecivRandom(expectedRandomState).next(1000);
+
+    gameManager.clearAllGames();
+    (GameManager as any).instance = null;
+    gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
+    const recovered = await gameManager.recoverGameInstance(scenario.gameId);
+
+    expect(recovered).not.toBeNull();
+    expect(recovered!.random.getState()).toEqual(expectedRandomState);
+    expect(recovered!.random.next(1000)).toBe(expectedNext);
+    expect(recovered!.identities.getState()).toBe(expectedIdentityNumber);
   });
 });

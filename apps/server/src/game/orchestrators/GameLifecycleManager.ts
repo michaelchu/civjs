@@ -16,7 +16,7 @@ import {
   research,
   units,
 } from '@database/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import serverConfig from '@config';
 import { TurnManager } from '@game/managers/TurnManager';
 import { MapManager, MapGeneratorType } from '@game/managers/MapManager';
@@ -56,6 +56,15 @@ import {
   isSpaceshipPart,
   normalizeSpaceshipState,
 } from '@game/services/SpaceshipService';
+import {
+  FreecivRandom,
+  generateFreecivGameSeed,
+  isFreecivRandomState,
+} from '@game/random/FreecivRandom';
+import {
+  FREECIV_IDENTITY_NUMBER_SKIP,
+  FreecivIdentityAllocator,
+} from '@game/random/FreecivIdentityAllocator';
 
 export interface GameLifecycleService {
   createGame(gameConfig: GameConfig): Promise<string>;
@@ -204,6 +213,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   }
 
   private buildGameData(gameConfig: GameConfig, rulesetName: string) {
+    const { randomSeed, randomState } = this.createInitialRandomState(gameConfig.randomSeed);
     return {
       name: gameConfig.name,
       hostId: gameConfig.hostId,
@@ -221,6 +231,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         : ['conquest'],
       gameState: {
         aiLevel: gameConfig.aiLevel || 'easy',
+        randomSeed,
+        randomState,
+        identityNumber: FREECIV_IDENTITY_NUMBER_SKIP,
         terrainSettings: gameConfig.terrainSettings || {
           generator: 'random',
           landmass: 'normal',
@@ -232,6 +245,11 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         },
       },
     };
+  }
+
+  private createInitialRandomState(configuredSeed?: number) {
+    const randomSeed = configuredSeed ?? generateFreecivGameSeed();
+    return { randomSeed, randomState: new FreecivRandom(randomSeed).getState() };
   }
 
   /**
@@ -274,6 +292,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       const gameInstance = await this.initializeGameInstance(gameId, game, storedTerrainSettings);
       this.games.set(gameId, gameInstance);
 
+      await this.persistAuthoritativeStreams(gameId, gameInstance);
       await this.activateGameRecord(gameId);
       await this.updateRedisForGameStart(gameId, game.players.length);
 
@@ -317,12 +336,19 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
     // Create player state map
     const players = this.buildPlayersMapFromDb(game.players);
+    const random = this.createGameRandom(game);
+    const identities = this.createGameIdentities(game);
 
     // Create managers in dependency order
     const mapManager = this.createMapManager(game, terrainSettings);
     const rulesetName = game.ruleset ?? 'civ2civ3';
     const effectsManager = new EffectsManager(rulesetName); // Shared effects manager
-    const governmentManager = new GovernmentManager(gameId, this.databaseProvider, effectsManager);
+    const governmentManager = new GovernmentManager(
+      gameId,
+      this.databaseProvider,
+      effectsManager,
+      random
+    );
     for (const player of game.players) {
       await governmentManager.loadPlayerGovernment(
         player.id,
@@ -330,7 +356,13 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         player.revolutionTurns
       );
     }
-    const cityManager = this.createCityManager(gameId, effectsManager, rulesetName);
+    const cityManager = this.createCityManager(
+      gameId,
+      effectsManager,
+      rulesetName,
+      random,
+      identities
+    );
     const borderManager = this.createBorderManager(
       mapManager,
       cityManager,
@@ -346,7 +378,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       mapManager,
       cityManager,
       effectsManager,
-      researchManager
+      researchManager,
+      random,
+      identities
     );
     unitManager.setTileExtrasChangedCallback(change =>
       borderManager.synchronizeTileExtras(
@@ -414,7 +448,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       game.players,
       governmentManager,
       effectsManager,
-      game.ruleset ?? DEFAULT_RULESET
+      game.ruleset ?? DEFAULT_RULESET,
+      random,
+      identities
     );
     // @reference reference/freeciv/server/techtools.c:665-719
     // Research completion belongs to the active authoritative turn.
@@ -561,7 +597,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       researchManager,
       pathfindingManager,
       borderManager,
-      governmentManager
+      governmentManager,
+      random,
+      identities
     );
 
     this.logger.info('Game instance initialized successfully', {
@@ -933,6 +971,22 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       .where(eq(games.id, gameId));
   }
 
+  private async persistAuthoritativeStreams(
+    gameId: string,
+    game: Pick<GameInstance, 'random' | 'identities'>
+  ): Promise<void> {
+    await this.databaseProvider
+      .getDatabase()
+      .update(games)
+      .set({
+        gameState: sql`coalesce(${games.gameState}, '{}'::jsonb) || ${JSON.stringify({
+          randomState: game.random.getState(),
+          identityNumber: game.identities.getState(),
+        })}::jsonb`,
+      })
+      .where(eq(games.id, gameId));
+  }
+
   private async markGameStarting(gameId: string): Promise<void> {
     await this.databaseProvider
       .getDatabase()
@@ -1024,7 +1078,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
   private buildPlayersMapFromDb(dbPlayers: any[]): Map<string, PlayerState> {
     const players = new Map<string, PlayerState>();
-    for (const dbPlayer of dbPlayers) {
+    for (const dbPlayer of [...dbPlayers].sort(
+      (left, right) => left.playerNumber - right.playerNumber
+    )) {
       players.set(dbPlayer.id, {
         id: dbPlayer.id,
         userId: dbPlayer.userId,
@@ -1059,6 +1115,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     game: any,
     preliminaryPlayers: Map<string, PlayerState>
   ): GameInstance {
+    const random = this.createGameRandom(game);
+    const identities = this.createGameIdentities(game);
     return {
       id: gameId,
       config: {
@@ -1075,6 +1133,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         victoryConditions: game.victoryConditions as string[] | undefined,
         terrainSettings: (game.gameState as any)?.terrainSettings,
         aiLevel: (game.gameState as any)?.aiLevel,
+        randomSeed: game.gameState.randomSeed,
       },
       state: 'active',
       currentTurn: 1,
@@ -1087,6 +1146,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       cityManager: null as any,
       researchManager: null as any,
       pathfindingManager: null as any,
+      random,
+      identities,
       lastActivity: new Date(),
     } as GameInstance;
   }
@@ -1163,7 +1224,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     databasePlayers: any[],
     governmentManager: GovernmentManager,
     effectsManager: EffectsManager,
-    rulesetName: string
+    rulesetName: string,
+    random: FreecivRandom,
+    identities: FreecivIdentityAllocator
   ): Promise<TurnManager> {
     // Create a simple broadcast manager for the TurnManager
     // TODO: Proper dependency injection should be implemented
@@ -1216,7 +1279,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       economicManager,
       governmentManager,
       effectsManager,
-      rulesetName
+      rulesetName,
+      random,
+      identities
     );
     const playerIds = Array.from(players.keys());
     await tm.initializeTurn(playerIds);
@@ -1256,7 +1321,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   private createCityManager(
     gameId: string,
     effectsManager: EffectsManager,
-    rulesetName: string
+    rulesetName: string,
+    random: FreecivRandom,
+    identities: FreecivIdentityAllocator
   ): CityManager {
     return new CityManager(
       gameId,
@@ -1264,7 +1331,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       effectsManager,
       {},
       rulesetUnitsService.getUnitTypes(rulesetName),
-      rulesetBuildingsService.getPlayableBuildingTypes(rulesetName)
+      rulesetBuildingsService.getPlayableBuildingTypes(rulesetName),
+      random,
+      identities
     );
   }
 
@@ -1291,7 +1360,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     mapManager: MapManager,
     cityManager: CityManager,
     effectsManager: EffectsManager,
-    researchManager: ResearchManager
+    researchManager: ResearchManager,
+    random: FreecivRandom,
+    identities: FreecivIdentityAllocator
   ): UnitManager {
     return new UnitManager(
       gameId,
@@ -1341,8 +1412,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
           this.onBroadcastMapData?.(changedGameId, mapData),
       },
       effectsManager,
-      undefined,
-      rulesetUnitsService.getUnitTypes(game.ruleset ?? 'civ2civ3')
+      random,
+      rulesetUnitsService.getUnitTypes(game.ruleset ?? 'civ2civ3'),
+      identities
     );
   }
 
@@ -1412,7 +1484,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     researchManager: ResearchManager,
     pathfindingManager: PathfindingManager,
     borderManager: BorderManager,
-    governmentManager: GovernmentManager
+    governmentManager: GovernmentManager,
+    random: FreecivRandom,
+    identities: FreecivIdentityAllocator
   ): GameInstance {
     return {
       id: gameId,
@@ -1429,6 +1503,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         victoryConditions: game.victoryConditions,
         terrainSettings: terrainSettings,
         aiLevel: (game.gameState as any)?.aiLevel,
+        randomSeed: (game.gameState as any)?.randomSeed,
       },
       state: 'active',
       currentTurn: 1,
@@ -1443,8 +1518,27 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       pathfindingManager,
       borderManager,
       governmentManager,
+      random,
+      identities,
       lastActivity: new Date(),
     };
+  }
+
+  private createGameRandom(game: any): FreecivRandom {
+    const state = (game.gameState as any)?.randomState;
+    if (isFreecivRandomState(state)) return new FreecivRandom(state);
+    const seed = (game.gameState as any)?.randomSeed;
+    if (!Number.isInteger(seed) || seed < 0 || seed > 0xffff_ffff) {
+      throw new Error(`Game ${game.id} has no valid authoritative random seed`);
+    }
+    return new FreecivRandom(seed);
+  }
+
+  private createGameIdentities(game: any): FreecivIdentityAllocator {
+    const identityNumber = (game.gameState as any)?.identityNumber;
+    return new FreecivIdentityAllocator(
+      Number.isInteger(identityNumber) ? identityNumber : FREECIV_IDENTITY_NUMBER_SKIP
+    );
   }
 
   private async requestPathDelegate(

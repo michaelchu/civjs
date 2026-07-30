@@ -2,6 +2,7 @@ import { DatabaseProvider } from '@database';
 import { governmentChanges, players as playersTable } from '@database/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
 import type { GovernmentRuleset } from '@shared/data/rulesets/schemas';
 import { logger } from '@utils/logger';
 import { EffectsManager, EffectType, OutputType, type EffectContext } from './EffectsManager';
@@ -85,7 +86,7 @@ export class GovernmentManager {
     gameId: string,
     databaseProvider: DatabaseProvider,
     effectsManager?: EffectsManager,
-    private readonly random: () => number = Math.random
+    private readonly random: RandomSource = Math.random
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
@@ -357,7 +358,7 @@ export class GovernmentManager {
     // Freeciv's default server settings use REVOLEN_RANDOM with revolen = 5.
     // @reference reference/freeciv/common/game.h:743-744
     // @reference reference/freeciv/server/plrhand.c:515-559
-    return Math.floor(this.random() * 5) + 1;
+    return randomInt(this.random, 5) + 1;
   }
 
   public getAllGovernments(): Record<string, Government> {

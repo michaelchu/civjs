@@ -3,7 +3,7 @@ import { DatabaseProvider } from '@database';
 import { gameState } from '@database/redis';
 import { gameTurns, games, players, turnActions } from '@database/schema';
 import { randomUUID } from 'node:crypto';
-import { and, eq, inArray, isNull, lt, or } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { Server as SocketServer } from 'socket.io';
 // PacketType removed - handled by TurnPacketService
 import { TurnProcessingService, type PlayerAction } from '@game/services/TurnProcessingService';
@@ -25,6 +25,8 @@ import type { EconomicManager } from '@game/systems/Economic/EconomicManager';
 import type { GovernmentManager } from '@game/managers/GovernmentManager';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
+import { FreecivRandom, generateFreecivGameSeed } from '@game/random/FreecivRandom';
+import { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAllocator';
 
 export interface TurnEvent {
   type: 'unit_move' | 'city_production' | 'research_complete' | 'diplomacy' | 'combat';
@@ -97,7 +99,9 @@ export class TurnManager {
     economicManager?: EconomicManager,
     governmentManager?: GovernmentManager,
     effectsManager: EffectsManager = new EffectsManager(),
-    rulesetName: string = DEFAULT_RULESET
+    rulesetName: string = DEFAULT_RULESET,
+    private readonly random: FreecivRandom = new FreecivRandom(generateFreecivGameSeed()),
+    private readonly identities: FreecivIdentityAllocator = new FreecivIdentityAllocator()
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
@@ -151,9 +155,12 @@ export class TurnManager {
         DisasterManager.createRulesetConfig(rulesetName),
         cityManager,
         databaseProvider,
-        economicManager
+        economicManager,
+        random
       ),
-      databaseProvider
+      databaseProvider,
+      random,
+      identities
     );
 
     this.calendarService = new CalendarService(
@@ -581,6 +588,8 @@ export class TurnManager {
       calendar: this.calendarService.getState(),
       cities: this.cityManager.getAllCities(),
       units,
+      randomState: this.random.getState(),
+      identityNumber: this.identities.getState(),
       research: Object.fromEntries(
         Array.from(this.playerActions.keys()).map(playerId => {
           const research = this.researchManager.getPlayerResearch(playerId);
@@ -639,6 +648,10 @@ export class TurnManager {
       .set({
         currentTurn: this.currentTurn,
         turnStartedAt: this.turnStartTime,
+        gameState: sql`coalesce(${games.gameState}, '{}'::jsonb) || ${JSON.stringify({
+          randomState: this.random.getState(),
+          identityNumber: this.identities.getState(),
+        })}::jsonb`,
       })
       .where(eq(games.id, this.gameId));
 
