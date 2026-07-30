@@ -74,7 +74,7 @@ const StatusPill: React.FC<{ clientState: string; phase: string; pendingActions:
   const isRunning = clientState === 'running';
   return (
     <div
-      className="hidden items-center gap-1.5 border-l border-white/10 pl-3 text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400 lg:flex"
+      className="flex shrink-0 items-center gap-1.5 border-l border-white/10 pl-2 text-[9px] font-medium uppercase tracking-[0.1em] text-slate-400 sm:pl-3 sm:text-[10px]"
       title={`${clientState} · ${phase} phase${pendingActions > 0 ? ` · ${pendingActions} pending actions` : ''}`}
     >
       <Wifi className={isRunning ? 'h-3.5 w-3.5 text-emerald-300' : 'h-3.5 w-3.5 text-amber-300'} />

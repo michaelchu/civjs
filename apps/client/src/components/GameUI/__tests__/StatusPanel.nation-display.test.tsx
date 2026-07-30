@@ -148,7 +148,10 @@ describe('StatusPanel - Nation Display', () => {
     render(<StatusPanel />);
 
     expect(screen.getByText('2 pending')).toBeInTheDocument();
-    expect(screen.getByTitle('running · movement phase · 2 pending actions')).toBeInTheDocument();
+    const status = screen.getByTitle('running · movement phase · 2 pending actions');
+    expect(status).toBeInTheDocument();
+    expect(status.className).toContain('flex');
+    expect(status.className).not.toContain('hidden');
   });
 
   it('uses authoritative city population when available', () => {
