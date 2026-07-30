@@ -1,4 +1,4 @@
-import type { GotoPath } from '../../../services/PathfindingService';
+import type { GotoPath, PathTile } from '../../../services/PathfindingService';
 import type { MapViewport } from '../../../types';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
 
@@ -58,10 +58,31 @@ export class PathRenderer extends BaseRenderer {
       this.renderGotoLineSegment(fromPos.x, fromPos.y, toPos.x, toPos.y);
     }
 
+    this.renderDestinationMarker(gotoPath.tiles[gotoPath.tiles.length - 1], viewport, gotoPath.valid);
+
     // Draw turn indicators at waypoints for multi-turn paths
     if (gotoPath.estimatedTurns > 1) {
       this.renderTurnIndicators(gotoPath, viewport);
     }
+  }
+
+  private renderDestinationMarker(
+    destination: PathTile,
+    viewport: MapViewport,
+    valid: boolean
+  ): void {
+    if (!this.isInViewport(destination.x, destination.y, viewport)) return;
+
+    const screenPos = this.mapToScreen(destination.x, destination.y, viewport);
+    const centerX = screenPos.x + this.tileWidth / 2;
+    const centerY = screenPos.y + this.tileHeight / 2;
+    this.ctx.fillStyle = valid ? 'rgba(34, 211, 238, 0.28)' : 'rgba(251, 113, 133, 0.28)';
+    this.ctx.strokeStyle = valid ? '#67e8f9' : '#fb7185';
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    this.ctx.arc(centerX, centerY, 8, 0, 2 * Math.PI);
+    this.ctx.fill();
+    this.ctx.stroke();
   }
 
   /**
