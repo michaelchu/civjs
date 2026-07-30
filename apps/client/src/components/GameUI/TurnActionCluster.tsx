@@ -42,7 +42,7 @@ const ActionButton: React.FC<{
   </button>
 );
 
-const ReportsMenu: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+const ReportsMenu: React.FC<{ onClose: () => void; onOpenScores?: () => void }> = ({ onClose, onOpenScores }) => {
   const setActiveTab = useGameStore(state => state.setActiveTab);
   const openTab = (tab: Parameters<typeof setActiveTab>[0]) => {
     setActiveTab(tab);
@@ -55,6 +55,9 @@ const ReportsMenu: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         Reports and management
       </div>
       <div className="mt-1 grid grid-cols-2 gap-1">
+        <button type="button" onClick={() => { onOpenScores?.(); onClose(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
+          <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" /> Scores
+        </button>
         <button type="button" onClick={() => openTab('cities')} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
           <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" /> Empire
         </button>
@@ -94,7 +97,7 @@ const HelpMenu: React.FC = () => (
   </div>
 );
 
-export const TurnActionCluster: React.FC = () => {
+export const TurnActionCluster: React.FC<{ onOpenScores?: () => void }> = ({ onOpenScores }) => {
   const [reportsOpen, setReportsOpen] = React.useState(false);
   const [helpOpen, setHelpOpen] = React.useState(false);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
@@ -175,7 +178,7 @@ export const TurnActionCluster: React.FC = () => {
         <TurnDoneButton />
       </div>
 
-      {reportsOpen && <ReportsMenu onClose={() => setReportsOpen(false)} />}
+      {reportsOpen && <ReportsMenu onClose={() => setReportsOpen(false)} onOpenScores={onOpenScores} />}
       {helpOpen && <HelpMenu />}
     </HudPanel>
   );

@@ -21,6 +21,7 @@ import { Minimap } from './Minimap';
 import { ObjectivesJournal } from './ObjectivesJournal';
 import { DiplomacyStrip } from './DiplomacyStrip';
 import { TurnActionCluster } from './TurnActionCluster';
+import { ScoreReport, type ScoreSnapshot } from './ScoreReport';
 
 interface GameLayoutProps {
   rulesetName?: string;
@@ -31,11 +32,16 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
     width: window.innerWidth,
     height: window.innerHeight,
   });
+  const [scoreReportOpen, setScoreReportOpen] = useState(false);
+  const [scoreHistory, setScoreHistory] = useState<ScoreSnapshot[]>([]);
 
   const activeTab = useGameStore(state => state.activeTab);
   const clientState = useGameStore(state => state.clientState);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
   const currentPlayer = useGameStore(state => state.players[state.currentPlayerId]);
+  const players = useGameStore(state => state.players);
+  const cities = useGameStore(state => state.cities);
+  const turn = useGameStore(state => state.turn);
   const researchedTechs = useGameStore(state => state.research?.researchedTechs);
   const rulesetName = rulesetOverride ?? 'civ2civ3';
 
@@ -93,6 +99,19 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
 
   const canvasSize = calculateCanvasSize();
 
+  useEffect(() => {
+    const scores = Object.fromEntries(
+      Object.values(players)
+        .filter(player => player.score !== undefined)
+        .map(player => [player.id, player.score ?? 0])
+    );
+    if (Object.keys(scores).length === 0) return;
+    setScoreHistory(previous => {
+      const withoutCurrentTurn = previous.filter(snapshot => snapshot.turn !== turn);
+      return [...withoutCurrentTurn, { turn, scores }].slice(-40);
+    });
+  }, [players, turn]);
+
   if (clientState === 'initial' || clientState === 'connecting') {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
@@ -110,6 +129,17 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
     <div className="h-screen bg-gray-800 text-white overflow-hidden flex flex-col">
       <NotificationFeed />
       <EndGamePanel />
+      <ScoreReport
+        open={scoreReportOpen}
+        onOpenChange={setScoreReportOpen}
+        players={players}
+        currentPlayerId={currentPlayerId}
+        history={scoreHistory}
+        cityCounts={Object.values(cities).reduce<Record<string, number>>((counts, city) => {
+          counts[city.playerId] = (counts[city.playerId] ?? 0) + 1;
+          return counts;
+        }, {})}
+      />
       {/* Header with tabs and status */}
       <div className="flex items-center justify-between bg-gray-700 px-4 py-1 border-b border-gray-600">
         <GameTabs />
@@ -136,7 +166,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
               bottomLeft={<Minimap />}
               left={<ObjectivesJournal />}
               right={<DiplomacyStrip />}
-              bottomRight={<TurnActionCluster />}
+              bottomRight={<TurnActionCluster onOpenScores={() => setScoreReportOpen(true)} />}
             />
           </div>
 
