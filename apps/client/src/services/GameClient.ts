@@ -429,6 +429,9 @@ export class GameClient {
               x: unitData.x,
               y: unitData.y,
               hp: unitData.hp,
+              attack: unitData.attack,
+              defense: unitData.defense,
+              firepower: unitData.firepower,
               movesLeft: unitData.movesleft, // Server sends 'movesleft' not 'movesLeft'
               maxMoves: unitData.maxmoves,
               fuel: unitData.fuel,

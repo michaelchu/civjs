@@ -139,6 +139,9 @@ describe('GameClient state-bearing packets', () => {
             x: 2,
             y: 3,
             hp: 80,
+            attack: 4,
+            defense: 2,
+            firepower: 1,
             movesleft: 2,
             maxmoves: 3,
             veteran: 1,
@@ -168,6 +171,9 @@ describe('GameClient state-bearing packets', () => {
         stay: true,
         facing: 4,
         birthTurn: 7,
+        attack: 4,
+        defense: 2,
+        firepower: 1,
       })
     );
   });

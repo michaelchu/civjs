@@ -25,6 +25,9 @@ export interface Unit {
   x: number;
   y: number;
   hp: number;
+  attack?: number;
+  defense?: number;
+  firepower?: number;
   movesLeft: number;
   maxMoves?: number;
   fuel?: number;

@@ -117,4 +117,19 @@ describe('TurnActionCluster', () => {
 
     expect(onOpenSpaceRace).toHaveBeenCalledOnce();
   });
+
+  it('opens the war calculator from the reports menu', () => {
+    const onOpenWarCalculator = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <TurnActionCluster onOpenWarCalculator={onOpenWarCalculator} />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reports' }));
+    fireEvent.click(screen.getByRole('button', { name: 'War calculator' }));
+
+    expect(onOpenWarCalculator).toHaveBeenCalledOnce();
+  });
 });

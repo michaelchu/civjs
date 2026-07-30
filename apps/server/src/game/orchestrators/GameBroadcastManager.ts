@@ -381,10 +381,10 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   }
 
   private formatPlayerInfo(player: any, gameInstance: GameInstance): any {
-    const research = gameInstance.researchManager?.getPlayerResearch(player.id);
-    const cities = gameInstance.cityManager?.getPlayerCities(player.id) ?? [];
-    const units = gameInstance.unitManager?.getPlayerUnits(player.id) ?? [];
-    const researchedTechs = gameInstance.researchManager?.getResearchedTechs(player.id) ?? [];
+    const { research, cities, units, researchedTechs } = this.getPlayerSnapshotData(
+      gameInstance,
+      player.id
+    );
     const history = this.playerValue(player.history, 0);
     return {
       id: player.id,
@@ -420,6 +420,39 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       isAI: this.playerValue(player.isAI, false),
       color: player.color,
     };
+  }
+
+  private getPlayerSnapshotData(
+    gameInstance: GameInstance,
+    playerId: string
+  ): {
+    research: any;
+    cities: any[];
+    units: any[];
+    researchedTechs: any[];
+  } {
+    return {
+      research: this.callOptionalPlayerMethod(
+        gameInstance.researchManager,
+        'getPlayerResearch',
+        playerId
+      ),
+      cities:
+        this.callOptionalPlayerMethod(gameInstance.cityManager, 'getPlayerCities', playerId) ?? [],
+      units:
+        this.callOptionalPlayerMethod(gameInstance.unitManager, 'getPlayerUnits', playerId) ?? [],
+      researchedTechs:
+        this.callOptionalPlayerMethod(
+          gameInstance.researchManager,
+          'getResearchedTechs',
+          playerId
+        ) ?? [],
+    };
+  }
+
+  private callOptionalPlayerMethod(manager: any, method: string, playerId: string): any {
+    const handler = manager?.[method];
+    return typeof handler === 'function' ? handler.call(manager, playerId) : undefined;
   }
 
   private playerValue(value: any, fallback: any): any {
@@ -799,6 +832,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       fuel: this.unitValue(unit.fuel, 0),
       maxFuel: this.unitValue(unitType?.fuel, 0),
       hp: this.unitValue(unit.health, 100),
+      ...this.getUnitCombatStats(unitType),
       veteran: this.unitValue(unit.veteranLevel, false),
       homeCity: this.unitValue(unit.homeCity, null),
       activity: this.unitValue(unit.activity, 'idle'),
@@ -820,6 +854,18 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       stay: this.unitValue(unit.stay, false),
       facing: this.unitValue(unit.facing, 0),
       birthTurn: this.unitValue(unit.birthTurn, unit.createdTurn),
+    };
+  }
+
+  private getUnitCombatStats(unitType: any): {
+    attack: number;
+    defense: number;
+    firepower: number;
+  } {
+    return {
+      attack: this.unitValue(unitType?.attack, unitType?.combat ?? 0),
+      defense: this.unitValue(unitType?.defense, 0),
+      firepower: this.unitValue(unitType?.firepower, 1),
     };
   }
 

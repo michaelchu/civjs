@@ -82,6 +82,9 @@ export const UnitInfoSchema = z.object({
   veteran: z.number(), // UINT8 veteran
   type: z.string(), // UNIT_TYPE type
   hp: z.number(), // HP hp
+  attack: z.number().optional(), // UNIT_TYPE attack
+  defense: z.number().optional(), // UNIT_TYPE defense
+  firepower: z.number().optional(), // UNIT_TYPE firepower
   activity: z.number(), // ACTIVITY activity
   activity_target: z.string().optional(), // EXTRA activity_tgt
   paradropped: z.boolean(), // BOOL paradropped

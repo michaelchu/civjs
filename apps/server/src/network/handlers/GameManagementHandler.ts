@@ -564,16 +564,22 @@ export class GameManagementHandler extends BaseSocketHandler {
     this.emitSnapshotTileBatches(socket, tiles);
 
     const sourceUnits = this.getSnapshotUnits(gameInstance, playerId, visibleTiles);
-    const units = sourceUnits.map((unit: any) => ({
-      id: unit.id,
-      owner: unit.playerId,
-      type: unit.unitTypeId,
-      x: unit.x,
-      y: unit.y,
-      hp: unit.health,
-      movesleft: unit.movementLeft,
-      veteran: unit.veteranLevel,
-    }));
+    const units = sourceUnits.map((unit: any) => {
+      const unitType = gameInstance.unitManager.getUnitType?.(unit.unitTypeId);
+      return {
+        id: unit.id,
+        owner: unit.playerId,
+        type: unit.unitTypeId,
+        x: unit.x,
+        y: unit.y,
+        hp: unit.health,
+        attack: unitType?.attack ?? unitType?.combat ?? 0,
+        defense: unitType?.defense ?? 0,
+        firepower: unitType?.firepower ?? 1,
+        movesleft: unit.movementLeft,
+        veteran: unit.veteranLevel,
+      };
+    });
     socket.emit('packet', {
       version: PROTOCOL_VERSION,
       type: PacketType.UNIT_INFO,
