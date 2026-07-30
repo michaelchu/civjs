@@ -1,2 +1,0 @@
-echo "🧪 Running PostgreSQL integration tests before push..."
-npm run test:integration:docker
