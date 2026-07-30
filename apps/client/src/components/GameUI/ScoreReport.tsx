@@ -168,7 +168,7 @@ export const ScoreReport: React.FC<ScoreReportProps> = ({
   cityCounts,
 }) => {
   const standings = Object.values(players)
-    .filter(player => player.isActive && player.score !== undefined)
+    .filter(player => player.score !== undefined)
     .sort((left, right) => (right.score ?? 0) - (left.score ?? 0));
   const turns = history.map(snapshot => snapshot.turn);
   const chartPlayers = standings.map((player, index) => ({
@@ -230,6 +230,7 @@ export const ScoreReport: React.FC<ScoreReportProps> = ({
                   <TableRow className="border-white/10 hover:bg-slate-800">
                     <TableHead className="text-slate-300">Rank</TableHead>
                     <TableHead className="text-slate-300">Civilization</TableHead>
+                    <TableHead className="text-slate-300">Status</TableHead>
                     <TableHead className="text-right text-slate-300">Score</TableHead>
                     <TableHead className="text-right text-slate-300">Culture</TableHead>
                     <TableHead className="text-right text-slate-300">Known cities</TableHead>
@@ -256,6 +257,11 @@ export const ScoreReport: React.FC<ScoreReportProps> = ({
                             />
                             {formatNation(player.nation)}
                           </span>
+                        </TableCell>
+                        <TableCell
+                          className={player.isActive ? 'text-emerald-300' : 'text-slate-500'}
+                        >
+                          {player.isActive ? 'Active' : 'Eliminated'}
                         </TableCell>
                         <TableCell className="text-right font-semibold tabular-nums text-slate-100">
                           {player.score}

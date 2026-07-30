@@ -96,6 +96,32 @@ describe('ScoreReport', () => {
     expect(chart.querySelectorAll('polyline')).toHaveLength(1);
   });
 
+  it('keeps eliminated civilizations in the standings with an explicit status', () => {
+    render(
+      <ScoreReport
+        open
+        onOpenChange={vi.fn()}
+        players={{
+          ...players,
+          'player-3': {
+            ...players['player-2'],
+            id: 'player-3',
+            name: 'Fallen Player',
+            nation: 'Egyptians',
+            score: 90,
+            isActive: false,
+          },
+        }}
+        currentPlayerId="player-1"
+        history={[]}
+        cityCounts={{}}
+      />
+    );
+
+    expect(screen.getByText('Egyptians')).toBeInTheDocument();
+    expect(screen.getByText('Eliminated')).toBeInTheDocument();
+  });
+
   it('notifies the caller when the report closes', () => {
     const onOpenChange = vi.fn();
     render(
