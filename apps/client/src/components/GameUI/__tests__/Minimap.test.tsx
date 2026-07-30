@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGameStore } from '../../../store/gameStore';
 import { Minimap } from '../Minimap';
+import { isMinimapMarkerVisible } from '../minimapVisibility';
 
 describe('Minimap', () => {
   afterEach(() => {
@@ -68,5 +69,27 @@ describe('Minimap', () => {
 
     render(<Minimap />);
     expect(screen.getByLabelText('Minimap overview, selected unit scout')).toBeInTheDocument();
+  });
+
+  it('keeps foreign markers inside the fog-of-war boundary', () => {
+    const knownButNotVisible = {
+      x: 1,
+      y: 1,
+      terrain: 'grassland',
+      known: true,
+      visible: false,
+    };
+    const unknown = {
+      x: 2,
+      y: 2,
+      terrain: 'grassland',
+      known: false,
+      visible: false,
+    };
+
+    expect(isMinimapMarkerVisible(knownButNotVisible, 'player-2', 'player-1', false)).toBe(true);
+    expect(isMinimapMarkerVisible(knownButNotVisible, 'player-2', 'player-1', true)).toBe(false);
+    expect(isMinimapMarkerVisible(unknown, 'player-2', 'player-1', false)).toBe(false);
+    expect(isMinimapMarkerVisible(unknown, 'player-1', 'player-1', true)).toBe(true);
   });
 });

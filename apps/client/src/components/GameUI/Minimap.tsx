@@ -3,6 +3,7 @@ import { Crosshair, Map as MapIcon, Maximize2, Minimize2 } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { HudPanel } from './HudPanel';
 import { HudIconButton } from './HudIconButton';
+import { isMinimapMarkerVisible } from './minimapVisibility';
 
 const MINIMAP_WIDTH = 176;
 const MINIMAP_HEIGHT = 112;
@@ -63,6 +64,7 @@ export const Minimap: React.FC = () => {
     const cellWidth = MINIMAP_WIDTH / mapWidth;
     const cellHeight = MINIMAP_HEIGHT / mapHeight;
     const tiles = Object.values(map.tiles);
+    const tilesByCoordinate = new Map(tiles.map(tile => [`${tile.x},${tile.y}`, tile]));
 
     for (const tile of tiles) {
       if (!tile.known) continue;
@@ -79,6 +81,8 @@ export const Minimap: React.FC = () => {
     context.globalAlpha = 1;
 
     for (const city of Object.values(cities)) {
+      const tile = tilesByCoordinate.get(`${city.x},${city.y}`);
+      if (!isMinimapMarkerVisible(tile, city.playerId, currentPlayerId, false)) continue;
       const x = (city.x + 0.5) * cellWidth;
       const y = (city.y + 0.5) * cellHeight;
       context.fillStyle = playerColor(players[city.playerId]?.color, '#f8fafc');
@@ -91,6 +95,8 @@ export const Minimap: React.FC = () => {
     }
 
     for (const unit of Object.values(units)) {
+      const tile = tilesByCoordinate.get(`${unit.x},${unit.y}`);
+      if (!isMinimapMarkerVisible(tile, unit.playerId, currentPlayerId, true)) continue;
       const x = (unit.x + 0.5) * cellWidth;
       const y = (unit.y + 0.5) * cellHeight;
       context.fillStyle = unit.playerId === currentPlayerId ? '#67e8f9' : '#e2e8f0';
