@@ -28,6 +28,8 @@ const mockPlayer = {
   goldPerTurn: 3,
   science: 10,
   sciencePerTurn: 2,
+  history: 19,
+  culture: 27,
   government: 'republic',
 };
 
@@ -52,6 +54,8 @@ const { mockUseGameStore } = vi.hoisted(() => ({
         goldPerTurn: 3,
         science: 10,
         sciencePerTurn: 2,
+        history: 19,
+        culture: 27,
         government: 'republic',
       },
     },
@@ -123,6 +127,7 @@ describe('StatusPanel - Nation Display', () => {
     expect(getByText('60/10/30%')).toBeInTheDocument();
     expect(getByText('6')).toBeInTheDocument();
     expect(getByTitle('Trade: 5')).toBeInTheDocument();
+    expect(getByTitle('Culture: 27')).toBeInTheDocument();
     expect(getByText('480')).toBeInTheDocument();
     expect(getByRole('button', { name: 'Open demographics report' })).toHaveTextContent(
       '3800 BC'

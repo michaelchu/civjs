@@ -6,6 +6,7 @@ import {
   FlaskConical,
   Gauge,
   ArrowLeftRight,
+  Palette,
   Sparkles,
   Users,
   Wifi,
@@ -176,6 +177,12 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({ onO
           delta={currentPlayer.sciencePerTurn}
           icon={FlaskConical}
           tone="text-sky-300"
+        />
+        <ResourceMetric
+          label="Culture"
+          value={currentPlayer.culture ?? currentPlayer.history}
+          icon={Palette}
+          tone="text-violet-300"
         />
         <div className="hidden items-center gap-1.5 whitespace-nowrap md:flex" title={`Trade: ${trade}`}>
           <ArrowLeftRight className="h-3.5 w-3.5 text-teal-300" aria-hidden="true" />
