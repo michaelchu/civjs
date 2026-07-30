@@ -74,6 +74,26 @@ describe('ScoreReport', () => {
     expect(screen.getByRole('img', { name: 'Historical score chart' })).toBeInTheDocument();
   });
 
+  it('leaves an explicit gap when a player score is absent for a turn', () => {
+    render(
+      <ScoreReport
+        open
+        onOpenChange={vi.fn()}
+        players={players}
+        currentPlayerId="player-1"
+        history={[
+          { turn: 1, scores: { 'player-1': 120 } },
+          { turn: 2, scores: { 'player-1': 180, 'player-2': 220 } },
+        ]}
+        cityCounts={{}}
+      />
+    );
+
+    const chart = screen.getByRole('img', { name: 'Historical score chart' });
+    expect(chart.querySelectorAll('circle')).toHaveLength(3);
+    expect(chart.querySelectorAll('polyline')).toHaveLength(1);
+  });
+
   it('notifies the caller when the report closes', () => {
     const onOpenChange = vi.fn();
     render(
