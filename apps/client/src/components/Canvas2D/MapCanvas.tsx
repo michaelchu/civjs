@@ -2,7 +2,6 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { MapRenderer } from './MapRenderer';
 import { ActionFeedbackBanner, type ActionFeedback } from './ActionFeedbackBanner';
-import { TileHoverOverlay } from './TileHoverOverlay';
 import { UnitContextMenu } from '../GameUI/UnitContextMenu';
 import { CityNameDialog } from '../GameUI/CityNameDialog';
 import { CityInfoOverlay } from '../GameUI/CityInfoOverlay';
@@ -219,7 +218,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
   // Handle mouse and touch events - copied from freeciv-web 2D canvas behavior
   const [isDragging, setIsDragging] = useState(false);
-  const [hoveredTile, setHoveredTile] = useState<string | null>(null);
 
   // Initialize renderer and load tileset - only once, not on viewport changes!
   useEffect(() => {
@@ -623,39 +621,42 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   );
 
   // City overlay handlers - placed early to avoid dependency issues
-  const handleOpenCityInfoOverlay = useCallback(async (city: City) => {
-    selectCity(city.id);
-    setCityInfoOverlay({
-      isOpen: true,
-      city: city,
-    });
+  const handleOpenCityInfoOverlay = useCallback(
+    async (city: City) => {
+      selectCity(city.id);
+      setCityInfoOverlay({
+        isOpen: true,
+        city: city,
+      });
 
-    // Load production data
-    setProductionData({
-      availableProductions: [],
-      isLoading: true,
-      cityId: city.id,
-      error: null,
-    });
-
-    try {
-      const productions = await gameClient.getAvailableProductions(city.id);
+      // Load production data
       setProductionData({
-        availableProductions: productions,
-        isLoading: false,
+        availableProductions: [],
+        isLoading: true,
         cityId: city.id,
         error: null,
       });
-    } catch (error) {
-      console.error('Failed to load production data:', error);
-      setProductionData({
-        availableProductions: [],
-        isLoading: false,
-        cityId: city.id,
-        error: error instanceof Error ? error.message : 'Failed to load production choices',
-      });
-    }
-  }, [selectCity]);
+
+      try {
+        const productions = await gameClient.getAvailableProductions(city.id);
+        setProductionData({
+          availableProductions: productions,
+          isLoading: false,
+          cityId: city.id,
+          error: null,
+        });
+      } catch (error) {
+        console.error('Failed to load production data:', error);
+        setProductionData({
+          availableProductions: [],
+          isLoading: false,
+          cityId: city.id,
+          error: error instanceof Error ? error.message : 'Failed to load production choices',
+        });
+      }
+    },
+    [selectCity]
+  );
 
   const handleCloseCityInfoOverlay = useCallback(() => {
     selectCity(null);
@@ -747,25 +748,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           }
         }
 
-        // Standard tile hover for tooltip
-        const hoveredTileData = map.tiles[`${tileX},${tileY}`];
-
-        if (hoveredTileData?.terrain) {
-          // Format terrain name to be human readable
-          const terrainName = hoveredTileData.terrain
-            .replace(/_/g, ' ')
-            .replace(/\b\w/g, (l: string) => l.toUpperCase());
-
-          // In goto mode, show path info if available
-          let hoverText = `${terrainName} (${tileX}, ${tileY})`;
-          if (gotoMode.active && gotoMode.currentPath) {
-            hoverText += ` - ${gotoMode.currentPath.estimatedTurns} turns, ${gotoMode.currentPath.totalCost} movement`;
-          }
-
-          setHoveredTile(hoverText);
-        } else {
-          setHoveredTile(null);
-        }
         return;
       }
 
@@ -1504,7 +1486,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           touchAction: 'none', // Prevent default touch behaviors like scrolling/zooming
         }}
       />
-      <TileHoverOverlay tileInfo={hoveredTile} />
       {contextMenu && (
         <UnitContextMenu
           unit={contextMenu.unit}
