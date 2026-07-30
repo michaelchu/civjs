@@ -7,6 +7,7 @@ import {
   Eye,
   Flag,
   MessageSquare,
+  MoreHorizontal,
   Radar,
   Rocket,
   ScrollText,
@@ -127,6 +128,44 @@ const HelpMenu: React.FC<{ onOpenCivilopedia?: () => void }> = ({ onOpenCivilope
   </div>
 );
 
+const MobileActionsMenu: React.FC<{
+  onReports: () => void;
+  onHelp: () => void;
+  onChat: () => void;
+}> = ({ onReports, onHelp, onChat }) => (
+  <div
+    aria-label="More command actions"
+    className="absolute bottom-full right-0 mb-2 w-48 rounded-xl border border-white/15 bg-slate-950/95 p-2 shadow-2xl backdrop-blur-md sm:hidden"
+  >
+    <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+      More actions
+    </div>
+    <div className="mt-1 space-y-1">
+      <button
+        type="button"
+        onClick={onReports}
+        className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-xs text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+      >
+        <ScrollText className="h-4 w-4" aria-hidden="true" /> Reports
+      </button>
+      <button
+        type="button"
+        onClick={onHelp}
+        className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-xs text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+      >
+        <CircleHelp className="h-4 w-4" aria-hidden="true" /> Help
+      </button>
+      <button
+        type="button"
+        onClick={onChat}
+        className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-xs text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+      >
+        <MessageSquare className="h-4 w-4" aria-hidden="true" /> Chat
+      </button>
+    </div>
+  </div>
+);
+
 export const TurnActionCluster: React.FC<{
   onOpenScores?: () => void;
   onOpenDemographics?: () => void;
@@ -140,6 +179,7 @@ export const TurnActionCluster: React.FC<{
   const [reportsOpen, setReportsOpen] = React.useState(false);
   const [helpOpen, setHelpOpen] = React.useState(false);
   const [chatOpen, setChatOpen] = React.useState(false);
+  const [mobileActionsOpen, setMobileActionsOpen] = React.useState(false);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
   const urgentFocusQueue = useGameStore(state => state.urgentFocusQueue);
   const units = useGameStore(state => state.units);
@@ -177,26 +217,42 @@ export const TurnActionCluster: React.FC<{
             title="Focus the next urgent unit"
           />
         )}
-        <ActionButton
-          label="Reports"
-          icon={ScrollText}
-          onClick={() => { setReportsOpen(value => !value); setHelpOpen(false); }}
-          active={reportsOpen}
-        />
-        <ActionButton
-          label="Help"
-          icon={CircleHelp}
-          onClick={() => { setHelpOpen(value => !value); setReportsOpen(false); }}
-          active={helpOpen}
-        />
-        <HudIconButton
-          label="Chat"
-          onClick={() => { setChatOpen(value => !value); setReportsOpen(false); setHelpOpen(false); }}
-          title="Open chat"
-          className={chatOpen ? 'bg-cyan-300/15 text-cyan-100' : undefined}
-        >
-          <MessageSquare className="h-4 w-4" aria-hidden="true" />
-        </HudIconButton>
+        <div className="hidden sm:block">
+          <ActionButton
+            label="Reports"
+            icon={ScrollText}
+            onClick={() => { setReportsOpen(value => !value); setHelpOpen(false); }}
+            active={reportsOpen}
+          />
+        </div>
+        <div className="hidden sm:block">
+          <ActionButton
+            label="Help"
+            icon={CircleHelp}
+            onClick={() => { setHelpOpen(value => !value); setReportsOpen(false); }}
+            active={helpOpen}
+          />
+        </div>
+        <div className="hidden sm:block">
+          <HudIconButton
+            label="Chat"
+            onClick={() => { setChatOpen(value => !value); setReportsOpen(false); setHelpOpen(false); }}
+            title="Open chat"
+            className={chatOpen ? 'bg-cyan-300/15 text-cyan-100' : undefined}
+          >
+            <MessageSquare className="h-4 w-4" aria-hidden="true" />
+          </HudIconButton>
+        </div>
+        <div className="sm:hidden">
+          <HudIconButton
+            label="More actions"
+            onClick={() => setMobileActionsOpen(value => !value)}
+            title="More command actions"
+            className={mobileActionsOpen ? 'bg-cyan-300/15 text-cyan-100' : undefined}
+          >
+            <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+          </HudIconButton>
+        </div>
         <GameMenu />
       </div>
 
@@ -236,6 +292,26 @@ export const TurnActionCluster: React.FC<{
         />
       )}
       {helpOpen && <HelpMenu onOpenCivilopedia={onOpenCivilopedia} />}
+      {mobileActionsOpen && (
+        <MobileActionsMenu
+          onReports={() => {
+            setMobileActionsOpen(false);
+            setHelpOpen(false);
+            setReportsOpen(true);
+          }}
+          onHelp={() => {
+            setMobileActionsOpen(false);
+            setReportsOpen(false);
+            setHelpOpen(true);
+          }}
+          onChat={() => {
+            setMobileActionsOpen(false);
+            setReportsOpen(false);
+            setHelpOpen(false);
+            setChatOpen(true);
+          }}
+        />
+      )}
       <ChatBox open={chatOpen} onOpenChange={setChatOpen} />
     </HudPanel>
   );

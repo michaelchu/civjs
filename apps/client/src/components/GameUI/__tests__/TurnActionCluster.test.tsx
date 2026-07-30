@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGameStore } from '../../../store/gameStore';
@@ -86,6 +86,21 @@ describe('TurnActionCluster', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Units' }));
 
     expect(onOpenUnitReport).toHaveBeenCalledOnce();
+  });
+
+  it('groups secondary command actions behind the narrow-screen overflow', () => {
+    render(
+      <MemoryRouter>
+        <TurnActionCluster />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    const overflow = screen.getByLabelText('More command actions');
+    fireEvent.click(within(overflow).getByRole('button', { name: 'Reports' }));
+
+    expect(screen.getByText('Reports and management')).toBeInTheDocument();
+    expect(screen.queryByLabelText('More command actions')).not.toBeInTheDocument();
   });
 
   it('opens the intelligence report from the reports menu', () => {
