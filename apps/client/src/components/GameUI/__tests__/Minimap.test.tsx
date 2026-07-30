@@ -43,4 +43,13 @@ describe('Minimap', () => {
       expect.objectContaining({ type: 'center-map-on-tile' })
     );
   });
+
+  it('can collapse and restore the overview map', () => {
+    render(<Minimap />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse minimap' }));
+    expect(screen.queryByLabelText('Minimap overview')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand minimap' }));
+    expect(screen.getByLabelText('Minimap overview')).toBeInTheDocument();
+  });
 });

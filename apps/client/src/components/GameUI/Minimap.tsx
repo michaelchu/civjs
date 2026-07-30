@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { Crosshair, Map as MapIcon } from 'lucide-react';
+import { Crosshair, Map as MapIcon, Maximize2, Minimize2 } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { HudPanel } from './HudPanel';
+import { HudIconButton } from './HudIconButton';
 
 const MINIMAP_WIDTH = 176;
 const MINIMAP_HEIGHT = 112;
@@ -35,6 +36,7 @@ const inverseIsometric = (guiX: number, guiY: number): { x: number; y: number } 
 });
 
 export const Minimap: React.FC = () => {
+  const [collapsed, setCollapsed] = React.useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const map = useGameStore(state => state.map);
   const viewport = useGameStore(state => state.viewport);
@@ -135,14 +137,33 @@ export const Minimap: React.FC = () => {
     );
   };
 
+  if (collapsed) {
+    return (
+      <HudPanel className="hidden w-11 items-center justify-center p-1.5 sm:flex">
+        <HudIconButton label="Expand minimap" onClick={() => setCollapsed(false)}>
+          <Maximize2 className="h-4 w-4" aria-hidden="true" />
+        </HudIconButton>
+      </HudPanel>
+    );
+  }
+
   return (
-    <HudPanel className="w-[11.5rem] overflow-hidden p-1.5">
+    <HudPanel className="hidden w-[11.5rem] overflow-hidden p-1.5 sm:block">
       <div className="flex items-center justify-between px-1 pb-1 text-[9px] font-medium uppercase tracking-[0.14em] text-slate-400">
         <span className="flex items-center gap-1.5">
           <MapIcon className="h-3 w-3 text-cyan-300" aria-hidden="true" />
           Overview
         </span>
-        <Crosshair className="h-3 w-3 text-slate-500" aria-hidden="true" />
+        <div className="flex items-center gap-1">
+          <Crosshair className="h-3 w-3 text-slate-500" aria-hidden="true" />
+          <HudIconButton
+            label="Collapse minimap"
+            onClick={() => setCollapsed(true)}
+            className="h-6 w-6"
+          >
+            <Minimize2 className="h-3.5 w-3.5" aria-hidden="true" />
+          </HudIconButton>
+        </div>
       </div>
       <canvas
         ref={canvasRef}
