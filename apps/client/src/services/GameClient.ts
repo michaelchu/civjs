@@ -262,7 +262,8 @@ export class GameClient {
       const { cities } = useGameStore.getState();
       const newCities = { ...cities };
       // Use the actual city data sent from the server
-      newCities[data.city.id] = data.city;
+      const city = this.normalizeCityData(data.city);
+      newCities[city.id] = city;
       useGameStore.getState().updateGameState({
         cities: newCities,
       });
@@ -274,7 +275,12 @@ export class GameClient {
 
       if (data.cities) {
         useGameStore.getState().updateGameState({
-          cities: data.cities,
+          cities: Object.fromEntries(
+            Object.entries(data.cities).map(([cityId, city]) => [
+              cityId,
+              this.normalizeCityData(city),
+            ])
+          ),
         });
       }
     });
@@ -421,50 +427,54 @@ export class GameClient {
           const updatedUnits = packet.data.fullSnapshot ? {} : { ...units };
 
           for (const unitData of packet.data.units) {
-            const existingUnit = units[unitData.id];
+            const normalizedUnit = this.normalizeUnitData(unitData);
+            const existingUnit = units[normalizedUnit.id];
             const newUnit = {
-              id: unitData.id,
-              playerId: unitData.owner, // Server sends 'owner' not 'playerId'
-              unitTypeId: unitData.type,
-              x: unitData.x,
-              y: unitData.y,
-              hp: unitData.hp,
-              attack: unitData.attack,
-              defense: unitData.defense,
-              firepower: unitData.firepower,
-              movesLeft: unitData.movesleft, // Server sends 'movesleft' not 'movesLeft'
-              maxMoves: unitData.maxmoves,
-              fuel: unitData.fuel,
-              maxFuel: unitData.maxFuel,
-              veteranLevel: unitData.veteran, // Server sends 'veteran' not 'veteranLevel'
-              homeCityId: unitData.homeCity ?? undefined,
+              id: normalizedUnit.id,
+              playerId: normalizedUnit.owner,
+              unitTypeId: normalizedUnit.type,
+              x: normalizedUnit.x,
+              y: normalizedUnit.y,
+              hp: normalizedUnit.hp,
+              attack: normalizedUnit.attack,
+              defense: normalizedUnit.defense,
+              firepower: normalizedUnit.firepower,
+              movesLeft: normalizedUnit.movesleft,
+              maxMoves: normalizedUnit.maxmoves,
+              fuel: normalizedUnit.fuel,
+              maxFuel: normalizedUnit.maxFuel,
+              veteranLevel: normalizedUnit.veteran,
+              homeCityId: normalizedUnit.homeCity ?? undefined,
               upkeep: {
-                food: unitData.upkeep?.[0] ?? 0,
-                shields: unitData.upkeep?.[1] ?? 0,
-                gold: unitData.upkeep?.[2] ?? 0,
+                food: normalizedUnit.upkeep?.[0] ?? 0,
+                shields: normalizedUnit.upkeep?.[1] ?? 0,
+                gold: normalizedUnit.upkeep?.[2] ?? 0,
               },
-              nationality: unitData.nationality,
-              activityTarget: unitData.activityTarget,
-              occupied: unitData.occupied,
-              paradropped: unitData.paradropped,
-              doneMoving: unitData.doneMoving,
-              stay: unitData.stay,
-              facing: unitData.facing,
-              birthTurn: unitData.birthTurn,
-              fortified: unitData.fortified,
-              activity: unitData.activity,
-              orders: unitData.orders,
-              transportedBy: unitData.transportedBy,
-              cargoUnits: unitData.cargoUnits,
-              capabilities: unitData.capabilities,
+              nationality: normalizedUnit.nationality,
+              activityTarget: normalizedUnit.activityTarget,
+              occupied: normalizedUnit.occupied,
+              paradropped: normalizedUnit.paradropped,
+              doneMoving: normalizedUnit.doneMoving,
+              stay: normalizedUnit.stay,
+              facing: normalizedUnit.facing,
+              birthTurn: normalizedUnit.birthTurn,
+              fortified: normalizedUnit.fortified,
+              activity: normalizedUnit.activity,
+              orders: normalizedUnit.orders,
+              transportedBy: normalizedUnit.transportedBy,
+              cargoUnits: normalizedUnit.cargoUnits,
+              capabilities: normalizedUnit.capabilities,
             };
 
             // Check if unit position changed and clear cached paths if so
-            if (existingUnit && (existingUnit.x !== unitData.x || existingUnit.y !== unitData.y)) {
-              pathfindingService.clearUnitPaths(unitData.id);
+            if (
+              existingUnit &&
+              (existingUnit.x !== normalizedUnit.x || existingUnit.y !== normalizedUnit.y)
+            ) {
+              pathfindingService.clearUnitPaths(normalizedUnit.id);
             }
 
-            updatedUnits[unitData.id] = newUnit;
+            updatedUnits[normalizedUnit.id] = newUnit;
           }
 
           useGameStore.setState({
@@ -510,10 +520,11 @@ export class GameClient {
       case PacketType.CITY_INFO: {
         clientLogger.debug('City info:', packet.data);
         const { cities } = useGameStore.getState();
+        const city = this.normalizeCityData(packet.data);
         useGameStore.getState().updateGameState({
           cities: {
             ...cities,
-            [packet.data.id]: packet.data,
+            [city.id]: city,
           },
         });
         break;
@@ -717,6 +728,60 @@ export class GameClient {
       default:
         console.log(`Unhandled packet type: ${packetName} (${packet.type})`);
     }
+  }
+
+  private normalizeUnitData(unitData: any): any {
+    return {
+      ...unitData,
+      id: unitData.id,
+      owner: unitData.owner ?? unitData.playerId,
+      type: unitData.type ?? unitData.unitTypeId,
+      movesleft: unitData.movesleft ?? unitData.movesLeft,
+      maxmoves: unitData.maxmoves ?? unitData.maxMoves,
+      veteran: unitData.veteran ?? unitData.veteranLevel,
+      homeCity: unitData.homeCity ?? unitData.homecity ?? unitData.homeCityId,
+      activityTarget: unitData.activityTarget ?? unitData.activity_target,
+      doneMoving: unitData.doneMoving ?? unitData.done_moving,
+      transportedBy: unitData.transportedBy ?? unitData.transported,
+      cargoUnits: unitData.cargoUnits ?? unitData.cargo ?? [],
+      birthTurn: unitData.birthTurn ?? unitData.birth_turn,
+      maxFuel: unitData.maxFuel ?? unitData.max_fuel,
+      fortified: unitData.fortified ?? unitData.activity === 'fortified',
+    };
+  }
+
+  private normalizeCityData(cityData: any): any {
+    const production =
+      cityData.production ??
+      (cityData.currentProduction
+        ? {
+            target: cityData.currentProduction,
+            type: cityData.productionType ?? 'unit',
+            progress: cityData.productionStock ?? 0,
+            cost: cityData.productionCost ?? 0,
+            turnsToComplete: cityData.turnsToComplete ?? 0,
+            buyCost: cityData.buyCost ?? 0,
+          }
+        : undefined);
+
+    return {
+      ...cityData,
+      size: cityData.size ?? cityData.population ?? 0,
+      food: cityData.food ?? cityData.foodPerTurn ?? 0,
+      shields: cityData.shields ?? cityData.productionPerTurn ?? 0,
+      trade: cityData.trade ?? cityData.tradePerTurn ?? 0,
+      history: cityData.history ?? cityData.culture ?? 0,
+      foundedTurn: cityData.foundedTurn ?? cityData.founded,
+      defenseStrength: cityData.defenseStrength,
+      health: cityData.health ?? cityData.healthLevel,
+      culturePerTurn: cityData.culturePerTurn ?? 0,
+      presentUnits: cityData.presentUnits ?? cityData.units ?? [],
+      supportedUnits: cityData.supportedUnits ?? [],
+      workableTiles: cityData.workableTiles ?? cityData.workingTiles ?? [],
+      production,
+      worklist: cityData.worklist ?? [],
+      tradeRoutes: cityData.tradeRoutes ?? [],
+    };
   }
 
   private applyCultureUpdate(data: {

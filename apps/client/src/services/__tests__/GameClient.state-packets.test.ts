@@ -178,6 +178,74 @@ describe('GameClient state-bearing packets', () => {
     );
   });
 
+  it('normalizes legacy unit and city field names into HUD models', () => {
+    handlePacket({
+      type: PacketType.UNIT_INFO,
+      data: {
+        units: [
+          {
+            id: 'unit-legacy',
+            playerId: 'player-1',
+            unitTypeId: 'settlers',
+            x: 1,
+            y: 2,
+            hp: 100,
+            movesLeft: 1,
+            maxMoves: 2,
+            veteranLevel: 0,
+            homecity: 'city-legacy',
+            activity_target: 'city-legacy',
+            done_moving: true,
+            birth_turn: 3,
+            upkeep: [1, 0, 0],
+          },
+        ],
+      },
+    });
+    handlePacket({
+      type: PacketType.CITY_INFO,
+      data: {
+        id: 'city-legacy',
+        name: 'Rome',
+        playerId: 'player-1',
+        x: 1,
+        y: 2,
+        population: 4,
+        foodPerTurn: 3,
+        productionPerTurn: 5,
+        tradePerTurn: 2,
+        currentProduction: 'warriors',
+        productionType: 'unit',
+        productionStock: 6,
+        turnsToComplete: 2,
+        foundedTurn: 8,
+      },
+    });
+
+    expect(useGameStore.getState().units['unit-legacy']).toEqual(
+      expect.objectContaining({
+        homeCityId: 'city-legacy',
+        activityTarget: 'city-legacy',
+        doneMoving: true,
+        birthTurn: 3,
+        movesLeft: 1,
+      })
+    );
+    expect(useGameStore.getState().cities['city-legacy']).toEqual(
+      expect.objectContaining({
+        size: 4,
+        food: 3,
+        shields: 5,
+        trade: 2,
+        production: expect.objectContaining({
+          target: 'warriors',
+          progress: 6,
+          turnsToComplete: 2,
+        }),
+      })
+    );
+  });
+
   it('maps Freeciv fog states and replaces stale units with full visibility snapshots', () => {
     handlePacket({
       type: PacketType.MAP_INFO,
