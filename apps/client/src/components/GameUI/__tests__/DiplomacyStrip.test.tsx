@@ -89,4 +89,18 @@ describe('DiplomacyStrip', () => {
     fireEvent.click(screen.getByRole('button', { name: /collapse diplomacy/i }));
     expect(screen.getByRole('button', { name: /expand diplomacy/i })).toBeInTheDocument();
   });
+
+  it('opens intelligence for a known leader when the shortcut is available', () => {
+    const onOpenIntelligence = vi.fn();
+    render(<DiplomacyStrip onOpenIntelligence={onOpenIntelligence} />);
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open intelligence report for Pericles' })
+    );
+
+    expect(onOpenIntelligence).toHaveBeenCalledOnce();
+    expect(
+      screen.queryByRole('button', { name: 'Open intelligence report for Hidden Leader' })
+    ).not.toBeInTheDocument();
+  });
 });

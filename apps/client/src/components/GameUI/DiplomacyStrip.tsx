@@ -6,6 +6,7 @@ import {
   CircleAlert,
   Eye,
   Handshake,
+  Radar,
   Shield,
   Swords,
   Users,
@@ -110,9 +111,14 @@ const ProposalActions: React.FC<{ nation: DiplomacyNation; currentPlayerId: stri
   );
 };
 
-const LeaderRow: React.FC<{ nation: DiplomacyNation; currentPlayerId: string }> = ({
+const LeaderRow: React.FC<{
+  nation: DiplomacyNation;
+  currentPlayerId: string;
+  onOpenIntelligence?: () => void;
+}> = ({
   nation,
   currentPlayerId,
+  onOpenIntelligence,
 }) => {
   const setActiveTab = useGameStore(state => state.setActiveTab);
 
@@ -132,28 +138,40 @@ const LeaderRow: React.FC<{ nation: DiplomacyNation; currentPlayerId: string }> 
 
   return (
     <div className="rounded-lg px-1 py-1 transition-colors hover:bg-white/5">
-      <button
-        type="button"
-        onClick={() => {
-          setActiveTab('nations');
-          document.dispatchEvent(
-            new CustomEvent('focus-nation-card', { detail: { nationId: nation.id } })
-          );
-        }}
-        aria-label={`Open diplomacy card for ${nation.leaderName}`}
-        className="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
-      >
-        <LeaderInsignia nation={nation} />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-xs font-semibold text-slate-100">
-            {nation.leaderName}
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('nations');
+            document.dispatchEvent(
+              new CustomEvent('focus-nation-card', { detail: { nationId: nation.id } })
+            );
+          }}
+          aria-label={`Open diplomacy card for ${nation.leaderName}`}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+        >
+          <LeaderInsignia nation={nation} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-xs font-semibold text-slate-100">
+              {nation.leaderName}
+            </span>
+            <span className="block truncate text-[10px] text-slate-500">
+              {nation.civilization} · {nation.isAI ? 'AI' : 'Human'}
+            </span>
           </span>
-          <span className="block truncate text-[10px] text-slate-500">
-            {nation.civilization} · {nation.isAI ? 'AI' : 'Human'}
-          </span>
-        </span>
-        <RelationBadge state={nation.relation.state} />
-      </button>
+          <RelationBadge state={nation.relation.state} />
+        </button>
+        {onOpenIntelligence && (
+          <HudIconButton
+            label={`Open intelligence report for ${nation.leaderName}`}
+            title="Open intelligence report"
+            className="h-7 w-7 shrink-0 text-sky-300"
+            onClick={onOpenIntelligence}
+          >
+            <Radar className="h-3.5 w-3.5" aria-hidden="true" />
+          </HudIconButton>
+        )}
+      </div>
       <div className="ml-11 mt-1 flex flex-wrap items-center gap-1.5">
         {nation.relation.embassy && <span className="text-[10px] text-slate-400">Embassy</span>}
         {nation.relation.sharedVision && (
@@ -175,7 +193,9 @@ const LeaderRow: React.FC<{ nation: DiplomacyNation; currentPlayerId: string }> 
   );
 };
 
-export const DiplomacyStrip: React.FC = () => {
+export const DiplomacyStrip: React.FC<{ onOpenIntelligence?: () => void }> = ({
+  onOpenIntelligence,
+}) => {
   const [collapsed, setCollapsed] = React.useState(false);
   const diplomacy = useGameStore(state => state.diplomacy);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
@@ -227,7 +247,12 @@ export const DiplomacyStrip: React.FC = () => {
           <>
             <div className="space-y-1">
               {knownNations.map(nation => (
-                <LeaderRow key={nation.id} nation={nation} currentPlayerId={currentPlayerId} />
+                <LeaderRow
+                  key={nation.id}
+                  nation={nation}
+                  currentPlayerId={currentPlayerId}
+                  onOpenIntelligence={onOpenIntelligence}
+                />
               ))}
               {Array.from({ length: unknownCount }, (_, index) => (
                 <LeaderRow
@@ -247,6 +272,7 @@ export const DiplomacyStrip: React.FC = () => {
                     },
                   }}
                   currentPlayerId={currentPlayerId}
+                  onOpenIntelligence={onOpenIntelligence}
                 />
               ))}
             </div>

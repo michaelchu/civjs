@@ -237,7 +237,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
               bottomCenter={<SelectionTray />}
               bottomLeft={<Minimap />}
               left={<ObjectivesJournal />}
-              right={<DiplomacyStrip />}
+              right={<DiplomacyStrip onOpenIntelligence={() => setIntelligenceReportOpen(true)} />}
               bottomRight={
                 <TurnActionCluster
                   onOpenScores={() => setScoreReportOpen(true)}
