@@ -39,6 +39,7 @@ const inverseIsometric = (guiX: number, guiY: number): { x: number; y: number } 
 export const Minimap: React.FC = () => {
   const [collapsed, setCollapsed] = React.useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const draggingRef = useRef(false);
   const map = useGameStore(state => state.map);
   const viewport = useGameStore(state => state.viewport);
   const units = useGameStore(state => state.units);
@@ -149,20 +150,40 @@ export const Minimap: React.FC = () => {
     drawMinimap();
   }, [drawMinimap]);
 
-  const handleClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+  const centerFromPointer = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return;
     const rect = canvas.getBoundingClientRect();
     const mapWidth = map.xsize ?? map.width;
     const mapHeight = map.ysize ?? map.height;
     if (!mapWidth || !mapHeight) return;
-    const x = Math.floor(((event.clientX - rect.left) / (rect.width || MINIMAP_WIDTH)) * mapWidth);
-    const y = Math.floor(((event.clientY - rect.top) / (rect.height || MINIMAP_HEIGHT)) * mapHeight);
+    const x = Math.floor(((clientX - rect.left) / (rect.width || MINIMAP_WIDTH)) * mapWidth);
+    const y = Math.floor(((clientY - rect.top) / (rect.height || MINIMAP_HEIGHT)) * mapHeight);
     document.dispatchEvent(
       new CustomEvent('center-map-on-tile', {
         detail: { x: Math.max(0, Math.min(mapWidth - 1, x)), y: Math.max(0, Math.min(mapHeight - 1, y)) },
       })
     );
+  };
+
+  const handleClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    centerFromPointer(event.clientX, event.clientY);
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    draggingRef.current = true;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    centerFromPointer(event.clientX, event.clientY);
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (draggingRef.current) centerFromPointer(event.clientX, event.clientY);
+  };
+
+  const handlePointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    draggingRef.current = false;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
   };
 
   const selectedCity = selectedCityId ? cities[selectedCityId] : undefined;
@@ -206,8 +227,12 @@ export const Minimap: React.FC = () => {
         width={MINIMAP_WIDTH}
         height={MINIMAP_HEIGHT}
         onClick={handleClick}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
         aria-label={`Minimap overview${selectionLabel}`}
-        className="block h-28 w-44 cursor-crosshair rounded-md border border-white/10 bg-slate-950"
+        className="block h-28 w-44 cursor-crosshair touch-none rounded-md border border-white/10 bg-slate-950"
       />
     </HudPanel>
   );

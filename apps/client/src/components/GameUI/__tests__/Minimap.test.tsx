@@ -47,6 +47,33 @@ describe('Minimap', () => {
     );
   });
 
+  it('repositions the main map while dragging the overview', () => {
+    const dispatchSpy = vi.spyOn(document, 'dispatchEvent');
+    render(<Minimap />);
+    const minimap = screen.getByLabelText('Minimap overview');
+
+    const dispatchPointer = (type: string, clientX: number, clientY: number) => {
+      const event = new Event(type, { bubbles: true });
+      Object.defineProperties(event, {
+        clientX: { value: clientX },
+        clientY: { value: clientY },
+        pointerId: { value: 1 },
+      });
+      minimap.dispatchEvent(event);
+    };
+    dispatchPointer('pointerdown', 20, 20);
+    dispatchPointer('pointermove', 120, 80);
+    dispatchPointer('pointerup', 120, 80);
+
+    const centerEvents = dispatchSpy.mock.calls.filter(
+      ([event]) => (event as CustomEvent).type === 'center-map-on-tile'
+    );
+    expect(centerEvents.length).toBeGreaterThanOrEqual(2);
+    const lastCenterEvent = centerEvents.at(-1)?.[0] as CustomEvent<{ x: number; y: number }>;
+    expect(lastCenterEvent.type).toBe('center-map-on-tile');
+    expect(lastCenterEvent.detail).toEqual({ x: 2, y: 2 });
+  });
+
   it('can collapse and restore the overview map', () => {
     render(<Minimap />);
 
