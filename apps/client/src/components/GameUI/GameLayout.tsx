@@ -3,7 +3,6 @@ import { useGameStore } from '../../store/gameStore';
 import { MapCanvas } from '../Canvas2D/MapCanvas';
 import { GameTabs } from './GameTabs';
 import { StatusPanel } from './StatusPanel';
-// import { ChatBox } from './ChatBox'; // Commented out while ChatBox is disabled
 import { TechnologyTree } from '../Research/TechnologyTree';
 import { GovernmentPanel } from './GovernmentPanel';
 import { CitiesPanel } from './CitiesPanel';

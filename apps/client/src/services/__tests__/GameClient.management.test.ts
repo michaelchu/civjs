@@ -35,6 +35,18 @@ describe('GameClient management screens', () => {
     });
   });
 
+  it('sends chat messages through the canonical packet envelope', () => {
+    gameClient.sendChatMessage('  Hello world  ');
+
+    expect(socket.emit).toHaveBeenCalledWith(
+      'packet',
+      expect.objectContaining({
+        type: PacketType.CHAT_MSG_REQ,
+        data: { message: 'Hello world', channel: 'all' },
+      })
+    );
+  });
+
   it('hydrates authoritative government definitions and starts a revolution', async () => {
     socket.emit.mockImplementation(
       (event: string, _data: unknown, callback: (value: unknown) => void) => {

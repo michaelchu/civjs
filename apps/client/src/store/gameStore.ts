@@ -25,6 +25,15 @@ export interface GameNotification {
   tone: 'info' | 'success' | 'error';
 }
 
+export interface ChatMessage {
+  id: string;
+  timestamp: number;
+  sender: string;
+  message: string;
+  channel: 'all' | 'team' | 'private';
+  recipient?: string;
+}
+
 interface GameStore extends GameState {
   // Client state
   clientState: ClientState;
@@ -45,6 +54,7 @@ interface GameStore extends GameState {
   turnProcessingState: TurnProcessingState;
   turnProcessingSteps: TurnProcessingStep[];
   notifications: GameNotification[];
+  chatMessages: ChatMessage[];
 
   // Actions
   setClientState: (state: ClientState) => void;
@@ -75,6 +85,7 @@ interface GameStore extends GameState {
   resetTurnProcessing: () => void;
   addNotification: (notification: Omit<GameNotification, 'id'>) => void;
   dismissNotification: (id: string) => void;
+  addChatMessage: (message: Omit<ChatMessage, 'id'>) => void;
 
   // Government actions
   requestGovernmentChange: (governmentId: string) => void;
@@ -157,6 +168,7 @@ export const useGameStore = create<GameStore>()(
     turnProcessingState: 'idle',
     turnProcessingSteps: [],
     notifications: [],
+    chatMessages: [],
 
     // Actions
     setClientState: (state: ClientState) => {
@@ -265,6 +277,18 @@ export const useGameStore = create<GameStore>()(
     dismissNotification: id => {
       set(state => ({
         notifications: state.notifications.filter(notification => notification.id !== id),
+      }));
+    },
+
+    addChatMessage: message => {
+      set(state => ({
+        chatMessages: [
+          ...state.chatMessages.slice(-49),
+          {
+            ...message,
+            id: `${message.timestamp}-${Math.random().toString(36).slice(2)}`,
+          },
+        ],
       }));
     },
 

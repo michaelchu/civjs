@@ -620,6 +620,13 @@ export class GameClient {
 
       case PacketType.CHAT_MSG:
         clientLogger.debug('Chat message:', packet.data);
+        useGameStore.getState().addChatMessage({
+          sender: packet.data.sender ?? 'Unknown',
+          message: packet.data.message ?? '',
+          channel: packet.data.channel ?? 'all',
+          recipient: packet.data.recipient,
+          timestamp: packet.data.timestamp ?? Date.now(),
+        });
         useGameStore.getState().addNotification({
           message: packet.data.message,
           tone: packet.data.type === 'error' ? 'error' : 'info',
@@ -1430,6 +1437,20 @@ export class GameClient {
 
   cancelSharedVision(otherPlayerId: string): void {
     this.sendPacket(PacketType.DIPLOMACY_VISION_CANCEL, { otherPlayerId });
+  }
+
+  sendChatMessage(
+    message: string,
+    channel: 'all' | 'team' | 'private' = 'all',
+    recipient?: string
+  ): void {
+    const trimmed = message.trim();
+    if (!trimmed) return;
+    this.sendPacket(PacketType.CHAT_MSG_REQ, {
+      message: trimmed.slice(0, 255),
+      channel,
+      ...(recipient ? { recipient } : {}),
+    });
   }
 
   private sendPacket(type: PacketType, data: unknown): void {

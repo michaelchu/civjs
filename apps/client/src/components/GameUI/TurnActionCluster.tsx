@@ -19,6 +19,7 @@ import { GameMenu } from './GameMenu';
 import { HudIconButton } from './HudIconButton';
 import { HudPanel } from './HudPanel';
 import { TurnDoneButton } from './TurnDoneButton';
+import { ChatBox } from './ChatBox';
 
 const ActionButton: React.FC<{
   label: string;
@@ -138,6 +139,7 @@ export const TurnActionCluster: React.FC<{
 }> = ({ onOpenScores, onOpenDemographics, onOpenClimate, onOpenUnitReport, onOpenIntelligence, onOpenSpaceRace, onOpenWarCalculator, onOpenCivilopedia }) => {
   const [reportsOpen, setReportsOpen] = React.useState(false);
   const [helpOpen, setHelpOpen] = React.useState(false);
+  const [chatOpen, setChatOpen] = React.useState(false);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
   const urgentFocusQueue = useGameStore(state => state.urgentFocusQueue);
   const units = useGameStore(state => state.units);
@@ -187,7 +189,12 @@ export const TurnActionCluster: React.FC<{
           onClick={() => { setHelpOpen(value => !value); setReportsOpen(false); }}
           active={helpOpen}
         />
-        <HudIconButton label="Chat unavailable" disabled title="Chat is currently disabled">
+        <HudIconButton
+          label="Chat"
+          onClick={() => { setChatOpen(value => !value); setReportsOpen(false); setHelpOpen(false); }}
+          title="Open chat"
+          className={chatOpen ? 'bg-cyan-300/15 text-cyan-100' : undefined}
+        >
           <MessageSquare className="h-4 w-4" aria-hidden="true" />
         </HudIconButton>
         <GameMenu />
@@ -229,6 +236,7 @@ export const TurnActionCluster: React.FC<{
         />
       )}
       {helpOpen && <HelpMenu onOpenCivilopedia={onOpenCivilopedia} />}
+      <ChatBox open={chatOpen} onOpenChange={setChatOpen} />
     </HudPanel>
   );
 };
