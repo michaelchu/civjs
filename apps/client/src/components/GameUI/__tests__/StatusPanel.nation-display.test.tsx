@@ -108,17 +108,22 @@ describe('StatusPanel - Nation Display', () => {
       cityTwo: { id: 'cityTwo', playerId: 'player-1', size: 2 },
     };
 
-    const { getByText, getByRole } = render(<StatusPanel />);
+    const onOpenDemographics = vi.fn();
+    const { getByText, getByRole } = render(<StatusPanel onOpenDemographics={onOpenDemographics} />);
 
     expect(getByText('60/10/30%')).toBeInTheDocument();
     expect(getByText('6')).toBeInTheDocument();
     expect(getByText('480')).toBeInTheDocument();
-    expect(getByRole('button', { name: 'Open turn and calendar information' })).toHaveTextContent(
+    expect(getByRole('button', { name: 'Open demographics report' })).toHaveTextContent(
       '3800 BC'
     );
     expect(getByText('Online')).toBeInTheDocument();
 
     fireEvent.click(getByRole('button', { name: 'Open economy settings' }));
     expect(mockUseGameStore.setActiveTab).toHaveBeenCalledWith('options');
+
+    fireEvent.click(getByRole('button', { name: 'Open demographics report' }));
+    expect(onOpenDemographics).toHaveBeenCalledTimes(1);
+    expect(mockUseGameStore.setActiveTab).not.toHaveBeenCalledWith('nations');
   });
 });

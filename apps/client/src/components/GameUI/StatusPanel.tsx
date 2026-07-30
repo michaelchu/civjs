@@ -99,7 +99,7 @@ const EconomyButton: React.FC<{ player: Player; onOpen: () => void }> = ({ playe
   </button>
 );
 
-export const StatusPanel: React.FC = () => {
+export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({ onOpenDemographics }) => {
   const turn = useGameStore(state => state.turn);
   const year = useGameStore(state => state.year);
   const phase = useGameStore(state => state.phase);
@@ -193,10 +193,13 @@ export const StatusPanel: React.FC = () => {
       <div className="hidden items-center gap-2 border-l border-white/10 pl-3 sm:flex">
         <button
           type="button"
-          onClick={() => setActiveTab('nations')}
+          onClick={() => {
+            if (onOpenDemographics) onOpenDemographics();
+            else setActiveTab('nations');
+          }}
           className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
-          aria-label="Open turn and calendar information"
-          title="Open calendar information"
+          aria-label="Open demographics report"
+          title="Open demographics report"
         >
           <CalendarDays className="h-3.5 w-3.5 text-cyan-300" aria-hidden="true" />
           <span className="font-semibold tabular-nums text-slate-100">{turn}</span>
