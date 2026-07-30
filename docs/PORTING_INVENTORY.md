@@ -69,6 +69,20 @@ and spy actions.
 classic action names. Actions that the classic ruleset does not enable remain
 unadvertised; fixed-lobby civil war is recorded as inapplicable.
 
+## Scoring and end-game coverage
+
+| Area                           | Freeciv target                                                                                                                                                        | Current status                                                                                                                                                                                                             | Completion evidence                                                                                                                                                   |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Victory evaluation and reports | Conquest/team, science arrival, culture, world peace, allied/scenario outcomes, durable final standings                                                               | Implemented for the supported CivJS condition set; reports persist and broadcast the winner, reason, turn, year, category breakdown, and standings                                                                         | `EndGameService.test.ts`, spaceship/culture/diplomacy fixtures, game-flow integration                                                                                 |
+| Civilization score             | `server/score.c`: citizens, adjusted/future technologies, great wonders, arrived spaceship, cumulative units built/killed, and culture with reference integer scaling | **Partial — confirmed gap GP-035.** CivJS currently uses `population * 10 + cities * 100 + current units * 20 + technologies * 50 + history`; required cumulative unit counters and full spaceship score inputs are absent | Required: category fixtures against `calc_civ_score`/`get_civ_score`, persistence/recovery counters, wonder transfer, spaceship arrival, and integer-truncation tests |
+| End-turn/hard-cap ranking      | `rank_users(true)`: sum scores for living, non-surrendered members of each team                                                                                       | **Partial — confirmed gap GP-035.** CivJS compares individual approximate totals and does not implement reference team aggregation                                                                                         | Required: individual/team interruption ranking and tie fixtures                                                                                                       |
+| Live score transport           | Current authoritative civilization total in player/score reporting                                                                                                    | **Missing — confirmed gap GP-035.** `GameBroadcastManager.formatPlayerInfo()` sends `score: 0`                                                                                                                             | Required: live packet, persisted score, replay frame, and final-report consistency test                                                                               |
+
+The scoring gap must be resolved before score-at-turn-cap simulation results can
+claim reference parity. The implementation target and simulation dependency are
+specified in
+[`AI_SIMULATION_MODE_IMPLEMENTATION_SPEC.md`](AI_SIMULATION_MODE_IMPLEMENTATION_SPEC.md).
+
 ## Integration evidence
 
 `GameFlow.integration.test.ts` covers the authoritative manager/database path.

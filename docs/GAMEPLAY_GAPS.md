@@ -1049,6 +1049,56 @@ you declare war first.` Civilian/border-entry units may enter permitted
   test and focused end-to-end tests for every retained effect family,
   especially wonder unlocks/bonuses and action costs.
 
+### GP-035 — Civilization score and turn-cap ranking are not reference-compatible
+
+- **Status:** Confirmed gap
+- **Area:** Scoring, statistics, end-game ranking, persistence, replay
+- **Observed behavior:** CivJS calculates a deterministic score, persists it
+  during end-game evaluation, and uses it to select maximum-turn winners, but
+  the formula is a CivJS approximation. Live `PLAYER_INFO` packets additionally
+  report every player's score as zero.
+- **Current implementation:** `EndGameService.buildStanding()` calculates
+  `population * 10 + cities * 100 + current units * 20 + technologies * 50 +
+history`. Maximum-turn resolution compares individual totals and awards
+  every exact tie. `GameBroadcastManager.formatPlayerInfo()` hard-codes
+  `score: 0`. Players do not persist the cumulative units-built,
+  units-killed, and units-lost counters required by the reference, and the
+  current spaceship state does not represent arrived-ship population or
+  success rate.
+- **Reference behavior:** `calc_civ_score()` derives score categories from
+  authoritative player/city/research/unit/wonder/spaceship state.
+  `get_civ_score()` totals citizens, twice the adjusted technology count, five
+  points per great wonder, arrived-spaceship score, one point per ten units
+  built, one point per three units killed, and one point per fifty culture.
+  Future technologies contribute `floor(futureTechs * 5 / 2)` to the
+  technology count before the two-times multiplier. Games interrupted by the
+  configured end turn rank teams by the sum of living, non-surrendered member
+  scores.
+- **CivJS references:**
+  - `apps/server/src/game/services/EndGameService.ts`
+  - `apps/server/src/game/orchestrators/GameBroadcastManager.ts`
+  - `apps/server/src/game/services/SpaceshipService.ts`
+  - `apps/server/src/database/schema/players.ts`
+  - `docs/AI_SIMULATION_MODE_IMPLEMENTATION_SPEC.md`
+- **Freeciv references:**
+  - `reference/freeciv/server/score.c` (`calc_civ_score`,
+    `get_civ_score`, `get_spaceship_score`, `rank_users`)
+  - `reference/freeciv/server/report.c` (score log and final score categories)
+  - `reference/freeciv/common/player.h` (`player_score`)
+- **Expected outcome:** Introduce one authoritative reference-parity score
+  service shared by live standings, persistence, end-game evaluation, replay,
+  diagnostics, and simulation hard-cap ranking. Persist cumulative unit
+  lifecycle counters, count citizens/specialists and owned great wonders with
+  reference semantics, port the missing spaceship scoring state, preserve
+  integer truncation and future-tech weighting, aggregate hard-cap team scores,
+  and broadcast the calculated total instead of zero. Additional report-only
+  metrics may remain visible but must not alter the parity total.
+- **Regression coverage:** Add fixtures for citizens and specialists, known and
+  future technologies, great-wonder ownership/transfer, units built/killed/lost
+  across recovery, culture scaling, incomplete/launched/arrived spaceships,
+  individual and team hard-cap ranking, tie behavior, live packet/persisted
+  score consistency, and replay/final-report consistency.
+
 ## Scope-dependent Freeciv behaviors to triage
 
 These are potential gaps rather than confirmed classic-default regressions.

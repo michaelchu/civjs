@@ -35,6 +35,9 @@ The release target is the `civ2civ3` default configuration, with conquest
 victory, standard 80×50 maps, and up to eight participants. The classic
 ruleset remains the validated parity baseline; the other packaged profiles
 are available as data but do not yet carry the same full-support claim.
+Reference-compatible civilization scoring and score-at-turn-cap ranking are not
+part of the current supported parity claim; the confirmed implementation gap is
+tracked as `GP-035` in [`GAMEPLAY_GAPS.md`](GAMEPLAY_GAPS.md).
 
 ## Ruleset and action authority
 
@@ -92,6 +95,9 @@ improvements remain outside the release claim:
 - packaged audio/music and localization;
 - richer city and empire reports, saved worklists, and advanced batch
   production/report workflows;
+- reference civilization score, cumulative built/killed unit statistics,
+  arrived-spaceship scoring, live score transport, and hard-cap team ranking
+  (`GP-035`);
 - a decision on event-stream replay beyond checkpoint and archive inspection;
 - client help, reports/history, accessibility, animation, and presentation
   polish;
