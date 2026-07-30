@@ -23,6 +23,7 @@ import { DiplomacyStrip } from './DiplomacyStrip';
 import { TurnActionCluster } from './TurnActionCluster';
 import { ScoreReport, type ScoreSnapshot } from './ScoreReport';
 import { DemographicsReport } from './DemographicsReport';
+import { ClimateReport } from './ClimateReport';
 
 interface GameLayoutProps {
   rulesetName?: string;
@@ -35,6 +36,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
   });
   const [scoreReportOpen, setScoreReportOpen] = useState(false);
   const [demographicsReportOpen, setDemographicsReportOpen] = useState(false);
+  const [climateReportOpen, setClimateReportOpen] = useState(false);
   const [scoreHistory, setScoreHistory] = useState<ScoreSnapshot[]>([]);
 
   const activeTab = useGameStore(state => state.activeTab);
@@ -45,6 +47,8 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
   const cities = useGameStore(state => state.cities);
   const units = useGameStore(state => state.units);
   const tiles = useGameStore(state => state.map.tiles);
+  const mapWidth = useGameStore(state => state.map.width);
+  const mapHeight = useGameStore(state => state.map.height);
   const technologies = useGameStore(state => state.technologies);
   const turn = useGameStore(state => state.turn);
   const researchedTechs = useGameStore(state => state.research?.researchedTechs);
@@ -155,6 +159,13 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
         technologies={technologies}
         currentPlayerId={currentPlayerId}
       />
+      <ClimateReport
+        open={climateReportOpen}
+        onOpenChange={setClimateReportOpen}
+        tiles={tiles}
+        mapWidth={mapWidth}
+        mapHeight={mapHeight}
+      />
       {/* Header with tabs and status */}
       <div className="flex items-center justify-between bg-gray-700 px-4 py-1 border-b border-gray-600">
         <GameTabs />
@@ -185,6 +196,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
                 <TurnActionCluster
                   onOpenScores={() => setScoreReportOpen(true)}
                   onOpenDemographics={() => setDemographicsReportOpen(true)}
+                  onOpenClimate={() => setClimateReportOpen(true)}
                 />
               }
             />

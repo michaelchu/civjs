@@ -46,7 +46,8 @@ const ReportsMenu: React.FC<{
   onClose: () => void;
   onOpenScores?: () => void;
   onOpenDemographics?: () => void;
-}> = ({ onClose, onOpenScores, onOpenDemographics }) => {
+  onOpenClimate?: () => void;
+}> = ({ onClose, onOpenScores, onOpenDemographics, onOpenClimate }) => {
   const setActiveTab = useGameStore(state => state.setActiveTab);
   const openTab = (tab: Parameters<typeof setActiveTab>[0]) => {
     setActiveTab(tab);
@@ -64,6 +65,9 @@ const ReportsMenu: React.FC<{
         </button>
         <button type="button" onClick={() => { onOpenDemographics?.(); onClose(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
           <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" /> Demographics
+        </button>
+        <button type="button" onClick={() => { onOpenClimate?.(); onClose(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
+          <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" /> Climate
         </button>
         <button type="button" onClick={() => openTab('research')} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Research
@@ -104,7 +108,8 @@ const HelpMenu: React.FC = () => (
 export const TurnActionCluster: React.FC<{
   onOpenScores?: () => void;
   onOpenDemographics?: () => void;
-}> = ({ onOpenScores, onOpenDemographics }) => {
+  onOpenClimate?: () => void;
+}> = ({ onOpenScores, onOpenDemographics, onOpenClimate }) => {
   const [reportsOpen, setReportsOpen] = React.useState(false);
   const [helpOpen, setHelpOpen] = React.useState(false);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
@@ -190,6 +195,7 @@ export const TurnActionCluster: React.FC<{
           onClose={() => setReportsOpen(false)}
           onOpenScores={onOpenScores}
           onOpenDemographics={onOpenDemographics}
+          onOpenClimate={onOpenClimate}
         />
       )}
       {helpOpen && <HelpMenu />}
