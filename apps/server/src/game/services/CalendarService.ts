@@ -56,19 +56,7 @@ export class CalendarService {
       this.state.year0Hack = false;
     }
 
-    if (slowdown >= 3) {
-      if (increase > 1) {
-        increase = 1;
-      }
-    } else if (slowdown >= 2) {
-      if (increase > 2) {
-        increase = 2;
-      }
-    } else if (slowdown >= 1) {
-      if (increase > 5) {
-        increase = 5;
-      }
-    }
+    increase = this.applySlowdown(increase, slowdown);
 
     if (this.config.calendarFragments > 0) {
       this.state.fragmentCount += worldBonuses.turnFragments;
@@ -84,6 +72,13 @@ export class CalendarService {
       this.state.year = 1;
       this.state.year0Hack = true;
     }
+  }
+
+  private applySlowdown(increase: number, slowdown: number): number {
+    if (slowdown >= 3) return Math.min(increase, 1);
+    if (slowdown >= 2) return Math.min(increase, 2);
+    if (slowdown >= 1) return Math.min(increase, 5);
+    return increase;
   }
 
   formatYear(year?: number): string {

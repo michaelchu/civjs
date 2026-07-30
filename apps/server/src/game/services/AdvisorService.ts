@@ -119,49 +119,85 @@ export class FreecivAdvisorService {
       profile,
     });
 
-    const cityRecommendations = cities.map(city => {
-      const danger = dangerByCity.get(city.id)!;
-      const production = rankCityProduction({
-        city,
-        cities,
-        units: friendlyUnits,
-        unitTypes:
-          game.unitManager.getUnitTypes?.() ??
-          rulesetUnitsService.getUnitTypes(game.config?.ruleset ?? DEFAULT_RULESET),
-        buildingTypes:
-          game.cityManager.getBuildingTypes?.() ??
-          rulesetBuildingsService.getPlayableBuildingTypes(game.config?.ruleset ?? DEFAULT_RULESET),
-        canBuild: (kind, id) =>
-          game.cityManager.canCityContinueProduction?.(city.id, kind, id) ?? false,
-        dangerAssessment: danger,
-        profile,
-        buildingWants: spaceshipPlan.buildingWants.get(city.id),
-      })
-        .slice(0, 5)
-        .map(choice => ({
-          kind: choice.value.kind,
-          id: choice.value.id,
-          want: choice.want,
-          reason: choice.reason,
-        }));
-      return {
-        cityId: city.id,
-        danger: danger.danger,
-        urgency: danger.urgency,
-        production,
-      };
-    });
+    const cityRecommendations = this.buildCityRecommendations(
+      game,
+      cities,
+      friendlyUnits,
+      dangerByCity,
+      profile,
+      spaceshipPlan
+    );
 
-    const catalogue = game.researchManager.getTechnologyCatalogue?.(playerId) ?? [];
-    const researchChoices = rankResearch({
+    const researchChoices = this.buildResearchChoices(
+      game,
+      playerId,
+      cities,
+      relations,
+      profile,
+      knownTechs,
+      spaceshipPlan,
+      player
+    );
+
+    const economy = await this.economyRecommendations(
+      game,
+      playerId,
+      cities,
+      friendlyUnits.length,
+      hostileUnits
+    );
+    const workerPlan = this.buildWorkerPlan(
+      game,
+      playerId,
+      friendlyUnits,
+      cities,
+      hostileUnits,
+      knownTechs
+    );
+    const exploration = await this.explorationRecommendations(
+      game,
+      playerId,
+      friendlyUnits,
+      visibleUnits,
+      hostileUnits,
+      relations.allied,
+      relations.hostile
+    );
+    const military = this.buildMilitaryRecommendations(game, friendlyUnits, hostileUnits);
+
+    return {
+      playerId,
+      turn: game.currentTurn,
+      economy,
+      research: researchChoices,
+      cities: cityRecommendations,
+      workers: workerPlan.assignments.map((assignment: any) => ({
+        unitId: assignment.unit.id,
+        x: assignment.tile.x,
+        y: assignment.tile.y,
+        action: assignment.action,
+        want: assignment.want,
+      })),
+      exploration,
+      military,
+    };
+  }
+
+  private buildResearchChoices(
+    game: GameInstance,
+    playerId: string,
+    cities: any[],
+    relations: any,
+    profile: any,
+    knownTechs: Set<string>,
+    spaceshipPlan: any,
+    player: any
+  ): any[] {
+    const choices = rankResearch({
       available: game.researchManager.getAvailableTechnologies(playerId),
-      catalogue,
-      unitTypes:
-        game.unitManager.getUnitTypes?.() ??
-        rulesetUnitsService.getUnitTypes(game.config?.ruleset ?? DEFAULT_RULESET),
-      buildingTypes:
-        game.cityManager.getBuildingTypes?.() ??
-        rulesetBuildingsService.getPlayableBuildingTypes(game.config?.ruleset ?? DEFAULT_RULESET),
+      catalogue: game.researchManager.getTechnologyCatalogue?.(playerId) ?? [],
+      unitTypes: this.getAdvisorUnitTypes(game),
+      buildingTypes: this.getAdvisorBuildingTypes(game),
       governmentTechs: governmentTechnologyIds(game),
       militaryPressure: relations.hostile.size,
       cityCount: cities.length,
@@ -171,26 +207,27 @@ export class FreecivAdvisorService {
         ...Object.entries(storedTechnologyWants(Boolean(player.isAI), player.aiState)),
         ...spaceshipPlan.technologyWants,
       ]),
-    })
-      .slice(0, 5)
-      .map(choice => ({
-        technologyId: choice.value.id,
-        want: choice.want,
-        reason: choice.reason,
-        goalId: choice.goalId,
-      }));
+    });
+    return choices.slice(0, 5).map(choice => ({
+      technologyId: choice.value.id,
+      want: choice.want,
+      reason: choice.reason,
+      goalId: choice.goalId,
+    }));
+  }
 
-    const economy = await this.economyRecommendations(
-      game,
-      playerId,
-      cities,
-      friendlyUnits.length,
-      hostileUnits
-    );
-    const workerPlan = planWorkerImprovements({
+  private buildWorkerPlan(
+    game: GameInstance,
+    playerId: string,
+    units: Unit[],
+    cities: any[],
+    hostileUnits: Unit[],
+    knownTechs: Set<string>
+  ): any {
+    return planWorkerImprovements({
       turn: game.currentTurn,
       playerId,
-      workers: friendlyUnits.filter(
+      workers: units.filter(
         unit => game.unitManager.getUnitType(unit.unitTypeId)?.canBuildImprovements
       ),
       cities,
@@ -210,16 +247,14 @@ export class FreecivAdvisorService {
       distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
       researchedTechs: knownTechs,
     });
-    const exploration = await this.explorationRecommendations(
-      game,
-      playerId,
-      friendlyUnits,
-      visibleUnits,
-      hostileUnits,
-      relations.allied,
-      relations.hostile
-    );
-    const military = friendlyUnits
+  }
+
+  private buildMilitaryRecommendations(
+    game: GameInstance,
+    units: Unit[],
+    hostileUnits: Unit[]
+  ): any[] {
+    return units
       .filter(unit => {
         const type = game.unitManager.getUnitType(unit.unitTypeId);
         return type && (type.attack ?? type.combat ?? 0) > 0;
@@ -241,23 +276,39 @@ export class FreecivAdvisorService {
             distance: target.distance,
           }));
       });
+  }
 
-    return {
-      playerId,
-      turn: game.currentTurn,
-      economy,
-      research: researchChoices,
-      cities: cityRecommendations,
-      workers: workerPlan.assignments.map(assignment => ({
-        unitId: assignment.unit.id,
-        x: assignment.tile.x,
-        y: assignment.tile.y,
-        action: assignment.action,
-        want: assignment.want,
-      })),
-      exploration,
-      military,
-    };
+  private buildCityRecommendations(
+    game: GameInstance,
+    cities: any[],
+    units: Unit[],
+    dangers: Map<string, any>,
+    profile: any,
+    spaceshipPlan: any
+  ): any[] {
+    return cities.map(city => {
+      const danger = dangers.get(city.id)!;
+      const production = rankCityProduction({
+        city,
+        cities,
+        units,
+        unitTypes: this.getAdvisorUnitTypes(game),
+        buildingTypes: this.getAdvisorBuildingTypes(game),
+        canBuild: (kind, id) =>
+          game.cityManager.canCityContinueProduction?.(city.id, kind, id) ?? false,
+        dangerAssessment: danger,
+        profile,
+        buildingWants: spaceshipPlan.buildingWants.get(city.id),
+      })
+        .slice(0, 5)
+        .map(choice => ({
+          kind: choice.value.kind,
+          id: choice.value.id,
+          want: choice.want,
+          reason: choice.reason,
+        }));
+      return { cityId: city.id, danger: danger.danger, urgency: danger.urgency, production };
+    });
   }
 
   private async economyRecommendations(
@@ -267,29 +318,16 @@ export class FreecivAdvisorService {
     unitCount: number,
     hostileUnits: Unit[]
   ): Promise<AdvisorRecommendations['economy']> {
-    const economicManager = game.turnManager.getEconomicManager?.();
-    const status = economicManager
-      ? await economicManager.getPlayerEconomicStatus(playerId)
-      : {
-          currentGold: game.players.get(playerId)?.gold ?? 0,
-          taxRates: { tax: 40, luxury: 0, science: 60 },
-        };
-    const governmentId = game.governmentManager?.getPlayerGovernment(playerId)?.currentGovernment;
-    const maxRate = governmentId
-      ? game.governmentManager?.calculateGovernmentEffect(governmentId, EffectType.MAX_RATES) || 100
-      : 100;
+    const status = await this.getAdvisorEconomicStatus(game, playerId);
+    const maxRate = this.getAdvisorMaxRate(game, playerId);
     const plan = planTreasury({
       currentGold: status.currentGold,
       netGold: cities.reduce((sum, city) => sum + (city.goldPerTurn ?? 0), 0),
       cities,
       unitCount,
       atWar: hostileUnits.length > 0,
-      unitTypes:
-        game.unitManager.getUnitTypes?.() ??
-        rulesetUnitsService.getUnitTypes(game.config?.ruleset ?? DEFAULT_RULESET),
-      buildingTypes:
-        game.cityManager.getBuildingTypes?.() ??
-        rulesetBuildingsService.getPlayableBuildingTypes(game.config?.ruleset ?? DEFAULT_RULESET),
+      unitTypes: this.getAdvisorUnitTypes(game),
+      buildingTypes: this.getAdvisorBuildingTypes(game),
       buyCost: cityId => game.cityManager.calculateBuyCost(cityId),
       threat: city =>
         hostileUnits.reduce(
@@ -307,6 +345,37 @@ export class FreecivAdvisorService {
       rushCityIds: plan.rushCityIds,
       saleCandidates: plan.sales,
     };
+  }
+
+  private async getAdvisorEconomicStatus(game: GameInstance, playerId: string): Promise<any> {
+    const manager = game.turnManager.getEconomicManager?.();
+    return manager
+      ? manager.getPlayerEconomicStatus(playerId)
+      : {
+          currentGold: game.players.get(playerId)?.gold ?? 0,
+          taxRates: { tax: 40, luxury: 0, science: 60 },
+        };
+  }
+
+  private getAdvisorMaxRate(game: GameInstance, playerId: string): number {
+    const governmentId = game.governmentManager?.getPlayerGovernment(playerId)?.currentGovernment;
+    return governmentId
+      ? game.governmentManager?.calculateGovernmentEffect(governmentId, EffectType.MAX_RATES) || 100
+      : 100;
+  }
+
+  private getAdvisorUnitTypes(game: GameInstance): any {
+    return (
+      game.unitManager.getUnitTypes?.() ??
+      rulesetUnitsService.getUnitTypes(game.config?.ruleset ?? DEFAULT_RULESET)
+    );
+  }
+
+  private getAdvisorBuildingTypes(game: GameInstance): any {
+    return (
+      game.cityManager.getBuildingTypes?.() ??
+      rulesetBuildingsService.getPlayableBuildingTypes(game.config?.ruleset ?? DEFAULT_RULESET)
+    );
   }
 
   private async explorationRecommendations(

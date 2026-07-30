@@ -153,47 +153,54 @@ function isTreasuryGoal(value: unknown): value is AITreasuryGoal {
 export function assertAIState(value: unknown): FreecivAIState {
   if (!isRecord(value)) throw new Error('AI state is missing');
   const state = value as Partial<FreecivAIState>;
-  for (const field of ['diplomacy', 'unitTasks', 'cityWants', 'techWants'] as const) {
-    if (!isRecord(state[field])) {
-      throw new Error(`AI state field ${field} is invalid`);
-    }
-  }
+  assertAIStateMaps(state);
   assertOptionalNumber(state.lastProcessedTurn, 'lastProcessedTurn');
   assertOptionalNumber(state.lastDecisionCount, 'lastDecisionCount');
   assertOptionalNumber(state.inProgressTurn, 'inProgressTurn');
-  if (state.recentDecisionTrace !== undefined) {
-    if (!Array.isArray(state.recentDecisionTrace))
-      throw new Error('AI state decision trace is invalid');
-    for (const entry of state.recentDecisionTrace) {
-      if (
-        !isRecord(entry) ||
-        typeof entry.turn !== 'number' ||
-        typeof entry.label !== 'string' ||
-        typeof entry.actions !== 'number' ||
-        (entry.error !== undefined && typeof entry.error !== 'string')
-      ) {
-        throw new Error('AI state decision trace entry is invalid');
-      }
-      if (entry.input !== undefined) {
-        assertTraceNumbers(entry.input, 'input', ['cities', 'units', 'tasks']);
-      }
-      if (entry.economicDelta !== undefined) {
-        assertTraceNumbers(entry.economicDelta, 'economic delta', [
-          'population',
-          'food',
-          'production',
-          'trade',
-          'science',
-        ]);
-      }
-      if (entry.candidateScores !== undefined) assertCandidateScores(entry.candidateScores);
-      if (entry.selectedActions !== undefined) assertSelectedActions(entry.selectedActions);
-    }
-  }
+  assertDecisionTrace(state.recentDecisionTrace);
   if (state.treasuryGoal !== undefined && !isTreasuryGoal(state.treasuryGoal)) {
     throw new Error('AI state treasuryGoal is invalid');
   }
   return state as FreecivAIState;
+}
+
+function assertAIStateMaps(state: Partial<FreecivAIState>): void {
+  for (const field of ['diplomacy', 'unitTasks', 'cityWants', 'techWants'] as const) {
+    if (!isRecord(state[field])) throw new Error(`AI state field ${field} is invalid`);
+  }
+}
+
+function assertDecisionTrace(trace: FreecivAIState['recentDecisionTrace']): void {
+  if (trace === undefined) return;
+  if (!Array.isArray(trace)) throw new Error('AI state decision trace is invalid');
+  for (const entry of trace) assertDecisionTraceEntry(entry);
+}
+
+function assertDecisionTraceEntry(entry: unknown): void {
+  if (
+    !isRecord(entry) ||
+    typeof entry.turn !== 'number' ||
+    typeof entry.label !== 'string' ||
+    typeof entry.actions !== 'number' ||
+    (entry.error !== undefined && typeof entry.error !== 'string')
+  )
+    throw new Error('AI state decision trace entry is invalid');
+  assertDecisionTraceDetails(entry);
+}
+
+function assertDecisionTraceDetails(entry: Record<string, unknown>): void {
+  if (entry.input !== undefined)
+    assertTraceNumbers(entry.input, 'input', ['cities', 'units', 'tasks']);
+  if (entry.economicDelta !== undefined)
+    assertTraceNumbers(entry.economicDelta, 'economic delta', [
+      'population',
+      'food',
+      'production',
+      'trade',
+      'science',
+    ]);
+  if (entry.candidateScores !== undefined) assertCandidateScores(entry.candidateScores);
+  if (entry.selectedActions !== undefined) assertSelectedActions(entry.selectedActions);
 }
 
 /**

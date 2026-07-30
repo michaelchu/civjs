@@ -104,49 +104,9 @@ export class EndGameService {
     });
     const playerById = new Map(persistedPlayers.map(player => [player.id, player]));
 
-    const standings = context.playerIds.map(playerId => {
-      const player = playerById.get(playerId);
-      const playerCities = context.cityManager.getPlayerCities(playerId);
-      const playerUnits = context.unitManager.getPlayerUnits(playerId);
-      const population = playerCities.reduce((total, city) => total + city.size, 0);
-      const technologies = context.researchManager.getResearchedTechs(playerId).length;
-      const history = player?.history ?? 0;
-      const alive =
-        (player?.isAlive ?? true) &&
-        !(player?.hasConceded ?? false) &&
-        (playerCities.length > 0 || playerUnits.length > 0);
-      const spaceship = this.getSpaceshipState(
-        player?.spaceshipState,
-        context.turn,
-        player?.isAI === true
-      );
-      const score =
-        population * 10 +
-        playerCities.length * 100 +
-        playerUnits.length * 20 +
-        technologies * 50 +
-        history;
-      return {
-        playerId,
-        civilization: player?.civilization ?? playerId,
-        score,
-        cities: playerCities.length,
-        population,
-        units: playerUnits.length,
-        technologies,
-        history,
-        alive,
-        teamId: player?.teamId ?? undefined,
-        categoryScores: {
-          population: population * 10,
-          cities: playerCities.length * 100,
-          units: playerUnits.length * 20,
-          technologies: technologies * 50,
-          culture: history,
-        },
-        spaceship,
-      };
-    });
+    const standings = context.playerIds.map(playerId =>
+      this.buildStanding(context, playerId, playerById)
+    );
 
     await Promise.all(
       standings.map(async standing => {
@@ -165,104 +125,9 @@ export class EndGameService {
     );
 
     const survivors = standings.filter(standing => standing.alive);
-    let reason: EndGameReport['reason'] | undefined;
-    let winners: EndGameStanding[] = [];
-
-    const scenarioWinners = standings.filter(
-      standing => playerById.get(standing.playerId)?.isWinner === true
-    );
-    if (this.isEnabled(enabled, 'scenario') && scenarioWinners.length > 0) {
-      reason = 'scenario';
-      winners = scenarioWinners;
-    }
-
-    if (!reason && this.isEnabled(enabled, 'science', 'spaceship')) {
-      const arrived = survivors.filter(
-        standing =>
-          standing.spaceship?.arrivalTurn !== undefined &&
-          standing.spaceship.arrivalTurn <= context.turn
-      );
-      if (arrived.length > 0) {
-        const earliestArrival = Math.min(
-          ...arrived.map(standing => standing.spaceship!.arrivalTurn!)
-        );
-        reason = 'science';
-        winners = arrived.filter(standing => standing.spaceship!.arrivalTurn === earliestArrival);
-      }
-    }
-
-    if (
-      !reason &&
-      survivors.length > 1 &&
-      this.isEnabled(enabled, 'world_peace', 'worldpeace') &&
-      context.diplomacyManager
-    ) {
-      const peaceStart = await this.getWorldPeaceStart(
-        context.gameId,
-        context.turn,
-        survivors,
-        context.diplomacyManager
-      );
-      const requiredTurns = rulesetLoader.loadGameRulesRuleset(context.rulesetName ?? 'classic')
-        .world_peace.victory_turns;
-      if (peaceStart !== undefined && context.turn - peaceStart >= requiredTurns) {
-        reason = 'world_peace';
-        winners = survivors;
-      }
-    }
-
-    if (!reason && enabled.includes('conquest') && survivors.length > 0) {
-      const survivingTeams = new Set(
-        survivors.map(standing => standing.teamId || `player:${standing.playerId}`)
-      );
-      if (survivingTeams.size === 1) {
-        reason = survivors.length > 1 ? 'team' : 'conquest';
-        winners = survivors;
-      }
-    }
-
-    if (
-      !reason &&
-      this.isEnabled(enabled, 'allied', 'allied_victory') &&
-      survivors.length > 1 &&
-      context.diplomacyManager &&
-      (await this.areAllSurvivorsAllied(context.gameId, survivors, context.diplomacyManager))
-    ) {
-      reason = 'allied';
-      winners = survivors;
-    }
-
-    if (!reason && enabled.includes('culture') && context.cultureManager && survivors.length > 0) {
-      const cultureRules = rulesetLoader.getCultureRules(context.rulesetName ?? 'classic');
-      const cultureStandings = await Promise.all(
-        survivors.map(async standing => ({
-          standing,
-          culture: (
-            await context.cultureManager!.getPlayerCultureInfo(standing.playerId, context.gameId)
-          ).totalCulture,
-        }))
-      );
-      cultureStandings.sort(
-        (left, right) =>
-          right.culture - left.culture ||
-          left.standing.playerId.localeCompare(right.standing.playerId)
-      );
-      const best = cultureStandings[0];
-      const second = cultureStandings[1]?.culture ?? -1;
-      if (
-        best.culture >= cultureRules.victory_min_points &&
-        best.culture > (second * (100 + cultureRules.victory_lead_pct)) / 100
-      ) {
-        reason = 'culture';
-        winners = [best.standing];
-      }
-    }
-
-    if (!reason && context.maxTurns && context.maxTurns > 0 && context.turn >= context.maxTurns) {
-      const bestScore = Math.max(...standings.map(standing => standing.score));
-      reason = 'max_turns';
-      winners = standings.filter(standing => standing.score === bestScore);
-    }
+    const result = await this.determineWinners(context, enabled, standings, survivors, playerById);
+    const reason = result?.reason;
+    const winners = result?.winners ?? [];
 
     if (!reason || winners.length === 0) return { ended: false };
 
@@ -307,6 +172,189 @@ export class EndGameService {
     });
     this.io.to(`game:${context.gameId}`).emit('game-ended', report);
     return { ended: true, report };
+  }
+
+  private buildStanding(
+    context: EvaluationContext,
+    playerId: string,
+    playerById: Map<string, any>
+  ): EndGameStanding {
+    const player = playerById.get(playerId);
+    const cities = context.cityManager.getPlayerCities(playerId);
+    const units = context.unitManager.getPlayerUnits(playerId);
+    const population = cities.reduce((total, city) => total + city.size, 0);
+    const technologies = context.researchManager.getResearchedTechs(playerId).length;
+    const history = player?.history ?? 0;
+    const alive = this.isPlayerAlive(player, cities.length, units.length);
+    const spaceship = this.getSpaceshipState(
+      player?.spaceshipState,
+      context.turn,
+      player?.isAI === true
+    );
+    const score =
+      population * 10 + cities.length * 100 + units.length * 20 + technologies * 50 + history;
+    return {
+      playerId,
+      civilization: player?.civilization ?? playerId,
+      score,
+      cities: cities.length,
+      population,
+      units: units.length,
+      technologies,
+      history,
+      alive,
+      teamId: player?.teamId ?? undefined,
+      categoryScores: {
+        population: population * 10,
+        cities: cities.length * 100,
+        units: units.length * 20,
+        technologies: technologies * 50,
+        culture: history,
+      },
+      spaceship,
+    };
+  }
+
+  private isPlayerAlive(player: any, cityCount: number, unitCount: number): boolean {
+    return (
+      (player?.isAlive ?? true) &&
+      !(player?.hasConceded ?? false) &&
+      (cityCount > 0 || unitCount > 0)
+    );
+  }
+
+  private async determineWinners(
+    context: EvaluationContext,
+    enabled: string[],
+    standings: EndGameStanding[],
+    survivors: EndGameStanding[],
+    playerById: Map<string, any>
+  ): Promise<{ reason: EndGameReport['reason']; winners: EndGameStanding[] } | undefined> {
+    const scenario = this.findScenarioWinner(enabled, standings, playerById);
+    if (scenario) return scenario;
+    const science = this.findScienceWinner(enabled, context.turn, survivors);
+    if (science) return science;
+    const peace = await this.findWorldPeaceWinner(context, enabled, survivors);
+    if (peace) return peace;
+    const conquest = this.findConquestWinner(enabled, survivors);
+    if (conquest) return conquest;
+    const allied = await this.findAlliedWinner(context, enabled, survivors);
+    if (allied) return allied;
+    const culture = await this.findCultureWinner(context, enabled, survivors);
+    if (culture) return culture;
+    return this.findMaxTurnWinner(context, standings);
+  }
+
+  private findScenarioWinner(
+    enabled: string[],
+    standings: EndGameStanding[],
+    playerById: Map<string, any>
+  ) {
+    const winners = standings.filter(s => playerById.get(s.playerId)?.isWinner === true);
+    return this.isEnabled(enabled, 'scenario') && winners.length > 0
+      ? { reason: 'scenario' as const, winners }
+      : undefined;
+  }
+
+  private findScienceWinner(enabled: string[], turn: number, survivors: EndGameStanding[]) {
+    if (!this.isEnabled(enabled, 'science', 'spaceship')) return undefined;
+    const arrived = survivors.filter(
+      s => s.spaceship?.arrivalTurn !== undefined && s.spaceship.arrivalTurn <= turn
+    );
+    if (!arrived.length) return undefined;
+    const earliest = Math.min(...arrived.map(s => s.spaceship!.arrivalTurn!));
+    return {
+      reason: 'science' as const,
+      winners: arrived.filter(s => s.spaceship!.arrivalTurn === earliest),
+    };
+  }
+
+  private async findWorldPeaceWinner(
+    context: EvaluationContext,
+    enabled: string[],
+    survivors: EndGameStanding[]
+  ) {
+    if (
+      !this.isEnabled(enabled, 'world_peace', 'worldpeace') ||
+      survivors.length <= 1 ||
+      !context.diplomacyManager
+    )
+      return undefined;
+    const peaceStart = await this.getWorldPeaceStart(
+      context.gameId,
+      context.turn,
+      survivors,
+      context.diplomacyManager
+    );
+    const required = rulesetLoader.loadGameRulesRuleset(context.rulesetName ?? 'classic')
+      .world_peace.victory_turns;
+    return peaceStart !== undefined && context.turn - peaceStart >= required
+      ? { reason: 'world_peace' as const, winners: survivors }
+      : undefined;
+  }
+
+  private findConquestWinner(enabled: string[], survivors: EndGameStanding[]) {
+    if (!enabled.includes('conquest') || !survivors.length) return undefined;
+    const teams = new Set(survivors.map(s => s.teamId || `player:${s.playerId}`));
+    return teams.size === 1
+      ? {
+          reason: (survivors.length > 1 ? 'team' : 'conquest') as EndGameReport['reason'],
+          winners: survivors,
+        }
+      : undefined;
+  }
+
+  private async findAlliedWinner(
+    context: EvaluationContext,
+    enabled: string[],
+    survivors: EndGameStanding[]
+  ) {
+    if (
+      !this.isEnabled(enabled, 'allied', 'allied_victory') ||
+      survivors.length <= 1 ||
+      !context.diplomacyManager
+    )
+      return undefined;
+    const allied = await this.areAllSurvivorsAllied(
+      context.gameId,
+      survivors,
+      context.diplomacyManager
+    );
+    return allied ? { reason: 'allied' as const, winners: survivors } : undefined;
+  }
+
+  private async findCultureWinner(
+    context: EvaluationContext,
+    enabled: string[],
+    survivors: EndGameStanding[]
+  ) {
+    if (!enabled.includes('culture') || !context.cultureManager || !survivors.length)
+      return undefined;
+    const rules = rulesetLoader.getCultureRules(context.rulesetName ?? 'classic');
+    const scores = await Promise.all(
+      survivors.map(async standing => ({
+        standing,
+        culture: (
+          await context.cultureManager!.getPlayerCultureInfo(standing.playerId, context.gameId)
+        ).totalCulture,
+      }))
+    );
+    scores.sort(
+      (a, b) => b.culture - a.culture || a.standing.playerId.localeCompare(b.standing.playerId)
+    );
+    const [best, second] = scores;
+    return best &&
+      best.culture >= rules.victory_min_points &&
+      best.culture > ((second?.culture ?? -1) * (100 + rules.victory_lead_pct)) / 100
+      ? { reason: 'culture' as const, winners: [best.standing] }
+      : undefined;
+  }
+
+  private findMaxTurnWinner(context: EvaluationContext, standings: EndGameStanding[]) {
+    if (!(context.maxTurns && context.maxTurns > 0 && context.turn >= context.maxTurns))
+      return undefined;
+    const best = Math.max(...standings.map(s => s.score));
+    return { reason: 'max_turns' as const, winners: standings.filter(s => s.score === best) };
   }
 
   private isEnabled(enabled: string[], ...aliases: string[]): boolean {

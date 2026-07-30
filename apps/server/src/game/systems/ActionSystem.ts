@@ -8,7 +8,7 @@ import {
   ActionTargetType,
   ActionMovesActor,
 } from '@app-types/shared/actions';
-import { Unit, UnitOrder } from '@game/managers/UnitManager';
+import { Unit } from '@game/managers/UnitManager';
 import { SINGLE_MOVE } from '@game/constants/MovementConstants';
 import { type UnitType, rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import type { MapManager } from '@game/managers/MapManager';
@@ -17,6 +17,8 @@ import { hasClassicIrrigationSource } from '@game/rules/ClassicIrrigationRules';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { getUniqueCityName } from '@game/constants/CityNames';
+
+type PathResult = { success: boolean; path?: any; error?: string };
 
 // Action definitions based on freeciv classic ruleset
 // @reference freeciv/common/actions.c
@@ -611,58 +613,49 @@ export class ActionSystem {
    */
   private canMove(unit: Unit, targetX?: number, targetY?: number): boolean {
     if (targetX === undefined || targetY === undefined || unit.movementLeft <= 0) {
-      logger.debug('Unit movement check failed', {
-        unitId: unit.id,
-        unitType: unit.unitTypeId,
-        targetX,
-        targetY,
-        movementLeft: unit.movementLeft,
-        reason:
-          targetX === undefined
-            ? 'no targetX'
-            : targetY === undefined
-              ? 'no targetY'
-              : 'no movement left',
-      });
+      this.logMovementFailure(unit, targetX, targetY);
       return false;
     }
-
-    // Check if target is achievable with current movement points
     const vector = this.mapManager
       ?.getTopology?.()
       .distanceVector(unit.x, unit.y, targetX, targetY);
     const dx = Math.abs(vector?.dx ?? targetX - unit.x);
     const dy = Math.abs(vector?.dy ?? targetY - unit.y);
-    const isDiagonal = dx === 1 && dy === 1;
-    const isAdjacent = (dx === 0 && dy === 1) || (dx === 1 && dy === 0) || isDiagonal;
+    return this.canMoveByVector(unit, targetX, targetY, dx, dy);
+  }
 
-    // Only allow direct adjacent moves for now (no multi-step pathfinding in validation)
-    if (!isAdjacent) {
-      return true; // Let pathfinding handle longer distances
-    }
+  private logMovementFailure(unit: Unit, targetX?: number, targetY?: number): void {
+    logger.debug('Unit movement check failed', {
+      unitId: unit.id,
+      unitType: unit.unitTypeId,
+      targetX,
+      targetY,
+      movementLeft: unit.movementLeft,
+    });
+  }
 
-    // Implement minimum move rule for adjacent tiles:
-    // Units with ANY movement (>0) can always move to an adjacent tile
-    // @reference freeciv/server/unittools.c - units with moves_left > 0 can always attempt to move
-    if (unit.movementLeft > 0) {
-      // Unit has movement, so it can always make at least one adjacent move (minimum move rule)
-      const requiredMovement = isDiagonal ? Math.floor(SINGLE_MOVE * 1.5) : SINGLE_MOVE;
-
-      if (unit.movementLeft < requiredMovement) {
-        logger.debug('Unit can move using minimum move rule', {
-          unitId: unit.id,
-          unitType: unit.unitTypeId,
-          from: { x: unit.x, y: unit.y },
-          to: { x: targetX, y: targetY },
-          isDiagonal,
-          required: requiredMovement,
-          available: unit.movementLeft,
-        });
-      }
-      return true;
-    }
-
-    return false; // No movement left at all
+  private canMoveByVector(
+    unit: Unit,
+    targetX: number,
+    targetY: number,
+    dx: number,
+    dy: number
+  ): boolean {
+    const diagonal = dx === 1 && dy === 1;
+    const adjacent = (dx === 0 && dy === 1) || (dx === 1 && dy === 0) || diagonal;
+    if (!adjacent) return true;
+    const required = diagonal ? Math.floor(SINGLE_MOVE * 1.5) : SINGLE_MOVE;
+    if (unit.movementLeft < required)
+      logger.debug('Unit can move using minimum move rule', {
+        unitId: unit.id,
+        unitType: unit.unitTypeId,
+        from: { x: unit.x, y: unit.y },
+        to: { x: targetX, y: targetY },
+        isDiagonal: diagonal,
+        required,
+        available: unit.movementLeft,
+      });
+    return unit.movementLeft > 0;
   }
 
   /**
@@ -731,13 +724,7 @@ export class ActionSystem {
 
     const tile = this.mapManager?.getTile(unit.x, unit.y);
     const terrain = tile && this.getTerrain(tile.terrain);
-    const cardinalNeighbors =
-      this.mapManager
-        ?.getTopology?.()
-        .getCardinalNeighbors(unit.x, unit.y)
-        .map(({ x, y }: { x: number; y: number }) => this.mapManager?.getTile(x, y))
-        .filter((neighbor: MapTile | null | undefined): neighbor is MapTile => Boolean(neighbor)) ??
-      [];
+    const cardinalNeighbors = this.getCardinalNeighborTiles(unit);
     return Boolean(
       tile &&
         terrain &&
@@ -745,6 +732,15 @@ export class ActionSystem {
         !tile.improvements.includes('irrigation') &&
         hasClassicIrrigationSource(cardinalNeighbors)
     );
+  }
+
+  private getCardinalNeighborTiles(unit: Unit): MapTile[] {
+    const topology = this.mapManager?.getTopology?.();
+    if (!topology) return [];
+    return topology
+      .getCardinalNeighbors(unit.x, unit.y)
+      .map(({ x, y }: { x: number; y: number }) => this.mapManager?.getTile(x, y))
+      .filter((neighbor: MapTile | null | undefined): neighbor is MapTile => Boolean(neighbor));
   }
 
   /**
@@ -788,17 +784,17 @@ export class ActionSystem {
   private canBuildBase(unit: Unit, extraName: 'Fortress' | 'Airbase'): boolean {
     const tile = this.mapManager?.getTile(unit.x, unit.y);
     const unitType = this.unitTypes[unit.unitTypeId];
-    if (
-      !tile ||
-      !unitType ||
-      !this.canBuildImprovement(unit) ||
-      unit.movementLeft <= 0 ||
-      tile.improvements.some(extra => extra.toLowerCase() === extraName.toLowerCase())
-    ) {
-      return false;
-    }
-    if (this.gameManagerCallback?.getCityAt?.(unit.x, unit.y)) return false;
+    if (!tile || !unitType) return false;
+    if (!this.canBuildBaseOnTile(unit, tile, extraName)) return false;
     if (extraName === 'Airbase' && !unitType.flags?.includes('Airbase')) return false;
+    return true;
+  }
+
+  private canBuildBaseOnTile(unit: Unit, tile: any, extraName: string): boolean {
+    if (!this.canBuildImprovement(unit) || unit.movementLeft <= 0) return false;
+    if (tile.improvements.some((extra: string) => extra.toLowerCase() === extraName.toLowerCase()))
+      return false;
+    if (this.gameManagerCallback?.getCityAt?.(unit.x, unit.y)) return false;
     return !['ocean', 'deep_ocean', 'coast', 'lake'].includes(tile.terrain);
   }
 
@@ -1011,36 +1007,30 @@ export class ActionSystem {
       }
 
       case 'unit_flag': {
-        // Check unit capabilities from dynamic ruleset data
-        const unitType = this.unitTypes[unit.unitTypeId];
-        if (!unitType) {
-          logger.warn('Unit type not found during requirement check', {
-            unitId: unit.id,
-            unitTypeId: unit.unitTypeId,
-            requirement: requirement.value,
-          });
-          return false;
-        }
-
-        if (requirement.value === 'canFoundCity') {
-          return unitType.canFoundCity;
-        }
-        if (requirement.value === 'canBuildImprovements') {
-          return unitType.canBuildImprovements;
-        }
-        if (requirement.value === 'canPillage') {
-          // Check if unit has military capabilities and is not flagged as NonMil
-          return (
-            unitType.unitClass === 'military' ||
-            (unitType.flags ? !unitType.flags.includes('NonMil') : true)
-          );
-        }
-        return true;
+        return this.checkUnitFlagRequirement(unit, requirement.value);
       }
 
       default:
         return true;
     }
+  }
+
+  private checkUnitFlagRequirement(unit: Unit, flag: string): boolean {
+    const unitType = this.unitTypes[unit.unitTypeId];
+    if (!unitType) {
+      logger.warn('Unit type not found during requirement check', {
+        unitId: unit.id,
+        unitTypeId: unit.unitTypeId,
+        requirement: flag,
+      });
+      return false;
+    }
+    const flags: Record<string, boolean> = {
+      canFoundCity: Boolean(unitType.canFoundCity),
+      canBuildImprovements: Boolean(unitType.canBuildImprovements),
+      canPillage: unitType.unitClass === 'military' || !unitType.flags?.includes('NonMil'),
+    };
+    return flags[flag] ?? true;
   }
 
   // Action execution methods
@@ -1098,26 +1088,7 @@ export class ActionSystem {
       pathResult
     );
 
-    if (tilesTraversed === 0) {
-      const unitType = this.unitTypes[unit.unitTypeId];
-      logger.warn('Unit cannot traverse any tiles', {
-        unitId: unit.id,
-        unitType: unit.unitTypeId,
-        currentMovement: unit.movementLeft,
-        expectedMaxMovement: unitType ? unitType.movement * 3 : 'unknown',
-        pathLength: pathResult.path?.tiles?.length || 0,
-        singleMoveCost: SINGLE_MOVE,
-        diagonalMoveCost: Math.floor(SINGLE_MOVE * 1.5),
-        unitTypeFound: !!unitType,
-      });
-
-      // This should only happen if the unit has no movement left at all
-      // due to the minimum move rule implementation
-      const errorMessage =
-        unit.movementLeft <= 0 ? 'Unit has no movement points left' : 'Cannot move to target tile';
-
-      return { success: false, message: errorMessage };
-    }
+    if (tilesTraversed === 0) return this.noTraversalResult(unit, pathResult);
 
     const oldX = unit.x;
     const oldY = unit.y;
@@ -1136,19 +1107,49 @@ export class ActionSystem {
       remainingMovement,
     });
 
+    return this.buildGotoResult(
+      unit,
+      targetX,
+      targetY,
+      currentX,
+      currentY,
+      remainingMovement,
+      tilesTraversed,
+      totalMovementCost
+    );
+  }
+
+  private noTraversalResult(unit: Unit, pathResult: PathResult): ActionResult {
+    const unitType = this.unitTypes[unit.unitTypeId];
+    logger.warn('Unit cannot traverse any tiles', {
+      unitId: unit.id,
+      unitType: unit.unitTypeId,
+      currentMovement: unit.movementLeft,
+      expectedMaxMovement: unitType ? unitType.movement * 3 : 'unknown',
+      pathLength: pathResult.path?.tiles?.length || 0,
+      singleMoveCost: SINGLE_MOVE,
+      diagonalMoveCost: Math.floor(SINGLE_MOVE * 1.5),
+      unitTypeFound: !!unitType,
+    });
+    return {
+      success: false,
+      message:
+        unit.movementLeft <= 0 ? 'Unit has no movement points left' : 'Cannot move to target tile',
+    };
+  }
+
+  private buildGotoResult(
+    unit: Unit,
+    targetX: number,
+    targetY: number,
+    currentX: number,
+    currentY: number,
+    remainingMovement: number,
+    tilesTraversed: number,
+    movementCost: number
+  ): ActionResult {
     const reachedDestination = currentX === targetX && currentY === targetY;
-
-    // Prepare new orders without mutating unit object
-    let newOrders: UnitOrder[] = [];
-    if (!reachedDestination) {
-      const moveOrder: UnitOrder = {
-        type: 'move',
-        targetX: targetX,
-        targetY: targetY,
-      };
-      newOrders = [moveOrder];
-    }
-
+    const newOrders = reachedDestination ? [] : [{ type: 'move' as const, targetX, targetY }];
     return {
       success: true,
       message: reachedDestination
@@ -1156,8 +1157,8 @@ export class ActionSystem {
         : `${unit.unitTypeId} moved ${tilesTraversed} tiles toward (${targetX}, ${targetY}). Will continue next turn.`,
       newPosition: { x: currentX, y: currentY },
       newMovementLeft: remainingMovement,
-      newOrders: newOrders,
-      movementCost: totalMovementCost,
+      newOrders,
+      movementCost,
     };
   }
 
@@ -1299,81 +1300,11 @@ export class ActionSystem {
       return { currentX, currentY, remainingMovement, tilesTraversed };
     }
 
+    const state = { currentX, currentY, remainingMovement, tilesTraversed };
     for (let i = 1; i < pathResult.path.tiles.length; i++) {
-      const nextTile = pathResult.path.tiles[i];
-      const movementCost = Number(nextTile.moveCost);
-      if (!Number.isFinite(movementCost) || movementCost < 0) {
-        logger.warn('Path contained an invalid authoritative movement cost', {
-          unitId: unit.id,
-          nextTile,
-        });
-        break;
-      }
-
-      logger.debug('Processing path tile', {
-        unitId: unit.id,
-        tileIndex: i,
-        from: { x: currentX, y: currentY },
-        to: { x: nextTile.x, y: nextTile.y },
-        movementCost,
-        remainingMovement,
-        tilesTraversed,
-        isFirstMove: tilesTraversed === 0,
-      });
-
-      // Implement freeciv's minimum move rule:
-      // Units with any movement left (>0) can always move at least one tile
-      // @reference freeciv/server/unittools.c - units with moves_left > 0 can always attempt to move
-      if (remainingMovement <= 0) {
-        // No movement left at all - stop here
-        logger.debug('No movement left, stopping', {
-          unitId: unit.id,
-          remainingMovement,
-        });
-        break;
-      }
-
-      // If this is the first move and we have any movement left, we can always move
-      // even if the cost exceeds our remaining movement (minimum move rule)
-      const canMove = tilesTraversed === 0 || remainingMovement >= movementCost;
-
-      logger.debug('Movement check', {
-        unitId: unit.id,
-        canMove,
-        isFirstMove: tilesTraversed === 0,
-        hasEnoughMovement: remainingMovement >= movementCost,
-        remainingMovement,
-        movementCost,
-        tilesTraversed,
-      });
-
-      if (!canMove) {
-        logger.debug('Insufficient movement for next tile, stopping', {
-          unitId: unit.id,
-          needed: movementCost,
-          remaining: remainingMovement,
-          tilesTraversed,
-        });
-        break;
-      }
-
-      // Move to the next tile
-      currentX = nextTile.x;
-      currentY = nextTile.y;
-
-      // Deduct movement cost, but never go below 0
-      // If this was a minimum move (cost > remaining), set to 0
-      remainingMovement = Math.max(0, remainingMovement - movementCost);
-      tilesTraversed++;
-
-      logger.debug('Moved to tile', {
-        unitId: unit.id,
-        position: { x: currentX, y: currentY },
-        movementCostApplied: movementCost,
-        remainingMovement,
-        wasMinimumMove: movementCost > unit.movementLeft && tilesTraversed === 1,
-      });
+      if (!this.advancePathTile(unit, pathResult.path.tiles[i], i, state)) break;
     }
+    ({ currentX, currentY, remainingMovement, tilesTraversed } = state);
 
     logger.debug('Path traversal complete', {
       unitId: unit.id,
@@ -1383,6 +1314,32 @@ export class ActionSystem {
     });
 
     return { currentX, currentY, remainingMovement, tilesTraversed };
+  }
+
+  private advancePathTile(
+    unit: Unit,
+    nextTile: any,
+    index: number,
+    state: { currentX: number; currentY: number; remainingMovement: number; tilesTraversed: number }
+  ): boolean {
+    const movementCost = Number(nextTile.moveCost);
+    if (!Number.isFinite(movementCost) || movementCost < 0) return false;
+    if (state.remainingMovement <= 0) return false;
+    if (state.tilesTraversed > 0 && state.remainingMovement < movementCost) return false;
+    logger.debug('Processing path tile', {
+      unitId: unit.id,
+      tileIndex: index,
+      from: { x: state.currentX, y: state.currentY },
+      to: { x: nextTile.x, y: nextTile.y },
+      movementCost,
+      remainingMovement: state.remainingMovement,
+      tilesTraversed: state.tilesTraversed,
+    });
+    state.currentX = nextTile.x;
+    state.currentY = nextTile.y;
+    state.remainingMovement = Math.max(0, state.remainingMovement - movementCost);
+    state.tilesTraversed++;
+    return true;
   }
 
   private async executeBuildRoad(unit: Unit): Promise<ActionResult> {

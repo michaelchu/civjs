@@ -276,13 +276,15 @@ export class ResearchHandler extends BaseSocketHandler {
   }
 
   private buildProgressReply(playerResearch: any | undefined, progress: any | undefined) {
+    const { currentTech, techGoal, bulbsLastTurn = 0 } = playerResearch ?? {};
+    const { current = 0, required = 0, turnsRemaining = -1 } = progress ?? {};
     return {
-      currentTech: playerResearch?.currentTech,
-      techGoal: playerResearch?.techGoal,
-      current: progress?.current || 0,
-      required: progress?.required || 0,
-      turnsRemaining: progress?.turnsRemaining || -1,
-      bulbsLastTurn: playerResearch?.bulbsLastTurn ?? 0,
+      currentTech,
+      techGoal,
+      current,
+      required,
+      turnsRemaining,
+      bulbsLastTurn,
     };
   }
 

@@ -179,14 +179,16 @@ export class CityDataService {
     // Use actual calculated values from CityManager
     const unitSnapshots = [...units];
     const civstyle = dependencies.loader.getCivstyle(rulesetName);
-    const foodPerTurn = city.foodPerTurn ?? civstyle.min_city_center_food;
-    const productionPerTurn = city.productionPerTurn ?? civstyle.min_city_center_shield;
-    const tradePerTurn = city.tradePerTurn ?? civstyle.min_city_center_trade;
-    const sciencePerTurn = city.sciencePerTurn ?? Math.floor(tradePerTurn / 2);
-    const goldPerTurn = city.goldPerTurn ?? Math.max(0, tradePerTurn - sciencePerTurn);
-    const luxuryPerTurn =
-      city.luxuryPerTurn ?? this.calculateSpecialistOutput(city.specialists, 'luxury');
-    const grossFood = foodPerTurn + city.population * civstyle.food_cost;
+    const outputValues = this.getOutputValues(city, civstyle);
+    const {
+      foodPerTurn,
+      productionPerTurn,
+      tradePerTurn,
+      sciencePerTurn,
+      goldPerTurn,
+      luxuryPerTurn,
+      grossFood,
+    } = outputValues;
 
     // Production breakdown (total before consumption)
     const prod = {
@@ -234,54 +236,16 @@ export class CityDataService {
 
     // Calculate granary size using freeciv formula
     const granarySize = this.calculateGranarySize(city.population, rulesetName);
-    const foodStock = city.foodStock || 0;
+    const foodStock = this.numberOrZero(city.foodStock);
     const granaryTurns = this.calculateGranaryTurns(surplus.food, foodStock, granarySize);
 
     // Transform current production with server-calculated data
-    const production = city.currentProduction
-      ? (() => {
-          const progress = city.productionStock ?? city.shieldStock ?? 0;
-          const cost = this.getProductionCost(
-            city.currentProduction,
-            city.productionType || 'unit',
-            rulesetName,
-            dependencies
-          );
-          const percentComplete = cost > 0 ? Math.min((progress / cost) * 100, 100) : 0;
-          const remaining = Math.max(0, cost - progress);
-          let buyCost =
-            city.productionType === 'unit'
-              ? 2 * remaining + Math.floor((remaining * remaining) / 20)
-              : 2 * remaining;
-          if (progress === 0) buyCost *= 2;
-
-          return {
-            target: city.currentProduction,
-            type:
-              city.currentProduction === 'capitalization'
-                ? 'building'
-                : (city.productionType as 'unit' | 'building' | 'wonder') || 'unit',
-            progress,
-            cost,
-            turnsToComplete: this.calculateTurnsToComplete(city, rulesetName, dependencies),
-            // Wealth is a production mode, not a normal building project. Keep
-            // this keyed to the stable ruleset id so the client can render it
-            // correctly even when a legacy ruleset adapter omits genus metadata.
-            conversion: city.currentProduction === 'capitalization',
-            percentComplete,
-            buyCost,
-          };
-        })()
-      : undefined;
+    const production = this.getClientProduction(city, rulesetName, dependencies);
 
     // Transform worklist with accurate costs
-    const worklist = city.worklist.map(item => ({
-      target: item.value,
-      type: item.kind as 'unit' | 'building' | 'wonder',
-      cost:
-        item.remainingCost ||
-        this.getProductionCost(item.value, item.kind, rulesetName, dependencies),
-    }));
+    const worklist = city.worklist.map(item =>
+      this.getClientWorklistItem(item, rulesetName, dependencies)
+    );
 
     return {
       id: city.id,
@@ -502,6 +466,67 @@ export class CityDataService {
   private static calculatePollution(_city: CityState): number {
     // TODO: Implement pollution calculation based on population and buildings
     return 0;
+  }
+
+  private static getOutputValues(city: CityState, civstyle: any): any {
+    const foodPerTurn = city.foodPerTurn ?? civstyle.min_city_center_food;
+    const productionPerTurn = city.productionPerTurn ?? civstyle.min_city_center_shield;
+    const tradePerTurn = city.tradePerTurn ?? civstyle.min_city_center_trade;
+    const sciencePerTurn = city.sciencePerTurn ?? Math.floor(tradePerTurn / 2);
+    const goldPerTurn = city.goldPerTurn ?? Math.max(0, tradePerTurn - sciencePerTurn);
+    const luxuryPerTurn =
+      city.luxuryPerTurn ?? this.calculateSpecialistOutput(city.specialists, 'luxury');
+    return {
+      foodPerTurn,
+      productionPerTurn,
+      tradePerTurn,
+      sciencePerTurn,
+      goldPerTurn,
+      luxuryPerTurn,
+      grossFood: foodPerTurn + city.population * civstyle.food_cost,
+    };
+  }
+
+  private static numberOrZero(value: number | undefined): number {
+    return value || 0;
+  }
+
+  private static getClientProduction(
+    city: CityState,
+    rulesetName: string,
+    dependencies: CityDataRulesetDependencies
+  ): any {
+    if (!city.currentProduction) return undefined;
+    const progress = city.productionStock ?? city.shieldStock ?? 0;
+    const type = city.productionType || 'unit';
+    const cost = this.getProductionCost(city.currentProduction, type, rulesetName, dependencies);
+    const remaining = Math.max(0, cost - progress);
+    const unitBuyCost = 2 * remaining + Math.floor((remaining * remaining) / 20);
+    const buyCost = (type === 'unit' ? unitBuyCost : 2 * remaining) * (progress === 0 ? 2 : 1);
+    return {
+      target: city.currentProduction,
+      type: city.currentProduction === 'capitalization' ? 'building' : type,
+      progress,
+      cost,
+      turnsToComplete: this.calculateTurnsToComplete(city, rulesetName, dependencies),
+      conversion: city.currentProduction === 'capitalization',
+      percentComplete: cost > 0 ? Math.min((progress / cost) * 100, 100) : 0,
+      buyCost,
+    };
+  }
+
+  private static getClientWorklistItem(
+    item: any,
+    rulesetName: string,
+    dependencies: CityDataRulesetDependencies
+  ): any {
+    return {
+      target: item.value,
+      type: item.kind as 'unit' | 'building' | 'wonder',
+      cost:
+        item.remainingCost ||
+        this.getProductionCost(item.value, item.kind, rulesetName, dependencies),
+    };
   }
 
   /**

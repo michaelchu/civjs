@@ -202,51 +202,7 @@ export class CityManagementHandler extends BaseSocketHandler {
     });
 
     socket.on('city:addWorklist', async (data, callback) => {
-      const context = this.resolveLiveCityContext(socket, data?.cityId);
-      if (!context || !Array.isArray(data?.items) || data.items.length === 0) {
-        callback({ success: false, error: 'Invalid worklist request' });
-        return;
-      }
-      const items: ProductionItem[] = data.items.map((item: any) => ({
-        kind: item.type,
-        value: item.productionId,
-      }));
-      const valid = items.every(
-        item =>
-          ['unit', 'building', 'wonder'].includes(item.kind) &&
-          typeof item.value === 'string' &&
-          item.value.length > 0
-      );
-      const player = context.game.players.get(context.player.id);
-      const productionHandler = new CityProductionHandler(
-        context.game.cityManager.getCitiesMap(),
-        context.game.players,
-        context.game.researchManager,
-        context.game.cityManager.setCityProduction.bind(context.game.cityManager),
-        context.game.turnManager
-          ? new RequirementsManager(context.game.turnManager.getCultureManager())
-          : undefined
-      );
-      const available =
-        valid &&
-        Boolean(player) &&
-        (
-          await Promise.all(
-            items.map(item =>
-              productionHandler.canCityBuild(
-                context.game.cityManager.getCity(data.cityId),
-                item.value,
-                item.kind,
-                player
-              )
-            )
-          )
-        ).every(Boolean);
-      const success =
-        available &&
-        (await context.game.cityManager.addToWorklist(data.cityId, items, context.player.id));
-      if (success) this.gameManager.broadcastCityData(context.game.id);
-      callback({ success, error: success ? undefined : 'One or more items cannot be queued' });
+      await this.handleAddWorklist(socket, data, callback);
     });
 
     socket.on('city:removeWorklist', async (data, callback) => {
@@ -297,17 +253,7 @@ export class CityManagementHandler extends BaseSocketHandler {
     socket.on('city:workerToSpecialist', async (data, callback) => {
       const context = this.resolveLiveCityContext(socket, data?.cityId);
       const specialistType = Number(data?.specialistType);
-      const success =
-        Boolean(context) &&
-        Number.isInteger(data?.x) &&
-        Number.isInteger(data?.y) &&
-        Object.prototype.hasOwnProperty.call(SPECIALIST_TYPES, specialistType) &&
-        (await context!.game.cityManager.convertTileWorkerToSpecialist(
-          data.cityId,
-          data.x,
-          data.y,
-          specialistType
-        ));
+      const success = await this.convertWorkerToSpecialist(context, data, specialistType);
       if (success) {
         context!.game.cityManager.refreshCityOutputs(data.cityId);
         await context!.game.cityManager.saveCity(data.cityId);
@@ -319,17 +265,7 @@ export class CityManagementHandler extends BaseSocketHandler {
     socket.on('city:specialistToTile', async (data, callback) => {
       const context = this.resolveLiveCityContext(socket, data?.cityId);
       const specialistType = Number(data?.specialistType);
-      const success =
-        Boolean(context) &&
-        Number.isInteger(data?.x) &&
-        Number.isInteger(data?.y) &&
-        Object.prototype.hasOwnProperty.call(SPECIALIST_TYPES, specialistType) &&
-        (await context!.game.cityManager.convertSpecialistToTile(
-          data.cityId,
-          specialistType,
-          data.x,
-          data.y
-        ));
+      const success = await this.convertSpecialistToTile(context, data, specialistType);
       if (success) {
         await context!.game.cityManager.saveCity(data.cityId);
         this.gameManager.broadcastCityData(context!.game.id);
@@ -402,18 +338,13 @@ export class CityManagementHandler extends BaseSocketHandler {
     });
 
     socket.on('city:batchManage', async (data, callback) => {
-      const requestedCityIds: unknown[] = Array.isArray(data?.cityIds) ? data.cityIds : [];
-      const cityIds = [
-        ...new Set(requestedCityIds.filter((id: unknown): id is string => typeof id === 'string')),
-      ].slice(0, 100);
+      const cityIds = this.getBatchCityIds(data);
       if (cityIds.length === 0) {
         callback({ success: false, succeeded: [], failed: [], error: 'Select at least one city' });
         return;
       }
 
-      const context = cityIds
-        .map(cityId => this.resolveLiveCityContext(socket, cityId))
-        .find(candidate => candidate !== undefined);
+      const context = this.getBatchContext(socket, cityIds);
       if (!context) {
         callback({
           success: false,
@@ -423,160 +354,15 @@ export class CityManagementHandler extends BaseSocketHandler {
         return;
       }
 
-      const ownedCityIds = cityIds.filter(
-        cityId => context.game.cityManager.getCity(cityId)?.playerId === context.player.id
-      );
+      const ownedCityIds = this.getOwnedBatchCityIds(context, cityIds);
       const succeeded: Array<{ cityId: string; detail?: Record<string, unknown> }> = [];
       const failed = cityIds
         .filter(cityId => !ownedCityIds.includes(cityId))
         .map(cityId => ({ cityId, reason: 'City not found or not owned' }));
-      const fail = (cityId: string, reason: string) => failed.push({ cityId, reason });
       let treasuryChanged = false;
 
       try {
-        switch (data?.action) {
-          case 'production': {
-            if (
-              typeof data.productionId !== 'string' ||
-              !['unit', 'building', 'wonder'].includes(data.productionType)
-            ) {
-              throw new Error('Invalid production target');
-            }
-            const productionHandler = new CityProductionHandler(
-              context.game.cityManager.getCitiesMap(),
-              context.game.players,
-              context.game.researchManager,
-              context.game.cityManager.setCityProduction.bind(context.game.cityManager),
-              context.game.turnManager
-                ? new RequirementsManager(context.game.turnManager.getCultureManager())
-                : undefined
-            );
-            for (const cityId of ownedCityIds) {
-              try {
-                const detail = await productionHandler.applyProductionChange({
-                  cityId,
-                  playerId: context.player.id,
-                  productionId: data.productionId,
-                  productionType: data.productionType,
-                });
-                succeeded.push({ cityId, detail });
-              } catch (error) {
-                fail(cityId, error instanceof Error ? error.message : 'Production unavailable');
-              }
-            }
-            break;
-          }
-          case 'optimize': {
-            for (const cityId of ownedCityIds) {
-              const success = await context.game.cityManager.optimizeCityManually(cityId);
-              if (!success) {
-                fail(cityId, 'Citizen optimization failed');
-                continue;
-              }
-              context.game.cityManager.refreshCityOutputs(cityId);
-              await context.game.cityManager.saveCity(cityId);
-              succeeded.push({ cityId });
-            }
-            break;
-          }
-          case 'governor': {
-            const priorities = new Set(Object.values(GovernorPriority));
-            if (!priorities.has(data.config?.priority))
-              throw new Error('Invalid governor priority');
-            for (const cityId of ownedCityIds) {
-              const success = await context.game.cityManager.configureCityGovernor(
-                cityId,
-                context.player.id,
-                {
-                  enabled: Boolean(data.config.enabled),
-                  priority: data.config.priority,
-                  autoManageSpecialists: Boolean(data.config.autoManageSpecialists),
-                  autoManageTiles: Boolean(data.config.autoManageTiles),
-                  autoManageProduction: Boolean(data.config.autoManageProduction),
-                  preventStarvation: Boolean(data.config.preventStarvation),
-                  maintainHappiness: Boolean(data.config.maintainHappiness),
-                }
-              );
-              if (success) succeeded.push({ cityId });
-              else fail(cityId, 'Governor configuration failed');
-            }
-            break;
-          }
-          case 'worklist': {
-            const items: ProductionItem[] = Array.isArray(data.items)
-              ? data.items.map((item: any) => ({
-                  kind: item.type,
-                  value: item.productionId,
-                }))
-              : [];
-            if (
-              items.length === 0 ||
-              !items.every(
-                item =>
-                  ['unit', 'building', 'wonder'].includes(item.kind) &&
-                  typeof item.value === 'string' &&
-                  item.value.length > 0
-              )
-            ) {
-              throw new Error('Invalid worklist');
-            }
-            for (const cityId of ownedCityIds) {
-              const city = context.game.cityManager.getCity(cityId);
-              const originalWorklist = city ? [...city.worklist] : [];
-              if (data.mode === 'replace' && city) city.worklist = [];
-              const success = await context.game.cityManager.addToWorklist(
-                cityId,
-                items,
-                context.player.id
-              );
-              if (success) succeeded.push({ cityId });
-              else {
-                if (city) city.worklist = originalWorklist;
-                fail(cityId, 'One or more worklist items are unavailable');
-              }
-            }
-            break;
-          }
-          case 'buy': {
-            const ordered = [...ownedCityIds].sort(
-              (left, right) =>
-                context.game.cityManager.calculateBuyCost(left).goldCost -
-                context.game.cityManager.calculateBuyCost(right).goldCost
-            );
-            for (const cityId of ordered) {
-              const result = await context.game.cityManager.buyProduction(
-                cityId,
-                context.player.id
-              );
-              if (result.success) {
-                treasuryChanged = true;
-                succeeded.push({ cityId, detail: { goldSpent: result.goldSpent } });
-              } else {
-                fail(cityId, result.reason ?? 'Production could not be purchased');
-              }
-            }
-            break;
-          }
-          case 'sellBuilding': {
-            if (typeof data.buildingId !== 'string') throw new Error('Invalid building');
-            for (const cityId of ownedCityIds) {
-              const result = await context.game.cityManager.sellBuildingForPlayer(
-                cityId,
-                data.buildingId,
-                context.player.id
-              );
-              if (result.success) {
-                treasuryChanged = true;
-                succeeded.push({ cityId, detail: { goldReceived: result.goldReceived } });
-              } else {
-                fail(cityId, result.reason ?? 'Building could not be sold');
-              }
-            }
-            break;
-          }
-          default:
-            throw new Error('Unsupported batch action');
-        }
+        treasuryChanged = await this.runBatchAction(data, context, ownedCityIds, succeeded, failed);
       } catch (error) {
         callback({
           success: false,
@@ -600,6 +386,327 @@ export class CityManagementHandler extends BaseSocketHandler {
     });
 
     logger.debug(`${this.handlerName} registered handlers for socket ${socket.id}`);
+  }
+
+  private async runBatchAction(
+    data: any,
+    context: any,
+    cityIds: string[],
+    succeeded: any[],
+    failed: any[]
+  ): Promise<boolean> {
+    const fail = (cityId: string, reason: string) => failed.push({ cityId, reason });
+    switch (data?.action) {
+      case 'production': {
+        await this.runBatchProduction(data, context, cityIds, succeeded, (id, reason) =>
+          failed.push({ cityId: id, reason })
+        );
+        return false;
+      }
+      case 'optimize': {
+        await this.runBatchOptimize(context, cityIds, succeeded, (id, reason) =>
+          failed.push({ cityId: id, reason })
+        );
+        return false;
+      }
+      case 'governor': {
+        await this.runBatchGovernor(data, context, cityIds, succeeded, fail);
+        return false;
+      }
+      case 'worklist': {
+        await this.runBatchWorklist(data, context, cityIds, succeeded, fail);
+        return false;
+      }
+      case 'buy': {
+        return this.runBatchBuy(context, cityIds, succeeded, fail);
+      }
+      case 'sellBuilding': {
+        return this.runBatchSell(data, context, cityIds, succeeded, fail);
+      }
+      default:
+        throw new Error('Unsupported batch action');
+    }
+  }
+
+  private async runBatchProduction(
+    data: any,
+    context: any,
+    cityIds: string[],
+    succeeded: any[],
+    fail: (id: string, reason: string) => void
+  ): Promise<void> {
+    if (
+      typeof data.productionId !== 'string' ||
+      !['unit', 'building', 'wonder'].includes(data.productionType)
+    )
+      throw new Error('Invalid production target');
+    const handler = new CityProductionHandler(
+      context.game.cityManager.getCitiesMap(),
+      context.game.players,
+      context.game.researchManager,
+      context.game.cityManager.setCityProduction.bind(context.game.cityManager),
+      context.game.turnManager
+        ? new RequirementsManager(context.game.turnManager.getCultureManager())
+        : undefined
+    );
+    for (const cityId of cityIds) {
+      try {
+        succeeded.push({
+          cityId,
+          detail: await handler.applyProductionChange({
+            cityId,
+            playerId: context.player.id,
+            productionId: data.productionId,
+            productionType: data.productionType,
+          }),
+        });
+      } catch (error) {
+        fail(cityId, error instanceof Error ? error.message : 'Production unavailable');
+      }
+    }
+  }
+
+  private async runBatchOptimize(
+    context: any,
+    cityIds: string[],
+    succeeded: any[],
+    fail: (id: string, reason: string) => void
+  ): Promise<void> {
+    for (const cityId of cityIds) {
+      if (!(await context.game.cityManager.optimizeCityManually(cityId))) {
+        fail(cityId, 'Citizen optimization failed');
+        continue;
+      }
+      context.game.cityManager.refreshCityOutputs(cityId);
+      await context.game.cityManager.saveCity(cityId);
+      succeeded.push({ cityId });
+    }
+  }
+
+  private async runBatchGovernor(
+    data: any,
+    context: any,
+    cityIds: string[],
+    succeeded: any[],
+    fail: (id: string, reason: string) => void
+  ): Promise<void> {
+    if (!new Set(Object.values(GovernorPriority)).has(data.config?.priority))
+      throw new Error('Invalid governor priority');
+    for (const cityId of cityIds) {
+      const success = await context.game.cityManager.configureCityGovernor(
+        cityId,
+        context.player.id,
+        {
+          enabled: Boolean(data.config.enabled),
+          priority: data.config.priority,
+          autoManageSpecialists: Boolean(data.config.autoManageSpecialists),
+          autoManageTiles: Boolean(data.config.autoManageTiles),
+          autoManageProduction: Boolean(data.config.autoManageProduction),
+          preventStarvation: Boolean(data.config.preventStarvation),
+          maintainHappiness: Boolean(data.config.maintainHappiness),
+        }
+      );
+      if (success) succeeded.push({ cityId });
+      else fail(cityId, 'Governor configuration failed');
+    }
+  }
+
+  private async runBatchWorklist(
+    data: any,
+    context: any,
+    cityIds: string[],
+    succeeded: any[],
+    fail: (id: string, reason: string) => void
+  ): Promise<void> {
+    const items: ProductionItem[] = Array.isArray(data.items)
+      ? data.items.map((item: any) => ({ kind: item.type, value: item.productionId }))
+      : [];
+    if (
+      !items.length ||
+      !items.every(
+        item =>
+          ['unit', 'building', 'wonder'].includes(item.kind) &&
+          typeof item.value === 'string' &&
+          item.value.length > 0
+      )
+    )
+      throw new Error('Invalid worklist');
+    for (const cityId of cityIds) {
+      const city = context.game.cityManager.getCity(cityId);
+      const original = city ? [...city.worklist] : [];
+      if (data.mode === 'replace' && city) city.worklist = [];
+      if (await context.game.cityManager.addToWorklist(cityId, items, context.player.id))
+        succeeded.push({ cityId });
+      else {
+        if (city) city.worklist = original;
+        fail(cityId, 'One or more worklist items are unavailable');
+      }
+    }
+  }
+
+  private async runBatchBuy(
+    context: any,
+    cityIds: string[],
+    succeeded: any[],
+    fail: (id: string, reason: string) => void
+  ): Promise<boolean> {
+    const ordered = [...cityIds].sort(
+      (a, b) =>
+        context.game.cityManager.calculateBuyCost(a).goldCost -
+        context.game.cityManager.calculateBuyCost(b).goldCost
+    );
+    for (const cityId of ordered) {
+      const result = await context.game.cityManager.buyProduction(cityId, context.player.id);
+      if (result.success) succeeded.push({ cityId, detail: { goldSpent: result.goldSpent } });
+      else fail(cityId, result.reason ?? 'Production could not be purchased');
+    }
+    return true;
+  }
+
+  private async runBatchSell(
+    data: any,
+    context: any,
+    cityIds: string[],
+    succeeded: any[],
+    fail: (id: string, reason: string) => void
+  ): Promise<boolean> {
+    if (typeof data.buildingId !== 'string') throw new Error('Invalid building');
+    for (const cityId of cityIds) {
+      const result = await context.game.cityManager.sellBuildingForPlayer(
+        cityId,
+        data.buildingId,
+        context.player.id
+      );
+      if (result.success) succeeded.push({ cityId, detail: { goldReceived: result.goldReceived } });
+      else fail(cityId, result.reason ?? 'Building could not be sold');
+    }
+    return true;
+  }
+
+  private async convertWorkerToSpecialist(
+    context: any,
+    data: any,
+    specialistType: number
+  ): Promise<boolean> {
+    if (
+      !context ||
+      !Number.isInteger(data?.x) ||
+      !Number.isInteger(data?.y) ||
+      !Object.prototype.hasOwnProperty.call(SPECIALIST_TYPES, specialistType)
+    )
+      return false;
+    return context.game.cityManager.convertTileWorkerToSpecialist(
+      data.cityId,
+      data.x,
+      data.y,
+      specialistType
+    );
+  }
+
+  private async convertSpecialistToTile(
+    context: any,
+    data: any,
+    specialistType: number
+  ): Promise<boolean> {
+    if (
+      !context ||
+      !Number.isInteger(data?.x) ||
+      !Number.isInteger(data?.y) ||
+      !Object.prototype.hasOwnProperty.call(SPECIALIST_TYPES, specialistType)
+    )
+      return false;
+    return context.game.cityManager.convertSpecialistToTile(
+      data.cityId,
+      specialistType,
+      data.x,
+      data.y
+    );
+  }
+
+  private async handleAddWorklist(
+    socket: Socket,
+    data: any,
+    callback: (response: any) => void
+  ): Promise<void> {
+    const context = this.resolveLiveCityContext(socket, data?.cityId);
+    if (!context || !Array.isArray(data?.items) || data.items.length === 0) {
+      callback({ success: false, error: 'Invalid worklist request' });
+      return;
+    }
+    const items: ProductionItem[] = data.items.map((item: any) => ({
+      kind: item.type,
+      value: item.productionId,
+    }));
+    const valid = items.every(
+      item =>
+        ['unit', 'building', 'wonder'].includes(item.kind) &&
+        typeof item.value === 'string' &&
+        item.value.length > 0
+    );
+    const player = context.game.players.get(context.player.id);
+    const handler = new CityProductionHandler(
+      context.game.cityManager.getCitiesMap(),
+      context.game.players,
+      context.game.researchManager,
+      context.game.cityManager.setCityProduction.bind(context.game.cityManager),
+      context.game.turnManager
+        ? new RequirementsManager(context.game.turnManager.getCultureManager())
+        : undefined
+    );
+    const available = await this.canQueueWorklist(
+      context,
+      data.cityId,
+      items,
+      valid,
+      player,
+      handler
+    );
+    const success =
+      available &&
+      (await context.game.cityManager.addToWorklist(data.cityId, items, context.player.id));
+    if (success) this.gameManager.broadcastCityData(context.game.id);
+    callback({ success, error: success ? undefined : 'One or more items cannot be queued' });
+  }
+
+  private async canQueueWorklist(
+    context: any,
+    cityId: string,
+    items: ProductionItem[],
+    valid: boolean,
+    player: any,
+    handler: CityProductionHandler
+  ): Promise<boolean> {
+    if (!valid || !player) return false;
+    return (
+      await Promise.all(
+        items.map(item =>
+          handler.canCityBuild(
+            context.game.cityManager.getCity(cityId),
+            item.value,
+            item.kind,
+            player
+          )
+        )
+      )
+    ).every(Boolean);
+  }
+
+  private getBatchCityIds(data: any): string[] {
+    const requested: unknown[] = Array.isArray(data?.cityIds) ? data.cityIds : [];
+    return [...new Set(requested.filter((id): id is string => typeof id === 'string'))].slice(
+      0,
+      100
+    );
+  }
+
+  private getBatchContext(socket: Socket, cityIds: string[]): any {
+    return cityIds.map(cityId => this.resolveLiveCityContext(socket, cityId)).find(Boolean);
+  }
+
+  private getOwnedBatchCityIds(context: any, cityIds: string[]): string[] {
+    return cityIds.filter(
+      cityId => context.game.cityManager.getCity(cityId)?.playerId === context.player.id
+    );
   }
 
   private resolveLiveCityContext(

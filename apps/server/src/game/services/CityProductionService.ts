@@ -39,65 +39,14 @@ export class CityProductionService extends BaseGameService {
     reason?: string;
   } {
     const city = this.cities.get(cityId);
-    if (!city) {
-      return {
-        canBuy: false,
-        goldCost: 0,
-        shieldsRemaining: 0,
-        reason: 'City not found',
-      };
-    }
-
-    if (!city.currentProduction || !city.productionType) {
-      return {
-        canBuy: false,
-        goldCost: 0,
-        shieldsRemaining: 0,
-        reason: 'No active production',
-      };
-    }
-
-    if (city.currentProduction === 'capitalization') {
-      return {
-        canBuy: false,
-        goldCost: 0,
-        shieldsRemaining: 0,
-        reason: 'Wealth is an ongoing conversion and cannot be rushed',
-      };
-    }
-
-    let totalCost: number;
-
-    if (city.productionType === 'unit') {
-      const unitType = this.unitTypes[city.currentProduction];
-      if (!unitType) {
-        return {
-          canBuy: false,
-          goldCost: 0,
-          shieldsRemaining: 0,
-          reason: 'Unknown unit type',
-        };
-      }
-      totalCost = unitType.cost;
-    } else if (city.productionType === 'building') {
-      const building = this.buildingTypes[city.currentProduction];
-      if (!building) {
-        return {
-          canBuy: false,
-          goldCost: 0,
-          shieldsRemaining: 0,
-          reason: 'Unknown building type',
-        };
-      }
-      totalCost = building.cost;
-    } else {
-      return {
-        canBuy: false,
-        goldCost: 0,
-        shieldsRemaining: 0,
-        reason: 'Invalid production type',
-      };
-    }
+    if (!city) return this.invalidBuyCost('City not found');
+    if (!city.currentProduction || !city.productionType)
+      return this.invalidBuyCost('No active production');
+    if (city.currentProduction === 'capitalization')
+      return this.invalidBuyCost('Wealth is an ongoing conversion and cannot be rushed');
+    const target = this.getBuyTarget(city);
+    if (!target) return this.invalidBuyCost('Invalid production target');
+    const totalCost = target.cost;
 
     const productionStock = city.productionStock ?? city.shieldStock ?? 0;
     const shieldsRemaining = Math.max(0, totalCost - productionStock);
@@ -114,21 +63,45 @@ export class CityProductionService extends BaseGameService {
       goldCost *= 2;
     }
 
-    if (city.productionType === 'building') {
-      const building = this.buildingTypes[city.currentProduction]!;
-      const premium = this.effectsManager.calculateEffect(EffectType.BUILDING_BUY_COST_PCT, {
-        playerId: city.playerId,
-        buildingId: building.id,
-        buildingGenus: building.genus,
-      }).value;
-      goldCost = Math.floor((goldCost * (100 + premium)) / 100);
-    }
+    goldCost = this.applyBuildingBuyPremium(city, goldCost);
 
     return {
       canBuy: shieldsRemaining > 0,
       goldCost,
       shieldsRemaining,
     };
+  }
+
+  private invalidBuyCost(reason: string): {
+    canBuy: boolean;
+    goldCost: number;
+    shieldsRemaining: number;
+    reason: string;
+  } {
+    return { canBuy: false, goldCost: 0, shieldsRemaining: 0, reason };
+  }
+
+  private getBuyTarget(city: CityState): { cost: number; building?: any } | undefined {
+    if (city.productionType === 'unit') {
+      const unit = this.unitTypes[city.currentProduction!];
+      return unit ? { cost: unit.cost } : undefined;
+    }
+    if (city.productionType === 'building') {
+      const building = this.buildingTypes[city.currentProduction!];
+      return building ? { cost: building.cost, building } : undefined;
+    }
+    return undefined;
+  }
+
+  private applyBuildingBuyPremium(city: CityState, goldCost: number): number {
+    if (city.productionType !== 'building') return goldCost;
+    const building = this.buildingTypes[city.currentProduction!];
+    const premium = this.effectsManager.calculateEffect(EffectType.BUILDING_BUY_COST_PCT, {
+      playerId: city.playerId,
+      buildingId: building.id,
+      buildingGenus: building.genus,
+    }).value;
+    return Math.floor((goldCost * (100 + premium)) / 100);
   }
 
   /**
@@ -145,67 +118,26 @@ export class CityProductionService extends BaseGameService {
     reason?: string;
   }> {
     const city = this.cities.get(cityId);
-    if (!city) {
-      return {
-        success: false,
-        goldSpent: 0,
-        completed: false,
-        reason: 'City not found',
-      };
-    }
+    if (!city) return this.failedBuy('City not found');
 
     // Validate ownership
-    if (city.playerId !== playerId) {
-      return {
-        success: false,
-        goldSpent: 0,
-        completed: false,
-        reason: 'City not owned by player',
-      };
-    }
+    if (city.playerId !== playerId) return this.failedBuy('City not owned by player');
 
     // Calculate buy cost
     const buyCost = this.calculateBuyCost(cityId);
-    if (!buyCost.canBuy) {
-      return {
-        success: false,
-        goldSpent: 0,
-        completed: false,
-        reason: buyCost.reason || 'Cannot buy production',
-      };
-    }
+    if (!buyCost.canBuy) return this.failedBuy(buyCost.reason || 'Cannot buy production');
 
     // Check player has enough gold
     const playerGold = await this.getPlayerGold(playerId);
-    if (playerGold < buyCost.goldCost) {
-      return {
-        success: false,
-        goldSpent: 0,
-        completed: false,
-        reason: `Insufficient gold: need ${buyCost.goldCost}, have ${playerGold}`,
-      };
-    }
+    if (playerGold < buyCost.goldCost)
+      return this.failedBuy(`Insufficient gold: need ${buyCost.goldCost}, have ${playerGold}`);
 
     // Spend the gold
     const goldSpent = await this.spendPlayerGold(playerId, buyCost.goldCost);
-    if (!goldSpent) {
-      return {
-        success: false,
-        goldSpent: 0,
-        completed: false,
-        reason: 'Failed to spend gold',
-      };
-    }
+    if (!goldSpent) return this.failedBuy('Failed to spend gold');
 
     // Complete the production
-    let totalCost = 0;
-    if (city.productionType === 'unit' && city.currentProduction) {
-      const unitType = this.unitTypes[city.currentProduction];
-      totalCost = unitType?.cost || 0;
-    } else if (city.productionType === 'building' && city.currentProduction) {
-      const building = this.buildingTypes[city.currentProduction];
-      totalCost = building?.cost || 0;
-    }
+    const totalCost = this.getBuyTarget(city)?.cost ?? 0;
 
     // Buying fills the same authoritative stock consumed by turn processing.
     // Keep the legacy alias synchronized while callers migrate.
@@ -229,6 +161,15 @@ export class CityProductionService extends BaseGameService {
       goldSpent: buyCost.goldCost,
       completed: true,
     };
+  }
+
+  private failedBuy(reason: string): {
+    success: false;
+    goldSpent: number;
+    completed: false;
+    reason: string;
+  } {
+    return { success: false, goldSpent: 0, completed: false, reason };
   }
 
   /**
@@ -295,50 +236,16 @@ export class CityProductionService extends BaseGameService {
     playerGold: number;
   }> {
     const city = this.cities.get(cityId);
-    if (!city) {
-      return {
-        hasProduction: false,
-        productionName: '',
-        productionType: '',
-        totalCost: 0,
-        shieldStock: 0,
-        shieldsRemaining: 0,
-        goldCost: 0,
-        canAfford: false,
-        playerGold: 0,
-      };
-    }
+    if (!city) return this.emptyBuyInfo(0);
 
     if (!city.currentProduction || !city.productionType) {
-      return {
-        hasProduction: false,
-        productionName: '',
-        productionType: '',
-        totalCost: 0,
-        shieldStock: city.productionStock ?? city.shieldStock ?? 0,
-        shieldsRemaining: 0,
-        goldCost: 0,
-        canAfford: false,
-        playerGold: await this.getPlayerGold(city.playerId),
-      };
+      return this.emptyBuyInfo(
+        city.productionStock ?? city.shieldStock ?? 0,
+        await this.getPlayerGold(city.playerId)
+      );
     }
 
-    let productionName = '';
-    let totalCost = 0;
-
-    if (city.productionType === 'unit') {
-      const unitType = this.unitTypes[city.currentProduction];
-      if (unitType) {
-        productionName = unitType.name;
-        totalCost = unitType.cost;
-      }
-    } else if (city.productionType === 'building') {
-      const building = this.buildingTypes[city.currentProduction];
-      if (building) {
-        productionName = building.name;
-        totalCost = building.cost;
-      }
-    }
+    const { productionName, totalCost } = this.getProductionBuyTarget(city);
 
     const shieldStock = city.productionStock ?? city.shieldStock ?? 0;
     const shieldsRemaining = Math.max(0, totalCost - shieldStock);
@@ -354,6 +261,28 @@ export class CityProductionService extends BaseGameService {
       shieldsRemaining,
       goldCost,
       canAfford: playerGold >= goldCost && shieldsRemaining > 0,
+      playerGold,
+    };
+  }
+
+  private getProductionBuyTarget(city: CityState): { productionName: string; totalCost: number } {
+    const target = this.getBuyTarget(city);
+    return {
+      productionName: target?.building?.name ?? this.unitTypes[city.currentProduction!]?.name ?? '',
+      totalCost: target?.cost ?? 0,
+    };
+  }
+
+  private emptyBuyInfo(shieldStock: number, playerGold = 0): any {
+    return {
+      hasProduction: false,
+      productionName: '',
+      productionType: '',
+      totalCost: 0,
+      shieldStock,
+      shieldsRemaining: 0,
+      goldCost: 0,
+      canAfford: false,
       playerGold,
     };
   }

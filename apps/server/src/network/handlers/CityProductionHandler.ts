@@ -86,7 +86,8 @@ export class CityProductionHandler {
         });
       }
 
-      // Add available buildings based on technology and existing buildings
+      availableProductions.push(...(await this.getBuildingProductionOptions(city, player)));
+      /* Add available buildings based on technology and existing buildings
       for (const [buildingId, buildingType] of Object.entries(BUILDING_TYPES)) {
         const isAvailable = await this.canCityBuildBuilding(city, buildingType, player);
         const cultureRequirements = (buildingType.cultureRequirements ?? []).map(
@@ -107,6 +108,7 @@ export class CityProductionHandler {
           available: isAvailable,
         });
       }
+      */
 
       // Add available wonders (basic implementation)
       const wonders = this.getAvailableWonders(city, player);
@@ -131,6 +133,31 @@ export class CityProductionHandler {
       });
       socket.emit('error', { message: 'Failed to get available productions' });
     }
+  }
+
+  private async getBuildingProductionOptions(city: any, player: any): Promise<ProductionOption[]> {
+    const options: ProductionOption[] = [];
+    for (const [buildingId, buildingType] of Object.entries(BUILDING_TYPES)) {
+      const isAvailable = await this.canCityBuildBuilding(city, buildingType, player);
+      const cultureRequirements = (buildingType.cultureRequirements ?? []).map(
+        requirement =>
+          `${requirement.range} ${requirement.present ? 'minimum' : 'below'} ${requirement.value} culture`
+      );
+      options.push({
+        id: buildingId,
+        name: buildingType.name,
+        type: 'building',
+        cost: buildingType.cost,
+        description: this.getBuildingDescription(buildingType),
+        conversion: buildingType.genus === 'Convert',
+        requirements: [
+          ...(buildingType.requiredTech ? [buildingType.requiredTech] : []),
+          ...cultureRequirements,
+        ],
+        available: isAvailable,
+      });
+    }
+    return options;
   }
 
   /**
@@ -186,31 +213,16 @@ export class CityProductionHandler {
     productionType: 'unit' | 'building' | 'wonder';
   }): Promise<Record<string, unknown>> {
     const city = this.cities.get(cityId);
-    if (!city) throw new Error('City not found');
-    if (city.playerId !== playerId) throw new Error('City does not belong to player');
-
     const player = this.players.get(playerId);
-    if (!player) throw new Error('Player not found');
-    if (!(await this.canCityBuild(city, productionId, productionType, player))) {
-      throw new Error('Production not available');
-    }
-    if (productionType === 'wonder') {
-      productionType = 'building';
-    }
+    await this.assertProductionChange(city, player, playerId, productionType, productionId);
+    productionType = productionType === 'wonder' ? 'building' : productionType;
 
     const penalty = this.calculateProductionChangePenalty(city, productionId, productionType);
     const previousProduction = city.currentProduction;
     const previousType = city.productionType;
-    if (penalty > 0) {
-      city.productionStock = Math.max(0, (city.productionStock ?? city.shieldStock ?? 0) - penalty);
-    }
+    this.applyProductionPenalty(city, penalty);
 
-    if (this.setCityProduction) {
-      await this.setCityProduction(cityId, productionType, productionId, playerId);
-    } else {
-      city.currentProduction = productionId;
-      city.productionType = productionType;
-    }
+    await this.persistProductionChange(city, cityId, playerId, productionId, productionType);
 
     const productionDetails = this.getProductionDetails(productionId, productionType);
     city.production = {
@@ -241,6 +253,40 @@ export class CityProductionHandler {
       shieldStock: city.shieldStock,
     });
     return result;
+  }
+
+  private async assertProductionChange(
+    city: any,
+    player: any,
+    playerId: string,
+    productionType: 'unit' | 'building' | 'wonder',
+    productionId: string
+  ): Promise<void> {
+    if (!city) throw new Error('City not found');
+    if (city.playerId !== playerId) throw new Error('City does not belong to player');
+    if (!player) throw new Error('Player not found');
+    if (!(await this.canCityBuild(city, productionId, productionType, player)))
+      throw new Error('Production not available');
+  }
+
+  private async persistProductionChange(
+    city: any,
+    cityId: string,
+    playerId: string,
+    productionId: string,
+    productionType: 'unit' | 'building'
+  ): Promise<void> {
+    if (this.setCityProduction)
+      await this.setCityProduction(cityId, productionType, productionId, playerId);
+    else {
+      city.currentProduction = productionId;
+      city.productionType = productionType;
+    }
+  }
+
+  private applyProductionPenalty(city: any, penalty: number): void {
+    if (penalty > 0)
+      city.productionStock = Math.max(0, (city.productionStock ?? city.shieldStock ?? 0) - penalty);
   }
 
   /**
@@ -276,79 +322,78 @@ export class CityProductionHandler {
    * @reference freeciv/common/city.c can_city_build_improvement_now()
    */
   private async canCityBuildBuilding(city: any, buildingType: any, player: any): Promise<boolean> {
-    // Check if already built (can't build duplicates)
     const buildingId = String(buildingType.id);
-    if (!isSpaceshipPart(buildingId) && city.buildings?.includes(buildingId)) {
+    if (!this.isBuildingGloballyAvailable(city, buildingType, player, buildingId)) return false;
+    if (buildingType.requiredTech && !this.hasPlayerResearched(player, buildingType.requiredTech))
       return false;
-    }
-    if (isSpaceshipPart(buildingId)) {
-      if (
-        ![...this.cities.values()].some(candidate =>
-          candidate.buildings?.includes('apollo_program')
-        )
-      ) {
-        return false;
-      }
-      const playerCities = [...this.cities.values()].filter(
-        candidate => candidate.playerId === player.id
-      );
-      const commitments = countSpaceshipPartCommitments(
-        normalizeSpaceshipState(player.spaceshipState),
-        playerCities,
-        buildingId
-      );
-      const currentProject = city.currentProduction === buildingId;
-      if (
-        commitments > SPACESHIP_PART_LIMITS[buildingId] ||
-        (!currentProject && commitments >= SPACESHIP_PART_LIMITS[buildingId])
-      ) {
-        return false;
-      }
-    }
+    if (buildingType.requires && !this.hasRequiredBuildings(city, buildingType.requires))
+      return false;
+    return this.meetsCultureRequirements(city, buildingType, player);
+  }
 
-    if (buildingType.genus === 'GreatWonder') {
-      const claimed = [...this.cities.values()].some(
+  private isBuildingGloballyAvailable(
+    city: any,
+    buildingType: any,
+    player: any,
+    buildingId: string
+  ): boolean {
+    if (!isSpaceshipPart(buildingId) && city.buildings?.includes(buildingId)) return false;
+    if (isSpaceshipPart(buildingId) && !this.isSpaceshipPartAvailable(city, player, buildingId))
+      return false;
+    if (
+      buildingType.genus === 'GreatWonder' &&
+      [...this.cities.values()].some(
         other =>
           other.buildings?.includes(buildingType.id) ||
           (other.id !== city.id && other.currentProduction === buildingType.id)
-      );
-      if (claimed) return false;
-    } else if (buildingType.genus === 'SmallWonder') {
-      const owned = [...this.cities.values()].some(
+      )
+    )
+      return false;
+    if (
+      buildingType.genus === 'SmallWonder' &&
+      [...this.cities.values()].some(
         other => other.playerId === player.id && other.buildings?.includes(buildingType.id)
-      );
-      if (owned) return false;
-    }
-
-    // Check if player has required technology
-    if (buildingType.requiredTech && !this.hasPlayerResearched(player, buildingType.requiredTech)) {
+      )
+    )
       return false;
-    }
-
-    // Check building prerequisites
-    if (buildingType.requires && !this.hasRequiredBuildings(city, buildingType.requires)) {
-      return false;
-    }
-
-    if (buildingType.cultureRequirements?.length) {
-      if (!this.requirementsManager) {
-        logger.warn('Culture-gated building evaluated without RequirementsManager', {
-          buildingId: buildingType.id,
-        });
-        return false;
-      }
-      const result = await this.requirementsManager.evaluateRulesetCultureRequirements(
-        buildingType.cultureRequirements,
-        {
-          cityId: city.id,
-          playerId: player.id,
-          cityBuildings: new Set(city.buildings ?? []),
-        }
-      );
-      if (!result.satisfied) return false;
-    }
-
     return true;
+  }
+
+  private isSpaceshipPartAvailable(city: any, player: any, buildingId: string): boolean {
+    if (
+      ![...this.cities.values()].some(candidate => candidate.buildings?.includes('apollo_program'))
+    )
+      return false;
+    const playerCities = [...this.cities.values()].filter(
+      candidate => candidate.playerId === player.id
+    );
+    const spaceshipBuildingId = buildingId as keyof typeof SPACESHIP_PART_LIMITS;
+    const commitments = countSpaceshipPartCommitments(
+      normalizeSpaceshipState(player.spaceshipState),
+      playerCities,
+      spaceshipBuildingId
+    );
+    const limit = SPACESHIP_PART_LIMITS[spaceshipBuildingId];
+    return commitments <= limit && (city.currentProduction === buildingId || commitments < limit);
+  }
+
+  private async meetsCultureRequirements(
+    city: any,
+    buildingType: any,
+    player: any
+  ): Promise<boolean> {
+    if (!buildingType.cultureRequirements?.length) return true;
+    if (!this.requirementsManager) {
+      logger.warn('Culture-gated building evaluated without RequirementsManager', {
+        buildingId: buildingType.id,
+      });
+      return false;
+    }
+    const result = await this.requirementsManager.evaluateRulesetCultureRequirements(
+      buildingType.cultureRequirements,
+      { cityId: city.id, playerId: player.id, cityBuildings: new Set(city.buildings ?? []) }
+    );
+    return result.satisfied;
   }
 
   /**

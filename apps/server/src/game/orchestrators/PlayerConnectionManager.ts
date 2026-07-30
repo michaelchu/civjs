@@ -254,9 +254,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     }
 
     const aiPlayersNeeded = minPlayers - currentPlayerCount;
-    const configuredAILevel = isSettableAILevel((game.gameState as any)?.aiLevel)
-      ? (game.gameState as any).aiLevel
-      : 'easy';
+    const configuredAILevel = this.getConfiguredAILevel(game);
     this.logger.info('Adding AI players to meet minimum requirements', {
       gameId,
       currentPlayerCount,
@@ -342,6 +340,11 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     }
   }
 
+  private getConfiguredAILevel(game: any): string {
+    const level = game.gameState?.aiLevel;
+    return isSettableAILevel(level) ? level : 'easy';
+  }
+
   /**
    * Get player-to-game mapping
    */
@@ -385,36 +388,23 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       return civilization;
     }
 
-    // Handle random nation selection
-    let selectedNation = civilization || 'american';
+    return civilization === 'random'
+      ? this.selectRandomNation(existingPlayers, rulesetName)
+      : civilization || 'american';
+  }
 
-    if (civilization === 'random') {
-      try {
-        const loader = RulesetLoader.getInstance();
-        const nationsRuleset = loader.loadNationsRuleset(rulesetName);
-
-        if (nationsRuleset) {
-          // Get supported nations that are not already taken.
-          const takenNations = new Set(existingPlayers.map(p => p.civilization));
-
-          const playableNations = Object.values(nationsRuleset.nations)
-            .filter(nation => nation.is_playable !== false)
-            .filter(nation => !takenNations.has(nation.id))
-            .map(nation => nation.id);
-
-          // Randomly select from available nations
-          if (playableNations.length > 0) {
-            const randomIndex = Math.floor(Math.random() * playableNations.length);
-            selectedNation = playableNations[randomIndex];
-          }
-        }
-      } catch (error) {
-        this.logger.warn('Failed to load nations for random selection, using default', error);
-        selectedNation = 'american';
-      }
+  private selectRandomNation(existingPlayers: any[], rulesetName: string): string {
+    try {
+      const nations = RulesetLoader.getInstance().loadNationsRuleset(rulesetName).nations;
+      const taken = new Set(existingPlayers.map(player => player.civilization));
+      const available = Object.values(nations)
+        .filter(nation => nation.is_playable !== false && !taken.has(nation.id))
+        .map(nation => nation.id);
+      return available.length ? available[Math.floor(Math.random() * available.length)] : 'random';
+    } catch (error) {
+      this.logger.warn('Failed to load nations for random selection, using default', error);
+      return 'american';
     }
-
-    return selectedNation;
   }
 
   /**

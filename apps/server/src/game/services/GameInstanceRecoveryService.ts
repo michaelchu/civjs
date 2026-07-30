@@ -172,8 +172,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
 
   private async createAndRestoreMapManager(game: any): Promise<MapManager> {
     const storedTerrainSettings = (game.gameState as any)?.terrainSettings;
-    const temperatureParam = storedTerrainSettings?.temperature ?? 50;
-    const startPosMode = (storedTerrainSettings?.startpos ?? MapStartpos.DEFAULT) as MapStartpos;
+    const { temperatureParam, startPosMode } = this.getRecoveryMapConfig(storedTerrainSettings);
     const mapManager = new MapManager(
       game.mapWidth,
       game.mapHeight,
@@ -188,29 +187,45 @@ export class GameInstanceRecoveryService extends BaseGameService {
         wrapId: storedTerrainSettings?.wrapId,
       },
       storedTerrainSettings?.scenarioId,
-      {
-        landPercent:
-          storedTerrainSettings?.landmass === 'sparse'
-            ? 30
-            : storedTerrainSettings?.landmass === 'dense'
-              ? 70
-              : 50,
-        steepness: 30,
-        wetness: storedTerrainSettings?.wetness ?? 50,
-        temperature: temperatureParam,
-        riverDensity: storedTerrainSettings?.rivers ?? 50,
-        resourceRichness:
-          storedTerrainSettings?.resources === 'sparse'
-            ? 100
-            : storedTerrainSettings?.resources === 'abundant'
-              ? 500
-              : 250,
-        hutDensity: storedTerrainSettings?.huts ?? 15,
-      },
+      this.getRecoveryGenerationOptions(storedTerrainSettings, temperatureParam),
       game.ruleset ?? DEFAULT_RULESET
     );
     await this.restoreMapDataToManager(mapManager, game.mapData as any, game.mapSeed!);
     return mapManager;
+  }
+
+  private getRecoveryMapConfig(settings: any): {
+    temperatureParam: number;
+    startPosMode: MapStartpos;
+  } {
+    return {
+      temperatureParam: settings?.temperature ?? 50,
+      startPosMode: (settings?.startpos ?? MapStartpos.DEFAULT) as MapStartpos,
+    };
+  }
+
+  private getRecoveryGenerationOptions(settings: any, temperature: number): any {
+    return {
+      landPercent: this.recoveryLandPercent(settings?.landmass),
+      steepness: 30,
+      wetness: this.recoveryValue(settings?.wetness, 50),
+      temperature,
+      riverDensity: this.recoveryValue(settings?.rivers, 50),
+      resourceRichness: this.recoveryResourceRichness(settings?.resources),
+      hutDensity: this.recoveryValue(settings?.huts, 15),
+    };
+  }
+
+  private recoveryValue(value: number | undefined, fallback: number): number {
+    return value ?? fallback;
+  }
+
+  private recoveryLandPercent(value: string | undefined): number {
+    return value === 'sparse' ? 30 : value === 'dense' ? 70 : 50;
+  }
+
+  private recoveryResourceRichness(value: string | undefined): number {
+    return value === 'sparse' ? 100 : value === 'abundant' ? 500 : 250;
   }
 
   private async createManagers(
@@ -383,26 +398,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
         }
       },
     });
-    cityManager.setUnitSupportProvider(city =>
-      [...unitManager.getAllUnits().values()]
-        .filter(unit => unit.homeCityId === city.id)
-        .map(unit => {
-          const unitType = unitManager.getUnitType(unit.unitTypeId);
-          return {
-            unitId: unit.id,
-            unitType: unit.unitTypeId,
-            homeCity: city.id,
-            currentLocation: cityManager.getCityAt(unit.x, unit.y)?.id ?? `${unit.x},${unit.y}`,
-            upkeep: {
-              food: unitType?.uk_food ?? 0,
-              shield: unitType?.uk_shield ?? 0,
-              gold: unitType?.uk_gold ?? 0,
-            },
-            isAwayFromHome: unit.x !== city.x || unit.y !== city.y,
-            isMilitaryUnit: (unitType?.attack ?? 0) > 0,
-          };
-        })
-    );
+    cityManager.setUnitSupportProvider(city => this.getUnitSupport(city, unitManager, cityManager));
 
     const pathfindingManager = new PathfindingManager(
       game.mapWidth,
@@ -536,6 +532,37 @@ export class GameInstanceRecoveryService extends BaseGameService {
       mapManager,
       economicManager,
       governmentManager,
+    };
+  }
+
+  private getUnitSupport(city: any, unitManager: any, cityManager: any): any[] {
+    return [...unitManager.getAllUnits().values()]
+      .filter(unit => unit.homeCityId === city.id)
+      .map(unit => this.formatUnitSupport(city, unit, unitManager, cityManager));
+  }
+
+  private formatUnitSupport(city: any, unit: any, unitManager: any, cityManager: any): any {
+    const type = unitManager.getUnitType(unit.unitTypeId);
+    return {
+      unitId: unit.id,
+      unitType: unit.unitTypeId,
+      homeCity: city.id,
+      currentLocation: this.supportLocation(cityManager, unit),
+      upkeep: this.supportUpkeep(type),
+      ...this.supportFlags(city, unit, type),
+    };
+  }
+
+  private supportLocation(cityManager: any, unit: any): string {
+    return cityManager.getCityAt(unit.x, unit.y)?.id ?? `${unit.x},${unit.y}`;
+  }
+  private supportUpkeep(type: any): any {
+    return { food: type?.uk_food ?? 0, shield: type?.uk_shield ?? 0, gold: type?.uk_gold ?? 0 };
+  }
+  private supportFlags(city: any, unit: any, type: any): any {
+    return {
+      isAwayFromHome: unit.x !== city.x || unit.y !== city.y,
+      isMilitaryUnit: (type?.attack ?? 0) > 0,
     };
   }
 

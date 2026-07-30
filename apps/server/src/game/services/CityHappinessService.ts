@@ -329,75 +329,57 @@ export class CityHappinessService extends BaseGameService {
    */
   analyzeHappiness(city: CityState): HappinessAnalysis {
     const happiness = this.calculateHappiness(city);
-
-    // Determine current state
-    let currentState: 'happy' | 'content' | 'unhappy' | 'rioting';
-    let stabilityRisk: 'low' | 'medium' | 'high' | 'critical';
-
-    if (happiness.angry > 0) {
-      currentState = 'rioting';
-      stabilityRisk = 'critical';
-    } else if (happiness.unhappy > 0) {
-      currentState = 'unhappy';
-      stabilityRisk = happiness.unhappy > 2 ? 'high' : 'medium';
-    } else if (happiness.happy > 0) {
-      currentState = 'happy';
-      stabilityRisk = 'low';
-    } else {
-      currentState = 'content';
-      stabilityRisk = 'low';
-    }
-
-    // Generate recommendations
-    const recommendedActions: HappinessAnalysis['recommendedActions'] = [];
-
-    if (happiness.unhappy > 0) {
-      // Recommend building happiness buildings if not present
-      if (!city.buildings.includes('temple')) {
-        recommendedActions.push({
-          action: 'build_temple',
-          priority: 'high',
-          expectedImprovement: 2,
-          description: 'Build Temple to make 2 unhappy citizens content',
-        });
-      }
-
-      // Recommend adding entertainers if population allows
-      if (city.population > 2) {
-        recommendedActions.push({
-          action: 'add_entertainer',
-          priority: 'medium',
-          expectedImprovement: 3,
-          description: 'Convert citizen to Entertainer for +3 luxury',
-        });
-      }
-
-      // Recommend increasing luxury tax if trade available
-      if (city.tradePerTurn && (city as any).tradePerTurn > 0) {
-        recommendedActions.push({
-          action: 'increase_luxury',
-          priority: 'medium',
-          expectedImprovement: Math.floor((city as any).tradePerTurn / 2),
-          description: 'Increase luxury tax allocation to improve happiness',
-        });
-      }
-
-      // Recommend military units for martial law in dire situations
-      if (happiness.unhappy > 3) {
-        recommendedActions.push({
-          action: 'add_military',
-          priority: 'high',
-          expectedImprovement: Math.min(happiness.unhappy, 2),
-          description: 'Station military units for martial law',
-        });
-      }
-    }
-
+    const { currentState, stabilityRisk } = this.getHappinessState(happiness);
     return {
       currentState,
       stabilityRisk,
-      recommendedActions,
+      recommendedActions: this.getHappinessRecommendations(city, happiness),
     };
+  }
+
+  private getHappinessState(happiness: any): { currentState: any; stabilityRisk: any } {
+    if (happiness.angry > 0) return { currentState: 'rioting', stabilityRisk: 'critical' };
+    if (happiness.unhappy > 0)
+      return { currentState: 'unhappy', stabilityRisk: happiness.unhappy > 2 ? 'high' : 'medium' };
+    if (happiness.happy > 0) return { currentState: 'happy', stabilityRisk: 'low' };
+    return { currentState: 'content', stabilityRisk: 'low' };
+  }
+
+  private getHappinessRecommendations(
+    city: CityState,
+    happiness: any
+  ): HappinessAnalysis['recommendedActions'] {
+    if (happiness.unhappy <= 0) return [];
+    const actions: HappinessAnalysis['recommendedActions'] = [];
+    if (!city.buildings.includes('temple'))
+      actions.push({
+        action: 'build_temple',
+        priority: 'high',
+        expectedImprovement: 2,
+        description: 'Build Temple to make 2 unhappy citizens content',
+      });
+    if (city.population > 2)
+      actions.push({
+        action: 'add_entertainer',
+        priority: 'medium',
+        expectedImprovement: 3,
+        description: 'Convert citizen to Entertainer for +3 luxury',
+      });
+    if (city.tradePerTurn && city.tradePerTurn > 0)
+      actions.push({
+        action: 'increase_luxury',
+        priority: 'medium',
+        expectedImprovement: Math.floor(city.tradePerTurn / 2),
+        description: 'Increase luxury tax allocation to improve happiness',
+      });
+    if (happiness.unhappy > 3)
+      actions.push({
+        action: 'add_military',
+        priority: 'high',
+        expectedImprovement: Math.min(happiness.unhappy, 2),
+        description: 'Station military units for martial law',
+      });
+    return actions;
   }
 
   /**

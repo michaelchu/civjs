@@ -190,70 +190,14 @@ export class CityTurnProcessingService extends BaseGameService {
     };
 
     try {
-      // Apply government effects first
-      this.dependencies.refreshCityWithGovernmentEffects(cityId);
-      recordStep('government_effects');
-
-      // Apply automated governor if enabled
-      if (this.dependencies.governorService && city.governor?.isEnabled) {
-        await this.dependencies.governorService.applyGovernorAutomation(cityId);
-      }
-      recordStep('governor_automation');
-
-      // Calculate city outputs
-      this.dependencies.calculateCityOutputs(cityId);
-      recordStep('calculate_outputs');
-
-      // Happiness must be refreshed before outputs are accumulated because
-      // disorder suppresses the current turn's surplus.
-      this.dependencies.applyCityHappiness?.(cityId);
-      const inDisorder = city.happiness.unhappy + 2 * city.happiness.angry > city.happiness.happy;
-      if (inDisorder) {
-        city.foodPerTurn = Math.min(0, city.foodPerTurn ?? 0);
-        city.productionPerTurn = 0;
-        city.sciencePerTurn = 0;
-        city.goldPerTurn = 0;
-        city.luxuryPerTurn = 0;
-      }
-      await this.processCivilDisorder(city, inDisorder);
-      recordStep('happiness');
-
-      // Trigger callback for city turn processing (science accumulation)
-      if (this.dependencies.callbacks.onCityTurnProcessed) {
-        this.dependencies.callbacks.onCityTurnProcessed(city);
-      }
-      recordStep('callbacks');
-
-      // Process food and growth
-      await this.processFoodAndGrowth(city, currentTurn);
-      recordStep('food_growth');
-
-      // Process production
-      await this.processProduction(city, currentTurn);
-      recordStep('production');
-      city.wasHappy = this.isHappy(city);
-
-      await this.dependencies.checkPollution(cityId, currentTurn);
-      recordStep('pollution');
-
-      // Save changes to database
-      await this.dependencies.saveCityToDatabase(city);
-      recordStep('database_save');
-
-      const totalTime = Date.now() - startTime;
-
-      // Log performance details for slow cities or if total time is concerning
-      if (totalTime > 2000 || stepTimings.some(s => s.duration > 1000)) {
-        logger.warn(`Slow city turn processing detected for ${city.name}`, {
-          gameId: this.dependencies.gameId,
-          cityId,
-          totalTime,
-          stepTimings,
-          population: city.population,
-          currentProduction: city.currentProduction,
-          productionType: city.productionType,
-        });
-      }
+      await this.processCityTurnSteps(
+        city,
+        cityId,
+        currentTurn,
+        recordStep,
+        startTime,
+        stepTimings
+      );
     } catch (error) {
       const totalTime = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -277,6 +221,59 @@ export class CityTurnProcessingService extends BaseGameService {
         cityName: city.name,
       });
     }
+  }
+
+  private async processCityTurnSteps(
+    city: CityState,
+    cityId: string,
+    currentTurn: number,
+    recordStep: (step: string) => void,
+    startTime: number,
+    stepTimings: TurnStepTiming[]
+  ): Promise<void> {
+    this.dependencies.refreshCityWithGovernmentEffects(cityId);
+    recordStep('government_effects');
+    if (this.dependencies.governorService && city.governor?.isEnabled)
+      await this.dependencies.governorService.applyGovernorAutomation(cityId);
+    recordStep('governor_automation');
+    this.dependencies.calculateCityOutputs(cityId);
+    recordStep('calculate_outputs');
+    this.dependencies.applyCityHappiness?.(cityId);
+    const inDisorder = city.happiness.unhappy + 2 * city.happiness.angry > city.happiness.happy;
+    this.applyDisorderOutputs(city, inDisorder);
+    await this.processCivilDisorder(city, inDisorder);
+    recordStep('happiness');
+    this.dependencies.callbacks.onCityTurnProcessed?.(city);
+    recordStep('callbacks');
+    await this.processFoodAndGrowth(city, currentTurn);
+    recordStep('food_growth');
+    await this.processProduction(city, currentTurn);
+    recordStep('production');
+    city.wasHappy = this.isHappy(city);
+    await this.dependencies.checkPollution(cityId, currentTurn);
+    recordStep('pollution');
+    await this.dependencies.saveCityToDatabase(city);
+    recordStep('database_save');
+    const totalTime = Date.now() - startTime;
+    if (totalTime > 2000 || stepTimings.some(s => s.duration > 1000))
+      logger.warn(`Slow city turn processing detected for ${city.name}`, {
+        gameId: this.dependencies.gameId,
+        cityId,
+        totalTime,
+        stepTimings,
+        population: city.population,
+        currentProduction: city.currentProduction,
+        productionType: city.productionType,
+      });
+  }
+
+  private applyDisorderOutputs(city: CityState, inDisorder: boolean): void {
+    if (!inDisorder) return;
+    city.foodPerTurn = Math.min(0, city.foodPerTurn ?? 0);
+    city.productionPerTurn = 0;
+    city.sciencePerTurn = 0;
+    city.goldPerTurn = 0;
+    city.luxuryPerTurn = 0;
   }
 
   /**
@@ -326,10 +323,23 @@ export class CityTurnProcessingService extends BaseGameService {
    * Public method for testing and external access
    */
   public async processFoodAndGrowth(city: CityState, _currentTurn: number): Promise<void> {
-    const foodSurplus = city.foodPerTurn || 0;
-    const currentFoodStock = city.foodStock || 0;
-    const newFoodStock = currentFoodStock + foodSurplus;
+    const food = this.getFoodState(city);
+    const { foodSurplus, newFoodStock, granarySize, effectContext, raptureGrowth } = food;
 
+    if ((newFoodStock >= granarySize && foodSurplus > 0) || raptureGrowth) {
+      this.processGrowth(city, newFoodStock, granarySize, raptureGrowth, effectContext);
+      return;
+    }
+    if (newFoodStock < 0) {
+      this.processStarvation(city);
+      return;
+    }
+    city.foodStock = newFoodStock;
+  }
+
+  private getFoodState(city: CityState): any {
+    const foodSurplus = city.foodPerTurn || 0;
+    const newFoodStock = (city.foodStock || 0) + foodSurplus;
     const granarySize = this.calculateGranarySize(city.population);
     const government = this.dependencies.getPlayerGovernment?.(city.playerId) ?? 'despotism';
     const effectContext = {
@@ -343,65 +353,57 @@ export class CityTurnProcessingService extends BaseGameService {
       foodSurplus > 0 &&
       celebrating &&
       this.effectsManager.calculateEffect(EffectType.RAPTURE_GROW, effectContext).value > 0;
+    return { foodSurplus, newFoodStock, granarySize, effectContext, raptureGrowth };
+  }
 
-    if ((newFoodStock >= granarySize && foodSurplus > 0) || raptureGrowth) {
-      const unlimited =
-        this.effectsManager.calculateEffect(EffectType.SIZE_UNLIMIT, effectContext).value > 0;
-      const configuredSize = this.effectsManager.calculateEffect(
-        EffectType.SIZE_ADJ,
-        effectContext
-      ).value;
-      const sizeLimit = unlimited ? Number.POSITIVE_INFINITY : configuredSize;
-      if (city.population >= sizeLimit) {
-        city.foodStock = Math.min(newFoodStock, granarySize);
-        return;
-      }
-      // City grows
-      const oldSize = city.population;
-      city.population += 1;
-      city.size = city.population;
-      const growthFoodRetention = this.effectsManager.calculateEffect(EffectType.GROWTH_FOOD, {
-        playerId: city.playerId,
-        cityId: city.id,
-        cityBuildings: new Set(city.buildings),
-      }).value;
-      city.foodStock = raptureGrowth
-        ? Math.min(newFoodStock, this.calculateGranarySize(city.population))
-        : newFoodStock - granarySize + Math.floor((granarySize * growthFoodRetention) / 100);
-
-      logger.info(`City ${city.name} grew from size ${oldSize} to ${city.population}`);
-
-      // Automatically assign the new citizen to work the best available tile
-      if (this.dependencies.tileManagementService && city.workableTiles) {
-        // Re-run auto-assignment to allocate the new citizen
-        this.dependencies.tileManagementService.reassignCitizensAfterGrowth(city);
-      }
-
-      // Recalculate outputs after assigning new citizen
-      this.dependencies.calculateCityOutputs(city.id);
-
-      if (this.dependencies.callbacks.onCityGrowth) {
-        this.dependencies.callbacks.onCityGrowth(city, oldSize);
-      }
-    } else if (newFoodStock < 0) {
-      // City starves
-      city.foodStock = 0;
-      if (city.population > 1) {
-        city.population -= 1;
-        city.size = city.population;
-        const shrinkFoodRetention = this.effectsManager.calculateEffect(EffectType.SHRINK_FOOD, {
-          playerId: city.playerId,
-          cityId: city.id,
-          cityBuildings: new Set(city.buildings),
-        }).value;
-        city.foodStock = Math.floor(
-          (this.calculateGranarySize(city.population) * shrinkFoodRetention) / 100
-        );
-        logger.info(`City ${city.name} starved and lost population`);
-      }
-    } else {
-      city.foodStock = newFoodStock;
+  private processGrowth(
+    city: CityState,
+    newFoodStock: number,
+    granarySize: number,
+    raptureGrowth: boolean,
+    effectContext: any
+  ): void {
+    const unlimited =
+      this.effectsManager.calculateEffect(EffectType.SIZE_UNLIMIT, effectContext).value > 0;
+    const configuredSize = this.effectsManager.calculateEffect(
+      EffectType.SIZE_ADJ,
+      effectContext
+    ).value;
+    const sizeLimit = unlimited ? Number.POSITIVE_INFINITY : configuredSize;
+    if (city.population >= sizeLimit) {
+      city.foodStock = Math.min(newFoodStock, granarySize);
+      return;
     }
+    const oldSize = city.population;
+    city.population += 1;
+    city.size = city.population;
+    const retention = this.effectsManager.calculateEffect(EffectType.GROWTH_FOOD, {
+      playerId: city.playerId,
+      cityId: city.id,
+      cityBuildings: new Set(city.buildings),
+    }).value;
+    city.foodStock = raptureGrowth
+      ? Math.min(newFoodStock, this.calculateGranarySize(city.population))
+      : newFoodStock - granarySize + Math.floor((granarySize * retention) / 100);
+    logger.info(`City ${city.name} grew from size ${oldSize} to ${city.population}`);
+    if (this.dependencies.tileManagementService && city.workableTiles)
+      this.dependencies.tileManagementService.reassignCitizensAfterGrowth(city);
+    this.dependencies.calculateCityOutputs(city.id);
+    this.dependencies.callbacks.onCityGrowth?.(city, oldSize);
+  }
+
+  private processStarvation(city: CityState): void {
+    city.foodStock = 0;
+    if (city.population <= 1) return;
+    city.population -= 1;
+    city.size = city.population;
+    const retention = this.effectsManager.calculateEffect(EffectType.SHRINK_FOOD, {
+      playerId: city.playerId,
+      cityId: city.id,
+      cityBuildings: new Set(city.buildings),
+    }).value;
+    city.foodStock = Math.floor((this.calculateGranarySize(city.population) * retention) / 100);
+    logger.info(`City ${city.name} starved and lost population`);
   }
 
   private isHappy(city: CityState): boolean {
@@ -417,103 +419,57 @@ export class CityTurnProcessingService extends BaseGameService {
    * Process production accumulation and completion
    */
   private async processProduction(city: CityState, _currentTurn: number): Promise<void> {
-    // Recovery guard for older saves and concurrent queue edits: an idle city
-    // with a worklist should promote the first valid target before accumulating
-    // shields.
-    while (!city.currentProduction && city.worklist.length > 0) {
-      const next = city.worklist.shift() as ProductionItem;
-      const nextType = next.kind === 'wonder' ? 'building' : next.kind;
-      const exists =
-        (nextType === 'unit' && Boolean(this.unitTypes[next.value])) ||
-        (nextType === 'building' && Boolean(this.buildingTypes[next.value]));
-      if (
-        exists &&
-        (this.dependencies.canCityContinueProduction?.(city.id, nextType, next.value) ?? true)
-      ) {
-        city.currentProduction = next.value;
-        city.productionType = nextType;
-      }
-    }
-    if (!city.currentProduction) {
-      return;
-    }
+    if (!this.ensureProductionTarget(city)) return;
 
     // Wealth is an indefinite conversion mode, not a project. Its shield
     // output is converted to gold during city output calculation, so it must
     // never accumulate shields or complete at the ruleset's 999 sentinel cost.
-    if (city.currentProduction === WEALTH_PRODUCTION_ID) {
-      city.productionStock = 0;
-      city.shieldStock = 0;
-      city.turnsToComplete = 0;
-      return;
-    }
+    if (this.isWealthProduction(city)) return;
 
     const productionPerTurn = city.productionPerTurn || 0;
     const currentProductionStock = city.productionStock ?? city.shieldStock ?? 0;
     const newProductionStock = currentProductionStock + productionPerTurn;
 
-    let productionCost = 0;
-    let productionIsValid = true;
-
-    if (city.productionType === 'unit') {
-      const unitType = this.unitTypes[city.currentProduction];
-      if (!unitType) {
-        logger.error(`Invalid unit type in production for city ${city.name}`, {
-          cityId: city.id,
-          productionType: city.productionType,
-          currentProduction: city.currentProduction,
-          availableUnitTypes: Object.keys(this.unitTypes),
-        });
-        productionIsValid = false;
-      } else {
-        productionCost = unitType.cost || 0;
-      }
-    } else if (city.productionType === 'building') {
-      const building = this.buildingTypes[city.currentProduction];
-      if (!building) {
-        logger.error(`Invalid building type in production for city ${city.name}`, {
-          cityId: city.id,
-          productionType: city.productionType,
-          currentProduction: city.currentProduction,
-          availableBuildingTypes: Object.keys(this.buildingTypes),
-        });
-        productionIsValid = false;
-      } else {
-        productionCost = building.cost || 0;
-      }
-    } else {
-      logger.error(`Unknown production type for city ${city.name}`, {
-        cityId: city.id,
-        productionType: city.productionType,
-        currentProduction: city.currentProduction,
-      });
-      productionIsValid = false;
-    }
+    const productionCostResult = this.getProductionCost(city);
+    const productionCost = productionCostResult.cost;
+    const productionIsValid = productionCostResult.valid;
 
     if (!productionIsValid) {
-      logger.warn(`Clearing invalid production for city ${city.name}`);
-      city.currentProduction = null;
-      city.productionType = null;
-      city.productionStock = 0;
-      city.shieldStock = 0;
-      city.turnsToComplete = 0;
+      this.clearProduction(city);
       return;
     }
 
     if (productionCost <= 0) {
-      logger.warn(`Production cost is 0 or negative for city ${city.name}, setting to 1`, {
-        cityId: city.id,
-        productionType: city.productionType,
-        currentProduction: city.currentProduction,
-        originalCost: productionCost,
-      });
-      productionCost = 1;
+      return this.processProductionWithCost(city, 1, productionPerTurn, newProductionStock);
     }
 
+    return this.processProductionWithCost(
+      city,
+      productionCost,
+      productionPerTurn,
+      newProductionStock
+    );
+  }
+
+  private clearProduction(city: CityState): void {
+    logger.warn(`Clearing invalid production for city ${city.name}`);
+    city.currentProduction = null;
+    city.productionType = null;
+    city.productionStock = 0;
+    city.shieldStock = 0;
+    city.turnsToComplete = 0;
+  }
+
+  private async processProductionWithCost(
+    city: CityState,
+    productionCost: number,
+    productionPerTurn: number,
+    newProductionStock: number
+  ): Promise<void> {
     if (newProductionStock >= productionCost) {
       const populationCost =
         city.productionType === 'unit'
-          ? (this.unitTypes[city.currentProduction]?.pop_cost ?? 0)
+          ? (this.unitTypes[city.currentProduction!]?.pop_cost ?? 0)
           : 0;
       // The default Freeciv city option does not allow a population-cost unit
       // to consume the city's final citizen.
@@ -540,6 +496,58 @@ export class CityTurnProcessingService extends BaseGameService {
     }
   }
 
+  private ensureProductionTarget(city: CityState): boolean {
+    while (!city.currentProduction && city.worklist.length > 0) {
+      const next = city.worklist.shift() as ProductionItem;
+      const nextType = next.kind === 'wonder' ? 'building' : next.kind;
+      const exists =
+        nextType === 'unit'
+          ? Boolean(this.unitTypes[next.value])
+          : Boolean(this.buildingTypes[next.value]);
+      const allowed =
+        this.dependencies.canCityContinueProduction?.(city.id, nextType, next.value) ?? true;
+      if (exists && allowed) {
+        city.currentProduction = next.value;
+        city.productionType = nextType;
+      }
+    }
+    return Boolean(city.currentProduction);
+  }
+
+  private isWealthProduction(city: CityState): boolean {
+    if (city.currentProduction !== WEALTH_PRODUCTION_ID) return false;
+    city.productionStock = 0;
+    city.shieldStock = 0;
+    city.turnsToComplete = 0;
+    return true;
+  }
+
+  private getProductionCost(city: CityState): { cost: number; valid: boolean } {
+    if (city.productionType === 'unit') {
+      const unitType = this.unitTypes[city.currentProduction!];
+      if (unitType) return { cost: unitType.cost || 0, valid: true };
+      logger.error(`Invalid unit type in production for city ${city.name}`, {
+        cityId: city.id,
+        currentProduction: city.currentProduction,
+      });
+      return { cost: 0, valid: false };
+    }
+    if (city.productionType === 'building') {
+      const building = this.buildingTypes[city.currentProduction!];
+      if (building) return { cost: building.cost || 0, valid: true };
+      logger.error(`Invalid building type in production for city ${city.name}`, {
+        cityId: city.id,
+        currentProduction: city.currentProduction,
+      });
+      return { cost: 0, valid: false };
+    }
+    logger.error(`Unknown production type for city ${city.name}`, {
+      cityId: city.id,
+      productionType: city.productionType,
+    });
+    return { cost: 0, valid: false };
+  }
+
   /**
    * Handle production completion
    */
@@ -549,90 +557,72 @@ export class CityTurnProcessingService extends BaseGameService {
       return;
     }
 
+    const completedProductionType = city.productionType as 'unit' | 'building' | 'wonder';
+    const completedProductionId = city.currentProduction;
+    this.addCompletedBuilding(city);
     const productionItem: ProductionItem = {
       kind: city.productionType as 'unit' | 'building',
       value: city.currentProduction,
     };
+    this.resetCompletedProduction(city, productionCost);
+    await this.notifyProductionComplete(city, productionItem);
+    this.promoteProductionAfterCompletion(city);
+    this.emitProductionComplete(cityId, completedProductionType, completedProductionId);
+  }
 
-    if (city.productionType === 'building') {
-      // Add the building to the city
-      if (
-        !isSpaceshipPart(city.currentProduction) &&
-        !city.buildings.includes(city.currentProduction)
-      ) {
-        city.buildings.push(city.currentProduction);
-      }
-    } else if (city.productionType === 'unit') {
-      // Unit creation is handled by the onCityProductionComplete callback
-      // which properly integrates with UnitManager
-    }
+  private addCompletedBuilding(city: CityState): void {
+    if (
+      city.productionType === 'building' &&
+      !isSpaceshipPart(city.currentProduction!) &&
+      !city.buildings.includes(city.currentProduction!)
+    )
+      city.buildings.push(city.currentProduction!);
+  }
 
-    // Store production details before resetting
-    const completedProductionType = city.productionType as 'unit' | 'building' | 'wonder';
-    const completedProductionId = city.currentProduction;
-
-    // Freeciv subtracts only the completed target's cost, retaining excess
-    // shields for the next target instead of discarding the entire stock.
-    // @reference reference/freeciv/server/cityturn.c:2784-2786
-    // @reference reference/freeciv/server/cityturn.c:3054-3062
-    const remainingStock = Math.max(
-      0,
-      (city.productionStock ?? city.shieldStock ?? 0) - productionCost
-    );
-
-    // Clear the completed target while retaining its carryover.
+  private resetCompletedProduction(city: CityState, cost: number): void {
+    const remaining = Math.max(0, (city.productionStock ?? city.shieldStock ?? 0) - cost);
     city.currentProduction = null;
     city.productionType = null;
-    city.productionStock = remainingStock;
-    city.shieldStock = remainingStock;
+    city.productionStock = remaining;
+    city.shieldStock = remaining;
     city.turnsToComplete = 0;
+  }
 
-    // Commit national/unit state before validating the next worklist item.
-    // This is significant for capped repeatable projects such as spaceship
-    // parts: the newly completed part must count against the next choice.
-    if (this.dependencies.callbacks.onCityProductionComplete) {
-      const result = this.dependencies.callbacks.onCityProductionComplete(city, productionItem);
-      if (result instanceof Promise) {
-        await result;
-      }
-    }
+  private async notifyProductionComplete(city: CityState, item: ProductionItem): Promise<void> {
+    const callback = this.dependencies.callbacks.onCityProductionComplete;
+    if (!callback) return;
+    await callback(city, item);
+  }
 
-    // Continue with the next authoritative worklist item. Invalidated items
-    // are discarded rather than leaving the city permanently idle.
+  private promoteProductionAfterCompletion(city: CityState): void {
     while (city.worklist.length > 0 && !city.currentProduction) {
       const next = city.worklist.shift() as ProductionItem;
-      const nextType = next.kind === 'wonder' ? 'building' : next.kind;
+      const type = next.kind === 'wonder' ? 'building' : next.kind;
       const exists =
-        (nextType === 'unit' && Boolean(this.unitTypes[next.value])) ||
-        (nextType === 'building' && Boolean(this.buildingTypes[next.value]));
-      if (
-        exists &&
-        (this.dependencies.canCityContinueProduction?.(city.id, nextType, next.value) ?? true)
-      ) {
+        type === 'unit'
+          ? Boolean(this.unitTypes[next.value])
+          : Boolean(this.buildingTypes[next.value]);
+      const allowed =
+        this.dependencies.canCityContinueProduction?.(city.id, type, next.value) ?? true;
+      if (exists && allowed) {
         city.currentProduction = next.value;
-        city.productionType = nextType;
+        city.productionType = type;
       }
     }
+  }
 
-    // Emit socket event if Socket.IO server is available
-    if (this.dependencies.io && completedProductionType && completedProductionId) {
-      logger.info('Production completed', {
-        gameId: this.dependencies.gameId,
-        cityId,
-        productionType: completedProductionType,
-        productionId: completedProductionId,
-      });
-
-      // For unit production, let the callback handle unit creation and broadcasting
-      // For building production, emit the completion event here
-      if (completedProductionType === 'building') {
-        this.dependencies.io.to(`game:${this.dependencies.gameId}`).emit('production:completed', {
-          cityId,
-          productionType: completedProductionType,
-          productionId: completedProductionId,
-        });
-      }
-    }
+  private emitProductionComplete(cityId: string, type: string, productionId: string): void {
+    if (!this.dependencies.io || !type || !productionId) return;
+    logger.info('Production completed', {
+      gameId: this.dependencies.gameId,
+      cityId,
+      productionType: type,
+      productionId,
+    });
+    if (type === 'building')
+      this.dependencies.io
+        .to(`game:${this.dependencies.gameId}`)
+        .emit('production:completed', { cityId, productionType: type, productionId });
   }
 
   /**

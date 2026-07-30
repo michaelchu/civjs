@@ -426,26 +426,7 @@ export class UnitActionHandler extends BaseSocketHandler {
       }
 
       const unitBeforeAction = gameInstance.unitManager.getUnit(data.unitId);
-      const targetUnitsBeforeAction =
-        data.actionType === ActionType.NUCLEAR_EXPLOSION
-          ? [...gameInstance.unitManager.getAllUnits().values()]
-              .filter(unit => {
-                const centerX = data.targetX ?? unitBeforeAction?.x;
-                const centerY = data.targetY ?? unitBeforeAction?.y;
-                return (
-                  centerX !== undefined &&
-                  centerY !== undefined &&
-                  (unit.x - centerX) ** 2 + (unit.y - centerY) ** 2 <= 1
-                );
-              })
-              .map(unit => ({ ...unit }))
-          : data.targetX === undefined || data.targetY === undefined
-            ? []
-            : (gameInstance.unitManager.getUnitsAt?.(data.targetX, data.targetY) ?? []).map(
-                unit => ({
-                  ...unit,
-                })
-              );
+      const targetUnitsBeforeAction = this.captureTargetUnits(gameInstance, data, unitBeforeAction);
       const result = await this.executeRequestedUnitAction(
         gameInstance,
         connection.gameId!,
@@ -498,6 +479,28 @@ export class UnitActionHandler extends BaseSocketHandler {
         error: error instanceof Error ? error.message : 'Failed to execute unit action',
       });
     }
+  }
+
+  private captureTargetUnits(gameInstance: any, data: any, unitBeforeAction: any): any[] {
+    if (data.actionType === ActionType.NUCLEAR_EXPLOSION) {
+      return [...gameInstance.unitManager.getAllUnits().values()]
+        .filter(unit => {
+          const centerX = data.targetX ?? unitBeforeAction?.x;
+          const centerY = data.targetY ?? unitBeforeAction?.y;
+          return (
+            centerX !== undefined &&
+            centerY !== undefined &&
+            (unit.x - centerX) ** 2 + (unit.y - centerY) ** 2 <= 1
+          );
+        })
+        .map(unit => ({ ...unit }));
+    }
+    if (data.targetX === undefined || data.targetY === undefined) return [];
+    return (gameInstance.unitManager.getUnitsAt?.(data.targetX, data.targetY) ?? []).map(
+      (unit: any) => ({
+        ...unit,
+      })
+    );
   }
 
   private broadcastUnitActionResult(

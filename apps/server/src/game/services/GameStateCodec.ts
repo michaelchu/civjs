@@ -30,44 +30,46 @@ export class GameStateCodec {
   }
 
   decode(input: unknown): AuthoritativeGameState {
-    if (!input || typeof input !== 'object' || Array.isArray(input)) {
-      throw new Error('Invalid game-state snapshot: expected an object');
-    }
+    const snapshot = this.migrateSnapshot(this.assertObject(input));
+    this.assertDecodedState(snapshot);
+    return snapshot as unknown as AuthoritativeGameState;
+  }
 
-    let snapshot = { ...(input as Record<string, unknown>) };
+  private assertObject(input: unknown): Record<string, unknown> {
+    if (!input || typeof input !== 'object' || Array.isArray(input))
+      throw new Error('Invalid game-state snapshot: expected an object');
+    return input as Record<string, unknown>;
+  }
+
+  private migrateSnapshot(initial: Record<string, unknown>): Record<string, unknown> {
+    let snapshot = { ...initial };
     let version = this.readVersion(snapshot);
     const visited = new Set<number>();
     while (version !== CURRENT_GAME_STATE_VERSION) {
-      if (version > CURRENT_GAME_STATE_VERSION || visited.has(version)) {
+      if (version > CURRENT_GAME_STATE_VERSION || visited.has(version))
         throw new Error(`Unsupported game-state snapshot version: ${version}`);
-      }
       const migration = this.migrations.get(version);
-      if (!migration) {
-        throw new Error(`Unsupported game-state snapshot version: ${version}`);
-      }
+      if (!migration) throw new Error(`Unsupported game-state snapshot version: ${version}`);
       visited.add(version);
       snapshot = migration(snapshot);
       version = this.readVersion(snapshot);
     }
+    return snapshot;
+  }
 
-    if (!Number.isInteger(snapshot.turn) || (snapshot.turn as number) < 0) {
+  private assertDecodedState(snapshot: Record<string, unknown>): void {
+    if (!Number.isInteger(snapshot.turn) || (snapshot.turn as number) < 0)
       throw new Error('Invalid game-state snapshot: turn must be a non-negative integer');
-    }
-    if (!Number.isInteger(snapshot.year)) {
+    if (!Number.isInteger(snapshot.year))
       throw new Error('Invalid game-state snapshot: year must be an integer');
-    }
-    if (!Array.isArray(snapshot.cities) || !Array.isArray(snapshot.units)) {
+    if (!Array.isArray(snapshot.cities) || !Array.isArray(snapshot.units))
       throw new Error('Invalid game-state snapshot: cities and units must be arrays');
-    }
     if (
       !snapshot.research ||
       typeof snapshot.research !== 'object' ||
       Array.isArray(snapshot.research)
-    ) {
+    )
       throw new Error('Invalid game-state snapshot: research must be an object');
-    }
-
-    return snapshot as unknown as AuthoritativeGameState;
   }
 
   private readVersion(snapshot: Record<string, unknown>): number {

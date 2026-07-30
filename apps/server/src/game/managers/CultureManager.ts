@@ -348,62 +348,8 @@ export class CultureManager {
       // Get all cities in the game
       const gameCities = await db.select().from(cities).where(eq(cities.gameId, gameId));
 
-      // Process each city's culture gain
-      for (const city of gameCities) {
-        const cityWithBuildings: CityWithBuildings = {
-          ...city,
-          buildings: Array.isArray(city.buildings) ? (city.buildings as string[]) : [],
-        };
-
-        // Find the player for this city to get their techs
-        const cityPlayer = gamePlayers.find(p => p.id === city.playerId);
-        const playerTechs = cityPlayer
-          ? new Set(
-              Array.isArray(cityPlayer.technologies) ? (cityPlayer.technologies as string[]) : []
-            )
-          : undefined;
-
-        const historyGain = this.calculateCityHistoryGain(cityWithBuildings, game, playerTechs);
-
-        const history = city.history + historyGain;
-        if (historyGain !== 0) {
-          // Update city history in database
-          await db.update(cities).set({ history }).where(eq(cities.id, city.id));
-
-          logger.debug(`City ${city.name} gained ${historyGain} history (total: ${history})`);
-        }
-        const runtimeCity = this.runtimeState.getCity?.(city.id);
-        if (runtimeCity) runtimeCity.history = history;
-        result.cities[city.id] = {
-          history,
-          culture: this.calculateCityCulture({ ...cityWithBuildings, history }, playerTechs)
-            .culture,
-        };
-      }
-
-      // Process each player's national history gain
-      for (const player of gamePlayers) {
-        const playerWithTechs: PlayerWithTechs = {
-          ...player,
-          technologies: Array.isArray(player.technologies) ? (player.technologies as string[]) : [],
-        };
-
-        const nationalHistoryGain = this.calculateNationHistoryGain(playerWithTechs, game);
-
-        const history = player.history + nationalHistoryGain;
-        if (nationalHistoryGain !== 0) {
-          // Update player national history in database
-          await db.update(players).set({ history }).where(eq(players.id, player.id));
-
-          logger.debug(
-            `Player ${player.id} gained ${nationalHistoryGain} national history (total: ${history})`
-          );
-        }
-        const runtimePlayer = this.runtimeState.getPlayer?.(player.id);
-        if (runtimePlayer) runtimePlayer.history = history;
-        const culture = await this.calculatePlayerCulture({ ...playerWithTechs, history });
-        result.players[player.id] = { history, totalCulture: culture.totalCulture };
-      }
+      await this.processCityCultureGain(db, game, gameCities, gamePlayers, result);
+      await this.processPlayerCultureGain(db, game, gamePlayers, result);
 
       logger.info(
         `Processed culture gain for game ${gameId}: ${gameCities.length} cities, ${gamePlayers.length} players`
@@ -412,6 +358,65 @@ export class CultureManager {
     } catch (error) {
       logger.error(`Failed to process culture gain for game ${gameId}:`, error);
       throw error;
+    }
+  }
+
+  private async processCityCultureGain(
+    db: any,
+    game: any,
+    gameCities: any[],
+    gamePlayers: any[],
+    result: CultureProcessingResult
+  ): Promise<void> {
+    for (const city of gameCities) {
+      const cityWithBuildings: CityWithBuildings = {
+        ...city,
+        buildings: Array.isArray(city.buildings) ? (city.buildings as string[]) : [],
+      };
+      const cityPlayer = gamePlayers.find(p => p.id === city.playerId);
+      const playerTechs = cityPlayer
+        ? new Set(
+            Array.isArray(cityPlayer.technologies) ? (cityPlayer.technologies as string[]) : []
+          )
+        : undefined;
+      const historyGain = this.calculateCityHistoryGain(cityWithBuildings, game, playerTechs);
+      const history = city.history + historyGain;
+      if (historyGain !== 0) {
+        await db.update(cities).set({ history }).where(eq(cities.id, city.id));
+        logger.debug(`City ${city.name} gained ${historyGain} history (total: ${history})`);
+      }
+      const runtimeCity = this.runtimeState.getCity?.(city.id);
+      if (runtimeCity) runtimeCity.history = history;
+      result.cities[city.id] = {
+        history,
+        culture: this.calculateCityCulture({ ...cityWithBuildings, history }, playerTechs).culture,
+      };
+    }
+  }
+
+  private async processPlayerCultureGain(
+    db: any,
+    game: any,
+    gamePlayers: any[],
+    result: CultureProcessingResult
+  ): Promise<void> {
+    for (const player of gamePlayers) {
+      const playerWithTechs: PlayerWithTechs = {
+        ...player,
+        technologies: Array.isArray(player.technologies) ? (player.technologies as string[]) : [],
+      };
+      const nationalHistoryGain = this.calculateNationHistoryGain(playerWithTechs, game);
+      const history = player.history + nationalHistoryGain;
+      if (nationalHistoryGain !== 0) {
+        await db.update(players).set({ history }).where(eq(players.id, player.id));
+        logger.debug(
+          `Player ${player.id} gained ${nationalHistoryGain} national history (total: ${history})`
+        );
+      }
+      const runtimePlayer = this.runtimeState.getPlayer?.(player.id);
+      if (runtimePlayer) runtimePlayer.history = history;
+      const culture = await this.calculatePlayerCulture({ ...playerWithTechs, history });
+      result.players[player.id] = { history, totalCulture: culture.totalCulture };
     }
   }
 

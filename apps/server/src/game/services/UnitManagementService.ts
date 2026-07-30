@@ -131,34 +131,50 @@ export class UnitManagementService extends BaseGameService {
       throw new Error('Attacking unit not found or does not belong to player');
     }
 
-    const requestedDefenderSnapshot = gameInstance.unitManager.getUnit(defenderUnitId);
-    const defenderStackSnapshots = requestedDefenderSnapshot
-      ? gameInstance.unitManager
-          .getUnitsAt(requestedDefenderSnapshot.x, requestedDefenderSnapshot.y)
-          .filter(unit => unit.playerId !== playerId)
-          .map(unit => ({ ...unit }))
-      : [];
+    const defenderStackSnapshots = this.captureDefenderStack(
+      gameInstance,
+      defenderUnitId,
+      playerId
+    );
     const combatResult = await gameInstance.unitManager.attackUnit(attackerUnitId, defenderUnitId);
-    const defenderSnapshot = defenderStackSnapshots.find(
-      unit => unit.id === combatResult.defenderId
+    this.broadcastCombatResult(
+      gameInstance,
+      gameId,
+      playerId,
+      attackerUnitId,
+      combatResult,
+      defenderStackSnapshots
     );
 
-    // Update visibility for relevant players if units were destroyed
-    if (combatResult.attackerDestroyed) {
-      gameInstance.visibilityManager.onUnitDestroyed(playerId);
-    }
-    if (combatResult.defenderDestroyed) {
-      if (defenderSnapshot) {
-        gameInstance.visibilityManager.onUnitDestroyed(defenderSnapshot.playerId);
-      }
-    }
+    return combatResult;
+  }
 
+  private captureDefenderStack(gameInstance: any, defenderUnitId: string, playerId: string): any[] {
+    const defender = gameInstance.unitManager.getUnit(defenderUnitId);
+    return defender
+      ? gameInstance.unitManager
+          .getUnitsAt(defender.x, defender.y)
+          .filter((unit: any) => unit.playerId !== playerId)
+          .map((unit: any) => ({ ...unit }))
+      : [];
+  }
+
+  private broadcastCombatResult(
+    gameInstance: any,
+    gameId: string,
+    playerId: string,
+    attackerUnitId: string,
+    result: any,
+    defenderStack: any[]
+  ): void {
+    if (result.attackerDestroyed) gameInstance.visibilityManager.onUnitDestroyed(playerId);
+    const defender = defenderStack.find(unit => unit.id === result.defenderId);
+    if (result.defenderDestroyed && defender)
+      gameInstance.visibilityManager.onUnitDestroyed(defender.playerId);
     const survivingAttacker = gameInstance.unitManager.getUnit(attackerUnitId);
-    const survivingDefender = gameInstance.unitManager.getUnit(combatResult.defenderId);
+    const survivingDefender = gameInstance.unitManager.getUnit(result.defenderId);
     if (survivingAttacker) this.unitBroadcaster?.broadcastUnitInfo(gameId, survivingAttacker);
     if (survivingDefender) this.unitBroadcaster?.broadcastUnitInfo(gameId, survivingDefender);
-
-    return combatResult;
   }
 
   /**

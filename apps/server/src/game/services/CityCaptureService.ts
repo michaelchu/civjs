@@ -112,18 +112,7 @@ export class CityCaptureService extends BaseGameService {
       // default razechance of 20 percent.
       // @reference reference/freeciv/server/citytools.c:924-950
       // @reference reference/freeciv/common/game.h:574
-      const buildingsDestroyed: string[] = [];
-      const buildingTypes = this.buildingTypes ?? this.buildingsService.getBuildingTypes();
-      city.buildings = city.buildings.filter(buildingId => {
-        const genus = buildingTypes[buildingId]?.genus;
-        const destroyed =
-          genus === 'SmallWonder' || (genus === 'Improvement' && this.random() < 0.2);
-        if (destroyed) {
-          buildingsDestroyed.push(buildingId);
-          return false;
-        }
-        return true;
-      });
+      const buildingsDestroyed = this.destroyBuildings(city);
 
       // Transfer ownership
       city.playerId = conquerorPlayerId;
@@ -177,6 +166,18 @@ export class CityCaptureService extends BaseGameService {
         reason: 'Capture operation failed',
       };
     }
+  }
+
+  private destroyBuildings(city: CityState): string[] {
+    const destroyed: string[] = [];
+    const buildingTypes = this.buildingTypes ?? this.buildingsService.getBuildingTypes();
+    city.buildings = city.buildings.filter(buildingId => {
+      const genus = buildingTypes[buildingId]?.genus;
+      if (genus !== 'SmallWonder' && !(genus === 'Improvement' && this.random() < 0.2)) return true;
+      destroyed.push(buildingId);
+      return false;
+    });
+    return destroyed;
   }
 
   /**

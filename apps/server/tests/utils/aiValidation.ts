@@ -168,14 +168,22 @@ export function assertAIValidationMetricBaseline(
     throw new Error(`AI players made ${totalDecisions} decisions across the matrix run`);
   }
   for (const [playerId, samples] of perPlayer) {
-    const decisions = samples.reduce((total, sample) => total + sample.decisions, 0);
-    if (decisions === 0) continue;
-    let idle = 0;
-    for (const sample of samples) {
-      idle = sample.decisions > 0 ? 0 : idle + 1;
-      if (idle > baseline.maximumConsecutiveIdleDecisionTurns) {
-        throw new Error(`AI player ${playerId} was idle for ${idle} consecutive turns`);
-      }
+    assertPlayerDecisionBaseline(playerId, samples, baseline.maximumConsecutiveIdleDecisionTurns);
+  }
+}
+
+function assertPlayerDecisionBaseline(
+  playerId: string,
+  samples: AIValidationMetricPoint['players'][number][],
+  maximumIdleTurns: number
+): void {
+  const decisions = samples.reduce((total, sample) => total + sample.decisions, 0);
+  if (decisions === 0) return;
+  let idle = 0;
+  for (const sample of samples) {
+    idle = sample.decisions > 0 ? 0 : idle + 1;
+    if (idle > maximumIdleTurns) {
+      throw new Error('AI player ' + playerId + ' was idle for ' + idle + ' consecutive turns');
     }
   }
 }
@@ -191,44 +199,8 @@ export function assertAIValidationInvariants(game: GameInstance): void {
   if (!map) violations.push('map data is missing');
 
   const units = game.unitManager.getAllUnits();
-  for (const unit of units.values()) {
-    if (!game.players.has(unit.playerId)) violations.push(`unit ${unit.id} has no owner`);
-    if (!Number.isFinite(unit.x) || !Number.isFinite(unit.y)) {
-      violations.push(`unit ${unit.id} has a non-finite location`);
-    } else if (map && (unit.x < 0 || unit.y < 0 || unit.x >= map.width || unit.y >= map.height)) {
-      violations.push(`unit ${unit.id} is outside the map at ${unit.x},${unit.y}`);
-    }
-    if (!Number.isFinite(unit.health) || !Number.isFinite(unit.movementLeft)) {
-      violations.push(`unit ${unit.id} has invalid health or movement`);
-    }
-    if (unit.transportedBy) {
-      const transport = units.get(unit.transportedBy);
-      if (!transport)
-        violations.push(`unit ${unit.id} references missing transport ${unit.transportedBy}`);
-      else if (!transport.cargoUnits?.includes(unit.id)) {
-        violations.push(`transport ${transport.id} does not contain cargo ${unit.id}`);
-      } else if (unit.x !== transport.x || unit.y !== transport.y) {
-        violations.push(`cargo ${unit.id} is not colocated with transport ${transport.id}`);
-      }
-    }
-    for (const cargoId of unit.cargoUnits ?? []) {
-      if (units.get(cargoId)?.transportedBy !== unit.id) {
-        violations.push(`cargo ${cargoId} does not point back to transport ${unit.id}`);
-      }
-    }
-  }
-
-  for (const city of game.cityManager.getAllCities()) {
-    if (!game.players.has(city.playerId)) violations.push(`city ${city.id} has no owner`);
-    if (!Number.isFinite(city.population) || city.population <= 0) {
-      violations.push(`city ${city.id} has invalid population`);
-    }
-    if (!Number.isFinite(city.x) || !Number.isFinite(city.y)) {
-      violations.push(`city ${city.id} has a non-finite location`);
-    } else if (map && (city.x < 0 || city.y < 0 || city.x >= map.width || city.y >= map.height)) {
-      violations.push(`city ${city.id} is outside the map at ${city.x},${city.y}`);
-    }
-  }
+  for (const unit of units.values()) validateUnit(unit, units, game, map, violations);
+  for (const city of game.cityManager.getAllCities()) validateCity(city, game, map, violations);
 
   const players = [...game.players.values()].map(player => {
     const state = assertAIState(player.aiState);
@@ -258,6 +230,55 @@ export function assertAIValidationInvariants(game: GameInstance): void {
     players,
   };
   throw new Error(`AI validation invariant failure\n${JSON.stringify(artifact, null, 2)}`);
+}
+
+function validateUnit(
+  unit: any,
+  units: Map<string, any>,
+  game: GameInstance,
+  map: any,
+  violations: string[]
+): void {
+  if (!game.players.has(unit.playerId)) violations.push(`unit ${unit.id} has no owner`);
+  validateLocation(`unit ${unit.id}`, unit.x, unit.y, map, violations);
+  if (!Number.isFinite(unit.health) || !Number.isFinite(unit.movementLeft))
+    violations.push(`unit ${unit.id} has invalid health or movement`);
+  validateTransport(unit, units, violations);
+  for (const cargoId of unit.cargoUnits ?? []) {
+    if (units.get(cargoId)?.transportedBy !== unit.id)
+      violations.push(`cargo ${cargoId} does not point back to transport ${unit.id}`);
+  }
+}
+
+function validateTransport(unit: any, units: Map<string, any>, violations: string[]): void {
+  if (!unit.transportedBy) return;
+  const transport = units.get(unit.transportedBy);
+  if (!transport)
+    violations.push(`unit ${unit.id} references missing transport ${unit.transportedBy}`);
+  else if (!transport.cargoUnits?.includes(unit.id))
+    violations.push(`transport ${transport.id} does not contain cargo ${unit.id}`);
+  else if (unit.x !== transport.x || unit.y !== transport.y)
+    violations.push(`cargo ${unit.id} is not colocated with transport ${transport.id}`);
+}
+
+function validateCity(city: any, game: GameInstance, map: any, violations: string[]): void {
+  if (!game.players.has(city.playerId)) violations.push(`city ${city.id} has no owner`);
+  if (!Number.isFinite(city.population) || city.population <= 0)
+    violations.push(`city ${city.id} has invalid population`);
+  validateLocation(`city ${city.id}`, city.x, city.y, map, violations);
+}
+
+function validateLocation(
+  label: string,
+  x: number,
+  y: number,
+  map: any,
+  violations: string[]
+): void {
+  if (!Number.isFinite(x) || !Number.isFinite(y))
+    violations.push(`${label} has a non-finite location`);
+  else if (map && (x < 0 || y < 0 || x >= map.width || y >= map.height))
+    violations.push(`${label} is outside the map at ${x},${y}`);
 }
 
 /**

@@ -201,150 +201,146 @@ export class CityOptimizationService extends BaseGameService {
   ): Promise<OptimizationResult> {
     if (!this.citizenManagementService || !this.tileManagementService) {
       logger.warn(`Cannot optimize citizens for city ${cityId} - services not available`);
-      return {
-        success: false,
-        cityId,
-        newAssignments: { workedTiles: 0, specialists: {} },
-        outputChanges: { food: 0, shields: 0, trade: 0, science: 0 },
-        fitness: 0,
-        reason: 'Required services not available',
-      };
+      return this.failedOptimization(cityId, 'Required services not available');
     }
 
     const city = this.cities.get(cityId);
     if (!city) {
       logger.warn(`Cannot optimize citizens - city ${cityId} not found`);
-      return {
-        success: false,
-        cityId,
-        newAssignments: { workedTiles: 0, specialists: {} },
-        outputChanges: { food: 0, shields: 0, trade: 0, science: 0 },
-        fitness: 0,
-        reason: 'City not found',
-      };
+      return this.failedOptimization(cityId, 'City not found');
     }
 
     try {
-      // Store previous assignments for comparison
-      const previousAssignments = {
-        workedTiles: city.workableTiles?.filter(t => t.isWorked).length || 0,
-        specialists: { ...city.specialists },
-      };
-
-      // Use provided parameters, or stored parameters, or default parameters
-      const optimizationParams =
-        parameters || this.getCitizenParameters(cityId) || CitizenParameterFactory.createDefault();
-
-      // Get workable tiles for the optimization
-      const workableTiles = this.tileManagementService.getWorkableTiles(cityId);
-      if (!workableTiles) {
+      const setup = this.getOptimizationSetup(city, cityId, parameters);
+      if (!setup) {
         logger.warn(`Cannot optimize citizens - no workable tiles for city ${cityId}`);
-        return {
-          success: false,
-          cityId,
-          newAssignments: { workedTiles: 0, specialists: {} },
-          outputChanges: { food: 0, shields: 0, trade: 0, science: 0 },
-          fitness: 0,
-          reason: 'No workable tiles available',
-        };
+        return this.failedOptimization(cityId, 'No workable tiles available');
       }
-
-      // Store previous outputs for comparison
-      const previousOutputs = {
-        food: city.foodPerTurn || 0,
-        shields: city.productionPerTurn || 0,
-        trade: city.tradePerTurn || 0,
-        science: city.sciencePerTurn || 0,
-      };
-
-      // Run the optimization
       const result = this.citizenManagementService.queryResult(
         city,
-        optimizationParams,
-        Boolean(optimizationParams.allowNegativeSurpluses),
+        setup.optimizationParams,
+        Boolean(setup.optimizationParams.allowNegativeSurpluses),
         { taxRates: this.getTaxRates(city.playerId) }
       );
 
-      if (result.found_valid) {
-        // Apply the optimized assignments
-        if (city.workableTiles) {
-          // Update worked tile assignments
-          for (
-            let i = 0;
-            i < result.worker_positions.length && i < city.workableTiles.length;
-            i++
-          ) {
-            // The city center is worked for free and is never a citizen
-            // assignment. Optimizer output must not be allowed to unwork it.
-            city.workableTiles[i].isWorked =
-              city.workableTiles[i].isCenter || result.worker_positions[i];
-          }
-        }
-
-        // Update specialist assignments
-        city.specialists = { ...result.specialists };
-
-        // Recalculate through the same ruleset/effects pipeline used by turns.
-        // Optimizer surplus is a search score, not authoritative city state.
-        this.refreshAuthoritativeOutputs?.(city.id);
-
-        const newAssignments = {
-          workedTiles: city.workableTiles?.filter(t => t.isWorked).length || 0,
-          specialists: { ...city.specialists },
-        };
-
-        const outputChanges = {
-          food: (city.foodPerTurn || 0) - previousOutputs.food,
-          shields: (city.productionPerTurn || 0) - previousOutputs.shields,
-          trade: (city.tradePerTurn || 0) - previousOutputs.trade,
-          science: (city.sciencePerTurn || 0) - previousOutputs.science,
-        };
-
-        logger.debug(`Successfully optimized citizens for city ${city.name}`, {
+      if (result.found_valid)
+        return this.buildSuccessfulOptimization(
+          city,
           cityId,
-          fitness: result.fitness,
-          workersCount: result.workers_count,
-          specialistsCount: result.specialists_count,
-        });
-
-        return {
-          success: true,
-          cityId,
-          previousAssignments,
-          newAssignments,
-          outputChanges,
-          fitness: result.fitness,
-        };
-      } else {
-        logger.warn(`Citizen optimization failed for city ${city.name}`, {
-          cityId,
-          aborted: result.aborted,
-        });
-
-        return {
-          success: false,
-          cityId,
-          newAssignments: { workedTiles: 0, specialists: {} },
-          outputChanges: { food: 0, shields: 0, trade: 0, science: 0 },
-          fitness: 0,
-          reason: `Optimization aborted: ${result.aborted}`,
-        };
-      }
+          result,
+          setup.previousAssignments,
+          setup.previousOutputs
+        );
+      logger.warn(`Citizen optimization failed for city ${city.name}`, {
+        cityId,
+        aborted: result.aborted,
+      });
+      return this.failedOptimization(cityId, `Optimization aborted: ${result.aborted}`);
     } catch (error) {
       logger.error(`Error optimizing citizens for city ${city.name}`, {
         cityId,
         error: error instanceof Error ? error.message : error,
       });
 
-      return {
-        success: false,
+      return this.failedOptimization(
         cityId,
-        newAssignments: { workedTiles: 0, specialists: {} },
-        outputChanges: { food: 0, shields: 0, trade: 0, science: 0 },
-        fitness: 0,
-        reason: error instanceof Error ? error.message : 'Unknown error',
-      };
+        error instanceof Error ? error.message : 'Unknown error'
+      );
     }
+  }
+
+  private getOptimizationSetup(
+    city: CityState,
+    cityId: string,
+    parameters?: OptimizationParameters
+  ): any | undefined {
+    if (!this.tileManagementService?.getWorkableTiles(cityId)) return undefined;
+    return {
+      previousAssignments: this.getPreviousAssignments(city),
+      optimizationParams: this.getOptimizationParameters(cityId, parameters),
+      previousOutputs: this.getPreviousOutputs(city),
+    };
+  }
+
+  private getPreviousAssignments(city: CityState): any {
+    return {
+      workedTiles: city.workableTiles?.filter(t => t.isWorked).length || 0,
+      specialists: { ...city.specialists },
+    };
+  }
+  private getOptimizationParameters(
+    cityId: string,
+    parameters?: OptimizationParameters
+  ): OptimizationParameters {
+    return (
+      parameters || this.getCitizenParameters(cityId) || CitizenParameterFactory.createDefault()
+    );
+  }
+  private getPreviousOutputs(city: CityState): any {
+    return {
+      food: city.foodPerTurn || 0,
+      shields: city.productionPerTurn || 0,
+      trade: city.tradePerTurn || 0,
+      science: city.sciencePerTurn || 0,
+    };
+  }
+
+  private failedOptimization(cityId: string, reason: string): OptimizationResult {
+    return {
+      success: false,
+      cityId,
+      newAssignments: { workedTiles: 0, specialists: {} },
+      outputChanges: { food: 0, shields: 0, trade: 0, science: 0 },
+      fitness: 0,
+      reason,
+    };
+  }
+
+  private buildSuccessfulOptimization(
+    city: CityState,
+    cityId: string,
+    result: any,
+    previousAssignments: any,
+    previousOutputs: any
+  ): OptimizationResult {
+    this.applyWorkerPositions(city, result.worker_positions);
+    city.specialists = { ...result.specialists };
+    this.refreshAuthoritativeOutputs?.(city.id);
+    const newAssignments = {
+      workedTiles: city.workableTiles?.filter(t => t.isWorked).length || 0,
+      specialists: { ...city.specialists },
+    };
+    const outputChanges = this.calculateOutputChanges(city, previousOutputs);
+    logger.debug(`Successfully optimized citizens for city ${city.name}`, {
+      cityId,
+      fitness: result.fitness,
+      workersCount: result.workers_count,
+      specialistsCount: result.specialists_count,
+    });
+    return {
+      success: true,
+      cityId,
+      previousAssignments,
+      newAssignments,
+      outputChanges,
+      fitness: result.fitness,
+    };
+  }
+
+  private applyWorkerPositions(city: CityState, positions: boolean[]): void {
+    if (!city.workableTiles) return;
+    for (let i = 0; i < positions.length && i < city.workableTiles.length; i++) {
+      city.workableTiles[i].isWorked = Boolean(city.workableTiles[i].isCenter || positions[i]);
+    }
+  }
+
+  private calculateOutputChanges(city: CityState, previous: any): any {
+    return {
+      food: (city.foodPerTurn || 0) - previous.food,
+      shields: (city.productionPerTurn || 0) - previous.shields,
+      trade: (city.tradePerTurn || 0) - previous.trade,
+      science: (city.sciencePerTurn || 0) - previous.science,
+    };
   }
 
   /**
@@ -542,7 +538,17 @@ export class CityOptimizationService extends BaseGameService {
       };
     }
 
-    // Calculate current output
+    return this.buildEfficiencyAnalysis(city, workableTiles);
+  }
+
+  private buildEfficiencyAnalysis(
+    city: CityState,
+    workableTiles: WorkableTile[]
+  ): {
+    efficiency: number;
+    recommendations: string[];
+    unusedPotential: { food: number; shields: number; trade: number };
+  } {
     const currentOutput = {
       food: city.foodPerTurn || 0,
       shields: city.productionPerTurn || 0,
@@ -580,41 +586,45 @@ export class CityOptimizationService extends BaseGameService {
       trade: Math.max(0, potentialOutput.trade - currentOutput.trade),
     };
 
-    // Generate recommendations
-    const recommendations: string[] = [];
-
-    if (efficiency < 80) {
-      recommendations.push('Consider running citizen optimization to improve efficiency');
-    }
-
-    if (unusedPotential.food > 2) {
-      recommendations.push(
-        `${unusedPotential.food} additional food available from better tile assignments`
-      );
-    }
-
-    if (unusedPotential.shields > 1) {
-      recommendations.push(
-        `${unusedPotential.shields} additional shields available from better tile assignments`
-      );
-    }
-
-    if (unusedPotential.trade > 1) {
-      recommendations.push(
-        `${unusedPotential.trade} additional trade available from better tile assignments`
-      );
-    }
-
-    const unusedTiles = availableTiles.filter(t => !t.isWorked).length;
-    if (unusedTiles > 0 && city.population < availableTiles.length + 1) {
-      recommendations.push(`${unusedTiles} workable tiles not being used - consider city growth`);
-    }
+    const recommendations = this.getEfficiencyRecommendations(
+      efficiency,
+      unusedPotential,
+      availableTiles,
+      city.population
+    );
 
     return {
       efficiency,
       recommendations,
       unusedPotential,
     };
+  }
+
+  private getEfficiencyRecommendations(
+    efficiency: number,
+    unusedPotential: { food: number; shields: number; trade: number },
+    availableTiles: WorkableTile[],
+    population: number
+  ): string[] {
+    const recommendations: string[] = [];
+    if (efficiency < 80)
+      recommendations.push('Consider running citizen optimization to improve efficiency');
+    if (unusedPotential.food > 2)
+      recommendations.push(
+        `${unusedPotential.food} additional food available from better tile assignments`
+      );
+    if (unusedPotential.shields > 1)
+      recommendations.push(
+        `${unusedPotential.shields} additional shields available from better tile assignments`
+      );
+    if (unusedPotential.trade > 1)
+      recommendations.push(
+        `${unusedPotential.trade} additional trade available from better tile assignments`
+      );
+    const unusedTiles = availableTiles.filter(t => !t.isWorked).length;
+    if (unusedTiles > 0 && population < availableTiles.length + 1)
+      recommendations.push(`${unusedTiles} workable tiles not being used - consider city growth`);
+    return recommendations;
   }
 
   /**

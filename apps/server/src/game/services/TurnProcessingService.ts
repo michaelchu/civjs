@@ -247,51 +247,7 @@ export class TurnProcessingService {
       });
 
       for (const action of queuedActions) {
-        try {
-          // Check dependencies
-          if (action.dependencies && !this.checkActionDependencies(action.dependencies)) {
-            logger.debug('Action dependencies not met, skipping', {
-              gameId: this.gameId,
-              actionId: action.id,
-              dependencies: action.dependencies,
-            });
-            continue;
-          }
-
-          action.status = 'processing';
-          await this.onActionStatusChanged?.(action);
-
-          await this.processPlayerAction(action);
-
-          action.status = 'completed';
-          await this.onActionStatusChanged?.(action);
-          result.actionsProcessed++;
-
-          // Move to history
-          const history = this.actionHistory.get(playerId) || [];
-          history.push(action);
-          this.actionHistory.set(playerId, history);
-        } catch (error) {
-          action.status = 'failed';
-          await this.onActionStatusChanged?.(
-            action,
-            error instanceof Error ? error.message : String(error)
-          );
-
-          logger.error('Error processing player action', {
-            gameId: this.gameId,
-            playerId: action.playerId,
-            actionId: action.id,
-            actionType: action.type,
-            error: error instanceof Error ? error.message : error,
-          });
-
-          result.errors.push({
-            playerId: action.playerId,
-            action: action.type,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
+        await this.processQueuedAction(action, playerId, result);
       }
 
       // Clean up completed/failed actions from queue
@@ -306,6 +262,44 @@ export class TurnProcessingService {
     });
 
     return result;
+  }
+
+  private async processQueuedAction(
+    action: PlayerAction,
+    playerId: string,
+    result: TurnProcessingResult
+  ): Promise<void> {
+    try {
+      if (action.dependencies && !this.checkActionDependencies(action.dependencies)) {
+        logger.debug('Action dependencies not met, skipping', {
+          gameId: this.gameId,
+          actionId: action.id,
+          dependencies: action.dependencies,
+        });
+        return;
+      }
+      action.status = 'processing';
+      await this.onActionStatusChanged?.(action);
+      await this.processPlayerAction(action);
+      action.status = 'completed';
+      await this.onActionStatusChanged?.(action);
+      result.actionsProcessed++;
+      const history = this.actionHistory.get(playerId) || [];
+      history.push(action);
+      this.actionHistory.set(playerId, history);
+    } catch (error) {
+      action.status = 'failed';
+      const message = error instanceof Error ? error.message : String(error);
+      await this.onActionStatusChanged?.(action, message);
+      logger.error('Error processing player action', {
+        gameId: this.gameId,
+        playerId: action.playerId,
+        actionId: action.id,
+        actionType: action.type,
+        error: message,
+      });
+      result.errors.push({ playerId: action.playerId, action: action.type, error: message });
+    }
   }
 
   /**
@@ -787,28 +781,35 @@ export class TurnProcessingService {
   ): Promise<void> {
     if (typeof this.unitManager.getPlayerUnits !== 'function') return;
     for (const city of cities) {
-      const supported = this.unitManager
-        .getPlayerUnits(playerId)
-        .filter(unit => unit.homeCityId === city.id)
-        .sort(
-          (left, right) =>
-            (this.getUnitType(right.unitTypeId)?.uk_shield ?? 0) -
-            (this.getUnitType(left.unitTypeId)?.uk_shield ?? 0)
-        );
-      let upkeep = city.unitShieldUpkeep ?? 0;
-      const available = city.grossProductionPerTurn ?? 0;
-      let removedUnit = false;
-      while (upkeep > available) {
-        const unit = supported.shift();
-        if (!unit) break;
-        const cost = this.getUnitType(unit.unitTypeId)?.uk_shield ?? 0;
-        if (cost <= 0) continue;
-        await this.unitManager.removeUnit(unit.id);
-        removedUnit = true;
-        upkeep -= cost;
-      }
-      if (removedUnit) this.cityManager.calculateCityOutputs(city.id);
+      await this.resolveCityShieldDeficit(playerId, city);
     }
+  }
+
+  private async resolveCityShieldDeficit(
+    playerId: string,
+    city: ReturnType<CityManager['getCitiesByPlayer']>[number]
+  ): Promise<void> {
+    const supported = this.unitManager
+      .getPlayerUnits(playerId)
+      .filter(unit => unit.homeCityId === city.id)
+      .sort(
+        (left, right) =>
+          (this.getUnitType(right.unitTypeId)?.uk_shield ?? 0) -
+          (this.getUnitType(left.unitTypeId)?.uk_shield ?? 0)
+      );
+    let upkeep = city.unitShieldUpkeep ?? 0;
+    const available = city.grossProductionPerTurn ?? 0;
+    let removedUnit = false;
+    while (upkeep > available) {
+      const unit = supported.shift();
+      if (!unit) break;
+      const cost = this.getUnitType(unit.unitTypeId)?.uk_shield ?? 0;
+      if (cost <= 0) continue;
+      await this.unitManager.removeUnit(unit.id);
+      removedUnit = true;
+      upkeep -= cost;
+    }
+    if (removedUnit) this.cityManager.calculateCityOutputs(city.id);
   }
 
   private getUnitType(unitTypeId: string) {
@@ -830,31 +831,35 @@ export class TurnProcessingService {
       cityOutputs.reduce((sum, output) => sum + output.netGoldContribution, 0);
     if (projected >= 0) return;
 
-    const buildingTypes = rulesetBuildingsService.getBuildingTypes(
-      this.effectsManager.getRulesetName()
-    );
+    projected = await this.sellBuildingsForTreasury(playerId, turn, cities, cityOutputs, projected);
+    projected = await this.disbandUnitsForTreasury(playerId, cityOutputs, projected);
+  }
+
+  private async sellBuildingsForTreasury(
+    playerId: string,
+    turn: number,
+    cities: ReturnType<CityManager['getCitiesByPlayer']>,
+    outputs: Array<ReturnType<EconomicManager['calculateCityEconomicOutput']>>,
+    projected: number
+  ): Promise<number> {
+    const types = rulesetBuildingsService.getBuildingTypes(this.effectsManager.getRulesetName());
     const sellable = cities
       .flatMap(city =>
-        city.buildings.map(buildingId => ({
-          city,
-          buildingId,
-          building: buildingTypes[buildingId],
-        }))
+        city.buildings.map(buildingId => ({ city, buildingId, building: types[buildingId] }))
       )
       .filter(
         candidate => candidate.building?.genus === 'Improvement' && candidate.building.upkeep > 0
       )
-      .sort((left, right) => right.building.upkeep - left.building.upkeep);
-
+      .sort((a, b) => b.building.upkeep - a.building.upkeep);
     for (const candidate of sellable) {
       if (projected >= 0) break;
       if (!(await this.cityManager.sellBuilding(candidate.city.id, candidate.buildingId))) continue;
       const saleGold = Math.floor(candidate.building.cost / 2);
-      await this.economicManager.addPlayerGold(playerId, saleGold, 'Insolvency building sale', {
+      await this.economicManager!.addPlayerGold(playerId, saleGold, 'Insolvency building sale', {
         cityId: candidate.city.id,
         turn,
       });
-      const output = cityOutputs.find(item => item.cityId === candidate.city.id);
+      const output = outputs.find(item => item.cityId === candidate.city.id);
       if (output) {
         output.costs.buildingUpkeep -= candidate.building.upkeep;
         output.costs.total -= candidate.building.upkeep;
@@ -862,42 +867,37 @@ export class TurnProcessingService {
       }
       projected += saleGold + candidate.building.upkeep;
     }
+    return projected;
+  }
 
+  private async disbandUnitsForTreasury(
+    playerId: string,
+    outputs: Array<ReturnType<EconomicManager['calculateCityEconomicOutput']>>,
+    projected: number
+  ): Promise<number> {
     const units = this.unitManager
       .getPlayerUnits(playerId)
-      .filter(unit => {
-        const output = cityOutputs.find(item => item.cityId === unit.homeCityId);
-        return (output?.costs.unitUpkeep ?? 0) > 0;
-      })
-      .sort(
-        (left, right) =>
-          Math.max(
-            this.unitManager.getUnitType(right.unitTypeId)?.uk_gold ?? 0,
-            this.unitManager.getUnitType(right.unitTypeId)?.uk_shield ?? 0
-          ) -
-          Math.max(
-            this.unitManager.getUnitType(left.unitTypeId)?.uk_gold ?? 0,
-            this.unitManager.getUnitType(left.unitTypeId)?.uk_shield ?? 0
-          )
-      );
+      .filter(
+        unit => (outputs.find(item => item.cityId === unit.homeCityId)?.costs.unitUpkeep ?? 0) > 0
+      )
+      .sort((a, b) => this.unitUpkeepValue(b) - this.unitUpkeepValue(a));
     for (const unit of units) {
       if (projected >= 0) break;
-      const output = cityOutputs.find(item => item.cityId === unit.homeCityId);
+      const output = outputs.find(item => item.cityId === unit.homeCityId);
       if (!output || output.costs.unitUpkeep <= 0) continue;
-      const upkeep = Math.min(
-        output.costs.unitUpkeep,
-        Math.max(
-          1,
-          this.unitManager.getUnitType(unit.unitTypeId)?.uk_gold ?? 0,
-          this.unitManager.getUnitType(unit.unitTypeId)?.uk_shield ?? 0
-        )
-      );
+      const upkeep = Math.min(output.costs.unitUpkeep, Math.max(1, this.unitUpkeepValue(unit)));
       await this.unitManager.removeUnit(unit.id);
       output.costs.unitUpkeep -= upkeep;
       output.costs.total -= upkeep;
       output.netGoldContribution += upkeep;
       projected += upkeep;
     }
+    return projected;
+  }
+
+  private unitUpkeepValue(unit: any): number {
+    const type = this.unitManager.getUnitType(unit.unitTypeId);
+    return Math.max(type?.uk_gold ?? 0, type?.uk_shield ?? 0);
   }
 
   /**

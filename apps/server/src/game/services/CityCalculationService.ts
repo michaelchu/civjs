@@ -159,6 +159,14 @@ export class CityCalculationService extends BaseGameService {
       return this.calculateFallbackCityOutputs(city, playerContext.taxRates);
     }
 
+    return this.calculateDetailedCityOutputs(city, baseTileOutputs, playerContext);
+  }
+
+  private calculateDetailedCityOutputs(
+    city: CityState,
+    baseTileOutputs: { food: number; shields: number; trade: number },
+    playerContext: CityPlayerContext
+  ): CityOutputs {
     const effectContext = this.buildCityEffectContext(city, playerContext);
     const specialistOutputs = this.calculateSpecialistOutputs(city.specialists, effectContext);
     const grossFood = this.applyOutputBonus(
@@ -215,9 +223,10 @@ export class CityCalculationService extends BaseGameService {
 
     const foodConsumption =
       city.population * rulesetLoader.getCivstyle(this.effectsManager.getRulesetName()).food_cost;
+    const unitUpkeep = playerContext.unitUpkeep;
     const totalOutputs: CityOutputs = {
-      food: grossFood - foodConsumption - (playerContext.unitUpkeep?.food ?? 0),
-      shields: Math.max(0, grossShields - (playerContext.unitUpkeep?.shield ?? 0)),
+      food: grossFood - foodConsumption - (unitUpkeep?.food ?? 0),
+      shields: Math.max(0, grossShields - (unitUpkeep?.shield ?? 0)),
       trade: tradeAfterCorruption,
       science,
       gold,
@@ -226,14 +235,18 @@ export class CityCalculationService extends BaseGameService {
     };
 
     // Defensive programming to ensure no undefined values
+    return this.normalizeOutputs(totalOutputs);
+  }
+
+  private normalizeOutputs(outputs: CityOutputs): CityOutputs {
     return {
-      food: totalOutputs.food,
-      shields: totalOutputs.shields || 0,
-      trade: totalOutputs.trade || 0,
-      science: totalOutputs.science || 0,
-      gold: totalOutputs.gold || 0,
-      luxury: totalOutputs.luxury || 0,
-      pollution: totalOutputs.pollution || 0,
+      food: outputs.food,
+      shields: outputs.shields || 0,
+      trade: outputs.trade || 0,
+      science: outputs.science || 0,
+      gold: outputs.gold || 0,
+      luxury: outputs.luxury || 0,
+      pollution: outputs.pollution || 0,
     };
   }
 

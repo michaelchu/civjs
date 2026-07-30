@@ -118,30 +118,7 @@ export class CityGovernorService extends BaseGameService {
     });
 
     try {
-      // Step 1: Prevent starvation if enabled
-      if (city.governor.settings.preventStarvation) {
-        await this.preventCityStarvation(cityId);
-      }
-
-      // Step 2: Maintain happiness if enabled
-      if (city.governor.settings.maintainHappiness) {
-        await this.optimizeCityHappiness(cityId);
-      }
-
-      // Step 3: Optimize specialists based on priority
-      if (city.governor.settings.autoManageSpecialists) {
-        await this.optimizeCitySpecialists(cityId, city.governor.priority);
-      }
-
-      // Step 4: Optimize tile assignments based on priority
-      if (city.governor.settings.autoManageTiles) {
-        await this.optimizeCityTiles(cityId, city.governor.priority);
-      }
-
-      // Step 5: Auto-select production if enabled
-      if (city.governor.settings.autoManageProduction) {
-        await this.selectOptimalProduction(cityId, city.governor.priority);
-      }
+      await this.runGovernorSteps(cityId, city.governor);
 
       logger.debug('Governor automation completed', { cityId, cityName: city.name });
     } catch (error) {
@@ -151,6 +128,16 @@ export class CityGovernorService extends BaseGameService {
         error: error instanceof Error ? error.message : error,
       });
     }
+  }
+
+  private async runGovernorSteps(cityId: string, governor: any): Promise<void> {
+    if (governor.settings.preventStarvation) await this.preventCityStarvation(cityId);
+    if (governor.settings.maintainHappiness) await this.optimizeCityHappiness(cityId);
+    if (governor.settings.autoManageSpecialists)
+      await this.optimizeCitySpecialists(cityId, governor.priority);
+    if (governor.settings.autoManageTiles) await this.optimizeCityTiles(cityId, governor.priority);
+    if (governor.settings.autoManageProduction)
+      await this.selectOptimalProduction(cityId, governor.priority);
   }
 
   /**
@@ -376,48 +363,7 @@ export class CityGovernorService extends BaseGameService {
     // - Strategic value
     // - City needs (growth, defense, etc.)
 
-    let recommendedProduction: string;
-    let productionType: 'unit' | 'building';
-
-    switch (priority) {
-      case GovernorPriority.FOOD:
-        recommendedProduction = 'granary';
-        productionType = 'building';
-        break;
-
-      case GovernorPriority.SHIELDS:
-        recommendedProduction = 'factory';
-        productionType = 'building';
-        break;
-
-      case GovernorPriority.SCIENCE:
-        recommendedProduction = 'library';
-        productionType = 'building';
-        break;
-
-      case GovernorPriority.GOLD:
-      case GovernorPriority.TRADE:
-        recommendedProduction = 'marketplace';
-        productionType = 'building';
-        break;
-
-      case GovernorPriority.LUXURY:
-        recommendedProduction = 'temple';
-        productionType = 'building';
-        break;
-
-      case GovernorPriority.BALANCED:
-      default:
-        // Build basic infrastructure or units as needed
-        if (city.buildings.length < 3) {
-          recommendedProduction = 'granary';
-          productionType = 'building';
-        } else {
-          recommendedProduction = 'warriors';
-          productionType = 'unit';
-        }
-        break;
-    }
+    const { recommendedProduction, productionType } = this.getRecommendedProduction(city, priority);
 
     logger.info('Governor selected production', {
       cityId,
@@ -429,6 +375,26 @@ export class CityGovernorService extends BaseGameService {
 
     // Note: In full implementation, would call setCityProduction
     // For now, just log the decision
+  }
+
+  private getRecommendedProduction(
+    city: CityState,
+    priority: GovernorPriority
+  ): { recommendedProduction: string; productionType: 'unit' | 'building' } {
+    const recommendations: Partial<Record<GovernorPriority, string>> = {
+      [GovernorPriority.FOOD]: 'granary',
+      [GovernorPriority.SHIELDS]: 'factory',
+      [GovernorPriority.SCIENCE]: 'library',
+      [GovernorPriority.GOLD]: 'marketplace',
+      [GovernorPriority.TRADE]: 'marketplace',
+      [GovernorPriority.LUXURY]: 'temple',
+    };
+    const recommendation = recommendations[priority];
+    if (recommendation)
+      return { recommendedProduction: recommendation, productionType: 'building' };
+    return city.buildings.length < 3
+      ? { recommendedProduction: 'granary', productionType: 'building' }
+      : { recommendedProduction: 'warriors', productionType: 'unit' };
   }
 
   /**

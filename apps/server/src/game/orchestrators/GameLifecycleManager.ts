@@ -150,8 +150,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     this.assertScenarioGamesEnabled(gameConfig.terrainSettings);
     const rulesetName = gameConfig.ruleset || DEFAULT_RULESET;
 
-    // Prepare game data for database
-    const gameData = {
+    const gameData = this.buildGameData(gameConfig, rulesetName);
+    /*
+    const legacyGameData = {
       name: gameConfig.name,
       hostId: gameConfig.hostId,
       gameType: gameConfig.gameType || 'multiplayer',
@@ -182,6 +183,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         },
       },
     };
+    */
 
     const [newGame] = await this.databaseProvider
       .getDatabase()
@@ -199,6 +201,37 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
     this.logger.info('Game created successfully', { gameId: newGame.id });
     return newGame.id;
+  }
+
+  private buildGameData(gameConfig: GameConfig, rulesetName: string) {
+    return {
+      name: gameConfig.name,
+      hostId: gameConfig.hostId,
+      gameType: gameConfig.gameType || 'multiplayer',
+      maxPlayers: gameConfig.maxPlayers || 8,
+      mapWidth: gameConfig.mapWidth || 80,
+      mapHeight: gameConfig.mapHeight || 50,
+      mapSeed: gameConfig.mapSeed,
+      ruleset: rulesetName,
+      historyInterestPml: rulesetLoader.getCultureRules(rulesetName).history_interest_pml,
+      turnTimeLimit: gameConfig.turnTimeLimit,
+      maxTurns: gameConfig.maxTurns ?? 0,
+      victoryConditions: gameConfig.victoryConditions?.length
+        ? gameConfig.victoryConditions
+        : ['conquest'],
+      gameState: {
+        aiLevel: gameConfig.aiLevel || 'easy',
+        terrainSettings: gameConfig.terrainSettings || {
+          generator: 'random',
+          landmass: 'normal',
+          huts: 15,
+          temperature: 50,
+          wetness: 50,
+          rivers: 50,
+          resources: 'normal',
+        },
+      },
+    };
   }
 
   /**
@@ -324,26 +357,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         change.removed
       )
     );
-    cityManager.setUnitSupportProvider(city =>
-      [...unitManager.getAllUnits().values()]
-        .filter(unit => unit.homeCityId === city.id)
-        .map(unit => {
-          const unitType = unitManager.getUnitType(unit.unitTypeId);
-          return {
-            unitId: unit.id,
-            unitType: unit.unitTypeId,
-            homeCity: city.id,
-            currentLocation: cityManager.getCityAt(unit.x, unit.y)?.id ?? `${unit.x},${unit.y}`,
-            upkeep: {
-              food: unitType?.uk_food ?? 0,
-              shield: unitType?.uk_shield ?? 0,
-              gold: unitType?.uk_gold ?? 0,
-            },
-            isAwayFromHome: unit.x !== city.x || unit.y !== city.y,
-            isMilitaryUnit: (unitType?.attack ?? 0) > 0,
-          };
-        })
-    );
+    cityManager.setUnitSupportProvider(city => this.getUnitSupport(city, unitManager, cityManager));
     cityManager.setMapChangedCallback((changedGameId, mapData) =>
       this.onBroadcastMapData?.(changedGameId, mapData)
     );
@@ -555,6 +569,41 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       playerCount: players.size,
     });
     return gameInstance;
+  }
+
+  private getUnitSupport(city: any, unitManager: any, cityManager: any): any[] {
+    return [...unitManager.getAllUnits().values()]
+      .filter(unit => unit.homeCityId === city.id)
+      .map(unit => this.formatUnitSupport(city, unit, unitManager, cityManager));
+  }
+
+  private formatUnitSupport(city: any, unit: any, unitManager: any, cityManager: any): any {
+    const unitType = unitManager.getUnitType(unit.unitTypeId);
+    return {
+      unitId: unit.id,
+      unitType: unit.unitTypeId,
+      homeCity: city.id,
+      currentLocation: this.getSupportLocation(cityManager, unit),
+      upkeep: this.getSupportUpkeep(unitType),
+      ...this.getSupportFlags(city, unit, unitType),
+    };
+  }
+
+  private getSupportLocation(cityManager: any, unit: any): string {
+    return cityManager.getCityAt(unit.x, unit.y)?.id ?? `${unit.x},${unit.y}`;
+  }
+  private getSupportUpkeep(unitType: any): any {
+    return {
+      food: unitType?.uk_food ?? 0,
+      shield: unitType?.uk_shield ?? 0,
+      gold: unitType?.uk_gold ?? 0,
+    };
+  }
+  private getSupportFlags(city: any, unit: any, unitType: any): any {
+    return {
+      isAwayFromHome: unit.x !== city.x || unit.y !== city.y,
+      isMilitaryUnit: (unitType?.attack ?? 0) > 0,
+    };
   }
 
   /**
@@ -1043,28 +1092,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   }
 
   private createMapManager(game: any, terrainSettings?: TerrainSettings): MapManager {
-    const mapGenerator = terrainSettings?.generator || 'random';
-    const temperatureParam = terrainSettings?.temperature ?? 50;
-    const startPosMode = (terrainSettings?.startpos ?? MapStartpos.DEFAULT) as MapStartpos;
-    const generationOptions: MapGenerationOptions = {
-      landPercent:
-        terrainSettings?.landmass === 'sparse'
-          ? 30
-          : terrainSettings?.landmass === 'dense'
-            ? 70
-            : 50,
-      steepness: 30,
-      wetness: terrainSettings?.wetness ?? 50,
-      temperature: temperatureParam,
-      riverDensity: terrainSettings?.rivers ?? 50,
-      resourceRichness:
-        terrainSettings?.resources === 'sparse'
-          ? 100
-          : terrainSettings?.resources === 'abundant'
-            ? 500
-            : 250,
-      hutDensity: terrainSettings?.huts ?? 15,
-    };
+    const { mapGenerator, temperatureParam, startPosMode } = this.getMapConfig(terrainSettings);
+    const generationOptions = this.getMapGenerationOptions(terrainSettings, temperatureParam);
     return new MapManager(
       game.mapWidth,
       game.mapHeight,
@@ -1082,6 +1111,45 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       generationOptions,
       game.ruleset ?? DEFAULT_RULESET
     );
+  }
+
+  private getMapConfig(settings?: TerrainSettings): {
+    mapGenerator: string;
+    temperatureParam: number;
+    startPosMode: MapStartpos;
+  } {
+    return {
+      mapGenerator: settings?.generator || 'random',
+      temperatureParam: settings?.temperature ?? 50,
+      startPosMode: (settings?.startpos ?? MapStartpos.DEFAULT) as MapStartpos,
+    };
+  }
+
+  private getMapGenerationOptions(
+    settings: TerrainSettings | undefined,
+    temperature: number
+  ): MapGenerationOptions {
+    return {
+      landPercent: this.getLandPercent(settings?.landmass),
+      steepness: 30,
+      wetness: this.settingValue(settings?.wetness, 50),
+      temperature,
+      riverDensity: this.settingValue(settings?.rivers, 50),
+      resourceRichness: this.getResourceRichness(settings?.resources),
+      hutDensity: this.settingValue(settings?.huts, 15),
+    };
+  }
+
+  private settingValue(value: number | undefined, fallback: number): number {
+    return value ?? fallback;
+  }
+
+  private getLandPercent(value: string | undefined): number {
+    return value === 'sparse' ? 30 : value === 'dense' ? 70 : 50;
+  }
+
+  private getResourceRichness(value: string | undefined): number {
+    return value === 'sparse' ? 100 : value === 'abundant' ? 500 : 250;
   }
 
   private async createTurnManagerAndInitialize(

@@ -223,37 +223,7 @@ export class TurnPhaseService {
       .select()
       .from(turnPhases)
       .where(and(eq(turnPhases.turnId, this.currentTurnId), eq(turnPhases.phase, phase)));
-    if (existing) {
-      if (existing.status === 'completed' && existing.success) {
-        return {
-          id: existing.id,
-          completed: {
-            phase,
-            success: true,
-            duration: existing.duration ?? 0,
-            playersProcessed: existing.playersProcessed,
-            itemsProcessed:
-              existing.actionsProcessed + existing.unitsProcessed + existing.citiesProcessed,
-            errors: [],
-            data:
-              existing.phaseData && typeof existing.phaseData === 'object'
-                ? existing.phaseData
-                : {},
-          },
-        };
-      }
-      await database
-        .update(turnPhases)
-        .set({
-          status: 'running',
-          success: null,
-          errorMessage: null,
-          startedAt: new Date(),
-          completedAt: null,
-        })
-        .where(eq(turnPhases.id, existing.id));
-      return { id: existing.id };
-    }
+    if (existing) return this.resolveExistingPhaseRecord(database, existing, phase);
 
     const phaseRecord: NewTurnPhase = {
       gameId: this.gameId,
@@ -283,6 +253,39 @@ export class TurnPhaseService {
     return this.getOrCreatePhaseRecord(phase, phaseOrder);
   }
 
+  private async resolveExistingPhaseRecord(
+    database: any,
+    existing: any,
+    phase: TurnPhase
+  ): Promise<{ id: string; completed?: PhaseResult }> {
+    if (existing.status === 'completed' && existing.success)
+      return {
+        id: existing.id,
+        completed: {
+          phase,
+          success: true,
+          duration: existing.duration ?? 0,
+          playersProcessed: existing.playersProcessed,
+          itemsProcessed:
+            existing.actionsProcessed + existing.unitsProcessed + existing.citiesProcessed,
+          errors: [],
+          data:
+            existing.phaseData && typeof existing.phaseData === 'object' ? existing.phaseData : {},
+        },
+      };
+    await database
+      .update(turnPhases)
+      .set({
+        status: 'running',
+        success: null,
+        errorMessage: null,
+        startedAt: new Date(),
+        completedAt: null,
+      })
+      .where(eq(turnPhases.id, existing.id));
+    return { id: existing.id };
+  }
+
   /**
    * Update a phase record with execution results
    */
@@ -296,20 +299,24 @@ export class TurnPhaseService {
     await this.databaseProvider
       .getDatabase()
       .update(turnPhases)
-      .set({
-        status: result.success ? 'completed' : 'failed',
-        startedAt: startTime,
-        completedAt: endTime,
-        duration: result.duration,
-        success: result.success,
-        errorMessage: result.errors.join('; ') || null,
-        phaseData: result.data || {},
-        playersProcessed: result.playersProcessed,
-        unitsProcessed: result.data?.unitsProcessed || 0,
-        citiesProcessed: result.data?.citiesProcessed || 0,
-        actionsProcessed: result.data?.actionsProcessed || 0,
-      })
+      .set(this.getPhaseUpdate(result, startTime, endTime))
       .where(eq(turnPhases.id, phaseId));
+  }
+
+  private getPhaseUpdate(result: PhaseResult, startTime: Date, endTime: Date): any {
+    return {
+      status: result.success ? 'completed' : 'failed',
+      startedAt: startTime,
+      completedAt: endTime,
+      duration: result.duration,
+      success: result.success,
+      errorMessage: result.errors.join('; ') || null,
+      phaseData: result.data || {},
+      playersProcessed: result.playersProcessed,
+      unitsProcessed: result.data?.unitsProcessed || 0,
+      citiesProcessed: result.data?.citiesProcessed || 0,
+      actionsProcessed: result.data?.actionsProcessed || 0,
+    };
   }
 
   /**
@@ -490,54 +497,7 @@ export class TurnPhaseService {
         phaseLabel: this.getPhaseLabel(phase),
       });
 
-      switch (phase) {
-        case TurnPhase.PHASE_BEGIN_TURN:
-          await this.executeBeginTurnPhase(context, phaseResult);
-          break;
-
-        case TurnPhase.PHASE_PLAYER_ACTIONS:
-          await this.executePlayerActionsPhase(context, phaseResult);
-          break;
-
-        case TurnPhase.PHASE_UNIT_ACTIVITIES:
-          await this.executeUnitActivitiesPhase(context, phaseResult);
-          break;
-
-        case TurnPhase.PHASE_CITY_PRODUCTION:
-          await this.executeCityProductionPhase(context, phaseResult);
-          break;
-
-        case TurnPhase.PHASE_CULTURE_PROCESSING:
-          await this.executeCultureProcessingPhase(context, phaseResult);
-          break;
-
-        case TurnPhase.PHASE_RESEARCH:
-          await this.executeResearchPhase(context, phaseResult);
-          break;
-
-        case TurnPhase.PHASE_AI_ACTIONS:
-          await this.executeAIActionsPhase(context, phaseResult);
-          break;
-
-        case TurnPhase.PHASE_RANDOM_EVENTS:
-          await this.executeRandomEventsPhase(context, phaseResult);
-          break;
-
-        case TurnPhase.PHASE_BORDER_CALCULATION:
-          await this.executeBorderCalculationPhase(context, phaseResult);
-          break;
-
-        case TurnPhase.PHASE_END_TURN:
-          await this.executeEndTurnPhase(context, phaseResult);
-          break;
-
-        case TurnPhase.PHASE_SAVE_ADVANCE:
-          await this.executeSaveAdvancePhase(context, phaseResult);
-          break;
-
-        default:
-          throw new Error(`Unknown phase: ${phase}`);
-      }
+      await this.executePhaseHandler(phase, context, phaseResult);
 
       phaseResult.success = phaseResult.errors.length === 0;
       phaseResult.duration = Date.now() - phaseStartTime;
@@ -590,6 +550,31 @@ export class TurnPhaseService {
 
     this.currentPhase = null;
     return phaseResult;
+  }
+
+  private async executePhaseHandler(
+    phase: TurnPhase,
+    context: PhaseContext,
+    result: PhaseResult
+  ): Promise<void> {
+    const handlers: Partial<Record<TurnPhase, () => Promise<void>>> = {
+      [TurnPhase.PHASE_BEGIN_TURN]: () => this.executeBeginTurnPhase(context, result),
+      [TurnPhase.PHASE_PLAYER_ACTIONS]: () => this.executePlayerActionsPhase(context, result),
+      [TurnPhase.PHASE_UNIT_ACTIVITIES]: () => this.executeUnitActivitiesPhase(context, result),
+      [TurnPhase.PHASE_CITY_PRODUCTION]: () => this.executeCityProductionPhase(context, result),
+      [TurnPhase.PHASE_CULTURE_PROCESSING]: () =>
+        this.executeCultureProcessingPhase(context, result),
+      [TurnPhase.PHASE_RESEARCH]: () => this.executeResearchPhase(context, result),
+      [TurnPhase.PHASE_AI_ACTIONS]: () => this.executeAIActionsPhase(context, result),
+      [TurnPhase.PHASE_RANDOM_EVENTS]: () => this.executeRandomEventsPhase(context, result),
+      [TurnPhase.PHASE_BORDER_CALCULATION]: () =>
+        this.executeBorderCalculationPhase(context, result),
+      [TurnPhase.PHASE_END_TURN]: () => this.executeEndTurnPhase(context, result),
+      [TurnPhase.PHASE_SAVE_ADVANCE]: () => this.executeSaveAdvancePhase(context, result),
+    };
+    const handler = handlers[phase];
+    if (!handler) throw new Error(`Unknown phase: ${phase}`);
+    await handler();
   }
 
   /**

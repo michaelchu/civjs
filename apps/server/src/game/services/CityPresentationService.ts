@@ -35,50 +35,17 @@ export function resolveCityPresentation(
   rulesetName: string = DEFAULT_RULESET,
   loader: PresentationRuleset = rulesetLoader
 ): CityPresentation {
-  let nationStyle = 'European';
-  if (player?.civilization) {
-    try {
-      nationStyle = loader.getNation(player.civilization, rulesetName).style;
-    } catch {
-      // Recovered legacy games can contain a display name instead of a nation
-      // id. Treat that value as a style only as a compatibility fallback.
-      nationStyle = player.civilization;
-    }
-  }
+  const nationStyle = getNationStyle(player, loader, rulesetName);
 
   const normalizedStyle = normalizeNationStyle(nationStyle);
   const normalizedTechs = new Set([...researchedTechs].map(normalize));
   const styles = Object.values(loader.getRulesetCityStyles(rulesetName));
   const eligible = styles.filter(style =>
-    (style.reqs ?? []).every(requirement => {
-      const type = normalize(requirement.type);
-      const name = normalize(requirement.name);
-      const present = requirement.present !== false;
-      const matches =
-        type === 'style'
-          ? normalizedStyle === normalizeNationStyle(requirement.name)
-          : type === 'tech'
-            ? normalizedTechs.has(name)
-            : false;
-      return present ? matches : !matches;
-    })
+    isCityStyleEligible(style, normalizedStyle, normalizedTechs)
   );
   const selected = eligible.at(-1);
   const buildings = new Set(city.buildings);
-  const overlays: string[] = [];
-
-  if (buildings.has('coastal_defense')) {
-    overlays.push('city.coastal_underlay', 'city.coastal_overlay');
-  }
-  if (buildings.has('sam_battery')) {
-    overlays.push('city.sam_overlay');
-  }
-  if (buildings.has('pyramids')) {
-    overlays.push('city.pyramid_overlay');
-  }
-  if (buildings.has('hanging_gardens')) {
-    overlays.push('city.hgarden_overlay');
-  }
+  const overlays = getCityOverlays(buildings);
 
   return {
     graphic: selected?.graphic ?? 'city.european',
@@ -87,6 +54,45 @@ export function resolveCityPresentation(
     hasWalls: buildings.has('city_walls'),
     overlays,
   };
+}
+
+function getNationStyle(
+  player: Pick<PlayerState, 'civilization'> | undefined,
+  loader: PresentationRuleset,
+  rulesetName: string
+): string {
+  if (!player?.civilization) return 'European';
+  try {
+    return loader.getNation(player.civilization, rulesetName).style;
+  } catch {
+    return player.civilization;
+  }
+}
+
+function isCityStyleEligible(
+  style: any,
+  normalizedStyle: string,
+  normalizedTechs: Set<string>
+): boolean {
+  return (style.reqs ?? []).every((requirement: any) => {
+    const type = normalize(requirement.type);
+    const name = normalize(requirement.name);
+    const matches =
+      type === 'style'
+        ? normalizedStyle === normalizeNationStyle(requirement.name)
+        : type === 'tech' && normalizedTechs.has(name);
+    return requirement.present === false ? !matches : matches;
+  });
+}
+
+function getCityOverlays(buildings: Set<string>): string[] {
+  const overlays: string[] = [];
+  if (buildings.has('coastal_defense'))
+    overlays.push('city.coastal_underlay', 'city.coastal_overlay');
+  if (buildings.has('sam_battery')) overlays.push('city.sam_overlay');
+  if (buildings.has('pyramids')) overlays.push('city.pyramid_overlay');
+  if (buildings.has('hanging_gardens')) overlays.push('city.hgarden_overlay');
+  return overlays;
 }
 
 export function resolveCityPresentations(

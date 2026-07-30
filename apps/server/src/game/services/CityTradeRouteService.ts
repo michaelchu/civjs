@@ -188,44 +188,13 @@ export class CityTradeRouteService extends BaseGameService {
       return false;
     }
 
-    // Cannot trade with same city
-    if (sourceCityId === partnerCityId) {
-      logger.warn('Cannot establish trade route: cannot trade with same city');
+    if (!this.isTradeRoutePairValid(sourceCity, partnerCity, sourceCityId, partnerCityId))
       return false;
-    }
-    const mapDistance = this.getMapDistance(sourceCity, partnerCity);
-    if (sourceCity.playerId === partnerCity.playerId && mapDistance < 9) {
-      logger.warn('Cannot establish domestic trade route below trademindist', {
-        sourceCityId,
-        partnerCityId,
-        mapDistance,
-      });
-      return false;
-    }
-
-    // Check if trade route already exists
-    const existingRoute = sourceCity.tradeRoutes?.find(
-      route => route.partnerCity === partnerCityId
-    );
-    if (existingRoute) {
-      logger.warn('Cannot establish trade route: route already exists', {
-        sourceCityId,
-        partnerCityId,
-      });
-      return false;
-    }
 
     // Calculate trade value
     const calculation = this.calculateTradeRouteValue(sourceCity, partnerCity, relation);
     const settlement = this.calculateTradeSettlement(sourceCity, partnerCity, relation);
-    if (
-      !this.canMakeRoomForRoute(sourceCity, calculation.totalValue) ||
-      !this.canMakeRoomForRoute(partnerCity, calculation.totalValue)
-    ) {
-      return false;
-    }
-    this.makeRoomForRoute(sourceCity);
-    this.makeRoomForRoute(partnerCity);
+    if (!this.prepareTradeRoute(sourceCity, partnerCity, calculation.totalValue)) return false;
 
     // Create trade route
     const tradeRoute: TradeRoute = {
@@ -263,6 +232,46 @@ export class CityTradeRouteService extends BaseGameService {
       distance: Math.floor(tradeRoute.distance ?? 0),
     });
 
+    return true;
+  }
+
+  private prepareTradeRoute(sourceCity: CityState, partnerCity: CityState, value: number): boolean {
+    if (
+      !this.canMakeRoomForRoute(sourceCity, value) ||
+      !this.canMakeRoomForRoute(partnerCity, value)
+    )
+      return false;
+    this.makeRoomForRoute(sourceCity);
+    this.makeRoomForRoute(partnerCity);
+    return true;
+  }
+
+  private isTradeRoutePairValid(
+    sourceCity: CityState,
+    partnerCity: CityState,
+    sourceCityId: string,
+    partnerCityId: string
+  ): boolean {
+    if (sourceCityId === partnerCityId) {
+      logger.warn('Cannot establish trade route: cannot trade with same city');
+      return false;
+    }
+    const mapDistance = this.getMapDistance(sourceCity, partnerCity);
+    if (sourceCity.playerId === partnerCity.playerId && mapDistance < 9) {
+      logger.warn('Cannot establish domestic trade route below trademindist', {
+        sourceCityId,
+        partnerCityId,
+        mapDistance,
+      });
+      return false;
+    }
+    if (sourceCity.tradeRoutes?.some(route => route.partnerCity === partnerCityId)) {
+      logger.warn('Cannot establish trade route: route already exists', {
+        sourceCityId,
+        partnerCityId,
+      });
+      return false;
+    }
     return true;
   }
 

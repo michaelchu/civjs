@@ -122,22 +122,21 @@ export class RulesetUnitsService {
     return {
       id: unit.id,
       name: unit.name,
-      cost: unit.cost || unit.build_cost || 10,
-      movement: unit.movement || 1,
-      combat: unit.attack || unit.combat || 0, // Use attack as primary combat value
+      cost: this.firstValue(unit.cost, unit.build_cost, 10),
+      movement: this.firstValue(unit.movement, 1),
+      combat: this.firstValue(unit.attack, unit.combat, 0), // Use attack as primary combat value
       attack: unit.attack,
       defense: unit.defense,
-      range: unit.range || 1, // Melee units need range 1 for adjacent combat
-      sight: unit.vision_radius_sq || unit.sight || 2,
+      range: this.firstValue(unit.range, 1), // Melee units need range 1 for adjacent combat
+      sight: this.firstValue(unit.vision_radius_sq, unit.sight, 2),
       vision_radius_sq: unit.vision_radius_sq,
       visionLayer: unit.vision_layer,
-      canFoundCity: unit.canFoundCity || unit.roles?.includes('CitiesStartUnit') || false,
-      canBuildImprovements:
-        unit.canBuildImprovements || unit.flags?.includes('Workers' as any) || false,
+      canFoundCity: this.hasFoundCityRole(unit),
+      canBuildImprovements: this.hasWorkerRole(unit),
       unitClass: this.mapUnitClass(unit.unit_class, unit.unitClass as any, unit.flags),
       rulesetUnitClass: unit.unit_class,
       rulesetUnitClassFlags: [...unitClassFlags],
-      requiredTech: unit.required_tech || unit.requiredTech,
+      requiredTech: this.firstValue(unit.required_tech, unit.requiredTech),
       transport_capacity: unit.transport_cap,
       cargoClasses: [...unit.cargo],
       targetClasses: [...unit.targets],
@@ -158,6 +157,18 @@ export class RulesetUnitsService {
       pop_cost: unit.pop_cost,
       veteran_levels: unit.veteran_levels,
     };
+  }
+
+  private firstValue<T>(...values: Array<T | undefined | null>): T {
+    return values.find(value => value !== undefined && value !== null && value !== 0) as T;
+  }
+
+  private hasFoundCityRole(unit: UnitTypeRuleset): boolean {
+    return Boolean(unit.canFoundCity || unit.roles?.includes('CitiesStartUnit'));
+  }
+
+  private hasWorkerRole(unit: UnitTypeRuleset): boolean {
+    return Boolean(unit.canBuildImprovements || unit.flags?.includes('Workers' as any));
   }
 
   private mapMovementType(unitClass: UnitClass): UnitMovementType | undefined {
@@ -184,32 +195,18 @@ export class RulesetUnitsService {
     backwardClass?: 'military' | 'civilian' | 'naval' | 'air',
     flags?: string[]
   ): 'military' | 'civilian' | 'naval' | 'air' {
-    // Use backward compatibility field first
-    if (backwardClass) {
-      return backwardClass;
-    }
-
-    // Check flags for civilian units (NonMil = Non-Military)
-    if (flags && flags.includes('NonMil')) {
-      return 'civilian';
-    }
-
-    // Map freeciv classes
-    switch (freecivClass) {
-      case 'Land':
-      case 'Big Land':
-      case 'Small Land':
-        return 'military';
-      case 'Sea':
-      case 'Trireme':
-        return 'naval';
-      case 'Air':
-      case 'Helicopter':
-        return 'air';
-      default:
-        // For units with flags indicating civilian roles
-        return 'civilian';
-    }
+    if (backwardClass) return backwardClass;
+    if (flags?.includes('NonMil')) return 'civilian';
+    const mapped: Record<string, 'military' | 'naval' | 'air' | 'civilian'> = {
+      Land: 'military',
+      'Big Land': 'military',
+      'Small Land': 'military',
+      Sea: 'naval',
+      Trireme: 'naval',
+      Air: 'air',
+      Helicopter: 'air',
+    };
+    return mapped[freecivClass] ?? 'civilian';
   }
 
   /**

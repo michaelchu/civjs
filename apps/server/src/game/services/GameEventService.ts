@@ -182,6 +182,8 @@ export class GameEventService {
     }
 
     try {
+      const eventRecord = this.buildEventRecord(event);
+      /*
       const eventRecord: NewTurnEvent = {
         gameId: this.gameId,
         turnId: this.currentTurnId,
@@ -207,6 +209,7 @@ export class GameEventService {
         relatedCityId: event.data.cityId || null,
         relatedPlayerId: event.data.targetPlayerId || null,
       };
+      */
 
       await this.databaseProvider.getDatabase().insert(turnEvents).values(eventRecord);
     } catch (error) {
@@ -218,6 +221,34 @@ export class GameEventService {
         error: error instanceof Error ? error.message : error,
       });
     }
+  }
+
+  private buildEventRecord(event: GameEvent): NewTurnEvent {
+    return {
+      gameId: this.gameId,
+      turnId: this.currentTurnId!,
+      playerId: event.data.playerId ?? null,
+      eventType: event.type,
+      eventCategory: this.getEventCategory(event.type),
+      occurredAt: new Date(event.createdAt),
+      title: this.getEventTitle(event),
+      description: this.getEventDescription(event),
+      eventData: event.data,
+      priority: event.priority,
+      isVisible: this.shouldEventBeVisible(event.type),
+      isAchievement: event.type === GameEventType.ACHIEVEMENT_UNLOCKED,
+      status: event.handled ? 'completed' : 'pending',
+      attempts: event.retryCount + 1,
+      lastError: null,
+      achievementId:
+        event.type === GameEventType.ACHIEVEMENT_UNLOCKED ? event.data.achievementId : null,
+      achievementUnlocked: event.type === GameEventType.ACHIEVEMENT_UNLOCKED,
+      locationX: event.data.x ?? null,
+      locationY: event.data.y ?? null,
+      relatedUnitId: event.data.unitId ?? null,
+      relatedCityId: event.data.cityId ?? null,
+      relatedPlayerId: event.data.targetPlayerId ?? null,
+    };
   }
 
   /**
@@ -531,62 +562,59 @@ export class GameEventService {
 
     // Check all achievements that trigger on this event type
     for (const achievement of this.achievements.values()) {
-      if (!achievement.enabled || !achievement.trigger.includes(event.type)) {
-        continue;
-      }
-
-      // Skip if player already has this achievement and it's one-time
-      if (achievement.oneTime && playerAchievements.has(achievement.id)) {
-        continue;
-      }
-
-      try {
-        // Get player stats (simplified for now)
-        const playerStats = this.getPlayerStats(playerId);
-
-        // Check achievement condition
-        if (achievement.condition(event, playerStats)) {
-          // Unlock achievement
-          playerAchievements.add(achievement.id);
-          achievementsUnlocked++;
-
-          // Emit achievement unlock event
-          this.emitEvent(GameEventType.ACHIEVEMENT_UNLOCKED, {
-            playerId,
-            achievementId: achievement.id,
-            achievementName: achievement.name,
-            triggerEvent: event.id,
-          });
-
-          // Broadcast to player
-          this.broadcastManager.broadcastToPlayer(playerId, 'achievement_unlocked', {
-            achievement: {
-              id: achievement.id,
-              name: achievement.name,
-              description: achievement.description,
-              category: achievement.category,
-            },
-          });
-
-          logger.info('Achievement unlocked', {
-            gameId: this.gameId,
-            playerId,
-            achievementId: achievement.id,
-            achievementName: achievement.name,
-            triggerEvent: event.id,
-          });
-        }
-      } catch (error) {
-        logger.error('Error checking achievement', {
-          gameId: this.gameId,
-          achievementId: achievement.id,
-          playerId,
-          error: error instanceof Error ? error.message : error,
-        });
-      }
+      if (await this.processAchievement(event, playerId, playerAchievements, achievement))
+        achievementsUnlocked++;
     }
 
     return achievementsUnlocked;
+  }
+
+  private async processAchievement(
+    event: GameEvent,
+    playerId: string,
+    unlocked: Set<string>,
+    achievement: Achievement
+  ): Promise<boolean> {
+    if (
+      !achievement.enabled ||
+      !achievement.trigger.includes(event.type) ||
+      (achievement.oneTime && unlocked.has(achievement.id))
+    )
+      return false;
+    try {
+      if (!achievement.condition(event, this.getPlayerStats(playerId))) return false;
+      unlocked.add(achievement.id);
+      await this.emitEvent(GameEventType.ACHIEVEMENT_UNLOCKED, {
+        playerId,
+        achievementId: achievement.id,
+        achievementName: achievement.name,
+        triggerEvent: event.id,
+      });
+      this.broadcastManager.broadcastToPlayer(playerId, 'achievement_unlocked', {
+        achievement: {
+          id: achievement.id,
+          name: achievement.name,
+          description: achievement.description,
+          category: achievement.category,
+        },
+      });
+      logger.info('Achievement unlocked', {
+        gameId: this.gameId,
+        playerId,
+        achievementId: achievement.id,
+        achievementName: achievement.name,
+        triggerEvent: event.id,
+      });
+      return true;
+    } catch (error) {
+      logger.error('Error checking achievement', {
+        gameId: this.gameId,
+        achievementId: achievement.id,
+        playerId,
+        error: error instanceof Error ? error.message : error,
+      });
+      return false;
+    }
   }
 
   /**

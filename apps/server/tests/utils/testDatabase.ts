@@ -159,6 +159,37 @@ async function handleFinalUserCreationError(
   );
 }
 
+function logUserCreationFailure(
+  error: unknown,
+  attempt: number,
+  maxRetries: number,
+  userId: string,
+  username: string,
+  email: string
+): void {
+  const errorDetails =
+    error instanceof Error
+      ? { message: error.message, stack: error.stack }
+      : { message: String(error), stack: undefined };
+  const databaseError = error as any;
+  logger.error(`Failed to create test user (attempt ${attempt}/${maxRetries}):`, {
+    userId,
+    username,
+    email,
+    error: errorDetails.message,
+    stack: errorDetails.stack,
+    code: databaseError?.code,
+    detail: databaseError?.detail,
+    constraint: databaseError?.constraint,
+    name: databaseError?.name,
+    severity: databaseError?.severity,
+    file: databaseError?.file,
+    line: databaseError?.line,
+    routine: databaseError?.routine,
+    original: error,
+  });
+}
+
 // Helper function to try creating a user once
 async function tryCreateUser(userId: string, attempt: number, maxRetries: number) {
   // Use crypto-based UUID for username - cryptographically secure and collision-proof
@@ -170,28 +201,10 @@ async function tryCreateUser(userId: string, attempt: number, maxRetries: number
 
   try {
     const user = await createUserWithRawSQL(userId, username, email);
-    if (user) {
-      logger.debug(`Successfully created test user on attempt ${attempt}`);
-      return user;
-    }
-    return undefined;
+    if (user) logger.debug(`Successfully created test user on attempt ${attempt}`);
+    return user;
   } catch (error) {
-    logger.error(`Failed to create test user (attempt ${attempt}/${maxRetries}):`, {
-      userId,
-      username,
-      email,
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      code: (error as any)?.code,
-      detail: (error as any)?.detail,
-      constraint: (error as any)?.constraint,
-      name: (error as any)?.name,
-      severity: (error as any)?.severity,
-      file: (error as any)?.file,
-      line: (error as any)?.line,
-      routine: (error as any)?.routine,
-      original: error,
-    });
+    logUserCreationFailure(error, attempt, maxRetries, userId, username, email);
 
     // On final attempt, try to find existing user or provide detailed error
     if (attempt === maxRetries) {

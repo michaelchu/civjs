@@ -165,28 +165,7 @@ export class GameManagementHandler extends BaseSocketHandler {
     });
 
     socket.on('host:setPlayerAIControl', async (data, callback) => {
-      const connection = this.getConnection(socket, this.activeConnections);
-      try {
-        if (!connection?.gameId || !connection.userId || this.isSpectator(connection)) {
-          throw new Error('Not an active player');
-        }
-        if (typeof data?.playerId !== 'string' || typeof data?.isAI !== 'boolean') {
-          throw new Error('Invalid player control request');
-        }
-        await this.gameManager.setPlayerAIControl(
-          connection.gameId,
-          connection.userId,
-          data.playerId,
-          data.isAI,
-          {
-            aiLevel: data.aiLevel,
-            controllerUserId: data.controllerUserId,
-          }
-        );
-        callback({ success: true, playerId: data.playerId, isAI: data.isAI });
-      } catch (error) {
-        callback({ success: false, error: error instanceof Error ? error.message : 'Failed' });
-      }
+      await this.handleSetPlayerAIControl(socket, data, callback);
     });
 
     socket.on('advisor:getRecommendations', async (_data, callback) => {
@@ -204,6 +183,34 @@ export class GameManagementHandler extends BaseSocketHandler {
         callback({ success: false, error: error instanceof Error ? error.message : 'Failed' });
       }
     });
+  }
+
+  private async handleSetPlayerAIControl(
+    socket: Socket,
+    data: any,
+    callback: (response: any) => void
+  ): Promise<void> {
+    const connection = this.getConnection(socket, this.activeConnections);
+    try {
+      this.assertAIControlRequest(connection, data);
+      await this.gameManager.setPlayerAIControl(
+        connection.gameId,
+        connection.userId,
+        data.playerId,
+        data.isAI,
+        { aiLevel: data.aiLevel, controllerUserId: data.controllerUserId }
+      );
+      callback({ success: true, playerId: data.playerId, isAI: data.isAI });
+    } catch (error) {
+      callback({ success: false, error: error instanceof Error ? error.message : 'Failed' });
+    }
+  }
+
+  private assertAIControlRequest(connection: any, data: any): void {
+    if (!connection?.gameId || !connection.userId || this.isSpectator(connection))
+      throw new Error('Not an active player');
+    if (typeof data?.playerId !== 'string' || typeof data?.isAI !== 'boolean')
+      throw new Error('Invalid player control request');
   }
 
   /**
@@ -527,50 +534,12 @@ export class GameManagementHandler extends BaseSocketHandler {
       throw new Error('Recovered game has no map data');
     }
 
-    // @reference reference/freeciv/server/maphand.c:442-613
-    // Rejoining players receive only their explored map, with current vision
-    // represented by the Freeciv-compatible known/seen packet flags.
-    if (playerId) {
-      gameInstance.visibilityManager.updatePlayerVisibility(playerId);
-    }
-    const visibleTiles = playerId
-      ? gameInstance.visibilityManager.getVisibleTiles(playerId)
-      : new Set<string>();
-    const exploredTiles = playerId
-      ? gameInstance.visibilityManager.getExploredTiles(playerId)
-      : new Set<string>();
-    const rememberedTiles = playerId
-      ? (gameInstance.visibilityManager.getRememberedTiles?.(playerId) ??
-        new Map(
-          [...exploredTiles].flatMap(key => {
-            const [x, y] = key.split(',').map(Number);
-            const tile = mapData.tiles[x]?.[y];
-            return tile ? [[key, tile] as const] : [];
-          })
-        ))
-      : new Map<string, any>();
-
-    for (const player of gameInstance.players?.values?.() ?? []) {
-      if (!player.color) continue;
-      socket.emit('packet', {
-        version: PROTOCOL_VERSION,
-        type: PacketType.PLAYER_INFO,
-        data: {
-          id: player.id,
-          name: player.leaderName ?? player.civilization,
-          nation: player.nation ?? player.civilization,
-          score: 0,
-          gold: player.gold ?? 0,
-          science: player.science ?? 0,
-          culture: player.history ?? 0,
-          government: player.government ?? 'despotism',
-          alive: player.isAlive ?? true,
-          isAI: player.isAI ?? false,
-          color: player.color,
-        },
-        timestamp: Date.now(),
-      });
-    }
+    const { visibleTiles, exploredTiles, rememberedTiles } = this.getSnapshotVisibility(
+      gameInstance,
+      playerId,
+      mapData
+    );
+    this.emitSnapshotPlayers(gameInstance, socket);
 
     socket.emit('packet', {
       version: PROTOCOL_VERSION,
@@ -584,62 +553,17 @@ export class GameManagementHandler extends BaseSocketHandler {
       timestamp: Date.now(),
     });
 
-    const tiles = [];
-    for (let y = 0; y < mapData.height; y++) {
-      for (let x = 0; x < mapData.width; x++) {
-        const tile = mapData.tiles[x]?.[y];
-        if (!tile) continue;
-        const tileKey = `${x},${y}`;
-        const isVisible = !playerId || visibleTiles.has(tileKey);
-        const isExplored = !playerId || exploredTiles.has(tileKey);
-        const knownTile = isVisible ? tile : rememberedTiles.get(tileKey);
-        tiles.push({
-          tile: x + y * mapData.width,
-          x,
-          y,
-          terrain: isExplored ? (knownTile?.terrain ?? 'unknown') : 'unknown',
-          resource: isExplored ? knownTile?.resource : undefined,
-          elevation: isExplored ? knownTile?.elevation || 0 : 0,
-          riverMask: isExplored ? knownTile?.riverMask || 0 : 0,
-          hasRoad: isExplored ? knownTile?.hasRoad : false,
-          hasRailroad: isExplored ? knownTile?.hasRailroad : false,
-          improvements: isExplored ? (knownTile?.improvements ?? []) : [],
-          cityId: isExplored ? knownTile?.cityId : undefined,
-          owner: isExplored ? knownTile?.owner : undefined,
-          claimer: isExplored ? knownTile?.claimer : undefined,
-          // Freeciv known_type: 0 unknown, 1 known/fogged, 2 known/seen.
-          known: isVisible ? 2 : isExplored ? 1 : 0,
-          seen: isVisible ? 1 : 0,
-          player: isExplored ? (knownTile?.owner ?? null) : null,
-          worked: null,
-          extras: 0,
-        });
-      }
-    }
+    const tiles = this.buildSnapshotTiles(
+      mapData,
+      playerId,
+      visibleTiles,
+      exploredTiles,
+      rememberedTiles
+    );
 
-    const batchSize = 100;
-    for (let startIndex = 0; startIndex < tiles.length; startIndex += batchSize) {
-      const batch = tiles.slice(startIndex, startIndex + batchSize);
-      socket.emit('packet', {
-        version: PROTOCOL_VERSION,
-        type: PacketType.TILE_INFO,
-        data: {
-          tiles: batch,
-          startIndex,
-          endIndex: startIndex + batch.length,
-          total: tiles.length,
-        },
-        timestamp: Date.now(),
-      });
-    }
+    this.emitSnapshotTileBatches(socket, tiles);
 
-    const sourceUnits = playerId
-      ? gameInstance.unitManager.getVisibleUnits(
-          playerId,
-          visibleTiles,
-          gameInstance.visibilityManager.getDetectionTiles?.(playerId)
-        )
-      : Array.from(gameInstance.unitManager.getAllUnits().values());
+    const sourceUnits = this.getSnapshotUnits(gameInstance, playerId, visibleTiles);
     const units = sourceUnits.map((unit: any) => ({
       id: unit.id,
       owner: unit.playerId,
@@ -659,10 +583,7 @@ export class GameManagementHandler extends BaseSocketHandler {
 
     const cities = gameInstance.cityManager
       .getAllCities()
-      .filter(
-        (city: any) =>
-          !playerId || city.playerId === playerId || exploredTiles.has(`${city.x},${city.y}`)
-      );
+      .filter((city: any) => this.isSnapshotCityVisible(city, playerId, exploredTiles));
     const cityPresentations = resolveCityPresentations(
       cities,
       gameInstance.players,
@@ -692,11 +613,8 @@ export class GameManagementHandler extends BaseSocketHandler {
         // discovered foreign borders remain on the fogged map after reload.
         tiles: gameInstance.borderManager
           .getAllTileOwnership()
-          .filter(
-            (ownership: any) =>
-              !playerId ||
-              ownership.playerId === playerId ||
-              exploredTiles.has(`${ownership.x},${ownership.y}`)
+          .filter((ownership: any) =>
+            this.isSnapshotBorderVisible(ownership, playerId, exploredTiles)
           )
           .map((ownership: any) => ({
             x: ownership.x,
@@ -718,5 +636,179 @@ export class GameManagementHandler extends BaseSocketHandler {
       cities: cities.length,
       totalCities: gameInstance.cityManager.getAllCities().length,
     });
+  }
+
+  private getSnapshotVisibility(
+    gameInstance: any,
+    playerId: string | undefined,
+    mapData: any
+  ): any {
+    if (!playerId)
+      return {
+        visibleTiles: new Set<string>(),
+        exploredTiles: new Set<string>(),
+        rememberedTiles: new Map<string, any>(),
+      };
+    gameInstance.visibilityManager.updatePlayerVisibility(playerId);
+    const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
+    const exploredTiles = gameInstance.visibilityManager.getExploredTiles(playerId);
+    const rememberedTiles =
+      gameInstance.visibilityManager.getRememberedTiles?.(playerId) ??
+      this.rememberExploredTiles(exploredTiles, mapData);
+    return { visibleTiles, exploredTiles, rememberedTiles };
+  }
+
+  private rememberExploredTiles(exploredTiles: Set<string>, mapData: any): Map<string, any> {
+    return new Map(
+      [...exploredTiles].flatMap(key => {
+        const [x, y] = key.split(',').map(Number);
+        const tile = mapData.tiles[x]?.[y];
+        return tile ? [[key, tile] as const] : [];
+      })
+    );
+  }
+
+  private emitSnapshotPlayers(gameInstance: any, socket: Socket): void {
+    for (const player of gameInstance.players?.values?.() ?? []) {
+      if (!player.color) continue;
+      socket.emit('packet', {
+        version: PROTOCOL_VERSION,
+        type: PacketType.PLAYER_INFO,
+        data: this.formatSnapshotPlayer(player),
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  private formatSnapshotPlayer(player: any): any {
+    const value = (field: string, fallback: any) => player[field] ?? fallback;
+    return {
+      id: player.id,
+      name: value('leaderName', player.civilization),
+      nation: value('nation', player.civilization),
+      score: 0,
+      gold: value('gold', 0),
+      science: value('science', 0),
+      culture: value('history', 0),
+      government: value('government', 'despotism'),
+      alive: value('isAlive', true),
+      isAI: value('isAI', false),
+      color: player.color,
+    };
+  }
+
+  private buildSnapshotTiles(
+    mapData: any,
+    playerId: string | undefined,
+    visible: Set<string>,
+    explored: Set<string>,
+    remembered: Map<string, any>
+  ): any[] {
+    const tiles: any[] = [];
+    for (let y = 0; y < mapData.height; y++)
+      for (let x = 0; x < mapData.width; x++) {
+        const tile = mapData.tiles[x]?.[y];
+        if (tile)
+          tiles.push(
+            this.buildSnapshotTile(
+              tile,
+              mapData.width,
+              x,
+              y,
+              playerId,
+              visible,
+              explored,
+              remembered
+            )
+          );
+      }
+    return tiles;
+  }
+
+  private buildSnapshotTile(
+    tile: any,
+    width: number,
+    x: number,
+    y: number,
+    playerId: string | undefined,
+    visible: Set<string>,
+    explored: Set<string>,
+    remembered: Map<string, any>
+  ): any {
+    const key = `${x},${y}`;
+    const isVisible = !playerId || visible.has(key);
+    const isExplored = !playerId || explored.has(key);
+    const known = isVisible ? tile : remembered.get(key);
+    const value = (field: string, fallback: any = undefined) =>
+      isExplored ? (known?.[field] ?? fallback) : fallback;
+    return {
+      tile: x + y * width,
+      x,
+      y,
+      terrain: value('terrain', 'unknown'),
+      resource: value('resource'),
+      elevation: value('elevation', 0),
+      riverMask: value('riverMask', 0),
+      hasRoad: value('hasRoad', false),
+      hasRailroad: value('hasRailroad', false),
+      improvements: value('improvements', []),
+      cityId: value('cityId'),
+      owner: value('owner'),
+      claimer: value('claimer'),
+      known: isVisible ? 2 : isExplored ? 1 : 0,
+      seen: isVisible ? 1 : 0,
+      player: value('owner', null),
+      worked: null,
+      extras: 0,
+    };
+  }
+
+  private emitSnapshotTileBatches(socket: Socket, tiles: any[]): void {
+    for (let start = 0; start < tiles.length; start += 100) {
+      const batch = tiles.slice(start, start + 100);
+      socket.emit('packet', {
+        version: PROTOCOL_VERSION,
+        type: PacketType.TILE_INFO,
+        data: {
+          tiles: batch,
+          startIndex: start,
+          endIndex: start + batch.length,
+          total: tiles.length,
+        },
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  private getSnapshotUnits(
+    gameInstance: any,
+    playerId: string | undefined,
+    visibleTiles: Set<string>
+  ): any[] {
+    return playerId
+      ? gameInstance.unitManager.getVisibleUnits(
+          playerId,
+          visibleTiles,
+          gameInstance.visibilityManager.getDetectionTiles?.(playerId)
+        )
+      : Array.from(gameInstance.unitManager.getAllUnits().values());
+  }
+
+  private isSnapshotCityVisible(
+    city: any,
+    playerId: string | undefined,
+    explored: Set<string>
+  ): boolean {
+    return !playerId || city.playerId === playerId || explored.has(`${city.x},${city.y}`);
+  }
+
+  private isSnapshotBorderVisible(
+    ownership: any,
+    playerId: string | undefined,
+    explored: Set<string>
+  ): boolean {
+    return (
+      !playerId || ownership.playerId === playerId || explored.has(`${ownership.x},${ownership.y}`)
+    );
   }
 }

@@ -15,21 +15,31 @@ export function calculateDiplomatBribeCost(
   ownerGold: number
 ): number {
   const rulesetName = game.config?.ruleset ?? 'civ2civ3';
-  const targetType =
-    game.unitManager.getUnitType?.(target.unitTypeId) ??
-    rulesetUnitsService.getUnitType(target.unitTypeId, rulesetName);
-  const capital = game.cityManager
-    .getPlayerCities(target.playerId)
-    .find(city => city.buildings.includes('palace'));
-  const distance = capital
-    ? game.mapManager.getDistance(capital.x, capital.y, target.x, target.y)
-    : 32;
+  const targetType = getTargetType(game, target, rulesetName);
+  const distance = getCapitalDistance(game, target);
   const { base_bribe_cost: baseBribeCost } =
     rulesetLoader.loadGameRulesRuleset(rulesetName).game_parameters;
   let cost = (baseBribeCost + ownerGold) / (distance + 2);
-  cost *= (targetType?.cost ?? 10) / 10;
+  cost *= valueOr(targetType?.cost, 10) / 10;
   cost *= 0.5 * (1 + target.health / 100);
-  const premium = new EffectsManager(rulesetName).calculateEffect(EffectType.UNIT_BRIBE_COST_PCT, {
+  const premium = getBribePremium(target, targetType, rulesetName);
+  cost *= (100 + premium) / 100;
+  return Math.max(1, Math.floor(cost));
+}
+
+function getTargetType(game: GameInstance, target: Unit, rulesetName: string): any {
+  return (
+    game.unitManager.getUnitType?.(target.unitTypeId) ??
+    rulesetUnitsService.getUnitType(target.unitTypeId, rulesetName)
+  );
+}
+
+function valueOr(value: any, fallback: number): number {
+  return value === undefined || value === null ? fallback : value;
+}
+
+function getBribePremium(target: Unit, targetType: any, rulesetName: string): number {
+  return new EffectsManager(rulesetName).calculateEffect(EffectType.UNIT_BRIBE_COST_PCT, {
     playerId: target.playerId,
     unitId: target.id,
     unitType: target.unitTypeId,
@@ -37,8 +47,13 @@ export function calculateDiplomatBribeCost(
     unitClassFlags: new Set(targetType?.rulesetUnitClassFlags ?? []),
     unitTypeFlags: new Set(targetType?.flags ?? []),
   }).value;
-  cost *= (100 + premium) / 100;
-  return Math.max(1, Math.floor(cost));
+}
+
+function getCapitalDistance(game: GameInstance, target: Unit): number {
+  const capital = game.cityManager
+    .getPlayerCities(target.playerId)
+    .find(city => city.buildings.includes('palace'));
+  return capital ? game.mapManager.getDistance(capital.x, capital.y, target.x, target.y) : 32;
 }
 
 /**

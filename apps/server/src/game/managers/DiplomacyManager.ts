@@ -233,61 +233,17 @@ export class DiplomacyManager {
           );
           let event: DiplomacyEvent | undefined;
           await this.persistPair(currentFirst, currentSecond, (firstRelation, secondRelation) => {
-            if (this.areTeammates(currentFirst, currentSecond)) {
-              return [
-                this.normalizeRelation(firstRelation, true),
-                this.normalizeRelation(secondRelation, true),
-              ];
-            }
-            const nextFirst = {
-              ...firstRelation,
-              contactTurnsLeft: Math.max(0, firstRelation.contactTurnsLeft - 1),
-              hasReasonToCancel: Math.max(0, firstRelation.hasReasonToCancel - 1),
-            };
-            const nextSecond = {
-              ...secondRelation,
-              contactTurnsLeft: Math.max(0, secondRelation.contactTurnsLeft - 1),
-              hasReasonToCancel: Math.max(0, secondRelation.hasReasonToCancel - 1),
-            };
-            if (firstRelation.state !== 'ceasefire' && firstRelation.state !== 'armistice') {
-              return [nextFirst, nextSecond];
-            }
-            const turnsLeft = Math.max(0, firstRelation.turnsLeft - 1);
-            const state: DiplomaticState =
-              turnsLeft === 0
-                ? firstRelation.state === 'ceasefire'
-                  ? 'war'
-                  : 'peace'
-                : firstRelation.state;
-            if (turnsLeft === 0) {
-              event = {
-                type:
-                  firstRelation.state === 'ceasefire' ? 'ceasefire_expired' : 'armistice_completed',
-                gameId,
-                playerIds: [first.id, second.id],
-                message:
-                  firstRelation.state === 'ceasefire'
-                    ? `The ceasefire between ${first.leaderName} and ${second.leaderName} expired.`
-                    : `The armistice between ${first.leaderName} and ${second.leaderName} became peace.`,
-              };
-            }
-            return [
-              {
-                ...nextFirst,
-                state,
-                sinceTurn: turnsLeft === 0 ? this.currentTurnProvider(gameId) : nextFirst.sinceTurn,
-                turnsLeft,
-                sharedVision: state === 'war' ? false : nextFirst.sharedVision,
-              },
-              {
-                ...nextSecond,
-                state,
-                sinceTurn:
-                  turnsLeft === 0 ? this.currentTurnProvider(gameId) : nextSecond.sinceTurn,
-                turnsLeft,
-                sharedVision: state === 'war' ? false : nextSecond.sharedVision,
-              },
-            ];
+            const update = this.advancePairRelations(
+              gameId,
+              first,
+              second,
+              currentFirst,
+              currentSecond,
+              firstRelation,
+              secondRelation
+            );
+            event = update.event;
+            return update.relations;
           });
           if (event) {
             events.push(event);
@@ -297,6 +253,79 @@ export class DiplomacyManager {
       }
     }
     return events;
+  }
+
+  private advancePairRelations(
+    gameId: string,
+    first: DiplomacyPlayerRow,
+    second: DiplomacyPlayerRow,
+    currentFirst: DiplomacyPlayerRow,
+    currentSecond: DiplomacyPlayerRow,
+    firstRelation: DiplomaticRelation,
+    secondRelation: DiplomaticRelation
+  ): { relations: [DiplomaticRelation, DiplomaticRelation]; event?: DiplomacyEvent } {
+    if (this.areTeammates(currentFirst, currentSecond))
+      return {
+        relations: [
+          this.normalizeRelation(firstRelation, true),
+          this.normalizeRelation(secondRelation, true),
+        ],
+      };
+    const next = this.decrementPairRelations(firstRelation, secondRelation);
+    if (!['ceasefire', 'armistice'].includes(firstRelation.state)) return { relations: next };
+    return this.advanceTimedRelation(gameId, first, second, firstRelation, next);
+  }
+
+  private decrementPairRelations(
+    first: DiplomaticRelation,
+    second: DiplomaticRelation
+  ): [DiplomaticRelation, DiplomaticRelation] {
+    return [
+      {
+        ...first,
+        contactTurnsLeft: Math.max(0, first.contactTurnsLeft - 1),
+        hasReasonToCancel: Math.max(0, first.hasReasonToCancel - 1),
+      },
+      {
+        ...second,
+        contactTurnsLeft: Math.max(0, second.contactTurnsLeft - 1),
+        hasReasonToCancel: Math.max(0, second.hasReasonToCancel - 1),
+      },
+    ];
+  }
+
+  private advanceTimedRelation(
+    gameId: string,
+    first: DiplomacyPlayerRow,
+    second: DiplomacyPlayerRow,
+    relation: DiplomaticRelation,
+    next: [DiplomaticRelation, DiplomaticRelation]
+  ): { relations: [DiplomaticRelation, DiplomaticRelation]; event?: DiplomacyEvent } {
+    const turnsLeft = Math.max(0, relation.turnsLeft - 1);
+    const state: DiplomaticState =
+      turnsLeft === 0 ? (relation.state === 'ceasefire' ? 'war' : 'peace') : relation.state;
+    const event =
+      turnsLeft === 0
+        ? ({
+            type: relation.state === 'ceasefire' ? 'ceasefire_expired' : 'armistice_completed',
+            gameId,
+            playerIds: [first.id, second.id],
+            message:
+              relation.state === 'ceasefire'
+                ? `The ceasefire between ${first.leaderName} and ${second.leaderName} expired.`
+                : `The armistice between ${first.leaderName} and ${second.leaderName} became peace.`,
+          } as DiplomacyEvent)
+        : undefined;
+    return {
+      event,
+      relations: next.map(item => ({
+        ...item,
+        state,
+        sinceTurn: turnsLeft === 0 ? this.currentTurnProvider(gameId) : item.sinceTurn,
+        turnsLeft,
+        sharedVision: state === 'war' ? false : item.sharedVision,
+      })) as [DiplomaticRelation, DiplomaticRelation],
+    };
   }
 
   async establishContact(gameId: string, playerId: string, otherPlayerId: string): Promise<void> {
@@ -365,31 +394,24 @@ export class DiplomacyManager {
     const [proposer, recipient] = await this.loadPair(gameId, proposerId, recipientId);
     this.assertDiplomacyAllowed(gameId, proposer, recipient);
     const proposerRelation = this.getRelation(proposer, recipientId);
-    if (this.areTeammates(proposer, recipient) || proposerRelation.state === 'team') {
-      throw new Error('Teammates cannot negotiate separate treaties');
-    }
-    if (!this.canMeet(proposerRelation, this.getRelation(recipient, proposerId))) {
-      throw new Error('Diplomatic contact or an embassy is required');
-    }
+    this.assertTreatyNegotiationAllowed(
+      proposer,
+      recipient,
+      proposerRelation,
+      this.getRelation(recipient, proposerId)
+    );
     const normalizedClauses = clauses.map(clause => ({
       ...clause,
       giverId: clause.giverId ?? proposerId,
     })) as TreatyClause[];
     this.validateClauses(normalizedClauses, proposerId, recipientId, proposerRelation.state);
-    if (normalizedClauses.some(clause => clause.type === 'alliance')) {
-      await this.assertAllianceCompatible(gameId, proposer, recipient);
-    }
-
-    if (
-      requestId &&
-      proposerRelation.proposal?.requestId === requestId &&
-      proposerRelation.proposal.proposerId === proposerId
-    ) {
-      return proposerRelation.proposal;
-    }
-    if (proposerRelation.proposal?.status === 'pending') {
-      throw new Error('A diplomatic meeting is already pending');
-    }
+    await this.assertAllianceForClauses(gameId, proposer, recipient, normalizedClauses);
+    const existingProposal = this.getExistingTreatyProposal(
+      proposerRelation,
+      requestId,
+      proposerId
+    );
+    if (existingProposal) return existingProposal;
 
     const proposal: TreatyProposal = {
       id: `treaty_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
@@ -411,6 +433,44 @@ export class DiplomacyManager {
       message: `${proposer.leaderName} proposed a treaty to ${recipient.leaderName}.`,
     });
     return proposal;
+  }
+
+  private assertTreatyNegotiationAllowed(
+    proposer: DiplomacyPlayerRow,
+    recipient: DiplomacyPlayerRow,
+    proposerRelation: DiplomaticRelation,
+    recipientRelation: DiplomaticRelation
+  ): void {
+    if (this.areTeammates(proposer, recipient) || proposerRelation.state === 'team')
+      throw new Error('Teammates cannot negotiate separate treaties');
+    if (!this.canMeet(proposerRelation, recipientRelation))
+      throw new Error('Diplomatic contact or an embassy is required');
+  }
+
+  private async assertAllianceForClauses(
+    gameId: string,
+    proposer: DiplomacyPlayerRow,
+    recipient: DiplomacyPlayerRow,
+    clauses: TreatyClause[]
+  ): Promise<void> {
+    if (clauses.some(clause => clause.type === 'alliance'))
+      await this.assertAllianceCompatible(gameId, proposer, recipient);
+  }
+
+  private getExistingTreatyProposal(
+    relation: DiplomaticRelation,
+    requestId: string | undefined,
+    proposerId: string
+  ): TreatyProposal | undefined {
+    if (
+      requestId &&
+      relation.proposal?.requestId === requestId &&
+      relation.proposal.proposerId === proposerId
+    )
+      return relation.proposal;
+    if (relation.proposal?.status === 'pending')
+      throw new Error('A diplomatic meeting is already pending');
+    return undefined;
   }
 
   async respondToTreaty(
@@ -437,52 +497,16 @@ export class DiplomacyManager {
     const proposal = relation.proposal;
     if (!proposal || proposal.id !== proposalId) throw new Error('Treaty proposal not found');
     if (proposal.status !== 'pending') return proposal;
-    if (proposal.recipientId !== playerId) {
-      throw new Error('Only the treaty recipient can respond');
-    }
-    this.assertDiplomacyAllowed(gameId, player, other);
-    if (accept) {
-      this.validateClauses(
-        proposal.clauses,
-        proposal.proposerId,
-        proposal.recipientId,
-        relation.state
-      );
-    }
+    this.assertTreatyResponse(gameId, playerId, player, other, proposal, relation, accept);
 
     const resolved: TreatyProposal = {
       ...proposal,
       status: accept ? 'accepted' : 'rejected',
       resolvedAt: new Date().toISOString(),
     };
-    const transferClauses = proposal.clauses.filter(clause =>
-      ['technology', 'gold', 'map', 'seamap', 'city'].includes(clause.type)
-    );
-    let rollbackTransfers: void | (() => Promise<void>) = undefined;
-    if (accept && transferClauses.length > 0) {
-      if (!this.transferExecutor) throw new Error('Treaty transfers are not configured');
-      rollbackTransfers = await this.transferExecutor(
-        gameId,
-        proposal.proposerId,
-        proposal.recipientId,
-        transferClauses
-      );
-    }
+    const rollbackTransfers = await this.transferTreatyClauses(gameId, proposal, accept);
     try {
-      await this.persistPair(player, other, (firstRelation, secondRelation) =>
-        accept
-          ? this.applyClauses(
-              player.id,
-              { ...firstRelation, proposal: resolved },
-              { ...secondRelation, proposal: resolved },
-              proposal.clauses,
-              this.currentTurnProvider(gameId)
-            )
-          : [
-              { ...firstRelation, proposal: resolved },
-              { ...secondRelation, proposal: resolved },
-            ]
-      );
+      await this.persistTreatyResponse(gameId, player, other, proposal, resolved, accept);
     } catch (error) {
       await rollbackTransfers?.();
       throw error;
@@ -496,6 +520,63 @@ export class DiplomacyManager {
         : `${player.leaderName} rejected the treaty.`,
     });
     return resolved;
+  }
+
+  private assertTreatyResponse(
+    gameId: string,
+    playerId: string,
+    player: DiplomacyPlayerRow,
+    other: DiplomacyPlayerRow,
+    proposal: TreatyProposal,
+    relation: DiplomaticRelation,
+    accept: boolean
+  ): void {
+    if (proposal.recipientId !== playerId) throw new Error('Only the treaty recipient can respond');
+    this.assertDiplomacyAllowed(gameId, player, other);
+    if (accept)
+      this.validateClauses(
+        proposal.clauses,
+        proposal.proposerId,
+        proposal.recipientId,
+        relation.state
+      );
+  }
+
+  private async transferTreatyClauses(
+    gameId: string,
+    proposal: TreatyProposal,
+    accept: boolean
+  ): Promise<void | (() => Promise<void>)> {
+    const clauses = proposal.clauses.filter(clause =>
+      ['technology', 'gold', 'map', 'seamap', 'city'].includes(clause.type)
+    );
+    if (!accept || clauses.length === 0) return undefined;
+    if (!this.transferExecutor) throw new Error('Treaty transfers are not configured');
+    return this.transferExecutor(gameId, proposal.proposerId, proposal.recipientId, clauses);
+  }
+
+  private async persistTreatyResponse(
+    gameId: string,
+    player: DiplomacyPlayerRow,
+    other: DiplomacyPlayerRow,
+    proposal: TreatyProposal,
+    resolved: TreatyProposal,
+    accept: boolean
+  ): Promise<void> {
+    await this.persistPair(player, other, (firstRelation, secondRelation) =>
+      accept
+        ? this.applyClauses(
+            player.id,
+            { ...firstRelation, proposal: resolved },
+            { ...secondRelation, proposal: resolved },
+            proposal.clauses,
+            this.currentTurnProvider(gameId)
+          )
+        : [
+            { ...firstRelation, proposal: resolved },
+            { ...secondRelation, proposal: resolved },
+          ]
+    );
   }
 
   async cancelTreaty(
@@ -589,14 +670,7 @@ export class DiplomacyManager {
       EffectType.NO_ANARCHY,
       playerContext
     ).value;
-    if (
-      senate > 0 &&
-      noAnarchy <= 0 &&
-      relation.hasReasonToCancel <= 0 &&
-      ['ceasefire', 'armistice', 'peace', 'alliance'].includes(relation.state)
-    ) {
-      throw new Error('The senate refuses to break the treaty');
-    }
+    this.assertSenateAllowsWar(senate, noAnarchy, relation);
     const cancelProposal = (current: DiplomaticRelation): TreatyProposal | undefined =>
       current.proposal?.status === 'pending'
         ? {
@@ -641,6 +715,20 @@ export class DiplomacyManager {
       justified: relation.hasReasonToCancel > 0,
       message: `${player.leaderName} declared war on ${other.leaderName}.`,
     });
+  }
+
+  private assertSenateAllowsWar(
+    senate: number,
+    noAnarchy: number,
+    relation: DiplomaticRelation
+  ): void {
+    if (
+      senate > 0 &&
+      noAnarchy <= 0 &&
+      relation.hasReasonToCancel <= 0 &&
+      ['ceasefire', 'armistice', 'peace', 'alliance'].includes(relation.state)
+    )
+      throw new Error('The senate refuses to break the treaty');
   }
 
   async cancelPact(gameId: string, playerId: string, otherPlayerId: string): Promise<void> {
@@ -756,17 +844,10 @@ export class DiplomacyManager {
     for (const clause of clauses) {
       const giverId = clause.giverId!;
       const giverIsFirst = giverId === firstPlayerId;
-      if (clause.type === 'embassy') {
-        if (giverIsFirst) second = { ...second, embassy: true };
-        else first = { ...first, embassy: true };
-      }
-      if (clause.type === 'shared_vision') {
-        if (giverIsFirst) second = { ...second, sharedVision: true };
-        else first = { ...first, sharedVision: true };
-      }
-      if (clause.type === 'ceasefire') nextState = 'ceasefire';
-      if (clause.type === 'peace') nextState = 'armistice';
-      if (clause.type === 'alliance') nextState = 'alliance';
+      const applied = this.applyClause(clause, giverIsFirst, first, second, nextState);
+      first = applied.first;
+      second = applied.second;
+      nextState = applied.nextState;
     }
     if (nextState !== first.state) {
       const turnsLeft = nextState === 'ceasefire' || nextState === 'armistice' ? TREATY_TURNS : 0;
@@ -788,12 +869,43 @@ export class DiplomacyManager {
     return [first, second];
   }
 
+  private applyClause(
+    clause: TreatyClause,
+    giverIsFirst: boolean,
+    first: DiplomaticRelation,
+    second: DiplomaticRelation,
+    nextState: DiplomaticState
+  ): { first: DiplomaticRelation; second: DiplomaticRelation; nextState: DiplomaticState } {
+    if (clause.type === 'embassy')
+      return giverIsFirst
+        ? { first, second: { ...second, embassy: true }, nextState }
+        : { first: { ...first, embassy: true }, second, nextState };
+    if (clause.type === 'shared_vision')
+      return giverIsFirst
+        ? { first, second: { ...second, sharedVision: true }, nextState }
+        : { first: { ...first, sharedVision: true }, second, nextState };
+    const states: Record<string, DiplomaticState> = {
+      ceasefire: 'ceasefire',
+      peace: 'armistice',
+      alliance: 'alliance',
+    };
+    return { first, second, nextState: states[clause.type] ?? nextState };
+  }
+
   private validateClauses(
     clauses: TreatyClause[],
     proposerId: string,
     recipientId: string,
     currentState: DiplomaticState
   ): void {
+    this.assertClauseShape(clauses);
+    const stateClauses = this.getStateClauses(clauses);
+    this.assertClauseValues(clauses, proposerId, recipientId);
+    const stateClause = stateClauses[0];
+    this.assertStateClause(stateClause, currentState);
+  }
+
+  private assertClauseShape(clauses: TreatyClause[]): void {
     if (clauses.length === 0) throw new Error('A treaty must contain at least one clause');
     const allowed = new Set<TreatyClauseType>([
       'ceasefire',
@@ -807,53 +919,53 @@ export class DiplomacyManager {
       'seamap',
       'city',
     ]);
-    const stateClauses = clauses.filter(clause =>
-      ['ceasefire', 'peace', 'alliance'].includes(clause.type)
+    if (clauses.filter(c => ['ceasefire', 'peace', 'alliance'].includes(c.type)).length > 1)
+      throw new Error('A treaty can contain only one diplomatic state');
+    if (clauses.some(c => !allowed.has(c.type))) throw new Error('Unsupported treaty clause');
+    const keys = clauses.map(
+      c =>
+        `${c.giverId}:${c.type}:${(c as any).techId ?? (c as any).cityId ?? (c as any).amount ?? ''}`
     );
-    if (stateClauses.length > 1) throw new Error('A treaty can contain only one diplomatic state');
-    if (clauses.some(clause => !allowed.has(clause.type)))
-      throw new Error('Unsupported treaty clause');
-    const clauseKeys = clauses.map(clause => {
-      const value =
-        clause.type === 'technology'
-          ? clause.techId
-          : clause.type === 'city'
-            ? clause.cityId
-            : clause.type === 'gold'
-              ? clause.amount
-              : '';
-      return `${clause.giverId}:${clause.type}:${value}`;
-    });
-    if (new Set(clauseKeys).size !== clauses.length) {
-      throw new Error('Treaty clauses must be unique');
-    }
-    for (const clause of clauses) {
-      if (clause.giverId !== proposerId && clause.giverId !== recipientId) {
-        throw new Error('Treaty clause giver must be one of the negotiating players');
-      }
-      if (clause.type === 'technology' && !clause.techId) {
-        throw new Error('Technology clause requires a technology');
-      }
-      if (clause.type === 'gold' && (!Number.isInteger(clause.amount) || clause.amount <= 0)) {
-        throw new Error('Gold clause requires a positive integer amount');
-      }
-      if (clause.type === 'city' && !clause.cityId) {
-        throw new Error('City clause requires a city');
-      }
-    }
-    const stateClause = stateClauses[0];
-    if (stateClause?.type === 'ceasefire' && currentState !== 'war') {
+    if (new Set(keys).size !== clauses.length) throw new Error('Treaty clauses must be unique');
+  }
+
+  private getStateClauses(clauses: TreatyClause[]): TreatyClause[] {
+    return clauses.filter(c => ['ceasefire', 'peace', 'alliance'].includes(c.type));
+  }
+
+  private assertClauseValues(
+    clauses: TreatyClause[],
+    proposerId: string,
+    recipientId: string
+  ): void {
+    for (const clause of clauses) this.assertClauseValue(clause, proposerId, recipientId);
+  }
+
+  private assertClauseValue(clause: TreatyClause, proposerId: string, recipientId: string): void {
+    if (clause.giverId !== proposerId && clause.giverId !== recipientId)
+      throw new Error('Treaty clause giver must be one of the negotiating players');
+    if (clause.type === 'technology' && !clause.techId)
+      throw new Error('Technology clause requires a technology');
+    if (clause.type === 'gold' && (!Number.isInteger(clause.amount) || clause.amount <= 0))
+      throw new Error('Gold clause requires a positive integer amount');
+    if (clause.type === 'city' && !clause.cityId) throw new Error('City clause requires a city');
+  }
+
+  private assertStateClause(clause: TreatyClause | undefined, state: DiplomaticState): void {
+    this.assertCeasefireState(clause, state);
+    this.assertPeaceState(clause, state);
+    if (clause && state === 'team') throw new Error('Team relations cannot be renegotiated');
+    if (clause?.type === state) throw new Error('The proposed diplomatic state is already active');
+  }
+
+  private assertCeasefireState(clause: TreatyClause | undefined, state: DiplomaticState): void {
+    if (clause?.type === 'ceasefire' && state !== 'war')
       throw new Error('A ceasefire can only be agreed while at war');
-    }
-    if (stateClause?.type === 'peace' && currentState !== 'war' && currentState !== 'ceasefire') {
+  }
+
+  private assertPeaceState(clause: TreatyClause | undefined, state: DiplomaticState): void {
+    if (clause?.type === 'peace' && state !== 'war' && state !== 'ceasefire')
       throw new Error('Peace can only follow war or ceasefire');
-    }
-    if (stateClause && currentState === 'team') {
-      throw new Error('Team relations cannot be renegotiated');
-    }
-    if (stateClause?.type === currentState) {
-      throw new Error('The proposed diplomatic state is already active');
-    }
   }
 
   private assertDiplomacyAllowed(
@@ -1006,29 +1118,54 @@ export class DiplomacyManager {
     const fallback = this.defaultRelation(team);
     if (!relation) return fallback;
     const state = team ? 'team' : (relation.state ?? fallback.state);
+    const values = this.normalizeRelationValues(relation, team, state, fallback);
     return {
       ...fallback,
       ...relation,
       state,
-      maxState: team ? 'team' : (relation.maxState ?? this.maxState(fallback.maxState, state)),
-      turnsLeft: Number.isInteger(relation.turnsLeft) ? Math.max(0, relation.turnsLeft!) : 0,
-      contactTurnsLeft: Number.isInteger(relation.contactTurnsLeft)
-        ? Math.max(0, relation.contactTurnsLeft!)
-        : state === 'no_contact'
-          ? 0
-          : CONTACT_TURNS,
-      hasReasonToCancel: Number.isInteger(relation.hasReasonToCancel)
-        ? Math.max(0, relation.hasReasonToCancel!)
-        : 0,
-      reputation: Number.isFinite(relation.reputation)
-        ? Math.max(0, Math.min(1000, relation.reputation!))
-        : 1000,
-      attitude: Number.isFinite(relation.attitude)
-        ? Math.max(-1000, Math.min(1000, relation.attitude!))
-        : team
-          ? 1000
-          : 0,
+      ...values,
     };
+  }
+
+  private normalizeRelationValues(
+    relation: Partial<DiplomaticRelation>,
+    team: boolean,
+    state: DiplomaticState,
+    fallback: DiplomaticRelation
+  ): Partial<DiplomaticRelation> {
+    return {
+      maxState: this.normalizeMaxState(relation, team, state, fallback),
+      turnsLeft: this.nonNegativeInteger(relation.turnsLeft),
+      contactTurnsLeft: this.normalizeContactTurns(relation.contactTurnsLeft, state),
+      hasReasonToCancel: this.nonNegativeInteger(relation.hasReasonToCancel),
+      reputation: this.normalizeReputation(relation.reputation),
+      attitude: this.normalizeAttitude(relation.attitude, team),
+    };
+  }
+
+  private normalizeMaxState(
+    relation: Partial<DiplomaticRelation>,
+    team: boolean,
+    state: DiplomaticState,
+    fallback: DiplomaticRelation
+  ): DiplomaticState {
+    return team ? 'team' : (relation.maxState ?? this.maxState(fallback.maxState, state));
+  }
+  private nonNegativeInteger(value: number | undefined): number {
+    return Number.isInteger(value) ? Math.max(0, value!) : 0;
+  }
+  private normalizeContactTurns(value: number | undefined, state: DiplomaticState): number {
+    return Number.isInteger(value)
+      ? Math.max(0, value!)
+      : state === 'no_contact'
+        ? 0
+        : CONTACT_TURNS;
+  }
+  private normalizeReputation(value: number | undefined): number {
+    return Number.isFinite(value) ? Math.max(0, Math.min(1000, value!)) : 1000;
+  }
+  private normalizeAttitude(value: number | undefined, team: boolean): number {
+    return Number.isFinite(value) ? Math.max(-1000, Math.min(1000, value!)) : team ? 1000 : 0;
   }
 
   private areTeammates(first: DiplomacyPlayerRow, second: DiplomacyPlayerRow): boolean {
@@ -1076,12 +1213,21 @@ export class DiplomacyManager {
       if (!third.isAlive || third.id === first.id || third.id === second.id) continue;
       const firstToThird = this.getRelation(first, third.id).state;
       const secondToThird = this.getRelation(second, third.id).state;
-      const firstAllied = firstToThird === 'alliance' || this.areTeammates(first, third);
-      const secondAllied = secondToThird === 'alliance' || this.areTeammates(second, third);
-      if ((firstToThird === 'war' && secondAllied) || (secondToThird === 'war' && firstAllied)) {
+      if (this.hasConflictingAlliance(first, second, third, firstToThird, secondToThird))
         throw new Error('An alliance would create conflicting wars with a third nation');
-      }
     }
+  }
+
+  private hasConflictingAlliance(
+    first: DiplomacyPlayerRow,
+    second: DiplomacyPlayerRow,
+    third: DiplomacyPlayerRow,
+    firstState: DiplomaticState,
+    secondState: DiplomaticState
+  ): boolean {
+    const firstAllied = firstState === 'alliance' || this.areTeammates(first, third);
+    const secondAllied = secondState === 'alliance' || this.areTeammates(second, third);
+    return (firstState === 'war' && secondAllied) || (secondState === 'war' && firstAllied);
   }
 
   private async emitEvent(event: DiplomacyEvent): Promise<void> {

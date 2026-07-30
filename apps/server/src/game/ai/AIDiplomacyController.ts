@@ -190,6 +190,13 @@ export class FreecivAIDiplomacyController {
     );
     memory.love = calculateLove(memory, nation);
     const targetSpaceship = spaceshipByPlayer.get(nation.id);
+    const pursuingSpaceVictory = this.isPursuingSpaceVictory(
+      spaceRaceEnabled,
+      spaceLeaderId,
+      playerId,
+      spaceshipByPlayer
+    );
+    const targetSpaceshipLaunched = this.isSpaceshipLaunched(targetSpaceship);
     const assessedWarDesire = calculateWarDesire({
       ownCities,
       targetCities: otherCities,
@@ -205,20 +212,9 @@ export class FreecivAIDiplomacyController {
       aggressiveTrait,
       diplomacyHandicap,
       targetIsHuman: !nation.isAI,
-      pursuingSpaceVictory:
-        spaceRaceEnabled &&
-        spaceLeaderId === playerId &&
-        (spaceshipByPlayer.get(playerId)?.progress ?? 0) > 0,
+      pursuingSpaceVictory,
       targetSpaceshipProgress: targetSpaceship?.progress ?? 0,
-      targetSpaceshipLaunched:
-        targetSpaceship?.counts.launchedTurn !== undefined ||
-        isSpaceshipOptimal(
-          targetSpaceship?.counts ?? {
-            structurals: 0,
-            components: 0,
-            modules: 0,
-          }
-        ),
+      targetSpaceshipLaunched,
     });
     memory.warDesire = Math.max(
       -1000,
@@ -226,6 +222,20 @@ export class FreecivAIDiplomacyController {
     );
     memory.countdown = Math.max(0, memory.countdown - 1);
     return memory;
+  }
+
+  private isPursuingSpaceVictory(
+    enabled: boolean,
+    leaderId: string | undefined,
+    playerId: string,
+    ships: Map<string, any>
+  ): boolean {
+    return enabled && leaderId === playerId && (ships.get(playerId)?.progress ?? 0) > 0;
+  }
+
+  private isSpaceshipLaunched(target: any): boolean {
+    if (target?.counts.launchedTurn !== undefined) return true;
+    return isSpaceshipOptimal(target?.counts ?? { structurals: 0, components: 0, modules: 0 });
   }
 
   private async processNationTreaty(options: {

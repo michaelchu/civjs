@@ -371,23 +371,39 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   private sendPlayerInfoSnapshot(gameInstance: GameInstance, recipientPlayerId: string): void {
     for (const player of gameInstance.players.values()) {
       if (!player.color) continue;
-      const research = gameInstance.researchManager?.getPlayerResearch(player.id);
-      this.sendPacketToPlayer(gameInstance, recipientPlayerId, PacketType.PLAYER_INFO, {
-        id: player.id,
-        name: player.leaderName ?? player.civilization,
-        nation: player.nation ?? player.civilization,
-        score: 0,
-        gold: player.gold ?? 0,
-        goldPerTurn: player.goldPerTurn ?? 0,
-        science: research?.bulbsAccumulated ?? player.science ?? 0,
-        sciencePerTurn: research?.bulbsLastTurn ?? player.sciencePerTurn ?? 0,
-        culture: player.history ?? 0,
-        government: player.government ?? 'despotism',
-        alive: player.isAlive ?? true,
-        isAI: player.isAI ?? false,
-        color: player.color,
-      });
+      this.sendPacketToPlayer(
+        gameInstance,
+        recipientPlayerId,
+        PacketType.PLAYER_INFO,
+        this.formatPlayerInfo(player, gameInstance)
+      );
     }
+  }
+
+  private formatPlayerInfo(player: any, gameInstance: GameInstance): any {
+    const research = gameInstance.researchManager?.getPlayerResearch(player.id);
+    return {
+      id: player.id,
+      name: this.playerValue(player.leaderName, player.civilization),
+      nation: this.playerValue(player.nation, player.civilization),
+      score: 0,
+      gold: this.playerValue(player.gold, 0),
+      goldPerTurn: this.playerValue(player.goldPerTurn, 0),
+      science: this.playerValue(research?.bulbsAccumulated, this.playerValue(player.science, 0)),
+      sciencePerTurn: this.playerValue(
+        research?.bulbsLastTurn,
+        this.playerValue(player.sciencePerTurn, 0)
+      ),
+      culture: this.playerValue(player.history, 0),
+      government: this.playerValue(player.government, 'despotism'),
+      alive: this.playerValue(player.isAlive, true),
+      isAI: this.playerValue(player.isAI, false),
+      color: player.color,
+    };
+  }
+
+  private playerValue(value: any, fallback: any): any {
+    return value === undefined || value === null ? fallback : value;
   }
 
   /** Send the recipient's authoritative research state after turn processing. */
@@ -397,33 +413,41 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     const availableTechs = gameInstance.researchManager.getAvailableTechnologies(playerId);
 
     this.sendPacketToPlayer(gameInstance, playerId, PacketType.RESEARCH_LIST_REPLY, {
-      technologies: gameInstance.researchManager.getTechnologyCatalogue(playerId).map(tech => ({
-        id: tech.id,
-        name: tech.name,
-        cost: tech.cost,
-        requirements: tech.requirements,
-        flags: tech.flags,
-        description: tech.description,
-      })),
-      availableTechs: availableTechs.map(tech => ({
-        id: tech.id,
-        name: tech.name,
-        cost: tech.cost,
-        requirements: tech.requirements,
-        flags: tech.flags,
-        description: tech.description,
-      })),
-      researchedTechs: research ? Array.from(research.researchedTechs) : [],
-      futureTechs: research?.futureTechs ?? 0,
+      technologies: gameInstance.researchManager
+        .getTechnologyCatalogue(playerId)
+        .map(tech => this.formatTechnology(tech)),
+      availableTechs: availableTechs.map(tech => this.formatTechnology(tech)),
+      researchedTechs: this.researchValue(research, 'researchedTechs', []),
+      futureTechs: this.researchValue(research, 'futureTechs', 0),
     });
     this.sendPacketToPlayer(gameInstance, playerId, PacketType.RESEARCH_PROGRESS_REPLY, {
-      currentTech: research?.currentTech,
-      techGoal: research?.techGoal,
-      current: progress?.current ?? 0,
-      required: progress?.required ?? 0,
-      turnsRemaining: progress?.turnsRemaining ?? -1,
-      bulbsLastTurn: research?.bulbsLastTurn ?? 0,
+      currentTech: this.researchValue(research, 'currentTech'),
+      techGoal: this.researchValue(research, 'techGoal'),
+      current: this.researchValue(progress, 'current', 0),
+      required: this.researchValue(progress, 'required', 0),
+      turnsRemaining: this.researchValue(progress, 'turnsRemaining', -1),
+      bulbsLastTurn: this.researchValue(research, 'bulbsLastTurn', 0),
     });
+  }
+
+  private researchValue(research: any, key: string, fallback?: any): any {
+    const value = research?.[key];
+    return value === undefined || value === null
+      ? fallback
+      : key === 'researchedTechs'
+        ? Array.from(value)
+        : value;
+  }
+
+  private formatTechnology(tech: any): any {
+    return {
+      id: tech.id,
+      name: tech.name,
+      cost: tech.cost,
+      requirements: tech.requirements,
+      flags: tech.flags,
+      description: tech.description,
+    };
   }
 
   /**
@@ -435,14 +459,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
 
     const economicManager = gameInstance.turnManager.getEconomicManager();
     for (const player of gameInstance.players.values()) {
-      if (economicManager) {
-        player.gold = await economicManager.getPlayerGold(player.id);
-        player.goldPerTurn =
-          economicManager.getLastTurnSummary(player.id)?.totals.netGoldChange ?? 0;
-      }
-      const research = gameInstance.researchManager.getPlayerResearch(player.id);
-      player.science = research?.bulbsAccumulated ?? player.science ?? 0;
-      player.sciencePerTurn = research?.bulbsLastTurn ?? 0;
+      await this.refreshPlayerEconomy(player, economicManager, gameInstance);
     }
 
     for (const recipient of gameInstance.players.values()) {
@@ -450,6 +467,20 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       this.sendPlayerInfoSnapshot(gameInstance, recipient.id);
       this.sendResearchSnapshot(gameInstance, recipient.id);
     }
+  }
+
+  private async refreshPlayerEconomy(
+    player: any,
+    economicManager: any,
+    gameInstance: GameInstance
+  ): Promise<void> {
+    if (economicManager) {
+      player.gold = await economicManager.getPlayerGold(player.id);
+      player.goldPerTurn = economicManager.getLastTurnSummary(player.id)?.totals.netGoldChange ?? 0;
+    }
+    const research = gameInstance.researchManager.getPlayerResearch(player.id);
+    player.science = research?.bulbsAccumulated ?? player.science ?? 0;
+    player.sciencePerTurn = research?.bulbsLastTurn ?? 0;
   }
 
   private sendVisibilitySnapshotToPlayer(
@@ -616,28 +647,63 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       return null;
     }
     const knownTile = isVisible ? serverTile : rememberedTile;
+    const explored = this.getExploredTileValues(knownTile, isExplored);
 
     // Format tile in exact freeciv-web format
     return {
       tile: index, // This is the key - tile index used by freeciv-web
       x: x,
       y: y,
-      terrain: isExplored ? (knownTile?.terrain ?? 'unknown') : 'unknown',
-      resource: isExplored ? knownTile?.resource : undefined,
-      elevation: isExplored ? knownTile?.elevation || 0 : 0,
-      riverMask: isExplored ? knownTile?.riverMask || 0 : 0,
-      hasRoad: isExplored ? knownTile?.hasRoad : false,
-      hasRailroad: isExplored ? knownTile?.hasRailroad : false,
-      improvements: isExplored ? (knownTile?.improvements ?? []) : [],
-      cityId: isExplored ? knownTile?.cityId : undefined,
-      owner: isExplored ? knownTile?.owner : undefined,
-      claimer: isExplored ? knownTile?.claimer : undefined,
+      terrain: explored.terrain,
+      resource: explored.resource,
+      elevation: explored.elevation,
+      riverMask: explored.riverMask,
+      hasRoad: explored.hasRoad,
+      hasRailroad: explored.hasRailroad,
+      improvements: explored.improvements,
+      cityId: explored.cityId,
+      owner: explored.owner,
+      claimer: explored.claimer,
       known: isVisible ? 2 : isExplored ? 1 : 0,
       seen: isVisible ? 1 : 0,
-      player: isExplored ? (knownTile?.owner ?? null) : null,
+      player: explored.owner ?? null,
       worked: null,
       extras: 0, // BitVector for extras
     };
+  }
+
+  private getExploredTileValues(tile: any, isExplored: boolean): any {
+    if (!isExplored) {
+      return {
+        terrain: 'unknown',
+        resource: undefined,
+        elevation: 0,
+        riverMask: 0,
+        hasRoad: false,
+        hasRailroad: false,
+        improvements: [],
+        cityId: undefined,
+        owner: undefined,
+        claimer: undefined,
+      };
+    }
+    return {
+      terrain: this.tileValue(tile, 'terrain', 'unknown'),
+      resource: this.tileValue(tile, 'resource'),
+      elevation: this.tileValue(tile, 'elevation', 0),
+      riverMask: this.tileValue(tile, 'riverMask', 0),
+      hasRoad: this.tileValue(tile, 'hasRoad'),
+      hasRailroad: this.tileValue(tile, 'hasRailroad'),
+      improvements: this.tileValue(tile, 'improvements', []),
+      cityId: this.tileValue(tile, 'cityId'),
+      owner: this.tileValue(tile, 'owner'),
+      claimer: this.tileValue(tile, 'claimer'),
+    };
+  }
+
+  private tileValue(tile: any, key: string, fallback?: any): any {
+    const value = tile?.[key];
+    return value === undefined || value === null ? fallback : value;
   }
 
   /**
@@ -698,42 +764,65 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
    * @reference Original GameManager.ts:800-832 formatUnitForClient()
    */
   private formatUnitForClient(unit: any, unitManager: any): any {
+    const unitTypeId = this.getUnitTypeId(unit);
     const unitType =
-      unitManager.getUnitType?.(unit.unitTypeId || unit.type) ??
-      rulesetUnitsService.getUnitType(unit.unitTypeId || unit.type, 'classic');
+      unitManager.getUnitType?.(unitTypeId) ??
+      rulesetUnitsService.getUnitType(unitTypeId, 'classic');
     return {
       id: unit.id,
       owner: unit.playerId,
-      type: unit.unitTypeId || unit.type,
+      type: unitTypeId,
       x: unit.x,
       y: unit.y,
       movesleft: unit.movementLeft,
-      maxmoves: unitManager.getUnitMaxMovement(unit.unitTypeId || unit.type) * 3,
-      fuel: unit.fuel ?? 0,
-      maxFuel: unitType?.fuel ?? 0,
-      hp: unit.health ?? 100,
-      veteran: unit.veteranLevel ?? unit.veteran ?? false,
-      homeCity: unit.homeCity || null,
-      activity: unit.activity || 'idle',
-      fortified: unit.fortified || false,
-      orders: unit.orders || null,
+      maxmoves: unitManager.getUnitMaxMovement(unitTypeId) * 3,
+      fuel: this.unitValue(unit.fuel, 0),
+      maxFuel: this.unitValue(unitType?.fuel, 0),
+      hp: this.unitValue(unit.health, 100),
+      veteran: this.unitValue(unit.veteranLevel, false),
+      homeCity: this.unitValue(unit.homeCity, null),
+      activity: this.unitValue(unit.activity, 'idle'),
+      fortified: this.unitValue(unit.fortified, false),
+      orders: this.unitValue(unit.orders, null),
       transportedBy: unit.transportedBy,
-      cargoUnits: unit.cargoUnits || [],
-      capabilities: {
-        canFortify: Boolean(
-          unitType?.rulesetUnitClassFlags.includes('CanFortify') &&
-            !unitType.flags?.includes('Cant_Fortify')
-        ),
-        canFoundCity: Boolean(unitType?.canFoundCity),
-        canBuildImprovements: Boolean(unitType?.canBuildImprovements),
-        canPillage: Boolean(unitType?.rulesetUnitClassFlags.includes('CanPillage')),
-        canTrade: Boolean(unitType?.flags?.includes('TradeRoute')),
-        diplomatActions: unitType?.flags?.includes('Diplomat')
-          ? rulesetActionsService.getDiplomatActions(unitType.flags)
-          : [],
-        unitActions: unitType ? rulesetActionsService.getUnitActions(unitType) : [],
-      },
+      cargoUnits: this.unitValue(unit.cargoUnits, []),
+      capabilities: this.getUnitCapabilities(unitType),
     };
+  }
+
+  private getUnitTypeId(unit: any): any {
+    return unit.unitTypeId || unit.type;
+  }
+
+  private unitValue(value: any, fallback: any): any {
+    return value === undefined || value === null ? fallback : value;
+  }
+
+  private getUnitCapabilities(unitType: any): any {
+    const flags = unitType?.rulesetUnitClassFlags ?? [];
+    return {
+      canFortify: this.canFortify(unitType, flags),
+      canFoundCity: Boolean(unitType?.canFoundCity),
+      canBuildImprovements: Boolean(unitType?.canBuildImprovements),
+      canPillage: flags.includes('CanPillage'),
+      canTrade: Boolean(unitType?.flags?.includes('TradeRoute')),
+      diplomatActions: this.getDiplomatActions(unitType),
+      unitActions: this.getUnitActions(unitType),
+    };
+  }
+
+  private canFortify(unitType: any, flags: string[]): boolean {
+    return flags.includes('CanFortify') && !unitType?.flags?.includes('Cant_Fortify');
+  }
+
+  private getDiplomatActions(unitType: any): any[] {
+    return unitType?.flags?.includes('Diplomat')
+      ? rulesetActionsService.getDiplomatActions(unitType.flags)
+      : [];
+  }
+
+  private getUnitActions(unitType: any): any[] {
+    return unitType ? rulesetActionsService.getUnitActions(unitType) : [];
   }
 
   /**

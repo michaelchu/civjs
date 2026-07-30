@@ -70,17 +70,7 @@ export class CityTileManagementService extends BaseGameService {
       logger.warn('Cannot initialize workable tiles: MapManager not available, using fallback', {
         cityId: city.id,
       });
-      // Provide fallback workable tiles with just city center
-      city.workableTiles = [
-        {
-          x: city.x,
-          y: city.y,
-          isCenter: true,
-          isWorked: true,
-          isBlocked: false,
-          outputs: this.applyCityCenterMinimums(this.getTerrainBaseOutputs('grassland')),
-        },
-      ];
+      this.setFallbackWorkableTile(city);
       return;
     }
 
@@ -89,17 +79,7 @@ export class CityTileManagementService extends BaseGameService {
       logger.warn('Cannot initialize workable tiles: no map data available, using fallback', {
         cityId: city.id,
       });
-      // Provide fallback workable tiles with just city center
-      city.workableTiles = [
-        {
-          x: city.x,
-          y: city.y,
-          isCenter: true,
-          isWorked: true,
-          isBlocked: false,
-          outputs: this.applyCityCenterMinimums(this.getTerrainBaseOutputs('grassland')),
-        },
-      ];
+      this.setFallbackWorkableTile(city);
       return;
     }
 
@@ -108,15 +88,7 @@ export class CityTileManagementService extends BaseGameService {
     // Generate all possible tiles within city radius
     // Calculate the linear radius from radius_sq, following freeciv-web's build_city_tile_map
     const linearRadius = Math.floor(Math.sqrt(this.CITY_MAP_DEFAULT_RADIUS_SQ));
-    const topology = (this.mapManager as Partial<MapManager>).getTopology?.();
-    const candidates = topology
-      ? topology.getPositionsWithinRadius(city.x, city.y, linearRadius)
-      : Array.from({ length: linearRadius * 2 + 1 }, (_, xIndex) =>
-          Array.from({ length: linearRadius * 2 + 1 }, (_, yIndex) => ({
-            x: city.x + xIndex - linearRadius,
-            y: city.y + yIndex - linearRadius,
-          }))
-        ).flat();
+    const candidates = this.getWorkableCandidates(city, linearRadius);
 
     for (const { x: tileX, y: tileY } of candidates) {
       if (!this.mapManager.isValidPosition(tileX, tileY)) {
@@ -168,6 +140,30 @@ export class CityTileManagementService extends BaseGameService {
       tilesCount: city.workableTiles.length,
       workedTiles: city.workableTiles.filter(t => t.isWorked).length,
     });
+  }
+
+  private setFallbackWorkableTile(city: CityState): void {
+    city.workableTiles = [
+      {
+        x: city.x,
+        y: city.y,
+        isCenter: true,
+        isWorked: true,
+        isBlocked: false,
+        outputs: this.applyCityCenterMinimums(this.getTerrainBaseOutputs('grassland')),
+      },
+    ];
+  }
+
+  private getWorkableCandidates(city: CityState, radius: number): Array<{ x: number; y: number }> {
+    const topology = (this.mapManager as Partial<MapManager>).getTopology?.();
+    if (topology) return topology.getPositionsWithinRadius(city.x, city.y, radius);
+    return Array.from({ length: radius * 2 + 1 }, (_, xIndex) =>
+      Array.from({ length: radius * 2 + 1 }, (_, yIndex) => ({
+        x: city.x + xIndex - radius,
+        y: city.y + yIndex - radius,
+      }))
+    ).flat();
   }
 
   /**
@@ -429,50 +425,82 @@ export class CityTileManagementService extends BaseGameService {
     let shields = 0;
     let trade = 0;
 
-    // Sum outputs from all worked tiles
     for (const tile of city.workableTiles) {
-      if (tile.isWorked) {
-        const mapTile = this.mapManager?.getTile(tile.x, tile.y);
-        let outputs = mapTile
-          ? {
-              food: this.calculateTileFood(mapTile),
-              shields: this.calculateTileShields(mapTile),
-              trade: this.calculateTileTradeFromTerrain(mapTile),
-            }
-          : tile.outputs;
-        if (mapTile?.improvements?.includes('irrigation')) {
-          outputs.food += this.ruleset.getTerrain(
-            mapTile.terrain,
-            this.rulesetName
-          ).irrigationFoodIncr;
-        }
-        if (mapTile?.improvements?.includes('mine')) {
-          outputs.shields += this.ruleset.getTerrain(
-            mapTile.terrain,
-            this.rulesetName
-          ).miningShieldIncr;
-        }
-        const terrain = mapTile?.terrain ?? tile.terrain ?? '';
-        const hasRoad = mapTile?.hasRoad || mapTile?.improvements?.includes('road');
-        if (hasRoad && ['grassland', 'plains'].includes(terrain)) {
-          outputs.trade += 1;
-        }
-        if ((mapTile?.riverMask ?? 0) !== 0) {
-          outputs.trade += 1;
-        }
-        if (mapTile?.hasRailroad || mapTile?.improvements?.includes('railroad')) {
-          outputs.shields = Math.floor(outputs.shields * 1.5);
-        }
-        outputs = this.applyRulesetTileEffects(city, tile, terrain, outputs);
-        if (tile.isCenter) outputs = this.applyCityCenterMinimums(outputs);
-        tile.outputs = outputs;
-        food += outputs.food;
-        shields += outputs.shields;
-        trade += outputs.trade;
-      }
+      if (!tile.isWorked) continue;
+      const outputs = this.calculateWorkedTileOutputs(city, tile);
+      tile.outputs = outputs;
+      food += outputs.food;
+      shields += outputs.shields;
+      trade += outputs.trade;
     }
 
     return { food, shields, trade };
+  }
+
+  private calculateWorkedTileOutputs(
+    city: CityState,
+    tile: WorkableTile
+  ): { food: number; shields: number; trade: number } {
+    const mapTile = this.mapManager?.getTile(tile.x, tile.y);
+    let outputs = this.getBaseTileOutputs(mapTile, tile);
+    const terrain = mapTile?.terrain ?? tile.terrain ?? '';
+    const rules = mapTile ? this.ruleset.getTerrain(mapTile.terrain, this.rulesetName) : undefined;
+    outputs = this.applyTileImprovements(outputs, mapTile, rules);
+    outputs = this.applyTileTradeBonuses(outputs, mapTile, terrain);
+    const adjusted = this.applyRulesetTileEffects(city, tile, terrain, outputs);
+    return tile.isCenter ? this.applyCityCenterMinimums(adjusted) : adjusted;
+  }
+
+  private getBaseTileOutputs(
+    mapTile: any,
+    tile: WorkableTile
+  ): { food: number; shields: number; trade: number } {
+    return mapTile
+      ? {
+          food: this.calculateTileFood(mapTile),
+          shields: this.calculateTileShields(mapTile),
+          trade: this.calculateTileTradeFromTerrain(mapTile),
+        }
+      : { ...tile.outputs };
+  }
+
+  private applyTileImprovements(
+    outputs: { food: number; shields: number; trade: number },
+    mapTile: any,
+    rules: any
+  ): { food: number; shields: number; trade: number } {
+    this.applyIrrigation(outputs, mapTile, rules);
+    this.applyMine(outputs, mapTile, rules);
+    this.applyRailroad(outputs, mapTile);
+    return outputs;
+  }
+
+  private applyIrrigation(outputs: any, mapTile: any, rules: any): void {
+    if (mapTile?.improvements?.includes('irrigation'))
+      outputs.food += rules?.irrigationFoodIncr ?? 0;
+  }
+
+  private applyMine(outputs: any, mapTile: any, rules: any): void {
+    if (mapTile?.improvements?.includes('mine')) outputs.shields += rules?.miningShieldIncr ?? 0;
+  }
+
+  private applyRailroad(outputs: any, mapTile: any): void {
+    if (mapTile?.hasRailroad || mapTile?.improvements?.includes('railroad'))
+      outputs.shields = Math.floor(outputs.shields * 1.5);
+  }
+
+  private applyTileTradeBonuses(
+    outputs: { food: number; shields: number; trade: number },
+    mapTile: any,
+    terrain: string
+  ): { food: number; shields: number; trade: number } {
+    if (
+      (mapTile?.hasRoad || mapTile?.improvements?.includes('road')) &&
+      ['grassland', 'plains'].includes(terrain)
+    )
+      outputs.trade += 1;
+    if ((mapTile?.riverMask ?? 0) !== 0) outputs.trade += 1;
+    return outputs;
   }
 
   /**
@@ -515,34 +543,26 @@ export class CityTileManagementService extends BaseGameService {
         cityBuildings: new Set(city.buildings),
       };
 
-      adjusted[output] += this.effectsManager.calculateEffect(
-        EffectType.OUTPUT_ADD_TILE,
-        context
-      ).value;
-      if (adjusted[output] <= 0) continue;
-
-      const penaltyLimit = this.effectsManager.calculateEffect(
-        EffectType.OUTPUT_PENALTY_TILE,
-        context
-      ).value;
-      // Classic's output granularity is one. Increment effects do not make a
-      // zero-output tile productive.
-      if (adjusted[output] >= 1) {
-        adjusted[output] += this.effectsManager.calculateEffect(
-          EffectType.OUTPUT_INC_TILE,
-          context
-        ).value;
-        if (celebrating) {
-          adjusted[output] += this.effectsManager.calculateEffect(
-            EffectType.OUTPUT_INC_TILE_CELEBRATE,
-            context
-          ).value;
-        }
-      }
-      if (penaltyLimit > 0 && adjusted[output] > penaltyLimit) {
-        adjusted[output] = adjusted[output] <= 1 ? 0 : adjusted[output] - 1;
-      }
+      adjusted[output] = this.applyOutputEffect(adjusted[output], context, celebrating);
     }
+    return adjusted;
+  }
+
+  private applyOutputEffect(value: number, context: any, celebrating: boolean): number {
+    let adjusted =
+      value + this.effectsManager.calculateEffect(EffectType.OUTPUT_ADD_TILE, context).value;
+    if (adjusted <= 0) return adjusted;
+    const penaltyLimit = this.effectsManager.calculateEffect(
+      EffectType.OUTPUT_PENALTY_TILE,
+      context
+    ).value;
+    adjusted += this.effectsManager.calculateEffect(EffectType.OUTPUT_INC_TILE, context).value;
+    if (celebrating)
+      adjusted += this.effectsManager.calculateEffect(
+        EffectType.OUTPUT_INC_TILE_CELEBRATE,
+        context
+      ).value;
+    if (penaltyLimit > 0 && adjusted > penaltyLimit) adjusted = adjusted <= 1 ? 0 : adjusted - 1;
     return adjusted;
   }
 

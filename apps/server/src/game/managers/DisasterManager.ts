@@ -170,52 +170,71 @@ export class DisasterManager {
     city: CityState,
     effect: RulesetDisasterEffect
   ): Promise<AppliedDisasterEffect | undefined> {
-    if (effect === 'ReducePopulation') {
-      const changed = await this.cityManager.reducePopulationForDisaster(city.id);
-      return changed
-        ? { effect, value: 1, description: 'Population reduced by one citizen' }
-        : undefined;
-    }
-    if (effect === 'DestroyBuilding') {
-      const building = await this.cityManager.destroyDisasterBuilding(city.id, this.random);
-      return building ? { effect, value: 1, description: `Destroyed ${building}` } : undefined;
-    }
-    if (effect === 'Pollution' || effect === 'Fallout') {
-      const changed = await this.cityManager.placeDisasterExtra(
-        city.id,
-        effect === 'Pollution' ? 'pollution' : 'fallout',
-        this.random
-      );
-      return changed
-        ? { effect, value: 1, description: `Created ${effect.toLowerCase()}` }
-        : undefined;
-    }
-    if (effect === 'Robbery') {
-      if (!this.economicManager || (city.tradePerTurn ?? 0) <= 0) return undefined;
-      const gold = await this.economicManager.getPlayerGold(city.playerId);
-      const amount = Math.min(gold, (city.tradePerTurn ?? 0) * 5);
-      if (amount <= 0) return undefined;
-      const result = await this.economicManager.spendPlayerGold(
-        city.playerId,
-        amount,
-        `Robbery in ${city.name}`,
-        { cityId: city.id }
-      );
-      return result.success
-        ? { effect, value: amount, description: `Stole ${amount} gold` }
-        : undefined;
-    }
-    if (effect === 'EmptyFoodStock' || effect === 'EmptyProdStock') {
-      const changed = await this.cityManager.emptyDisasterStock(
-        city.id,
-        effect === 'EmptyFoodStock' ? 'food' : 'production'
-      );
-      return changed ? { effect, value: 1, description: `Emptied city stock` } : undefined;
-    }
-    // ReducePopDestroy can remove a size-one city. No shipped classic disaster
-    // uses it, so it remains safely inert until city-destruction callbacks can
-    // be supplied without bypassing CityManager ownership cleanup.
-    return undefined;
+    const handlers: Record<string, () => Promise<AppliedDisasterEffect | undefined>> = {
+      ReducePopulation: () => this.applyPopulationReduction(city, effect),
+      DestroyBuilding: () => this.applyBuildingDestruction(city, effect),
+      Pollution: () => this.applyExtra(city, effect, 'pollution'),
+      Fallout: () => this.applyExtra(city, effect, 'fallout'),
+      Robbery: () => this.applyRobbery(city, effect),
+      EmptyFoodStock: () => this.emptyStock(city, effect, 'food'),
+      EmptyProdStock: () => this.emptyStock(city, effect, 'production'),
+    };
+    return handlers[effect]?.();
+  }
+
+  private async applyPopulationReduction(
+    city: CityState,
+    effect: RulesetDisasterEffect
+  ): Promise<AppliedDisasterEffect | undefined> {
+    const changed = await this.cityManager.reducePopulationForDisaster(city.id);
+    return changed
+      ? { effect, value: 1, description: 'Population reduced by one citizen' }
+      : undefined;
+  }
+
+  private async applyBuildingDestruction(
+    city: CityState,
+    effect: RulesetDisasterEffect
+  ): Promise<AppliedDisasterEffect | undefined> {
+    const building = await this.cityManager.destroyDisasterBuilding(city.id, this.random);
+    return building ? { effect, value: 1, description: `Destroyed ${building}` } : undefined;
+  }
+
+  private async applyExtra(
+    city: CityState,
+    effect: RulesetDisasterEffect,
+    extra: 'pollution' | 'fallout'
+  ): Promise<AppliedDisasterEffect | undefined> {
+    const changed = await this.cityManager.placeDisasterExtra(city.id, extra, this.random);
+    return changed ? { effect, value: 1, description: `Created ${extra}` } : undefined;
+  }
+
+  private async applyRobbery(
+    city: CityState,
+    effect: RulesetDisasterEffect
+  ): Promise<AppliedDisasterEffect | undefined> {
+    if (!this.economicManager || (city.tradePerTurn ?? 0) <= 0) return undefined;
+    const gold = await this.economicManager.getPlayerGold(city.playerId);
+    const amount = Math.min(gold, (city.tradePerTurn ?? 0) * 5);
+    if (amount <= 0) return undefined;
+    const result = await this.economicManager.spendPlayerGold(
+      city.playerId,
+      amount,
+      `Robbery in ${city.name}`,
+      { cityId: city.id }
+    );
+    return result.success
+      ? { effect, value: amount, description: `Stole ${amount} gold` }
+      : undefined;
+  }
+
+  private async emptyStock(
+    city: CityState,
+    effect: RulesetDisasterEffect,
+    stock: 'food' | 'production'
+  ): Promise<AppliedDisasterEffect | undefined> {
+    const changed = await this.cityManager.emptyDisasterStock(city.id, stock);
+    return changed ? { effect, value: 1, description: 'Emptied city stock' } : undefined;
   }
 
   private async recordDisaster(disaster: CityDisaster, turn: number, year: number): Promise<void> {

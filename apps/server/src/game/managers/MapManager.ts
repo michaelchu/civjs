@@ -62,10 +62,11 @@ export class MapManager {
   ) {
     this.width = width;
     this.height = height;
-    this.seed = seed || this.generateSeed();
+    const mapState = this.getMapState(seed, defaultGeneratorType, defaultStartPosMode);
+    this.seed = mapState.seed;
     this.generator = generator;
-    this.defaultGeneratorType = defaultGeneratorType || 'FRACTAL';
-    this.defaultStartPosMode = defaultStartPosMode ?? MapStartpos.DEFAULT;
+    this.defaultGeneratorType = mapState.generatorType;
+    this.defaultStartPosMode = mapState.startPosMode;
     this.random = this.createSeededRandom(this.seed);
     this.scenarioId = scenarioId;
 
@@ -113,6 +114,18 @@ export class MapManager {
     );
 
     this.mapAccessService = new MapAccessService(width, height, topologyOptions);
+  }
+
+  private getMapState(
+    seed: string | undefined,
+    generatorType: MapGeneratorType | undefined,
+    startPosMode: MapStartpos | undefined
+  ): { seed: string; generatorType: MapGeneratorType; startPosMode: MapStartpos } {
+    return {
+      seed: seed || this.generateSeed(),
+      generatorType: generatorType || 'FRACTAL',
+      startPosMode: startPosMode ?? MapStartpos.DEFAULT,
+    };
   }
 
   /** Future capability hook; production defaults to the disabled provider. */

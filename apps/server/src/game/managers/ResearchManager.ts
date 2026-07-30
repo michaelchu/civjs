@@ -291,12 +291,7 @@ export class ResearchManager {
       return;
     }
 
-    const isFutureTech = techId === FUTURE_TECH_ID;
-    if (isFutureTech) {
-      playerResearch.futureTechs++;
-    } else {
-      playerResearch.researchedTechs.add(techId);
-    }
+    const isFutureTech = this.recordCompletedTechnology(playerResearch, techId);
 
     // Save excess bulbs
     const excessBulbs =
@@ -318,27 +313,8 @@ export class ResearchManager {
     // Classic awards Philosophy's bonus only to its first discoverer and,
     // with free_tech_method = Goal, advances the selected goal path.
     // @reference reference/freeciv/server/techtools.c:359-405, 1388-1425
-    const isFirstDiscovery = [...this.playerResearch.values()].every(
-      other => other.playerId === playerId || !other.researchedTechs.has(techId)
-    );
-    if (
-      !isFutureTech &&
-      isFirstDiscovery &&
-      tech.flags.some(flag => flag.toLowerCase().replace(/[^a-z0-9]/g, '') === 'bonustech')
-    ) {
-      const freeTech = this.selectNextResearchTarget(playerResearch);
-      if (freeTech && freeTech.id !== FUTURE_TECH_ID) {
-        await this.grantTechnology(playerId, freeTech.id);
-      }
-    }
-
-    if (
-      playerResearch.techGoal &&
-      playerResearch.techGoal !== FUTURE_TECH_ID &&
-      playerResearch.researchedTechs.has(playerResearch.techGoal)
-    ) {
-      playerResearch.techGoal = undefined;
-    }
+    await this.awardBonusTechnology(playerId, tech, playerResearch, isFutureTech, techId);
+    this.clearCompletedTechGoal(playerResearch);
 
     const nextTech = this.selectNextResearchTarget(playerResearch);
     if (nextTech) {
@@ -347,6 +323,41 @@ export class ResearchManager {
     }
 
     await this.saveResearchState(playerResearch);
+  }
+
+  private recordCompletedTechnology(research: PlayerResearch, techId: string): boolean {
+    const future = techId === FUTURE_TECH_ID;
+    if (future) research.futureTechs++;
+    else research.researchedTechs.add(techId);
+    return future;
+  }
+
+  private async awardBonusTechnology(
+    playerId: string,
+    tech: any,
+    research: PlayerResearch,
+    future: boolean,
+    techId: string
+  ): Promise<void> {
+    const firstDiscovery = [...this.playerResearch.values()].every(
+      other => other.playerId === playerId || !other.researchedTechs.has(techId)
+    );
+    const bonus = tech.flags.some(
+      (flag: string) => flag.toLowerCase().replace(/[^a-z0-9]/g, '') === 'bonustech'
+    );
+    if (future || !firstDiscovery || !bonus) return;
+    const freeTech = this.selectNextResearchTarget(research);
+    if (freeTech && freeTech.id !== FUTURE_TECH_ID)
+      await this.grantTechnology(playerId, freeTech.id);
+  }
+
+  private clearCompletedTechGoal(research: PlayerResearch): void {
+    if (
+      research.techGoal &&
+      research.techGoal !== FUTURE_TECH_ID &&
+      research.researchedTechs.has(research.techGoal)
+    )
+      research.techGoal = undefined;
   }
 
   private getEffectiveTechnologyCost(playerId: string, baseCost: number): number {
@@ -547,44 +558,44 @@ export class ResearchManager {
       playerTechMap.get(tech.playerId)!.push(tech.techId);
     }
 
-    // Restore research state
-    for (const researchEntry of researchData) {
-      const persistedTechs = playerTechMap.get(researchEntry.playerId) || [];
-      const playerResearch: PlayerResearch = {
-        playerId: researchEntry.playerId,
-        currentTech: researchEntry.currentTech || undefined,
-        techGoal: researchEntry.techGoal || undefined,
-        bulbsAccumulated: researchEntry.bulbsAccumulated || 0,
-        bulbsLastTurn: researchEntry.bulbsLastTurn || 0,
-        researchedTechs: new Set(
-          persistedTechs.filter(techId => !techId.startsWith(`${FUTURE_TECH_ID}_`))
-        ),
-        futureTechs: this.countPersistedFutureTechs(persistedTechs),
-      };
-
-      this.playerResearch.set(researchEntry.playerId, playerResearch);
-    }
-
-    // A player who has not selected a technology only has their starting tech
-    // persisted. Recreate that state without inserting another starting-tech row.
-    // @reference reference/freeciv/server/savegame/savegame3.c:7648-7741
-    for (const [playerId, researchedTechs] of playerTechMap) {
-      if (this.playerResearch.has(playerId)) continue;
-
-      this.playerResearch.set(playerId, {
-        playerId,
-        bulbsAccumulated: 0,
-        bulbsLastTurn: 0,
-        researchedTechs: new Set(
-          researchedTechs.filter(techId => !techId.startsWith(`${FUTURE_TECH_ID}_`))
-        ),
-        futureTechs: this.countPersistedFutureTechs(researchedTechs),
-      });
-    }
+    this.restoreResearchRows(researchData, playerTechMap);
+    this.restoreOrphanResearch(playerTechMap);
 
     for (const playerId of this.playerResearch.keys()) {
       await this.ensureCurrentResearch(playerId);
     }
+  }
+
+  private restoreResearchRows(researchData: any[], playerTechMap: Map<string, string[]>): void {
+    for (const entry of researchData) {
+      const persisted = playerTechMap.get(entry.playerId) || [];
+      this.playerResearch.set(entry.playerId, {
+        playerId: entry.playerId,
+        currentTech: entry.currentTech || undefined,
+        techGoal: entry.techGoal || undefined,
+        bulbsAccumulated: entry.bulbsAccumulated || 0,
+        bulbsLastTurn: entry.bulbsLastTurn || 0,
+        researchedTechs: this.persistedTechSet(persisted),
+        futureTechs: this.countPersistedFutureTechs(persisted),
+      });
+    }
+  }
+
+  private restoreOrphanResearch(playerTechMap: Map<string, string[]>): void {
+    for (const [playerId, researchedTechs] of playerTechMap) {
+      if (this.playerResearch.has(playerId)) continue;
+      this.playerResearch.set(playerId, {
+        playerId,
+        bulbsAccumulated: 0,
+        bulbsLastTurn: 0,
+        researchedTechs: this.persistedTechSet(researchedTechs),
+        futureTechs: this.countPersistedFutureTechs(researchedTechs),
+      });
+    }
+  }
+
+  private persistedTechSet(techs: string[]): Set<string> {
+    return new Set(techs.filter(techId => !techId.startsWith(`${FUTURE_TECH_ID}_`)));
   }
 
   private getCurrentTurn(): number {

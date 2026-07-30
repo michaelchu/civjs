@@ -88,46 +88,8 @@ export class TaxRateService extends BaseGameService {
     constraints: TaxRateConstraints = TAX_RATE_CONSTRAINTS
   ): TaxRateValidation {
     const { tax, luxury, science } = rates;
-    const { minRate, maxRate, increment, maxTotal } = constraints;
-
-    // Check individual rate bounds
-    if (tax < minRate || tax > maxRate) {
-      return {
-        isValid: false,
-        error: `Tax rate must be between ${minRate}% and ${maxRate}%`,
-      };
-    }
-
-    if (luxury < minRate || luxury > maxRate) {
-      return {
-        isValid: false,
-        error: `Luxury rate must be between ${minRate}% and ${maxRate}%`,
-      };
-    }
-
-    if (science < minRate || science > maxRate) {
-      return {
-        isValid: false,
-        error: `Science rate must be between ${minRate}% and ${maxRate}%`,
-      };
-    }
-
-    // Check increments (must be multiples of increment)
-    if (tax % increment !== 0 || luxury % increment !== 0 || science % increment !== 0) {
-      return {
-        isValid: false,
-        error: `All rates must be multiples of ${increment}%`,
-      };
-    }
-
-    // Check total equals 100%
-    const total = tax + luxury + science;
-    if (total !== maxTotal) {
-      return {
-        isValid: false,
-        error: `Total rate allocation must equal ${maxTotal}% (currently ${total}%)`,
-      };
-    }
+    const invalid = this.getTaxRateError({ tax, luxury, science }, constraints);
+    if (invalid) return { isValid: false, error: invalid };
 
     // Check for warnings (optional optimality checks)
     let warning: string | undefined;
@@ -143,6 +105,25 @@ export class TaxRateService extends BaseGameService {
       isValid: true,
       warning,
     };
+  }
+
+  private getTaxRateError(rates: TaxRates, constraints: TaxRateConstraints): string | undefined {
+    const entries: Array<[string, number]> = [
+      ['Tax', rates.tax],
+      ['Luxury', rates.luxury],
+      ['Science', rates.science],
+    ];
+    const bound = entries.find(
+      ([, value]) => value < constraints.minRate || value > constraints.maxRate
+    );
+    if (bound)
+      return `${bound[0]} rate must be between ${constraints.minRate}% and ${constraints.maxRate}%`;
+    if (entries.some(([, value]) => value % constraints.increment !== 0))
+      return `All rates must be multiples of ${constraints.increment}%`;
+    const total = rates.tax + rates.luxury + rates.science;
+    return total === constraints.maxTotal
+      ? undefined
+      : `Total rate allocation must equal ${constraints.maxTotal}% (currently ${total}%)`;
   }
 
   /**
@@ -308,40 +289,36 @@ export class TaxRateService extends BaseGameService {
       optimalScience = recommendation.science;
     }
 
-    // Ensure total is 100% by adjusting unlocked rates
-    const total = optimalTax + optimalLuxury + optimalScience;
-    if (total !== 100) {
-      const diff = 100 - total;
-
-      // Distribute difference among unlocked rates
-      const unlockedRates = [];
-      if (!locks.taxLocked) unlockedRates.push('tax');
-      if (!locks.luxuryLocked) unlockedRates.push('luxury');
-      if (!locks.scienceLocked) unlockedRates.push('science');
-
-      if (unlockedRates.length > 0) {
-        const adjustmentPerRate = Math.floor(diff / unlockedRates.length);
-        let remainder = diff - adjustmentPerRate * unlockedRates.length;
-
-        if (unlockedRates.includes('tax')) {
-          optimalTax += adjustmentPerRate + (remainder > 0 ? 1 : 0);
-          remainder = Math.max(0, remainder - 1);
-        }
-        if (unlockedRates.includes('luxury')) {
-          optimalLuxury += adjustmentPerRate + (remainder > 0 ? 1 : 0);
-          remainder = Math.max(0, remainder - 1);
-        }
-        if (unlockedRates.includes('science')) {
-          optimalScience += adjustmentPerRate + (remainder > 0 ? 1 : 0);
-        }
-      }
-    }
+    [optimalTax, optimalLuxury, optimalScience] = this.adjustOptimalRates(
+      { tax: optimalTax, luxury: optimalLuxury, science: optimalScience },
+      locks
+    );
 
     return {
       tax: Math.max(0, Math.min(100, optimalTax)),
       luxury: Math.max(0, Math.min(100, optimalLuxury)),
       science: Math.max(0, Math.min(100, optimalScience)),
     };
+  }
+
+  private adjustOptimalRates(
+    rates: TaxRates,
+    locks: { taxLocked: boolean; luxuryLocked: boolean; scienceLocked: boolean }
+  ): [number, number, number] {
+    const values = [rates.tax, rates.luxury, rates.science];
+    const locked = [locks.taxLocked, locks.luxuryLocked, locks.scienceLocked];
+    const diff = 100 - values.reduce((sum, value) => sum + value, 0);
+    const open = locked
+      .map((isLocked, index) => (!isLocked ? index : -1))
+      .filter(index => index >= 0);
+    if (!open.length || diff === 0) return values as [number, number, number];
+    const perRate = Math.floor(diff / open.length);
+    let remainder = diff - perRate * open.length;
+    for (const index of open) {
+      values[index] += perRate + (remainder > 0 ? 1 : 0);
+      remainder = Math.max(0, remainder - 1);
+    }
+    return values as [number, number, number];
   }
 
   /**

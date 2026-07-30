@@ -249,36 +249,33 @@ export class BorderManager {
       claimedBy: strongestSource,
     };
 
-    // Log detailed calculation for tiles around cities
-    const distanceFromAnyCity =
-      this.borderSources.size > 0
-        ? Math.min(
-            ...Array.from(this.borderSources.values()).map(source =>
-              this.getSquaredDistance(x, y, source.x, source.y)
-            )
-          )
-        : Infinity;
-
-    if (this.borderSources.size > 0 && (distanceFromAnyCity <= 25 || maxStrength > 0)) {
-      logger.debug('🧮 Tile ownership calculation', {
-        tile: { x, y },
-        borderSourcesCount: this.borderSources.size,
-        distanceFromNearestCity: Math.sqrt(distanceFromAnyCity),
-        candidateSources: debugInfo,
-        allSources: Array.from(this.borderSources.values()).map(s => ({
-          pos: { x: s.x, y: s.y },
-          radius: this.getBorderSourceRadius(s),
-          strength: this.getBorderSourceStrength(s),
-        })),
-        result: {
-          owner: result.playerId,
-          strength: result.strength,
-          claimedBy: result.claimedBy ? { x: result.claimedBy.x, y: result.claimedBy.y } : null,
-        },
-      });
-    }
+    this.logTileOwnershipCalculation(x, y, result, debugInfo);
 
     return result;
+  }
+
+  private logTileOwnershipCalculation(
+    x: number,
+    y: number,
+    result: TileOwnership,
+    debugInfo: any[]
+  ): void {
+    const distances = Array.from(this.borderSources.values()).map(source =>
+      this.getSquaredDistance(x, y, source.x, source.y)
+    );
+    const nearest = distances.length ? Math.min(...distances) : Infinity;
+    if (!distances.length || (nearest > 25 && result.strength <= 0)) return;
+    logger.debug('🧮 Tile ownership calculation', {
+      tile: { x, y },
+      borderSourcesCount: this.borderSources.size,
+      distanceFromNearestCity: Math.sqrt(nearest),
+      candidateSources: debugInfo,
+      result: {
+        owner: result.playerId,
+        strength: result.strength,
+        claimedBy: result.claimedBy ? { x: result.claimedBy.x, y: result.claimedBy.y } : null,
+      },
+    });
   }
 
   /**
@@ -527,25 +524,7 @@ export class BorderManager {
     const linearRadius = Math.floor(Math.sqrt(updateRadius));
     for (let x = centerX - linearRadius; x <= centerX + linearRadius; x++) {
       for (let y = centerY - linearRadius; y <= centerY + linearRadius; y++) {
-        if (this.isValidCoordinate(x, y)) {
-          const key = this.getTileKey(x, y);
-          const oldOwnership = this.tileOwnership.get(key);
-          const newOwnership = this.calculateTileOwnership(x, y);
-
-          this.tileOwnership.set(key, newOwnership);
-          updatedTiles.push(newOwnership);
-
-          // Update tile ownership in map
-          this.updateTileOwnership(x, y, newOwnership.playerId);
-
-          // Track affected players for network updates
-          if (oldOwnership?.playerId !== null && oldOwnership?.playerId !== undefined) {
-            affectedPlayers.add(oldOwnership.playerId);
-          }
-          if (newOwnership.playerId !== null && newOwnership.playerId !== undefined) {
-            affectedPlayers.add(newOwnership.playerId);
-          }
-        }
+        this.updateBorderCoordinate(x, y, updatedTiles, affectedPlayers);
       }
     }
 
@@ -563,6 +542,23 @@ export class BorderManager {
       removedSources: [], // Will be set by caller if needed
       affectedPlayers: Array.from(affectedPlayers),
     };
+  }
+
+  private updateBorderCoordinate(
+    x: number,
+    y: number,
+    updatedTiles: TileOwnership[],
+    affectedPlayers: Set<string>
+  ): void {
+    if (!this.isValidCoordinate(x, y)) return;
+    const key = this.getTileKey(x, y);
+    const oldOwnership = this.tileOwnership.get(key);
+    const newOwnership = this.calculateTileOwnership(x, y);
+    this.tileOwnership.set(key, newOwnership);
+    updatedTiles.push(newOwnership);
+    this.updateTileOwnership(x, y, newOwnership.playerId);
+    if (oldOwnership?.playerId) affectedPlayers.add(oldOwnership.playerId);
+    if (newOwnership.playerId) affectedPlayers.add(newOwnership.playerId);
   }
 
   /**

@@ -910,6 +910,19 @@ export class RulesetLoader {
     terrainNames.add('glacier');
     const errors: string[] = [];
 
+    this.validateCoreReferences(
+      errors,
+      units,
+      unitClasses,
+      techNames,
+      unitNames,
+      buildings,
+      buildingNames,
+      effects,
+      terrainNames,
+      governmentNames
+    );
+    /*
     for (const [unitId, unit] of Object.entries(units)) {
       if (!(unit.unit_class in unitClasses)) {
         errors.push(`Unit '${unitId}' unit class '${unit.unit_class}' does not exist`);
@@ -985,6 +998,7 @@ export class RulesetLoader {
         }
       }
     }
+    */
 
     const requirementIndexes: Partial<Record<string, Set<string>>> = {
       Building: buildingNames,
@@ -1066,6 +1080,83 @@ export class RulesetLoader {
 
     if (errors.length > 0) {
       throw new Error(`Ruleset '${rulesetName}' has invalid references:\n${errors.join('\n')}`);
+    }
+  }
+
+  private validateCoreReferences(
+    errors: string[],
+    units: Record<string, any>,
+    unitClasses: Record<string, any>,
+    techNames: Set<string>,
+    unitNames: Set<string>,
+    buildings: Record<string, any>,
+    buildingNames: Set<string>,
+    effects: Record<string, any>,
+    terrainNames: Set<string>,
+    governmentNames: Set<string>
+  ): void {
+    for (const [unitId, unit] of Object.entries(units)) {
+      if (!(unit.unit_class in unitClasses))
+        errors.push(`Unit '${unitId}' unit class '${unit.unit_class}' does not exist`);
+      const fanatics =
+        unitId === 'fanatic' &&
+        unit.required_tech !== undefined &&
+        this.normalizeRuleName(unit.required_tech) === 'fundamentalism';
+      if (!fanatics)
+        this.validateReference(
+          errors,
+          `Unit '${unitId}' required technology`,
+          unit.required_tech,
+          techNames
+        );
+      this.validateReference(
+        errors,
+        `Unit '${unitId}' required technology`,
+        unit.requiredTech,
+        techNames
+      );
+      this.validateReference(errors, `Unit '${unitId}' obsolete unit`, unit.obsolete_by, unitNames);
+      this.validateReference(
+        errors,
+        `Unit '${unitId}' conversion unit`,
+        unit.convert_to,
+        unitNames
+      );
+    }
+    for (const [buildingId, building] of Object.entries(buildings)) {
+      this.validateReference(
+        errors,
+        `Building '${buildingId}' required technology`,
+        building.requiredTech,
+        techNames
+      );
+      for (const prerequisite of building.requires ?? [])
+        this.validateReference(
+          errors,
+          `Building '${buildingId}' prerequisite`,
+          prerequisite,
+          buildingNames
+        );
+    }
+    const namesByType: Partial<Record<string, Set<string>>> = {
+      Building: buildingNames,
+      Gov: governmentNames,
+      Government: governmentNames,
+      Tech: techNames,
+      Terrain: terrainNames,
+      UnitType: unitNames,
+    };
+    for (const [effectId, effect] of Object.entries(effects)) {
+      for (const requirement of effect.reqs ?? []) {
+        const validNames = namesByType[requirement.type];
+        if (validNames)
+          this.validateReference(
+            errors,
+            `Effect '${effectId}' ${requirement.type} requirement`,
+            requirement.name,
+            validNames
+          );
+      }
     }
   }
 

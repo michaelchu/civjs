@@ -53,34 +53,35 @@ export class NativeSaveService {
   }
 
   load(input: unknown): LoadedNativeSave {
-    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    const archive = this.validateArchive(input);
+    const turn = archive.replay.turns.find(candidate => candidate.turn === archive.throughTurn);
+    if (!turn?.snapshot) throw new Error('Invalid native save: checkpoint is missing');
+    const checkpoint = gameStateCodec.decode(turn.snapshot);
+    this.validateCheckpoint(checkpoint, archive.throughTurn);
+    return { archive, checkpoint };
+  }
+
+  private validateArchive(input: unknown): NativeSaveArchive {
+    if (!input || typeof input !== 'object' || Array.isArray(input))
       throw new Error('Invalid native save: expected an object');
-    }
     const archive = input as NativeSaveArchive;
-    if (archive.format !== NATIVE_SAVE_FORMAT || archive.version !== NATIVE_SAVE_VERSION) {
+    if (archive.format !== NATIVE_SAVE_FORMAT || archive.version !== NATIVE_SAVE_VERSION)
       throw new Error(
         `Unsupported native save format/version: ${String(archive.format)}@${String(archive.version)}`
       );
-    }
     const { checksum, ...payload } = archive;
-    if (typeof checksum !== 'string' || checksum !== this.checksum(payload)) {
+    if (typeof checksum !== 'string' || checksum !== this.checksum(payload))
       throw new Error('Invalid native save: checksum mismatch');
-    }
-    if (!archive.replay || archive.replay.gameId !== archive.gameId) {
+    if (!archive.replay || archive.replay.gameId !== archive.gameId)
       throw new Error('Invalid native save: replay identity mismatch');
-    }
-    const turn = archive.replay.turns.find(candidate => candidate.turn === archive.throughTurn);
-    if (!turn?.snapshot) {
-      throw new Error('Invalid native save: checkpoint is missing');
-    }
-    const checkpoint = gameStateCodec.decode(turn.snapshot);
-    if (checkpoint.map === undefined) {
+    return archive;
+  }
+
+  private validateCheckpoint(checkpoint: any, expectedTurn: number): void {
+    if (checkpoint.map === undefined)
       throw new Error('Invalid native save: authoritative map state is missing');
-    }
-    if (checkpoint.turn !== archive.throughTurn) {
+    if (checkpoint.turn !== expectedTurn)
       throw new Error('Invalid native save: checkpoint turn mismatch');
-    }
-    return { archive, checkpoint };
   }
 
   private checksum(payload: NativeSavePayload): string {
