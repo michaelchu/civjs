@@ -6,6 +6,13 @@ discovery document: entries should be verified against the reference and then
 promoted into implementation work or marked as an intentional CivJS design
 choice.
 
+The selected baseline is Freeciv's `civ2civ3` ruleset, which is also CivJS's
+default for new games. Ruleset-specific claims must be checked against
+`reference/freeciv/data/civ2civ3` and the converted
+`apps/server/src/shared/data/rulesets/civ2civ3` data. Core engine behavior may
+still cite Freeciv's common/server implementation, and inherited scripted
+behavior may cite `reference/freeciv/data/default/default.lua`.
+
 ## How to add an entry
 
 Record the player-visible symptom first, then capture the smallest reproducible
@@ -66,7 +73,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Area:** Random events, barbarians, combat, map exploration
 - **Observed behavior:** Games configured with barbarian activity never produce
   barbarian tribes or units during turn processing.
-- **Reproduction:** Start a classic game with barbarians enabled and advance
+- **Reproduction:** Start a `civ2civ3` game with barbarians enabled and advance
   past the configured barbarian onset turn. No barbarian spawn is observed.
 - **Current implementation:** `TurnManager` constructs `TurnPhaseService` with
   `randomEventsManager` set to `undefined`, so the random-events manager is not
@@ -126,97 +133,64 @@ you declare war first.` Civilian/border-entry units may enter permitted
   and applying rally points to produced units, plus a client test for the city
   control flow.
 
-### GP-004 — Random unit movement and spontaneous resource changes are no-ops
+### GP-004 — Storm random movement is a no-op
 
 - **Status:** Confirmed gap
-- **Area:** Random events, units, terrain extras, resources
-- **Observed behavior:** Random-event processing reports no random unit
-  movements or natural resource changes, regardless of the configured feature
-  flags.
-- **Reproduction:** Enable random movements or resource changes and advance
-  turns. The manager uses empty change/unit lists and produces no gameplay
-  effects.
+- **Area:** Random events, units
+- **Observed behavior:** The `civ2civ3` Storm unit has `RandomMovement`, but
+  random-event processing never moves it.
+- **Reproduction:** Create a Storm in a `civ2civ3` game and advance turns. The
+  Storm remains stationary unless another system moves it.
 - **Current implementation:** Random unit processing assigns `randomUnits` to
-  an empty array and never calls `UnitManager`. Natural-resource processing
-  assigns `changes` to an empty array and never calls `MapManager`. The
-  `RandomEventsManager` is also not currently injected by `TurnManager`.
+  an empty array and never calls `UnitManager`. The `RandomEventsManager` is
+  also not currently injected by `TurnManager`.
 - **Reference behavior:** Freeciv processes random unit movement during the
-  random-events phase and evaluates spontaneous extra appearance/disappearance
-  according to the terrain and ruleset settings.
+  random-events phase. The `civ2civ3` Storm is explicitly flagged
+  `RandomMovement`.
 - **CivJS references:**
   - `apps/server/src/game/managers/TurnManager.ts`
   - `apps/server/src/game/managers/RandomEventsManager.ts`
   - `apps/server/src/game/managers/UnitManager.ts`
-  - `apps/server/src/game/managers/MapManager.ts`
+  - `apps/server/src/shared/data/rulesets/civ2civ3/units.json`
 - **Freeciv references:**
   - `reference/freeciv/server/srv_main.c` (`random_movements`)
-  - `reference/freeciv/server/srv_main.c` (spontaneous extra processing)
   - `reference/freeciv/server/unittools.c`
-- **Expected outcome:** Decide which classic random-event settings are in scope,
-  wire the manager into turn processing, and implement ruleset-driven unit
-  movement and resource-extra changes with visibility, persistence, and player
-  notifications.
-- **Regression coverage:** Add deterministic random-event tests covering one
-  eligible random-movement unit and one resource appearance/disappearance.
+  - `reference/freeciv/data/civ2civ3/units.ruleset` (`RandomMovement`, Storm)
+- **Expected outcome:** Wire the manager into turn processing and implement
+  ruleset-driven random movement with legal destination selection, visibility,
+  persistence, and player notifications.
+- **Regression coverage:** Add a deterministic turn-phase test covering a
+  `civ2civ3` Storm with legal and blocked destinations.
 
-### GP-005 — Chat messages entered in the client are not sent to the server
-
-- **Status:** Confirmed gap
-- **Area:** Multiplayer communication, client feedback
-- **Observed behavior:** Submitting text in the in-game chat adds a local
-  message labelled `You`, but other players do not receive it and the message
-  is not sent through the authoritative chat handler.
-- **Reproduction:** Enter a message in `ChatBox` while two players are in the
-  same game. The sender sees a local message; the other player receives
-  nothing.
-- **Current implementation:** `ChatBox.handleSubmit()` updates local React
-  state and contains a TODO instead of calling `GameClient`. The server already
-  exposes a `CHAT_MSG_REQ` handler and broadcasts accepted messages.
-- **Reference behavior:** Freeciv sends chat messages through the server and
-  broadcasts them to the selected game, global, or private channel.
-- **CivJS references:**
-  - `apps/client/src/components/GameUI/ChatBox.tsx`
-  - `apps/client/src/services/GameClient.ts`
-  - `apps/server/src/network/handlers/ChatCommunicationHandler.ts`
-- **Freeciv references:**
-  - `reference/freeciv/common/packets.def` (chat packets)
-  - `reference/freeciv/server/stdinhand.c` (chat handling)
-- **Expected outcome:** Add a client chat-send method, route submissions through
-  `CHAT_MSG_REQ`, and render received chat packets in the chat history with
-  sender, channel, and timestamp information.
-- **Regression coverage:** Add a client test asserting chat submission sends
-  the packet, and a socket test asserting game-channel delivery to all players.
-
-### GP-006 — Submarines and carriers can attack non-native tiles
+### GP-006 — Submarines can attack non-native tiles
 
 - **Status:** Confirmed gap
 - **Area:** Combat, naval units, unit flags, terrain/native-tile rules
 - **Observed behavior:** Combat validation checks attack strength, movement,
-  range, and diplomatic hostility, but does not enforce the classic
+  range, and diplomatic hostility, but does not enforce the
   `Only_Native_Attack` restriction. Naval units can therefore attack targets on
   non-native tiles when the reference ruleset would reject the action.
-- **Reproduction:** Use a unit with the `Only_Native_Attack` flag, such as a
-  classic submarine or carrier, and attempt to attack a unit on a non-native
-  tile.
+- **Reproduction:** Use a `civ2civ3` Submarine and attempt to attack a unit on
+  a non-native land tile.
 - **Current implementation:** `UnitManager` validates the attacker's strength,
   movement points, and range but has no native-target check. The converted
-  classic ruleset retains `Only_Native_Attack` on the affected unit types, but
-  no authoritative combat path consumes it.
+  `civ2civ3` ruleset retains `Only_Native_Attack` on Submarines (and on
+  non-attacking Caravels), but no authoritative combat path consumes it.
 - **Reference behavior:** Freeciv rejects attack, wipe-unit, nuclear-unit, and
   ransom actions against non-native tiles unless the unit class permits
   non-native attacks and the unit does not have `Only_Native_Attack`.
 - **CivJS references:**
   - `apps/server/src/game/managers/UnitManager.ts`
-  - `apps/server/src/shared/data/rulesets/classic/units.json`
+  - `apps/server/src/shared/data/rulesets/civ2civ3/units.json`
 - **Freeciv references:**
   - `reference/freeciv/common/actions.c` (`can_attack_non_native` hard rules)
   - `reference/freeciv/common/movement.c` (`can_attack_non_native_hard_reqs`)
-  - `reference/freeciv/data/classic/units.ruleset`
+  - `reference/freeciv/data/civ2civ3/units.ruleset`
 - **Expected outcome:** Apply native-tile and unit-class attack restrictions
   consistently to direct attacks, bombardment, nuclear unit attacks, suicide
   attacks, and ransom actions. Return a reason-specific failure to the client.
-- **Regression coverage:** Add combat tests for submarine/carrier attacks on
-  native and non-native tiles, including a permitted non-native attack from a
+- **Regression coverage:** Add combat tests for Submarine attacks on native
+  and non-native tiles, including a permitted non-native attack from a
   unit class with `AttackNonNative`.
 
 ### GP-007 — Transport destruction kills all cargo without evacuation
@@ -231,16 +205,16 @@ you declare war first.` Civilian/border-entry units may enter permitted
   locations or unit priority flags.
 - **Current implementation:** `UnitManager.destroyUnit()` recursively calls
   itself for every `cargoUnits` entry before removing the transport. The
-  classic `EvacuateFirst` and `GameLoss` flags are not consulted.
+  `civ2civ3` `EvacuateFirst` and `GameLoss` flags are not consulted.
 - **Reference behavior:** Freeciv first separates helpless and imperiled cargo,
   prioritizes `GameLoss` and `EvacuateFirst` units, attempts to rescue cargo,
   and only destroys units that cannot be saved.
 - **CivJS references:**
   - `apps/server/src/game/managers/UnitManager.ts`
-  - `apps/server/src/shared/data/rulesets/classic/units.json`
+  - `apps/server/src/shared/data/rulesets/civ2civ3/units.json`
 - **Freeciv references:**
   - `reference/freeciv/server/unittools.c` (`unit_lost_with_transport`)
-  - `reference/freeciv/data/classic/units.ruleset` (`EvacuateFirst`)
+  - `reference/freeciv/data/civ2civ3/units.ruleset` (`EvacuateFirst`)
 - **Expected outcome:** Implement transport-loss resolution with rescue
   candidates, priority ordering, legal-placement validation, cargo updates,
   and destruction notifications for units that cannot evacuate.
@@ -268,10 +242,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
   also protect cities from diplomats when placed on a non-diplomat unit.
 - **CivJS references:**
   - `apps/server/src/game/managers/GameManager.ts`
-  - `apps/server/src/shared/data/rulesets/classic/units.json`
+  - `apps/server/src/shared/data/rulesets/civ2civ3/units.json`
   - `apps/server/src/game/managers/UnitManager.ts`
 - **Freeciv references:**
-  - `reference/freeciv/data/classic/units.ruleset` (`SuperSpy`)
+  - `reference/freeciv/data/civ2civ3/units.ruleset` (`SuperSpy`)
   - `reference/freeciv/server/diplomats.c`
   - `reference/freeciv/common/combat.c`
 - **Expected outcome:** Include Super Spy defenders in city diplomatic
@@ -288,22 +262,23 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Observed behavior:** Damaged units receive their full base movement
   allowance at the start of every turn. Damage affects combat strength but does
   not slow movement.
-- **Reproduction:** Damage a classic land or sea unit without destroying it,
-  end the turn, and compare its restored movement points with an undamaged unit
-  of the same type.
-- **Current implementation:** `UnitManager.resetMovement()` always assigns
-  `unitType.movement * 3`. The converted ruleset retains the `DamageSlows`
-  unit-class flag, but movement restoration does not consume it.
+- **Reproduction:** Damage a `civ2civ3` land or sea unit without destroying
+  it, end the turn, and compare its restored movement points with an undamaged
+  unit of the same type.
+- **Current implementation:** `UnitManager.resetMovement()` restores the
+  ruleset/effect/veteran maximum through `getUnitMovementPoints()`, but that
+  calculation has no health input. The converted ruleset retains the
+  `DamageSlows` unit-class flag, but movement restoration does not consume it.
 - **Reference behavior:** Freeciv scales the base movement rate by current hit
   points for classes with `DamageSlows`, then enforces the class minimum speed
   and applies movement effects and veteran bonuses.
 - **CivJS references:**
   - `apps/server/src/game/managers/UnitManager.ts`
   - `apps/server/src/game/services/RulesetUnitsService.ts`
-  - `apps/server/src/shared/data/rulesets/classic/units.json`
+  - `apps/server/src/shared/data/rulesets/civ2civ3/units.json`
 - **Freeciv references:**
   - `reference/freeciv/common/movement.c` (`utype_move_rate`)
-  - `reference/freeciv/data/classic/units.ruleset` (`DamageSlows`)
+  - `reference/freeciv/data/civ2civ3/units.ruleset` (`DamageSlows`)
 - **Expected outcome:** Calculate restored movement from the unit's current
   health when its class has `DamageSlows`, including class minimum speed,
   veteran movement bonuses, and ruleset effects in the correct order.
@@ -318,12 +293,12 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Observed behavior:** Attacking a unit in a city only damages or destroys
   combatants. The city's population is unchanged unless the city is captured,
   which follows a separate population-loss path.
-- **Reproduction:** Successfully attack a defended city with a classic land
-  unit without capturing the city and observe that its population does not
-  decrease.
+- **Reproduction:** Successfully attack a defended city with a `civ2civ3`
+  land unit without capturing the city and observe that its population does
+  not decrease.
 - **Current implementation:** `UnitManager.attackUnit()` resolves combat,
   defender removal, attacker movement, and possible city capture, but never
-  applies the classic `KillCitizen` unit-class flag. The flag is present in the
+  applies the `civ2civ3` `KillCitizen` unit-class flag. The flag is present in the
   converted ruleset.
 - **Reference behavior:** After a successful attack or bombard action, Freeciv
   reduces the target city's size by one when the attacker's class has
@@ -332,11 +307,11 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **CivJS references:**
   - `apps/server/src/game/managers/UnitManager.ts`
   - `apps/server/src/game/managers/CityManager.ts`
-  - `apps/server/src/shared/data/rulesets/classic/units.json`
+  - `apps/server/src/shared/data/rulesets/civ2civ3/units.json`
 - **Freeciv references:**
   - `reference/freeciv/server/unithand.c`
     (`unit_attack_civilian_casualties`)
-  - `reference/freeciv/data/classic/units.ruleset` (`KillCitizen`)
+  - `reference/freeciv/data/civ2civ3/units.ruleset` (`KillCitizen`)
 - **Expected outcome:** Apply ruleset-driven civilian casualties after
   qualifying attacks and bombardment, respect population-protection effects,
   handle size-one city destruction correctly, and broadcast the updated city
@@ -361,8 +336,8 @@ you declare war first.` Civilian/border-entry units may enter permitted
   loaded but is not used for city tile availability.
 - **Reference behavior:** Freeciv's city-work validation treats a tile as
   occupied when it contains a unit belonging to a player at war, except for
-  unit classes with `DoesntOccupyTile`. Classic air and missile units use that
-  exception.
+  unit classes with `DoesntOccupyTile`. The `civ2civ3` Missile, Air, Small
+  Land, and Helicopter classes use that exception.
 - **CivJS references:**
   - `apps/server/src/game/services/CityTileManagementService.ts`
   - `apps/server/src/game/systems/CitizenManagement/CitizenManagementService.ts`
@@ -371,7 +346,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Freeciv references:**
   - `reference/freeciv/common/unit.c` (`unit_occupies_tile`)
   - `reference/freeciv/common/city.c` (`city_can_work_tile`)
-  - `reference/freeciv/data/classic/units.ruleset` (`DoesntOccupyTile`)
+  - `reference/freeciv/data/civ2civ3/units.ruleset` (`DoesntOccupyTile`)
 - **Expected outcome:** Recompute workability when hostile units enter or leave
   a city radius and when diplomacy changes; unassign blocked workers, refresh
   city output, and exempt non-occupying unit classes.
@@ -383,9 +358,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 - **Status:** Confirmed gap
 - **Area:** Unit loss, player elimination, scenarios, victory conditions
-- **Observed behavior:** A unit carrying the classic `GameLoss` flag can be
+- **Observed behavior:** A unit carrying the `civ2civ3` `GameLoss` flag can be
   destroyed like an ordinary unit while its owner remains alive.
-- **Reproduction:** Create a classic Leader for a player through a scenario or
+- **Reproduction:** Create a `civ2civ3` Leader for a player through a scenario or
   start-unit setup, destroy it in combat, and observe that the player remains
   active.
 - **Current implementation:** `UnitManager.destroyUnit()` removes cargo and the
@@ -395,19 +370,19 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Reference behavior:** Freeciv marks the owner as dying whenever a
   `GameLoss` unit is removed outside the editor, then processes player death
   and the ruleset's optional civil-war, barbarian, or loot consequences. The
-  classic Leader has this flag, although it is normally scenario/start-unit
+  `civ2civ3` Leader has this flag, although it is normally scenario/start-unit
   content rather than a buildable unit.
 - **CivJS references:**
   - `apps/server/src/game/managers/UnitManager.ts`
   - `apps/server/src/game/services/EndGameService.ts`
   - `apps/server/src/game/managers/GameManager.ts`
   - `apps/server/src/game/ai/AIHunterPlanner.ts`
-  - `apps/server/src/shared/data/rulesets/classic/units.json`
+  - `apps/server/src/shared/data/rulesets/civ2civ3/units.json`
 - **Freeciv references:**
   - `reference/freeciv/server/unittools.c` (`server_remove_unit`)
   - `reference/freeciv/server/srv_main.c` (dying-player processing)
   - `reference/freeciv/server/plrhand.c` (game-loss consequences)
-  - `reference/freeciv/data/classic/units.ruleset` (`GameLoss`)
+  - `reference/freeciv/data/civ2civ3/units.ruleset` (`GameLoss`)
 - **Expected outcome:** Route all authoritative unit-removal reasons through
   `GameLoss` handling, eliminate the owner except for explicitly exempt editor
   removal, trigger end-game evaluation, and implement or deliberately scope
@@ -425,23 +400,24 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Reproduction:** Attack with a fast non-`OneAttack` unit after spending no
   movement. The unit cannot move or attack again after combat.
 - **Current implementation:** `UnitManager.attackUnit()` unconditionally sets
-  `attacker.movementLeft = 0`. The converted effect set and `EffectsManager`
-  do not expose `Action_Success_Actor_Move_Cost`.
-- **Reference behavior:** Classic charges one move (three fragments) for an
-  ordinary attack. Only units with `OneAttack` pay 65535 fragments and
-  therefore lose all movement.
+  `attacker.movementLeft = 0`. The converted `civ2civ3` data retains
+  `Action_Success_Actor_Move_Cost`, but the combat path does not evaluate it.
+- **Reference behavior:** `civ2civ3` charges two moves (six fragments) for an
+  ordinary attack. Units with `OneAttack` pay 65535 fragments and therefore
+  lose all movement.
 - **CivJS references:**
   - `apps/server/src/game/managers/UnitManager.ts`
   - `apps/server/src/game/managers/EffectsManager.ts`
-  - `apps/server/src/shared/data/rulesets/classic/effects.json`
+  - `apps/server/src/shared/data/rulesets/civ2civ3/effects.json`
 - **Freeciv references:**
-  - `reference/freeciv/data/classic/effects.ruleset`
+  - `reference/freeciv/data/civ2civ3/effects.ruleset`
     (`Action_Success_Actor_Move_Cost`)
   - `reference/freeciv/server/unithand.c`
 - **Expected outcome:** Evaluate the action-success movement-cost effect and
   subtract that value rather than clearing all remaining movement.
-- **Regression coverage:** Test attacks by one-, two-, and three-move units,
-  including a `OneAttack` bomber or missile.
+- **Regression coverage:** Test attacks with fewer than, exactly, and more
+  than six movement fragments remaining, including a `OneAttack` bomber or
+  missile.
 
 ### GP-014 — Disbanding a unit into production recovers twice as many shields
 
@@ -453,14 +429,14 @@ you declare war first.` Civilian/border-entry units may enter permitted
   observe a 20-shield increase.
 - **Current implementation:** `CityManager.recoverUnitShields()` is called
   with `unitType.cost`, and the success message reports that full value.
-- **Reference behavior:** The classic ruleset applies
+- **Reference behavior:** The `civ2civ3` ruleset applies
   `Unit_Shield_Value_Pct = -50` to `Disband Unit Recover`, yielding half the
   unit's shield value.
 - **CivJS references:**
   - `apps/server/src/game/managers/CityManager.ts`
   - `apps/server/src/game/managers/UnitManager.ts`
 - **Freeciv references:**
-  - `reference/freeciv/data/classic/effects.ruleset`
+  - `reference/freeciv/data/civ2civ3/effects.ruleset`
     (`Unit_Shield_Value_Pct`)
   - `reference/freeciv/server/unithand.c` (`unit_shield_value`)
 - **Expected outcome:** Derive recovered shields from the ruleset effect and
@@ -475,12 +451,12 @@ you declare war first.` Civilian/border-entry units may enter permitted
   city's center tile; selecting an adjacent city fails.
 - **Current implementation:** `UnitManager.canPerformCityUnitAction()` requires
   exact equality between the unit and target coordinates.
-- **Reference behavior:** Classic configures both `Help Wonder` and
+- **Reference behavior:** `civ2civ3` configures both `Help Wonder` and
   `Disband Unit Recover` with a maximum range of one tile.
 - **CivJS references:**
   - `apps/server/src/game/managers/UnitManager.ts`
 - **Freeciv references:**
-  - `reference/freeciv/data/classic/actions.ruleset`
+  - `reference/freeciv/data/civ2civ3/actions.ruleset`
     (`help_wonder_max_range`, `disband_unit_recover_max_range`)
 - **Expected outcome:** Validate these actions through their configured
   minimum and maximum ranges while still requiring an eligible target city.
@@ -492,18 +468,18 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Status:** Confirmed gap
 - **Area:** Combat, transports, Marines, city capture
 - **Observed behavior:** Every transported attacker is rejected before combat,
-  including classic Marines.
+  including `civ2civ3` Marines.
 - **Reproduction:** Load Marines on a transport beside a defended coastal city
   and attempt to attack from the transport.
 - **Current implementation:** `UnitManager.attackUnit()` rejects an attack
   whenever either combatant has `transportedBy`.
-- **Reference behavior:** Classic has dedicated Marine attack and city-conquer
+- **Reference behavior:** `civ2civ3` has dedicated Marine attack and city-conquer
   enablers that permit a Marine to attack from a non-native transport tile.
 - **CivJS references:**
   - `apps/server/src/game/managers/UnitManager.ts`
   - `apps/server/src/game/ai/AICityDangerPlanner.ts`
 - **Freeciv references:**
-  - `reference/freeciv/data/classic/actions.ruleset`
+  - `reference/freeciv/data/civ2civ3/actions.ruleset`
     (`enabler_attack_marines`, `enabler_conquer_city_marines`)
   - `reference/freeciv/common/movement.c`
 - **Expected outcome:** Permit transport-origin attacks only when the action
@@ -516,16 +492,16 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Status:** Confirmed gap
 - **Area:** Happiness, military units, unit support
 - **Observed behavior:** A military unit in its home city never contributes
-  war unhappiness, even when its type has the classic `FieldUnit` flag.
+  war unhappiness, even when its type has the `civ2civ3` `FieldUnit` flag.
 - **Current implementation:** `UnitSupportManager` adds military unhappiness
   only when `isMilitaryUnit && isAwayFromHome`; its support-data shape does not
   carry unit flags.
 - **Reference behavior:** Freeciv applies aggressive-unit unhappiness when the
-  unit is away from home _or_ has `FieldUnit`. Classic helicopters, bombers,
-  stealth bombers, cruise missiles, and nuclear units use that flag.
+  unit is away from home _or_ has `FieldUnit`. `civ2civ3` Bombers, Stealth
+  Bombers, and Nuclear units use that flag.
 - **CivJS references:**
   - `apps/server/src/game/managers/UnitSupportManager.ts`
-  - `apps/server/src/shared/data/rulesets/classic/units.json`
+  - `apps/server/src/shared/data/rulesets/civ2civ3/units.json`
 - **Freeciv references:**
   - `reference/freeciv/common/city.c` (`city_support`)
   - `reference/freeciv/common/unit.c` (`UTYF_FIELDUNIT`)
@@ -546,31 +522,31 @@ you declare war first.` Civilian/border-entry units may enter permitted
   target player is barbarian, then destroys the entire stack.
 - **Reference behavior:** Every unit on the tile must have `ProvidesRansom`.
   Any ordinary escort protects the leader and makes the action illegal; in the
-  classic ruleset only the Barbarian Leader provides ransom.
+  `civ2civ3` ruleset only the Barbarian Leader provides ransom.
 - **CivJS references:**
   - `apps/server/src/game/managers/UnitManager.ts`
   - `apps/server/tests/game/UnitManager.test.ts`
 - **Freeciv references:**
   - `reference/freeciv/common/actres.c`
-  - `reference/freeciv/data/classic/units.ruleset` (`ProvidesRansom`)
+  - `reference/freeciv/data/civ2civ3/units.ruleset` (`ProvidesRansom`)
 - **Expected outcome:** Validate the full stack, pay only for qualifying ransom
   units, and preserve protected leaders and escorts.
 - **Regression coverage:** Test an unescorted leader, one escort, multiple
   leaders, and a non-barbarian target.
 
-### GP-019 — Direct production selection bypasses build requirements
+### GP-019 — Direct unit production selection bypasses build requirements
 
 - **Status:** Confirmed gap
 - **Area:** City production, technology, unit placement, ruleset requirements
-- **Observed behavior:** A direct production request can select units and
-  buildings that the city is not allowed to build.
+- **Observed behavior:** A direct production request can select a unit that the
+  city is not allowed to build.
 - **Reproduction:** Select a late-game unit without its technology, a
   `NoBuild` unit, or a naval unit in an inland city through the authoritative
   production endpoint.
 - **Current implementation:** `CityManager.setCityProduction()` verifies that
-  the identifier exists and handles duplicates/wonders, but does not call the
-  stricter queue/buildability checks. Turn completion does not revalidate the
-  current target.
+  a requested unit identifier exists but does not call `canCityQueueItem()`.
+  Building selection and turn completion do use that stricter buildability
+  check, so this bypass is specific to direct unit selection.
 - **Reference behavior:** Freeciv evaluates the complete requirement vector,
   obsolescence, unit flags, uniqueness, build slots, and native terrain near
   the city before accepting or completing production.
@@ -584,7 +560,8 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Expected outcome:** Use one authoritative buildability evaluator for direct
   selection, worklists, AI choices, restoration, and completion.
 - **Regression coverage:** Test technology, `NoBuild`, `BarbarianOnly`,
-  obsolescence, `Unique`, building requirements, and inland naval production.
+  obsolescence, `Unique`, and inland naval production through direct selection,
+  queue selection, and turn completion.
 
 ### GP-020 — City names are neither player-unique nor ruleset-driven
 
@@ -602,7 +579,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **CivJS references:**
   - `apps/server/src/game/managers/CityManager.ts`
   - `apps/server/src/game/systems/ActionSystem.ts`
-  - `apps/server/src/shared/data/rulesets/classic/nations.json`
+  - `apps/server/src/shared/data/rulesets/civ2civ3/nations.json`
 - **Freeciv references:**
   - `reference/freeciv/common/game.h` (`GAME_DEFAULT_ALLOWED_CITY_NAMES`)
   - `reference/freeciv/server/cityhand.c`
@@ -648,7 +625,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Current implementation:** `CityManager` explicitly notes that
   `SaveSmallWonder`/`savepalace` are not modeled. No capital-loss path resets
   spaceship state.
-- **Reference behavior:** Classic's Palace is a `SaveSmallWonder`; with the
+- **Reference behavior:** The `civ2civ3` Palace is a `SaveSmallWonder`; with the
   default `savepalace` setting it is rebuilt for free in another city.
   Capital loss also destroys the player's started or launched spaceship.
 - **CivJS references:**
@@ -656,7 +633,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `apps/server/src/game/services/CityCaptureService.ts`
   - `apps/server/src/game/services/EndGameService.ts`
 - **Freeciv references:**
-  - `reference/freeciv/data/classic/buildings.ruleset` (`SaveSmallWonder`)
+  - `reference/freeciv/data/civ2civ3/buildings.ruleset` (`SaveSmallWonder`)
   - `reference/freeciv/common/game.h` (`GAME_DEFAULT_SAVEPALACE`)
   - `reference/freeciv/server/citytools.c`
 - **Expected outcome:** Add a single capital-loss hook that relocates saved
@@ -817,10 +794,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `apps/server/src/game/services/RulesetActionsService.ts`
   - `apps/server/src/game/orchestrators/GameBroadcastManager.ts`
   - `apps/client/src/components/GameUI/UnitContextMenu.tsx`
-  - `apps/server/src/shared/data/rulesets/classic/extras.json`
+  - `apps/server/src/shared/data/rulesets/civ2civ3/extras.json`
 - **Freeciv references:**
-  - `reference/freeciv/data/classic/actions.ruleset`
-  - `reference/freeciv/data/classic/terrain.ruleset`
+  - `reference/freeciv/data/civ2civ3/actions.ruleset`
+  - `reference/freeciv/data/civ2civ3/terrain.ruleset`
   - `reference/freeciv/common/actions.c`
   - `reference/freeciv/common/unittype.c` (`utype_can_do_action`)
 - **Expected outcome:** Route worker action availability and execution through
@@ -894,9 +871,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
   rather than using the `HutTech`/`Hut` role fallback sequence.
 - **Current implementation:** `UnitManager.resolveHutReward()` implements a
   fourteen-way roll but substitutes these simplified consequences.
-- **Reference behavior:** Classic's default script unleashes barbarians unless
-  protected by nearby-city/GameLoss/disabled-barbarian rules, creates a city
-  or settlers based on terrain, and selects a legal role unit for mercenaries.
+- **Reference behavior:** `civ2civ3` inherits Freeciv's default hut script,
+  which unleashes barbarians unless protected by nearby-city/GameLoss/
+  disabled-barbarian rules, creates a city or settlers based on terrain, and
+  selects a legal role unit for mercenaries.
 - **CivJS references:**
   - `apps/server/src/game/managers/UnitManager.ts`
   - `apps/server/src/game/managers/RandomEventsManager.ts`
@@ -916,20 +894,22 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Observed behavior:** Capturing an eligible city never spawns partisan units
   for the losing player.
 - **Current implementation:** No capture hook evaluates `Inspire_Partisans`;
-  the effect is absent from `EffectsManager` and the converted effects data.
-- **Reference behavior:** The classic default script evaluates local support,
-  technologies, government, and `Inspire_Partisans`, then places a
-  size-dependent number of Partisan-role units around the conquered city.
+  `EffectsManager` has no consumer even though the converted `civ2civ3` data
+  retains the effect.
+- **Reference behavior:** `civ2civ3` inherits the default partisan script,
+  which evaluates local support, technologies, government, and
+  `Inspire_Partisans`, then places a size-dependent number of Partisan-role
+  units around the conquered city.
 - **CivJS references:**
   - `apps/server/src/game/services/CityCaptureService.ts`
   - `apps/server/src/game/managers/EffectsManager.ts`
-  - `apps/server/src/shared/data/rulesets/classic/effects.json`
+  - `apps/server/src/shared/data/rulesets/civ2civ3/effects.json`
 - **Freeciv references:**
   - `reference/freeciv/data/default/default.lua`
     (`_deflua_make_partisans_callback`)
-  - `reference/freeciv/data/classic/effects.ruleset`
-- **Expected outcome:** Preserve/implement the effect and execute the partisan
-  script after conquest with legal placement and player notifications.
+  - `reference/freeciv/data/civ2civ3/effects.ruleset`
+- **Expected outcome:** Evaluate the retained effect and execute the partisan
+  behavior after conquest with legal placement and player notifications.
 - **Regression coverage:** Test eligible governments/techs, original versus
   non-original owner, city sizes, no legal tiles, and non-conquest transfer.
 
@@ -949,105 +929,40 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **CivJS references:**
   - `apps/server/src/game/services/TurnPhaseService.ts`
   - `apps/server/src/game/managers/CityManager.ts`
-  - `apps/server/src/shared/data/rulesets/classic/extras.json`
+  - `apps/server/src/shared/data/rulesets/civ2civ3/extras.json`
 - **Freeciv references:**
   - `reference/freeciv/server/srv_main.c` (global warming and nuclear winter)
   - `reference/freeciv/server/maphand.c`
-  - `reference/freeciv/data/classic/terrain.ruleset`
+  - `reference/freeciv/data/civ2civ3/terrain.ruleset`
 - **Expected outcome:** Add persistent global climate pressure, configured
   checks, terrain transformations, map/city refresh, and notifications.
 - **Regression coverage:** Use deterministic thresholds to test accumulation,
   cleanup lag, warming, cooling, terrain eligibility, persistence, and
   disabled settings.
 
-### GP-033 — Roads on desert tiles provide no trade
+### GP-033 — Roads on desert and tundra tiles provide no trade
 
 - **Status:** Confirmed gap
 - **Area:** Tile output, roads, terrain rules
 - **Observed behavior:** A road adds one trade only when the terrain identifier
-  is hard-coded as grassland or plains; classic desert roads receive no bonus.
+  is hard-coded as grassland or plains; `civ2civ3` desert and tundra roads
+  receive no bonus.
 - **Current implementation:** `CityTileManagementService.calculateCityOutputs()`
   checks `['grassland', 'plains']` instead of consuming the terrain's
   `road_trade_incr_pct`.
-- **Reference behavior:** Classic desert, grassland, and plains all configure a
-  100-percent road trade increment; the terrain ruleset determines the result.
+- **Reference behavior:** `civ2civ3` desert, grassland, plains, and tundra all
+  configure a 100-percent road trade increment; the terrain ruleset determines
+  the result.
 - **CivJS references:**
   - `apps/server/src/game/services/CityTileManagementService.ts`
-  - `apps/server/src/shared/data/rulesets/classic/terrain.json`
+  - `apps/server/src/shared/data/rulesets/civ2civ3/terrain.json`
 - **Freeciv references:**
-  - `reference/freeciv/data/classic/terrain.ruleset`
+  - `reference/freeciv/data/civ2civ3/terrain.ruleset`
   - `reference/freeciv/common/city.c` (`city_tile_output`)
 - **Expected outcome:** Calculate road food, shield, and trade modifiers from
   terrain/extra data rather than terrain-name lists.
-- **Regression coverage:** Test roads on every classic terrain and a mutated
+- **Regression coverage:** Test roads on every `civ2civ3` terrain and a mutated
   ruleset with non-default road output percentages.
-
-### GP-034 — The converted classic ruleset drops 54 effect types
-
-- **Status:** Confirmed gap
-- **Area:** Ruleset conversion, wonders, governments, actions, economy, combat
-- **Observed behavior:** `ClassicEffectInventory` reports complete coverage of
-  `classic/effects.json`, but that JSON contains only a subset of the effect
-  types in Freeciv's classic `effects.ruleset`. Player-visible rules attached
-  to omitted effects are unavailable unless a subsystem happened to recreate
-  them manually.
-- **Reproduction:** Compare the unique `type` values in the source ruleset and
-  converted JSON. Fifty-four source types are absent. Representative gameplay
-  consequences include:
-  - Manhattan Project does not gate nuclear weapons (`Enable_Nuke`) and SDI
-    Defense does not provide nuclear immunity (`Nuke_Proof`).
-  - Apollo Program neither reveals the map nor gates the space race
-    (`Reveal_Map`, `Enable_Space`).
-  - Lighthouse, Magellan's Expedition, and Nuclear Power do not grant sea
-    movement (`Move_Bonus`).
-  - Leonardo's Workshop does not perform free upgrades (`Upgrade_Unit`), and
-    A. Smith's Trading Co. does not waive improvement upkeep (`Upkeep_Free`).
-  - Hanging Gardens, J.S. Bach's Cathedral, Cure for Cancer, and Shakespeare's
-    Theatre lose happiness behavior (`Make_Happy`, `Force_Content`,
-    `No_Unhappy`).
-- **Current implementation:** The executable inventory proves coverage only
-  after conversion. `EffectsManager` declares some omitted enum values, but no
-  converted effect records exist for it to evaluate. Other omitted types have
-  neither schema support nor an authoritative consumer.
-- **Omitted source effect families:**
-  - **Actions:** `Action_Odds_Pct`, `Action_Success_Actor_Move_Cost`,
-    `Illegal_Action_Move_Cost`, `Building_Saboteur_Resistant`,
-    `Spy_Resistant`.
-  - **Action unlocks and costs:** `Enable_Nuke`, `Enable_Space`,
-    `Building_Buy_Cost_Pct`, `Incite_Cost_Pct`, `Unit_Bribe_Cost_Pct`,
-    `Unit_Shield_Value_Pct`, `Trade_Revenue_Bonus`.
-  - **Cities and happiness:** `Capital_City`, `City_Build_Slots`, `City_Image`,
-    `City_Vision_Radius_Sq`, `Empire_Size_Base`, `Empire_Size_Step`,
-    `Force_Content`, `Make_Happy`, `No_Unhappy`, `Output_Per_Tile`,
-    `Output_Tile_Punish_Pct`, `Tile_Workable`, `Unit_No_Lose_Pop`.
-  - **Terrain and borders:** `Irrigation_Pct`, `Mining_Pct`,
-    `Tile_Claimable`.
-  - **Units and combat:** `Move_Bonus`, `Nuke_Blast_Radius_1_Sq`,
-    `Nuke_Proof`, `Unit_Recover`, `Upgrade_Unit`, `Upkeep_Free`,
-    `Veteran_Combat`.
-  - **Research, space, and visibility:** `Reveal_Map`, `SS_Component`,
-    `SS_Module`, `SS_Structural`, `Tech_Cost_Factor`, `Tech_Leakage`.
-  - **Diplomacy and player state:** `Any_Government`, `Casus_Belli_Caught`,
-    `Casus_Belli_Success`, `Civil_War_Chance`, `Civil_War_City_Bonus`,
-    `Conquest_Tech_Pct`, `Gain_AI_Love`, `Have_Contacts`,
-    `Have_Embassies`, `Inspire_Partisans`.
-  - **Other:** `Airlift`, `Health_Pct`.
-- **CivJS references:**
-  - `apps/server/src/shared/data/rulesets/classic/effects.json`
-  - `apps/server/src/game/services/ClassicEffectInventory.ts`
-  - `apps/server/src/game/managers/EffectsManager.ts`
-- **Freeciv references:**
-  - `reference/freeciv/data/classic/effects.ruleset`
-  - `reference/freeciv/common/effects.h`
-- **Expected outcome:** Make conversion lossless, require every source effect
-  type to be classified before generated data is accepted, and add an
-  authoritative consumer or explicit intentional disposition for each type.
-  Split the player-visible families above into focused implementation issues;
-  GP-013, GP-014, GP-017, GP-022, GP-027, GP-031, and GP-032 already cover
-  several consequences.
-- **Regression coverage:** Add a source-versus-converted effect-type parity
-  test and focused end-to-end tests for every retained effect family,
-  especially wonder unlocks/bonuses and action costs.
 
 ### GP-035 — Civilization score and turn-cap ranking are not reference-compatible
 
@@ -1101,21 +1016,27 @@ history`. Maximum-turn resolution compares individual totals and awards
 
 ## Scope-dependent Freeciv behaviors to triage
 
-These are potential gaps rather than confirmed classic-default regressions.
+These are potential gaps rather than confirmed `civ2civ3`-default regressions.
 They should be promoted to numbered entries when CivJS commits to the
 corresponding server setting or broader ruleset compatibility:
 
 - **Automatic attacks:** Freeciv can autoattack after movement when the
-  `autoattack` server setting is enabled; its classic default is disabled.
+  `autoattack` server setting is enabled; the Freeciv server default is
+  disabled.
 - **Configurable occupation chance:** Freeciv supports `occupychance` and
   action post-success rules; CivJS currently moves a surviving melee attacker
-  into an emptied target automatically.
-- **Alternate-ruleset combat actions:** Bombard-capable units, non-native
-  bombard rules, and several action-result effects exist in the engine even
-  though the selected classic unit set does not expose them.
+  into an emptied target automatically. This matches `civ2civ3`'s
+  100-percent preset but not other configured values.
+- **Spontaneous extras:** Freeciv can make extras appear or disappear during
+  turn processing, but `civ2civ3` declares no `Appear`/`Disappear` extra and
+  therefore does not exercise this behavior.
+- **Alternate-ruleset combat actions:** `civ2civ3` exposes and CivJS
+  implements bombard-capable units; additional non-native bombard and
+  action-result combinations still need compatibility tests for other
+  rulesets.
 - **Generalized unit/building flags:** `BuildAnywhere`, `NoHome`, broader
   `Unique`, and ruleset-defined action movement costs need explicit
-  compatibility tests beyond the selected classic data.
+  compatibility tests beyond the selected `civ2civ3` data.
 - **Post-GameLoss consequences:** Civil war, barbarian conversion, and loot
   styles are configurable consequences beyond the core elimination described
   in GP-012.
