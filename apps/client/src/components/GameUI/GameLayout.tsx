@@ -58,7 +58,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
     return () => {
       active = false;
     };
-  }, [currentPlayer, currentPlayerId, researchedTechs]);
+  }, [currentPlayer, currentPlayerId, researchedTechs, rulesetName]);
 
   // Initialize keyboard controls
   useKeyboardControls();
