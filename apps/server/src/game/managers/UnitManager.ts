@@ -2643,6 +2643,7 @@ export class UnitManager {
     const handlers: Partial<
       Record<ActionType, (targetX?: number, targetY?: number) => Promise<ActionResult>>
     > = {
+      [ActionType.CANCEL_ORDERS]: () => this.executeCancelOrders(unit),
       [ActionType.PARADROP]: (targetX, targetY) => this.executeParadrop(unit, targetX, targetY),
       [ActionType.AIRLIFT]: (targetX, targetY) => this.executeAirlift(unit, targetX, targetY),
       [ActionType.BOMBARD]: (targetX, targetY) => this.executeBombard(unit, targetX, targetY),
@@ -2672,6 +2673,26 @@ export class UnitManager {
       [ActionType.UPGRADE_UNIT]: () => this.executeUpgradeUnit(unit),
     };
     return handlers[actionType];
+  }
+
+  private async executeCancelOrders(unit: Unit): Promise<ActionResult> {
+    const hadOrders = (unit.orders?.length ?? 0) > 0 || Boolean(unit.automation);
+    unit.orders = [];
+    unit.activity = { type: 'idle', turnsRemaining: 0, totalTurns: 0 };
+    unit.automation = undefined;
+    unit.autoExploreTarget = undefined;
+
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ isAutomated: false, orders: [], currentOrder: null })
+      .where(eq(units.id, unit.id));
+
+    return {
+      success: true,
+      message: hadOrders ? 'Unit orders cancelled' : 'Unit had no queued orders',
+      newOrders: [],
+    };
   }
 
   private async executeLoadUnitAction(

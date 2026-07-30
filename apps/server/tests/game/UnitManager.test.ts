@@ -109,6 +109,27 @@ describe('UnitManager', () => {
 
       expect(unitManager.getUnitsAt(10, 10)).toHaveLength(2);
     });
+
+    it('cancels queued orders and persists the idle state', async () => {
+      const unit = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      unitManager.addOrderToUnit(unit.id, { type: 'patrol' });
+      unit.activity = { type: 'patrolling', turnsRemaining: 1, totalTurns: 2 };
+
+      await expect(
+        unitManager.executeUnitAction(unit.id, ActionType.CANCEL_ORDERS, undefined, undefined, 'player-123')
+      ).resolves.toMatchObject({
+        success: true,
+        message: 'Unit orders cancelled',
+        newOrders: [],
+      });
+      expect(unit.orders).toEqual([]);
+      expect(unit.activity).toEqual({ type: 'idle', turnsRemaining: 0, totalTurns: 0 });
+      expect((mockDbProvider.getDatabase() as any).set).toHaveBeenCalledWith({
+        isAutomated: false,
+        orders: [],
+        currentOrder: null,
+      });
+    });
   });
 
   describe('worker activities', () => {

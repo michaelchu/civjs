@@ -8,6 +8,7 @@ export enum ActionType {
   FORTIFY = 'fortify',
   SENTRY = 'sentry',
   WAIT = 'wait',
+  CANCEL_ORDERS = 'cancel_orders',
   SKIP_TURN = 'skip_turn',
 
   // Goto system

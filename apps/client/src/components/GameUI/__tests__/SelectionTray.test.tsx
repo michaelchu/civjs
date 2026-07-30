@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGameStore } from '../../../store/gameStore';
 import type { City, Unit } from '../../../types';
 import { SelectionTray } from '../SelectionTray';
+import { gameClient } from '../../../services/GameClient';
+import { ActionType } from '../../../types/shared/actions';
 
 const unit = {
   id: 'unit-1',
@@ -96,7 +98,20 @@ describe('SelectionTray', () => {
 
     expect(screen.getByText('2, 3 · 1 queued · Goto')).toBeInTheDocument();
     expect(screen.getByText('1 queued')).toBeInTheDocument();
-    expect(screen.getByTitle(/queued orders/)).toBeInTheDocument();
+    expect(screen.getByTitle('Queued orders')).toBeInTheDocument();
+  });
+
+  it('cancels queued orders through the authoritative unit action', async () => {
+    const requestUnitAction = vi.spyOn(gameClient, 'requestUnitAction').mockResolvedValue(true);
+    useGameStore.setState({
+      selectedUnitId: 'unit-1',
+      focusedUnits: ['unit-1'],
+      units: { 'unit-1': { ...unit, orders: [{ type: 'goto', targetX: 6, targetY: 7 }] } },
+    });
+    render(<SelectionTray />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel orders' }));
+    expect(requestUnitAction).toHaveBeenCalledWith('unit-1', ActionType.CANCEL_ORDERS);
   });
 
   it('shows city production context and dispatches the city-details request', () => {
