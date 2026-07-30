@@ -64,20 +64,33 @@ const ResourceMetric: React.FC<ResourceMetricProps> = ({
   </div>
 );
 
-const StatusPill: React.FC<{ clientState: string; phase: string }> = ({
+const StatusPill: React.FC<{ clientState: string; phase: string; pendingActions: number; processing: boolean }> = ({
   clientState,
   phase,
+  pendingActions,
+  processing,
 }) => {
   const isRunning = clientState === 'running';
   return (
     <div
       className="hidden items-center gap-1.5 border-l border-white/10 pl-3 text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400 lg:flex"
-      title={`${clientState} · ${phase} phase`}
+      title={`${clientState} · ${phase} phase${pendingActions > 0 ? ` · ${pendingActions} pending actions` : ''}`}
     >
       <Wifi className={isRunning ? 'h-3.5 w-3.5 text-emerald-300' : 'h-3.5 w-3.5 text-amber-300'} />
       <span>{isRunning ? 'Online' : clientState.replaceAll('_', ' ')}</span>
       <span className="text-slate-500">·</span>
       <span>{phase}</span>
+      {processing ? (
+        <>
+          <span className="text-slate-500">·</span>
+          <span className="text-cyan-300">Processing</span>
+        </>
+      ) : pendingActions > 0 ? (
+        <>
+          <span className="text-slate-500">·</span>
+          <span className="text-amber-200">{pendingActions} pending</span>
+        </>
+      ) : null}
     </div>
   );
 };
@@ -106,6 +119,8 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({ onO
   const phase = useGameStore(state => state.phase);
   const clientState = useGameStore(state => state.clientState);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
+  const urgentFocusQueue = useGameStore(state => state.urgentFocusQueue);
+  const turnProcessingState = useGameStore(state => state.turnProcessingState);
   const currentPlayer = useGameStore(state => state.players[currentPlayerId]);
   const cities = useGameStore(state => state.cities);
   const setActiveTab = useGameStore(state => state.setActiveTab);
@@ -214,7 +229,12 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({ onO
           <span className="font-semibold tabular-nums text-slate-100">{turn}</span>
           <span className="hidden text-slate-400 xl:inline">· {formatYear(year)}</span>
         </button>
-        <StatusPill clientState={clientState} phase={phase} />
+        <StatusPill
+          clientState={clientState}
+          phase={phase}
+          pendingActions={urgentFocusQueue?.length ?? 0}
+          processing={turnProcessingState === 'processing'}
+        />
       </div>
     </div>
   );

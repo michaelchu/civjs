@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import { StatusPanel } from '../StatusPanel';
 
@@ -11,6 +11,8 @@ type MockStatusStore = {
   cities: Record<string, { id?: string; playerId: string; size: number; trade?: number }>;
   setActiveTab: ReturnType<typeof vi.fn>;
   players: Record<string, Record<string, unknown>>;
+  urgentFocusQueue?: string[];
+  turnProcessingState?: string;
 };
 
 // Mock the game store
@@ -35,6 +37,8 @@ const { mockUseGameStore } = vi.hoisted(() => ({
     currentPlayerId: 'player-1',
     cities: {} as Record<string, { playerId: string; size: number }>,
     setActiveTab: vi.fn(),
+    urgentFocusQueue: [],
+    turnProcessingState: 'idle',
     players: {
       'player-1': {
         id: 'player-1',
@@ -59,6 +63,8 @@ describe('StatusPanel - Nation Display', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseGameStore.cities = {};
+    mockUseGameStore.urgentFocusQueue = [];
+    mockUseGameStore.turnProcessingState = 'idle';
     mockUseGameStore.players['player-1'] = mockPlayer;
   });
 
@@ -126,5 +132,13 @@ describe('StatusPanel - Nation Display', () => {
     fireEvent.click(getByRole('button', { name: 'Open demographics report' }));
     expect(onOpenDemographics).toHaveBeenCalledTimes(1);
     expect(mockUseGameStore.setActiveTab).not.toHaveBeenCalledWith('nations');
+  });
+
+  it('shows pending actions alongside connection and phase status', () => {
+    mockUseGameStore.urgentFocusQueue = ['unit-1', 'unit-2'];
+    render(<StatusPanel />);
+
+    expect(screen.getByText('2 pending')).toBeInTheDocument();
+    expect(screen.getByTitle('running · movement phase · 2 pending actions')).toBeInTheDocument();
   });
 });
