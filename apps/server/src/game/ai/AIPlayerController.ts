@@ -62,6 +62,9 @@ export class FreecivAIPlayerController {
     actions += await run('recovery', () =>
       this.units.manageMilitaryRecovery(game, playerId, state)
     );
+    actions += await run('defender airlift', () =>
+      this.units.manageDefenderAirlifts(game, playerId, state)
+    );
     actions += await run('guards', () => this.units.manageCityGuards(game, playerId, state));
     actions += await run('diplomats', () =>
       this.specialUnits.manageDiplomatUnits(gameId, game, playerId, state)

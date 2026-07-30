@@ -32,6 +32,7 @@ import {
 } from '@game/ai/AIMilitaryPlanner';
 import { buildCityThreatTravelTimes, cityThreatTravelKey } from '@game/ai/AICityDangerPlanner';
 import { GAME_DEFAULT_CITYMINDIST, type CityState } from '@game/managers/CityManager';
+import { planDefenderAirlift } from '@game/ai/AIAirliftPlanner';
 
 function unitAttack(type: UnitType): number {
   return type.attack ?? type.combat ?? 0;
@@ -329,8 +330,8 @@ export class FreecivAIUnitController {
       const type = game.unitManager.getUnitType(unit.unitTypeId);
       return Boolean(
         type?.canBuildImprovements &&
-          state.unitTasks[unit.id]?.role !== 'settle' &&
-          state.unitTasks[unit.id]?.role !== 'ferry'
+        state.unitTasks[unit.id]?.role !== 'settle' &&
+        state.unitTasks[unit.id]?.role !== 'ferry'
       );
     });
     const profile = createAIProfile(
@@ -530,7 +531,7 @@ export class FreecivAIUnitController {
         const tile = game.mapManager.getTile(x, y);
         return Boolean(
           game.cityManager.getCityAt(x, y) ||
-            tile?.improvements?.some((extra: string) => ['fortress', 'airbase'].includes(extra))
+          tile?.improvements?.some((extra: string) => ['fortress', 'airbase'].includes(extra))
         );
       },
       acceptObjective: (attacker, target) =>
@@ -562,7 +563,7 @@ export class FreecivAIUnitController {
         const currentCity = game.cityManager.getCityAt(attacker.x, attacker.y);
         return Boolean(
           currentCity?.id === attacker.homeCityId &&
-            game.cityManager.getCityMilitaryUnhappiness(attacker.homeCityId) > 0
+          game.cityManager.getCityMilitaryUnhappiness(attacker.homeCityId) > 0
         );
       },
     });
@@ -780,6 +781,90 @@ export class FreecivAIUnitController {
     }
     Object.assign(state.unitTasks, plan.assignments);
     return this.executeGuardAssignments(game, playerId, state, plan.assignments, profile);
+  }
+
+  async manageDefenderAirlifts(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<number> {
+    const cities = game.cityManager
+      .getPlayerCities(playerId)
+      .filter(city => Number.isFinite(city.x) && Number.isFinite(city.y));
+    if (cities.length < 2) return 0;
+    const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, playerId);
+    const profile = createAIProfile(
+      game.players.get(playerId)?.aiLevel,
+      game.players.get(playerId)?.aiTraits
+    );
+    const hostileUnits = hostileUnitsForPlanning(game, playerId, hostileIds, profile);
+    const threatTravelTimes = await buildCityThreatTravelTimes({
+      cities,
+      threateningUnits: hostileUnits,
+      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+      getUnit: unitId => game.unitManager.getUnit(unitId),
+      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+      findPath: (unit, targetX, targetY) =>
+        game.pathfindingManager.findPath(unit, targetX, targetY),
+    });
+    const guardPlan = planCityGuards({
+      turn: game.currentTurn,
+      cities,
+      friendlyUnits: game.unitManager.getPlayerUnits(playerId),
+      hostileUnits,
+      existingTasks: state.unitTasks,
+      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
+      threatTravelTurns: (unit, city) =>
+        threatTravelTimes.get(cityThreatTravelKey(unit.id, city.id)),
+      defenderStrength: unit => game.unitManager.calculateUnitDefenseRating(unit),
+      attackerStrength: (unit, type, city) => {
+        const attack = game.unitManager.calculateUnitAttackRating(unit);
+        const defenseBonus = game.unitManager.calculateCityDefenseBonusAgainst(
+          unit,
+          type,
+          city.x,
+          city.y
+        );
+        return (attack * 100) / Math.max(1, 100 + defenseBonus);
+      },
+      unitAttackerStrength: unit => game.unitManager.calculateUnitAttackRating(unit),
+      profile,
+    });
+
+    let actions = 0;
+    const attempted = new Set<string>();
+    while (attempted.size < game.unitManager.getPlayerUnits(playerId).length) {
+      const airlift = planDefenderAirlift({
+        assessments: guardPlan.assessments,
+        units: game.unitManager.getPlayerUnits(playerId).filter(unit => !attempted.has(unit.id)),
+        tasks: state.unitTasks,
+        getCityAt: (x, y) => game.cityManager.getCityAt?.(x, y) ?? undefined,
+        getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
+        canAirlift: (unit, target) =>
+          game.unitManager.canUnitPerformAction(unit.id, ActionType.AIRLIFT, target.x, target.y),
+      });
+      if (!airlift) break;
+      attempted.add(airlift.unit.id);
+      const result = await game.unitManager.executeUnitAction(
+        airlift.unit.id,
+        ActionType.AIRLIFT,
+        airlift.targetCity.x,
+        airlift.targetCity.y,
+        playerId
+      );
+      if (!result.success) continue;
+      state.unitTasks[airlift.unit.id] = {
+        role: 'defend',
+        targetId: airlift.targetCity.id,
+        targetX: airlift.targetCity.x,
+        targetY: airlift.targetCity.y,
+        action: ActionType.AIRLIFT,
+        assignedTurn: game.currentTurn,
+      };
+      actions++;
+    }
+    return actions;
   }
 
   private async executeGuardAssignments(

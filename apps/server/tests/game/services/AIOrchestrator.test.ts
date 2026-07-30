@@ -1649,6 +1649,101 @@ describe('FreecivAIOrchestrator', () => {
     });
   });
 
+  it('airlifts an idle defender from a safe city to an urgent frontier', async () => {
+    const scenario = createScenario();
+    const safe = {
+      id: 'safe',
+      playerId: 'ai',
+      x: 0,
+      y: 0,
+      size: 4,
+      population: 4,
+      tradePerTurn: 4,
+      buildings: ['airport'],
+      tradeRoutes: [],
+      happiness: { happy: 0, content: 4, unhappy: 0, angry: 0 },
+      worklist: [],
+      workableTiles: [],
+    };
+    const frontier = {
+      ...safe,
+      id: 'frontier',
+      x: 8,
+      y: 8,
+    };
+    (scenario.game.cityManager as any).getPlayerCities = () => [safe, frontier];
+    (scenario.game.cityManager as any).getAllCities = () => [safe, frontier];
+    (scenario.game.cityManager as any).getCity = (id: string) =>
+      id === safe.id ? safe : id === frontier.id ? frontier : undefined;
+    (scenario.game.cityManager as any).getCityAt = (x: number, y: number) => {
+      if (x === safe.x && y === safe.y) return safe;
+      if (x === frontier.x && y === frontier.y) return frontier;
+      return null;
+    };
+    scenario.unitTypes.legion = {
+      id: 'legion',
+      cost: 40,
+      movement: 1,
+      attack: 4,
+      defense: 4,
+      combat: 4,
+      flags: [],
+      rulesetUnitClassFlags: ['CanOccupyCity'],
+    };
+    scenario.units.clear();
+    scenario.units.set('defender', {
+      id: 'defender',
+      playerId: 'ai',
+      unitTypeId: 'legion',
+      x: safe.x,
+      y: safe.y,
+      movementLeft: 3,
+      health: 100,
+      veteranLevel: 0,
+      experience: 0,
+      fortified: false,
+    });
+    scenario.units.set('frontier-enemy', {
+      id: 'frontier-enemy',
+      playerId: 'human',
+      unitTypeId: 'warriors',
+      x: 7,
+      y: 8,
+      movementLeft: 3,
+      health: 100,
+      veteranLevel: 0,
+      experience: 0,
+      fortified: false,
+    });
+    (scenario.game.pathfindingManager.findPath as jest.Mock).mockImplementation(
+      async (actor, targetX, targetY) => {
+        const distance = Math.max(Math.abs(actor.x - targetX), Math.abs(actor.y - targetY));
+        return {
+          valid: true,
+          path: [
+            { x: actor.x, y: actor.y, moveCost: 0 },
+            { x: targetX, y: targetY, moveCost: distance },
+          ],
+          totalCost: distance,
+          estimatedTurns: distance,
+        };
+      }
+    );
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.executeUnitAction).toHaveBeenCalledWith(
+      'defender',
+      ActionType.AIRLIFT,
+      frontier.x,
+      frontier.y,
+      'ai'
+    );
+  });
+
   it('keeps accumulated research when a replacement want does not repay the switch penalty', async () => {
     const scenario = createScenario();
     scenario.game.researchManager.getPlayerResearch = () => ({
