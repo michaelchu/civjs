@@ -79,6 +79,8 @@ export class CityRenderer extends BaseRenderer {
   private renderCity(city: City, viewport: MapViewport, state: RenderState): void {
     const screenPos = this.mapToScreen(city.x, city.y, viewport);
 
+    this.renderWorkableArea(city, viewport, state);
+
     // Get city sprite based on size and nation
     const citySprites = this.getCitySprites(city, state);
     let spriteRendered = false;
@@ -114,6 +116,36 @@ export class CityRenderer extends BaseRenderer {
     // Render city name and population
     this.renderCityText(city, screenPos, state);
     this.renderCityAnnotation(city, screenPos, state);
+  }
+
+  private renderWorkableArea(city: City, viewport: MapViewport, state: RenderState): void {
+    if (state.selectedCityId !== city.id || !city.workableTiles?.length) return;
+
+    for (const tile of city.workableTiles) {
+      if (!this.isInViewport(tile.x, tile.y, viewport)) continue;
+
+      const screenPos = this.mapToScreen(tile.x, tile.y, viewport);
+      const centerX = screenPos.x + this.tileWidth / 2;
+      const topY = screenPos.y + 2;
+      const middleY = screenPos.y + this.tileHeight / 2;
+      const bottomY = screenPos.y + this.tileHeight - 2;
+
+      this.ctx.fillStyle = tile.isWorked
+        ? 'rgba(52, 211, 153, 0.18)'
+        : 'rgba(34, 211, 238, 0.1)';
+      this.ctx.strokeStyle = tile.isWorked
+        ? 'rgba(52, 211, 153, 0.7)'
+        : 'rgba(103, 232, 249, 0.45)';
+      this.ctx.lineWidth = tile.isCenter ? 2 : 1;
+      this.ctx.beginPath();
+      this.ctx.moveTo(centerX, topY);
+      this.ctx.lineTo(screenPos.x + this.tileWidth - 2, middleY);
+      this.ctx.lineTo(centerX, bottomY);
+      this.ctx.lineTo(screenPos.x + 2, middleY);
+      this.ctx.closePath();
+      this.ctx.fill();
+      this.ctx.stroke();
+    }
   }
 
   private renderCityAnnotation(

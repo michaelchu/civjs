@@ -104,6 +104,7 @@ describe('CityRenderer presentation state', () => {
       moveTo: vi.fn(),
       lineTo: vi.fn(),
       closePath: vi.fn(),
+      fill: vi.fn(),
       stroke: vi.fn(),
       fillText: vi.fn(),
       measureText: vi.fn().mockReturnValue({ width: 32 }),
@@ -135,5 +136,58 @@ describe('CityRenderer presentation state', () => {
     } as unknown as RenderState);
 
     expect(context.fillText).toHaveBeenCalledWith('granary · 3t', expect.any(Number), expect.any(Number));
+  });
+
+  it('renders the selected city workable-area tiles', () => {
+    const context = {
+      canvas: { width: 800, height: 600 },
+      fillRect: vi.fn(),
+      strokeRect: vi.fn(),
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      closePath: vi.fn(),
+      fill: vi.fn(),
+      stroke: vi.fn(),
+      fillText: vi.fn(),
+      measureText: vi.fn().mockReturnValue({ width: 32 }),
+    } as unknown as CanvasRenderingContext2D;
+    const renderer = new CityRenderer(
+      context,
+      { getSprite: () => undefined } as never,
+      96,
+      48
+    );
+    const city = {
+      id: 'known',
+      name: 'Alpha',
+      playerId: 'self',
+      x: 0,
+      y: 0,
+      size: 3,
+      buildings: [],
+      granaryTurns: 4,
+      disorder: false,
+      workableTiles: [
+        { x: 0, y: 0, isWorked: true, isCenter: true, outputs: { food: 2, shields: 1, trade: 1 } },
+        { x: 1, y: 0, isWorked: false, outputs: { food: 1, shields: 1, trade: 0 } },
+      ],
+    } as unknown as City;
+
+    renderer.renderCities({
+      viewport: { x: 0, y: 0, width: 800, height: 600 },
+      map: {
+        tiles: {
+          '0,0': { x: 0, y: 0, terrain: 'plains', known: true, visible: true },
+          '1,0': { x: 1, y: 0, terrain: 'plains', known: true, visible: true },
+        },
+      },
+      cities: { known: city },
+      players: { self: { color: '#22d3ee' } },
+      selectedCityId: 'known',
+    } as unknown as RenderState);
+
+    expect(context.fill).toHaveBeenCalledTimes(2);
+    expect(context.stroke).toHaveBeenCalled();
   });
 });
