@@ -123,7 +123,7 @@ export class CityRenderer extends BaseRenderer {
   ): void {
     const isSelected = state.selectedCityId === city.id;
     const isOwnCity = city.playerId === state.currentPlayerId;
-    const needsAttention = isOwnCity && (city.disorder || city.granaryTurns < 0);
+    const needsAttention = isOwnCity && (city.disorder || city.granaryTurns < 0 || !city.production);
 
     if (isSelected) {
       const centerX = screenPos.x + this.tileWidth / 2;
@@ -142,7 +142,11 @@ export class CityRenderer extends BaseRenderer {
     if (needsAttention) {
       const markerX = screenPos.x + this.tileWidth - 9;
       const markerY = screenPos.y + 8;
-      this.ctx.fillStyle = city.disorder ? '#fb7185' : '#fbbf24';
+      this.ctx.fillStyle = city.disorder
+        ? '#fb7185'
+        : city.granaryTurns < 0
+          ? '#f97316'
+          : '#fbbf24';
       this.ctx.beginPath();
       this.ctx.arc(markerX, markerY, 6, 0, 2 * Math.PI);
       this.ctx.fill();
@@ -381,9 +385,12 @@ export class CityRenderer extends BaseRenderer {
     this.ctx.fillStyle = 'white';
     this.ctx.fillText(cityName, nameX, nameY);
 
-    // Bottom right section is reserved for production (empty for now)
-    // When implemented, production text would go at:
-    // const productionY = bannerY + rowHeight + fontSize;
-    // this.ctx.fillText(production, nameX, productionY);
+    const productionLabel = city.production
+      ? `${city.production.target} · ${city.production.turnsToComplete}t`
+      : 'IDLE PRODUCTION';
+    const productionY = bannerY + rowHeight + fontSize - 1;
+    this.ctx.font = `${Math.max(8, fontSize - 1)}px Arial, sans-serif`;
+    this.ctx.fillStyle = city.production ? 'rgba(203, 213, 225, 0.9)' : '#fbbf24';
+    this.ctx.fillText(productionLabel.slice(0, 24), nameX, productionY);
   }
 }
