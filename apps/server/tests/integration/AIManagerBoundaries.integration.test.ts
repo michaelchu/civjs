@@ -258,13 +258,15 @@ describe('AI authoritative manager boundaries', () => {
     const existing = game.cityManager.getPlayerCities(ownerId);
     const map = game.mapManager.getMapData();
     if (!map) throw new Error('Expected generated map');
-    const site = map.tiles.flat().find(
-      tile =>
-        !['ocean', 'deep_ocean', 'lake'].includes(tile.terrain) &&
-        !game.cityManager.getCityAt(tile.x, tile.y) &&
-        game.unitManager.getUnitsAt(tile.x, tile.y).length === 0 &&
-        existing.every(city => game.mapManager.getDistance(city.x, city.y, tile.x, tile.y) >= 3)
-    );
+    const site = map.tiles
+      .flat()
+      .find(
+        tile =>
+          !['ocean', 'deep_ocean', 'lake'].includes(tile.terrain) &&
+          !game.cityManager.getCityAt(tile.x, tile.y) &&
+          game.unitManager.getUnitsAt(tile.x, tile.y).length === 0 &&
+          existing.every(city => game.mapManager.getDistance(city.x, city.y, tile.x, tile.y) >= 3)
+      );
     if (!site) throw new Error('Expected a valid second-city site');
     return site;
   }

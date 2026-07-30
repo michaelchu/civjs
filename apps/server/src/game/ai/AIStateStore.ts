@@ -123,7 +123,11 @@ function assertSelectedActions(value: unknown): void {
   if (!isRecord(value) || !isRecord(value.cityProduction)) {
     throw new Error('AI state decision trace selected actions are invalid');
   }
-  if (Object.values(value.cityProduction).some(action => action !== null && typeof action !== 'string')) {
+  if (
+    Object.values(value.cityProduction).some(
+      action => action !== null && typeof action !== 'string'
+    )
+  ) {
     throw new Error('AI state decision trace city selected actions are invalid');
   }
   if (value.research !== null && typeof value.research !== 'string') {

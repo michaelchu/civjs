@@ -64,10 +64,17 @@ export class FreecivAIOrchestrator {
       state.lastDecisionCount = playerActions;
       delete state.inProgressTurn;
       player.aiState = state as unknown as Record<string, unknown>;
-      await this.attempt(state, game, player.id, game.currentTurn ?? 0, 'state persistence', async () => {
-        await this.stateStore.save(gameId, player.id, state);
-        return 0;
-      });
+      await this.attempt(
+        state,
+        game,
+        player.id,
+        game.currentTurn ?? 0,
+        'state persistence',
+        async () => {
+          await this.stateStore.save(gameId, player.id, state);
+          return 0;
+        }
+      );
       // The persistence attempt itself is traced after its write completes;
       // save once more so restart recovery sees that final trace entry too.
       await this.stateStore.save(gameId, player.id, state);
@@ -297,7 +304,9 @@ export class FreecivAIOrchestrator {
           .sort(([left], [right]) => left.localeCompare(right))
           .map(([cityId, scores]) => [
             cityId,
-            Object.fromEntries(Object.entries(scores).sort(([left], [right]) => left.localeCompare(right))),
+            Object.fromEntries(
+              Object.entries(scores).sort(([left], [right]) => left.localeCompare(right))
+            ),
           ])
       ),
       research: Object.fromEntries(
