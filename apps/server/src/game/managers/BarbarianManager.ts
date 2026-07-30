@@ -11,7 +11,7 @@
 
 import { logger } from '@utils/logger';
 import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
-import type { UnitManager } from './UnitManager';
+import type { Unit, UnitManager } from './UnitManager';
 import type { MapManager } from './MapManager';
 import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 import type { DatabaseProvider } from '@database/DatabaseProvider';
@@ -19,6 +19,7 @@ import { barbarianTribes, players } from '@database/schema';
 import { and, eq } from 'drizzle-orm';
 import { createAIState } from '@game/ai/AIStateStore';
 import { ActionType } from '@app-types/shared/actions';
+import type { MapTile } from '@game/map/MapTypes';
 
 export interface BarbarianSpawnLocation {
   x: number;
@@ -182,6 +183,80 @@ export class BarbarianManager {
    * @reference reference/freeciv/ai/default/daiunit.c:dai_military_findjob
    * @reference reference/freeciv/ai/default/daiunit.c:dai_manage_barbarian_leader
    */
+  private isBarbarianLeader(unit: Unit): boolean {
+    return Boolean(
+      this.unitManager.getUnitType(unit.unitTypeId)?.roles?.includes('BarbarianLeader')
+    );
+  }
+
+  private closestBarbarianGuard(unit: Unit, warriors: Unit[]): Unit | undefined {
+    return warriors
+      .slice()
+      .sort(
+        (left, right) =>
+          this.mapManager.getDistance(unit.x, unit.y, left.x, left.y) -
+            this.mapManager.getDistance(unit.x, unit.y, right.x, right.y) ||
+          left.id.localeCompare(right.id)
+      )[0];
+  }
+
+  private async manageBarbarianLeader(
+    unit: Unit,
+    warriors: Unit[],
+    playerId: string
+  ): Promise<void> {
+    const guard = this.closestBarbarianGuard(unit, warriors);
+    const shouldRendezvous = Boolean(guard && (guard.x !== unit.x || guard.y !== unit.y));
+    const action = shouldRendezvous ? ActionType.GOTO : ActionType.SENTRY;
+    const targetX = shouldRendezvous ? guard!.x : undefined;
+    const targetY = shouldRendezvous ? guard!.y : undefined;
+    if (!this.unitManager.canUnitPerformAction(unit.id, action, targetX, targetY)) return;
+    await this.unitManager.executeUnitAction(unit.id, action, targetX, targetY, playerId);
+  }
+
+  private async manageBarbarianWarrior(
+    unit: Unit,
+    cityTiles: MapTile[] | undefined,
+    playerId: string
+  ): Promise<void> {
+    if (this.unitManager.canUnitPerformAction(unit.id, ActionType.PILLAGE)) {
+      const result = await this.unitManager.executeUnitAction(
+        unit.id,
+        ActionType.PILLAGE,
+        undefined,
+        undefined,
+        playerId
+      );
+      if (result.success) return;
+    }
+    const adjacent = Array.from(this.unitManager.getAllUnits().values())
+      .filter(other => other.playerId !== playerId)
+      .find(other => this.mapManager.getDistance(unit.x, unit.y, other.x, other.y) <= 1);
+    if (adjacent) {
+      await this.unitManager.attackUnit(unit.id, adjacent.id);
+      return;
+    }
+    const target = cityTiles
+      ?.slice()
+      .sort(
+        (left, right) =>
+          this.mapManager.getDistance(unit.x, unit.y, left.x, left.y) -
+            this.mapManager.getDistance(unit.x, unit.y, right.x, right.y) ||
+          left.x - right.x ||
+          left.y - right.y
+      )[0];
+    if (!target) return;
+    if (!this.unitManager.canUnitPerformAction(unit.id, ActionType.GOTO, target.x, target.y))
+      return;
+    await this.unitManager.executeUnitAction(
+      unit.id,
+      ActionType.GOTO,
+      target.x,
+      target.y,
+      playerId
+    );
+  }
+
   private async manageActiveBarbarianUnits(): Promise<void> {
     const cityTiles = this.mapManager
       .getMapData()
@@ -190,76 +265,14 @@ export class BarbarianManager {
     for (const tribe of this.getActiveBarbarians()) {
       const units = tribe.unitIds
         .map(id => this.unitManager.getUnit(id))
-        .filter(unit => Boolean(unit));
-      const warriors = units.filter(
-        unit => !this.unitManager.getUnitType(unit!.unitTypeId)?.roles?.includes('BarbarianLeader')
-      );
+        .filter((unit): unit is Unit => Boolean(unit));
+      const warriors = units.filter(unit => !this.isBarbarianLeader(unit));
       for (const unit of units) {
-        if (!unit || unit.movementLeft <= 0) continue;
-        const type = this.unitManager.getUnitType(unit.unitTypeId);
-        if (type?.roles?.includes('BarbarianLeader')) {
-          const guard = warriors
-            .slice()
-            .sort(
-              (left, right) =>
-                this.mapManager.getDistance(unit.x, unit.y, left!.x, left!.y) -
-                  this.mapManager.getDistance(unit.x, unit.y, right!.x, right!.y) ||
-                left!.id.localeCompare(right!.id)
-            )[0];
-          const action =
-            guard && (guard!.x !== unit.x || guard!.y !== unit.y)
-              ? ActionType.GOTO
-              : ActionType.SENTRY;
-          const targetX = action === ActionType.GOTO ? guard!.x : undefined;
-          const targetY = action === ActionType.GOTO ? guard!.y : undefined;
-          if (this.unitManager.canUnitPerformAction(unit.id, action, targetX, targetY)) {
-            await this.unitManager.executeUnitAction(
-              unit.id,
-              action,
-              targetX,
-              targetY,
-              tribe.playerId
-            );
-          }
-          continue;
-        }
-        if (this.unitManager.canUnitPerformAction(unit.id, ActionType.PILLAGE)) {
-          const result = await this.unitManager.executeUnitAction(
-            unit.id,
-            ActionType.PILLAGE,
-            undefined,
-            undefined,
-            tribe.playerId
-          );
-          if (result.success) continue;
-        }
-        const adjacent = Array.from(this.unitManager.getAllUnits().values())
-          .filter(other => other.playerId !== tribe.playerId)
-          .find(other => this.mapManager.getDistance(unit.x, unit.y, other.x, other.y) <= 1);
-        if (adjacent) {
-          await this.unitManager.attackUnit(unit.id, adjacent.id);
-          continue;
-        }
-        const target = cityTiles
-          ?.slice()
-          .sort(
-            (left, right) =>
-              this.mapManager.getDistance(unit.x, unit.y, left.x, left.y) -
-                this.mapManager.getDistance(unit.x, unit.y, right.x, right.y) ||
-              left.x - right.x ||
-              left.y - right.y
-          )[0];
-        if (
-          target &&
-          this.unitManager.canUnitPerformAction(unit.id, ActionType.GOTO, target.x, target.y)
-        ) {
-          await this.unitManager.executeUnitAction(
-            unit.id,
-            ActionType.GOTO,
-            target.x,
-            target.y,
-            tribe.playerId
-          );
+        if (unit.movementLeft <= 0) continue;
+        if (this.isBarbarianLeader(unit)) {
+          await this.manageBarbarianLeader(unit, warriors, tribe.playerId);
+        } else {
+          await this.manageBarbarianWarrior(unit, cityTiles, tribe.playerId);
         }
       }
     }

@@ -51,6 +51,34 @@ export interface TurnInitializationOptions {
   broadcastTurnStart?: boolean;
 }
 
+function getBarbarianRulesetConfig(rulesetName: string): {
+  rate: number;
+  onsetTurn: number;
+} {
+  const settings = (
+    rulesetLoader.loadGameRulesRuleset(rulesetName).settings.set as
+      | Array<{ name: string; value: unknown }>
+      | undefined
+  )?.reduce<Record<string, unknown>>((values, entry) => {
+    values[entry.name] = entry.value;
+    return values;
+  }, {});
+  const configuredRate = settings?.barbarians;
+  const namedRates: Record<string, number> = {
+    DISABLED: 0,
+    HUTS_ONLY: 0,
+    NORMAL: 2,
+    FREQUENT: 3,
+    HORDES: 4,
+  };
+  const rate =
+    typeof configuredRate === 'number'
+      ? Math.max(0, Math.min(4, Math.floor(configuredRate)))
+      : (namedRates[String(configuredRate ?? 'NORMAL').toUpperCase()] ?? 2);
+  const onsetTurn = typeof settings?.onsetbarbs === 'number' ? settings.onsetbarbs : 60;
+  return { rate, onsetTurn };
+}
+
 export class TurnManager {
   private gameId: string;
   private databaseProvider: DatabaseProvider;
@@ -152,26 +180,8 @@ export class TurnManager {
       economicManager,
       random
     );
-    const rulesetSettings = (
-      rulesetLoader.loadGameRulesRuleset(rulesetName).settings.set as
-        Array<{ name: string; value: unknown }> | undefined
-    )?.reduce<Record<string, unknown>>((settings, entry) => {
-      settings[entry.name] = entry.value;
-      return settings;
-    }, {});
-    const configuredBarbarianRate = rulesetSettings?.barbarians;
-    const barbarianRate =
-      typeof configuredBarbarianRate === 'number'
-        ? Math.max(0, Math.min(4, Math.floor(configuredBarbarianRate)))
-        : ({
-            DISABLED: 0,
-            HUTS_ONLY: 0,
-            NORMAL: 2,
-            FREQUENT: 3,
-            HORDES: 4,
-          }[String(configuredBarbarianRate ?? 'NORMAL').toUpperCase()] ?? 2);
-    const onsetBarbarian =
-      typeof rulesetSettings?.onsetbarbs === 'number' ? rulesetSettings.onsetbarbs : 60;
+    const { rate: barbarianRate, onsetTurn: onsetBarbarian } =
+      getBarbarianRulesetConfig(rulesetName);
     const mapManager =
       typeof (unitManager as any).getMapManager === 'function'
         ? (unitManager as any).getMapManager()

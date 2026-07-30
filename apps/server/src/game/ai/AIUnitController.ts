@@ -103,45 +103,119 @@ function isAvailableExplorer(
 export class FreecivAIUnitController {
   constructor(private readonly hostilityPolicy: DiplomacyHostilityPolicy) {}
 
+  private isBarbarianLeader(game: GameInstance, unit: Unit): boolean {
+    return Boolean(
+      game.unitManager.getUnitType(unit.unitTypeId)?.roles?.includes('BarbarianLeader')
+    );
+  }
+
+  private closestBarbarianGuard(
+    game: GameInstance,
+    leader: Unit,
+    warriors: Unit[]
+  ): Unit | undefined {
+    return warriors
+      .slice()
+      .sort(
+        (left, right) =>
+          game.mapManager.getDistance(leader.x, leader.y, left.x, left.y) -
+            game.mapManager.getDistance(leader.x, leader.y, right.x, right.y) ||
+          left.id.localeCompare(right.id)
+      )[0];
+  }
+
+  private async manageBarbarianLeader(
+    game: GameInstance,
+    playerId: string,
+    leader: Unit,
+    warriors: Unit[]
+  ): Promise<number> {
+    if (leader.movementLeft <= 0) return 0;
+    const guard = this.closestBarbarianGuard(game, leader, warriors);
+    const shouldRendezvous = Boolean(guard && (guard.x !== leader.x || guard.y !== leader.y));
+    const action = shouldRendezvous ? ActionType.GOTO : ActionType.SENTRY;
+    const targetX = shouldRendezvous ? guard!.x : undefined;
+    const targetY = shouldRendezvous ? guard!.y : undefined;
+    if (!game.unitManager.canUnitPerformAction(leader.id, action, targetX, targetY)) return 0;
+    const result = await game.unitManager.executeUnitAction(
+      leader.id,
+      action,
+      targetX,
+      targetY,
+      playerId
+    );
+    return Number(result.success);
+  }
+
+  private async manageBarbarianWarrior(
+    game: GameInstance,
+    playerId: string,
+    state: FreecivAIState,
+    warrior: Unit,
+    foreignUnits: Unit[],
+    foreignCities: CityState[]
+  ): Promise<number> {
+    if (!game.unitManager.getUnit(warrior.id) || warrior.movementLeft <= 0) return 0;
+    if (game.unitManager.canUnitPerformAction(warrior.id, ActionType.PILLAGE)) {
+      const pillage = await game.unitManager.executeUnitAction(
+        warrior.id,
+        ActionType.PILLAGE,
+        undefined,
+        undefined,
+        playerId
+      );
+      if (pillage.success) return 1;
+    }
+    const adjacent = foreignUnits.find(
+      target => game.mapManager.getDistance(warrior.x, warrior.y, target.x, target.y) <= 1
+    );
+    if (adjacent) {
+      await game.unitManager.attackUnit(warrior.id, adjacent.id);
+      return 1;
+    }
+    const target = foreignCities
+      .slice()
+      .sort(
+        (left, right) =>
+          game.mapManager.getDistance(warrior.x, warrior.y, left.x, left.y) -
+            game.mapManager.getDistance(warrior.x, warrior.y, right.x, right.y) ||
+          left.id.localeCompare(right.id)
+      )[0];
+    if (
+      !target ||
+      !game.unitManager.canUnitPerformAction(warrior.id, ActionType.GOTO, target.x, target.y)
+    ) {
+      return 0;
+    }
+    state.unitTasks[warrior.id] = {
+      role: 'attack',
+      targetId: target.id,
+      targetX: target.x,
+      targetY: target.y,
+      assignedTurn: game.currentTurn,
+    };
+    const result = await game.unitManager.executeUnitAction(
+      warrior.id,
+      ActionType.GOTO,
+      target.x,
+      target.y,
+      playerId
+    );
+    return Number(result.success);
+  }
+
   async manageBarbarians(
     game: GameInstance,
     playerId: string,
     state: FreecivAIState
   ): Promise<number> {
     const units = sortedPlayerUnits(game, playerId);
-    const leaders = units.filter(unit =>
-      game.unitManager.getUnitType(unit.unitTypeId)?.roles?.includes('BarbarianLeader')
-    );
+    const leaders = units.filter(unit => this.isBarbarianLeader(game, unit));
     const warriors = units.filter(unit => !leaders.some(leader => leader.id === unit.id));
     let actions = 0;
 
     for (const leader of leaders) {
-      if (leader.movementLeft <= 0) continue;
-      const guard = warriors
-        .slice()
-        .sort(
-          (left, right) =>
-            game.mapManager.getDistance(leader.x, leader.y, left.x, left.y) -
-              game.mapManager.getDistance(leader.x, leader.y, right.x, right.y) ||
-            left.id.localeCompare(right.id)
-        )[0];
-      const action =
-        guard && guard.x === leader.x && guard.y === leader.y
-          ? ActionType.SENTRY
-          : guard
-            ? ActionType.GOTO
-            : ActionType.SENTRY;
-      const targetX = action === ActionType.GOTO ? guard!.x : undefined;
-      const targetY = action === ActionType.GOTO ? guard!.y : undefined;
-      if (!game.unitManager.canUnitPerformAction(leader.id, action, targetX, targetY)) continue;
-      const result = await game.unitManager.executeUnitAction(
-        leader.id,
-        action,
-        targetX,
-        targetY,
-        playerId
-      );
-      actions += Number(result.success);
+      actions += await this.manageBarbarianLeader(game, playerId, leader, warriors);
     }
 
     const foreignUnits = Array.from(game.unitManager.getAllUnits().values())
@@ -152,57 +226,14 @@ export class FreecivAIUnitController {
       .filter(city => city.playerId !== playerId)
       .sort((a, b) => a.id.localeCompare(b.id));
     for (const warrior of warriors) {
-      if (!game.unitManager.getUnit(warrior.id) || warrior.movementLeft <= 0) continue;
-      if (game.unitManager.canUnitPerformAction(warrior.id, ActionType.PILLAGE)) {
-        const pillage = await game.unitManager.executeUnitAction(
-          warrior.id,
-          ActionType.PILLAGE,
-          undefined,
-          undefined,
-          playerId
-        );
-        if (pillage.success) {
-          actions++;
-          continue;
-        }
-      }
-      const adjacent = foreignUnits.find(
-        target => game.mapManager.getDistance(warrior.x, warrior.y, target.x, target.y) <= 1
+      actions += await this.manageBarbarianWarrior(
+        game,
+        playerId,
+        state,
+        warrior,
+        foreignUnits,
+        foreignCities
       );
-      if (adjacent) {
-        await game.unitManager.attackUnit(warrior.id, adjacent.id);
-        actions++;
-        continue;
-      }
-      const target = foreignCities
-        .slice()
-        .sort(
-          (left, right) =>
-            game.mapManager.getDistance(warrior.x, warrior.y, left.x, left.y) -
-              game.mapManager.getDistance(warrior.x, warrior.y, right.x, right.y) ||
-            left.id.localeCompare(right.id)
-        )[0];
-      if (
-        !target ||
-        !game.unitManager.canUnitPerformAction(warrior.id, ActionType.GOTO, target.x, target.y)
-      ) {
-        continue;
-      }
-      state.unitTasks[warrior.id] = {
-        role: 'attack',
-        targetId: target.id,
-        targetX: target.x,
-        targetY: target.y,
-        assignedTurn: game.currentTurn,
-      };
-      const result = await game.unitManager.executeUnitAction(
-        warrior.id,
-        ActionType.GOTO,
-        target.x,
-        target.y,
-        playerId
-      );
-      actions += Number(result.success);
     }
     return actions;
   }
@@ -434,8 +465,8 @@ export class FreecivAIUnitController {
       const type = game.unitManager.getUnitType(unit.unitTypeId);
       return Boolean(
         type?.canBuildImprovements &&
-        state.unitTasks[unit.id]?.role !== 'settle' &&
-        state.unitTasks[unit.id]?.role !== 'ferry'
+          state.unitTasks[unit.id]?.role !== 'settle' &&
+          state.unitTasks[unit.id]?.role !== 'ferry'
       );
     });
     const profile = createAIProfile(
@@ -635,7 +666,7 @@ export class FreecivAIUnitController {
         const tile = game.mapManager.getTile(x, y);
         return Boolean(
           game.cityManager.getCityAt(x, y) ||
-          tile?.improvements?.some((extra: string) => ['fortress', 'airbase'].includes(extra))
+            tile?.improvements?.some((extra: string) => ['fortress', 'airbase'].includes(extra))
         );
       },
       acceptObjective: (attacker, target) =>
@@ -667,7 +698,7 @@ export class FreecivAIUnitController {
         const currentCity = game.cityManager.getCityAt(attacker.x, attacker.y);
         return Boolean(
           currentCity?.id === attacker.homeCityId &&
-          game.cityManager.getCityMilitaryUnhappiness(attacker.homeCityId) > 0
+            game.cityManager.getCityMilitaryUnhappiness(attacker.homeCityId) > 0
         );
       },
     });

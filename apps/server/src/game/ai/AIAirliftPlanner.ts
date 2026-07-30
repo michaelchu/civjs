@@ -60,12 +60,12 @@ export function planDefenderAirlift(context: DefenderAirliftContext): DefenderAi
         const attack = candidate.type.attack ?? candidate.type.combat ?? 0;
         return Boolean(
           sourceAssessment?.urgency === 0 &&
-          sourceAssessment.danger < defense &&
-          defense > 2 &&
-          attack > 0 &&
-          !candidate.unit.transportedBy &&
-          (!task || task.role === 'defend' || task.role === 'guard') &&
-          context.canAirlift(candidate.unit, target.city)
+            sourceAssessment.danger < defense &&
+            defense > 2 &&
+            attack > 0 &&
+            !candidate.unit.transportedBy &&
+            (!task || task.role === 'defend' || task.role === 'guard') &&
+            context.canAirlift(candidate.unit, target.city)
         );
       })
       .sort((left, right) => {
