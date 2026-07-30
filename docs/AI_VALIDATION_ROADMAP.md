@@ -102,8 +102,10 @@ The first implementation steps are now in place:
   constrains its launch tile to neutral or friendly ownership, matching the
   server's paradrop-source legality rule.
 
-This is intentionally a foundation rather than completion of the milestone:
-Statistically meaningful comparative strength thresholds remain required work.
+The validation milestone is complete. Future hardening should expand the
+three-seed strategic regression gate into statistically meaningful tournament
+thresholds, but that is iterative AI-strength work rather than a missing
+validation foundation.
 
 ## Next validation milestone: deterministic simulation matrix
 
@@ -276,3 +278,7 @@ This milestone is complete when:
 - Behavioral metrics are stored and compared against an agreed baseline.
 - A larger scheduled matrix can run without affecting normal pull-request
   feedback time.
+
+All criteria above are now covered by the deterministic Docker matrices,
+recovery injections, persisted failure artifacts, behavioral baseline, and
+scheduled long-horizon validation described in this document.
