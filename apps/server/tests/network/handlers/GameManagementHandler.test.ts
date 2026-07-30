@@ -139,6 +139,44 @@ describe('GameManagementHandler', () => {
 
       expect(snapshotPlayer.score).toBe(0);
     });
+
+    it('derives score and preserves economy fields for an active game snapshot', () => {
+      const snapshotPlayer = (handler as any).formatSnapshotPlayer(
+        {
+          id: mockPlayerId,
+          civilization: 'Romans',
+          color: { r: 180, g: 40, b: 40 },
+          history: 7,
+          gold: 125,
+          science: 12,
+          taxRate: 30,
+          luxuryRate: 20,
+          scienceRate: 50,
+        },
+        {
+          cityManager: {
+            getCitiesByPlayer: () => [{ population: 4 }, { size: 2 }],
+          },
+          unitManager: {
+            getAllUnits: () => new Map([['unit-1', { playerId: mockPlayerId }]]),
+          },
+          researchManager: {
+            getPlayerResearch: () => ({ researchedTechs: new Set(['pottery']) }),
+          },
+        }
+      );
+
+      expect(snapshotPlayer).toEqual(
+        expect.objectContaining({
+          score: 337,
+          gold: 125,
+          science: 12,
+          taxRate: 30,
+          luxuryRate: 20,
+          scienceRate: 50,
+        })
+      );
+    });
   });
 
   describe('advisor recommendations event', () => {

@@ -13,6 +13,7 @@ import { rulesetActionsService } from '@game/services/RulesetActionsService';
 import { resolveCityPresentations } from '@game/services/CityPresentationService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
+import { calculatePlayerScore } from '@game/services/PlayerScoreService';
 
 const LOBBY_EVENTS = new Set(['player-joined', 'player-connection-changed']);
 
@@ -390,18 +391,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       id: player.id,
       name: this.playerValue(player.leaderName, player.civilization),
       nation: this.playerValue(player.nation, player.civilization),
-      // Keep the live score aligned with EndGameService until score updates are
-      // persisted as part of turn processing.
-      score:
-        cities.length * 100 +
-        cities.reduce(
-          (total: number, city: any) => total + (city.population ?? city.size ?? 0),
-          0
-        ) *
-          10 +
-        units.length * 20 +
-        researchedTechs.length * 50 +
-        history,
+      score: calculatePlayerScore({ cities, units, researchedTechs, history }),
       gold: this.playerValue(player.gold, 0),
       goldPerTurn: this.playerValue(player.goldPerTurn, 0),
       science: this.playerValue(research?.bulbsAccumulated, this.playerValue(player.science, 0)),

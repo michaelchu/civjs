@@ -13,6 +13,7 @@ import { ScenarioUnavailableError } from '@game/map/ScenarioProvider';
 import { GameManager } from '@game/managers/GameManager';
 import { CityDataService } from '@game/services/CityDataService';
 import { resolveCityPresentations } from '@game/services/CityPresentationService';
+import { resolvePlayerScore } from '@game/services/PlayerScoreService';
 
 /**
  * Handles game management packets: creation, joining, starting, listing, deletion
@@ -680,22 +681,44 @@ export class GameManagementHandler extends BaseSocketHandler {
       socket.emit('packet', {
         version: PROTOCOL_VERSION,
         type: PacketType.PLAYER_INFO,
-        data: this.formatSnapshotPlayer(player),
+        data: this.formatSnapshotPlayer(player, gameInstance),
         timestamp: Date.now(),
       });
     }
   }
 
-  private formatSnapshotPlayer(player: any): any {
+  private formatSnapshotPlayer(player: any, gameInstance?: any): any {
     const value = (field: string, fallback: any) => player[field] ?? fallback;
+    const cities = gameInstance?.cityManager?.getCitiesByPlayer?.(player.id) ?? [];
+    const units = gameInstance?.unitManager?.getAllUnits?.()
+      ? Array.from(gameInstance.unitManager.getAllUnits().values()).filter(
+          (unit: any) => unit.playerId === player.id
+        )
+      : [];
+    const research = gameInstance?.researchManager?.getPlayerResearch?.(player.id);
+    const scoreInputs = gameInstance
+      ? {
+          cities,
+          units,
+          researchedTechs: research?.researchedTechs ? Array.from(research.researchedTechs) : [],
+          history: value('history', 0),
+        }
+      : undefined;
     return {
       id: player.id,
       name: value('leaderName', player.civilization),
       nation: value('nation', player.civilization),
-      score: value('score', 0),
+      score: resolvePlayerScore(player.score, scoreInputs),
       gold: value('gold', 0),
+      goldPerTurn: value('goldPerTurn', 0),
       science: value('science', 0),
+      sciencePerTurn: value('sciencePerTurn', 0),
+      taxRate: value('taxRate', 40),
+      luxuryRate: value('luxuryRate', 0),
+      scienceRate: value('scienceRate', 60),
       culture: value('history', 0),
+      teamId: value('teamId', undefined),
+      spaceshipState: value('spaceshipState', undefined),
       government: value('government', 'despotism'),
       alive: value('isAlive', true),
       isAI: value('isAI', false),
