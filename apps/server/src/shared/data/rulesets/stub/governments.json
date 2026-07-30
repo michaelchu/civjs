@@ -1,0 +1,43 @@
+{
+  "source": "reference/freeciv/data/stub/governments.ruleset",
+  "datafile": {
+    "description": "<modpack> governments data for Freeciv",
+    "options": "+Freeciv-ruleset-3.4-Devel-2025.Jan.17",
+    "format_version": 50
+  },
+  "about": {
+    "name": "Freeciv stub Governments Ruleset",
+    "summary": "<modpack> governments data for Freeciv"
+  },
+  "governments": {
+    "during_revolution": "Anarchy",
+    "types": {
+      "anarchy": {
+        "name": "Anarchy",
+        "graphic": "gov.anarchy",
+        "graphic_alt": "-",
+        "sound": "g_anarchy",
+        "sound_alt": "-",
+        "sound_alt2": "-",
+        "ruler_male_title": "Usurper %s",
+        "ruler_female_title": "Usurper %s",
+        "helptext": "Anarchy happens between government changes.",
+        "id": "anarchy",
+        "reqs": []
+      },
+      "generic": {
+        "name": "Generic",
+        "reqs": [],
+        "graphic": "gov.despotism",
+        "graphic_alt": "-",
+        "sound": "g_generic",
+        "sound_alt": "-",
+        "sound_alt2": "-",
+        "ruler_male_title": "Leader %s",
+        "ruler_female_title": "Leader %s",
+        "helptext": "This is the only available form of government.",
+        "id": "generic"
+      }
+    }
+  }
+}

@@ -9,7 +9,7 @@ import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import { MapManager } from '@game/managers/MapManager';
 import { PathfindingManager } from '@game/managers/PathfindingManager';
 import { MapStartpos } from '@game/map/MapTypes';
-import { ResearchManager } from '@game/managers/ResearchManager';
+import { ResearchManager, loadRulesetTechnologies } from '@game/managers/ResearchManager';
 import { TurnManager } from '@game/managers/TurnManager';
 import { UnitManager } from '@game/managers/UnitManager';
 import { VisibilityManager } from '@game/managers/VisibilityManager';
@@ -19,9 +19,11 @@ import { BorderManager } from '@game/managers/BorderManager';
 import { BorderNetworkService } from '@game/services/BorderNetworkService';
 import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 import { Server as SocketServer } from 'socket.io';
-import { UNIT_TYPES } from '@game/constants/UnitConstants';
+import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
+import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 import { GovernmentManager } from '@game/managers/GovernmentManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { isSettableAILevel } from '@game/ai/AIProfile';
 import { assertAIState } from '@game/ai/AIStateStore';
 import {
@@ -204,7 +206,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
               ? 500
               : 250,
         hutDensity: storedTerrainSettings?.huts ?? 15,
-      }
+      },
+      game.ruleset ?? DEFAULT_RULESET
     );
     await this.restoreMapDataToManager(mapManager, game.mapData as any, game.mapSeed!);
     return mapManager;
@@ -228,7 +231,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
     governmentManager: GovernmentManager;
   }> {
     // Create managers in dependency order
-    const effectsManager = new EffectsManager();
+    const rulesetName = game.ruleset ?? 'civ2civ3';
+    const effectsManager = new EffectsManager(rulesetName);
     const governmentManager = new GovernmentManager(gameId, this.databaseProvider, effectsManager);
     for (const player of game.players) {
       await governmentManager.loadPlayerGovernment(
@@ -243,36 +247,49 @@ export class GameInstanceRecoveryService extends BaseGameService {
     // Create CityManager with growth callback that will use BorderManager
     // eslint-disable-next-line prefer-const
     let borderManager: BorderManager; // Declare first, initialize after managers are created
-    const cityManager = new CityManager(gameId, this.databaseProvider, effectsManager, {
-      onCityFounded: city => {
-        if (!borderManager) return;
-        borderManager.addCityBorderSource(city);
-      },
-      onCityCaptured: city => {
-        if (!borderManager) return;
-        borderManager.removeBorderSource(city.x, city.y);
-        borderManager.addCityBorderSource(city);
-        this.broadcastManager.broadcastMapData(gameId, mapManager.getMapData());
-      },
-      onCityGrowth: (city, oldSize) => {
-        logger.info(`City ${city.name} grew from size ${oldSize} to ${city.size}`, {
-          cityId: city.id,
-          x: city.x,
-          y: city.y,
-          oldSize,
-          newSize: city.size,
-        });
+    const cityManager = new CityManager(
+      gameId,
+      this.databaseProvider,
+      effectsManager,
+      {
+        onCityFounded: city => {
+          if (!borderManager) return;
+          borderManager.addCityBorderSource(city);
+        },
+        onCityCaptured: city => {
+          if (!borderManager) return;
+          borderManager.removeBorderSource(city.x, city.y);
+          borderManager.addCityBorderSource(city);
+          this.broadcastManager.broadcastMapData(gameId, mapManager.getMapData());
+        },
+        onCityGrowth: (city, oldSize) => {
+          logger.info(`City ${city.name} grew from size ${oldSize} to ${city.size}`, {
+            cityId: city.id,
+            x: city.x,
+            y: city.y,
+            oldSize,
+            newSize: city.size,
+          });
 
-        if (borderManager) {
-          borderManager.recalculateAllBorders();
-        }
+          if (borderManager) {
+            borderManager.recalculateAllBorders();
+          }
+        },
       },
-    });
+      rulesetUnitsService.getUnitTypes(rulesetName),
+      rulesetBuildingsService.getPlayableBuildingTypes(rulesetName)
+    );
     cityManager.setMapManager(mapManager);
     cityManager.setMapChangedCallback((changedGameId, mapData) =>
       this.broadcastManager.broadcastMapData(changedGameId, mapData)
     );
-    const researchManager = new ResearchManager(gameId, this.databaseProvider);
+    const researchManager = new ResearchManager(
+      gameId,
+      this.databaseProvider,
+      loadRulesetTechnologies(rulesetLoader, rulesetName),
+      effectsManager,
+      rulesetName
+    );
     cityManager.setPlayerTechsProvider(
       playerId => new Set(researchManager.getResearchedTechs(playerId))
     );
@@ -330,7 +347,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
         broadcastMapChanged: (changedGameId, mapData) =>
           this.broadcastManager.broadcastMapData(changedGameId, mapData),
       },
-      effectsManager
+      effectsManager,
+      undefined,
+      rulesetUnitsService.getUnitTypes(rulesetName)
     );
     cityManager.setCallbacks({
       onCityProductionComplete: async (city, item) => {
@@ -368,7 +387,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
       [...unitManager.getAllUnits().values()]
         .filter(unit => unit.homeCityId === city.id)
         .map(unit => {
-          const unitType = UNIT_TYPES[unit.unitTypeId];
+          const unitType = unitManager.getUnitType(unit.unitTypeId);
           return {
             unitId: unit.id,
             unitType: unit.unitTypeId,
@@ -419,7 +438,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
     // Initialize BorderManager after CityManager is created, reusing the
     // game-owned effects instance so recovered games evaluate the same
     // ruleset context as newly created ones.
-    const borderRules = rulesetLoader.getBorderRules(game.ruleset ?? 'classic');
+    const borderRules = rulesetLoader.getBorderRules(game.ruleset ?? 'civ2civ3');
     borderManager = new BorderManager(mapManager, cityManager, effectsManager, {
       borderCityRadiusSq: borderRules.radius_sq_city,
       borderSizeEffect: borderRules.size_effect,
@@ -446,7 +465,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
     });
 
     // Create CultureManager
-    const cultureManager = new CultureManager(this.databaseProvider, game.ruleset ?? 'classic');
+    const cultureManager = new CultureManager(this.databaseProvider, game.ruleset ?? 'civ2civ3');
     cultureManager.setRuntimeState({
       getCity: cityId => cityManager.getCity(cityId),
       getPlayer: playerId => players.get(playerId),
@@ -489,7 +508,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
       economicManager,
       governmentManager,
       effectsManager,
-      game.ruleset ?? 'classic'
+      game.ruleset ?? 'civ2civ3'
     );
 
     const playerIds = Array.from(players.keys());
@@ -544,7 +563,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
         maxPlayers: game.maxPlayers,
         mapWidth: game.mapWidth,
         mapHeight: game.mapHeight,
-        ruleset: game.ruleset || 'classic',
+        ruleset: game.ruleset || 'civ2civ3',
         turnTimeLimit: game.turnTimeLimit || undefined,
         maxTurns: game.maxTurns ?? 0,
         victoryConditions: (game.victoryConditions as string[]) || [

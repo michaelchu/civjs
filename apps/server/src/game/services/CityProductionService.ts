@@ -1,7 +1,8 @@
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import type { CityState, BUILDING_TYPES } from '@game/managers/CityManager';
-import { UNIT_TYPES } from '@game/constants/UnitConstants';
+import { type UnitType, rulesetUnitsService } from '@game/services/RulesetUnitsService';
+import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 
 /**
  * CityProductionService - Manages city production buy/rush mechanics
@@ -16,7 +17,9 @@ export class CityProductionService extends BaseGameService {
     private cities: Map<string, CityState>,
     private buildingTypes: typeof BUILDING_TYPES,
     private getPlayerGold: (playerId: string) => Promise<number>,
-    private spendPlayerGold: (playerId: string, amount: number) => Promise<boolean>
+    private spendPlayerGold: (playerId: string, amount: number) => Promise<boolean>,
+    private readonly unitTypes: Record<string, UnitType> = rulesetUnitsService.getUnitTypes(),
+    private readonly effectsManager: EffectsManager = new EffectsManager()
   ) {
     super(logger);
   }
@@ -66,7 +69,7 @@ export class CityProductionService extends BaseGameService {
     let totalCost: number;
 
     if (city.productionType === 'unit') {
-      const unitType = UNIT_TYPES[city.currentProduction];
+      const unitType = this.unitTypes[city.currentProduction];
       if (!unitType) {
         return {
           canBuy: false,
@@ -109,6 +112,16 @@ export class CityProductionService extends BaseGameService {
         : 2 * shieldsRemaining;
     if (productionStock === 0) {
       goldCost *= 2;
+    }
+
+    if (city.productionType === 'building') {
+      const building = this.buildingTypes[city.currentProduction]!;
+      const premium = this.effectsManager.calculateEffect(EffectType.BUILDING_BUY_COST_PCT, {
+        playerId: city.playerId,
+        buildingId: building.id,
+        buildingGenus: building.genus,
+      }).value;
+      goldCost = Math.floor((goldCost * (100 + premium)) / 100);
     }
 
     return {
@@ -187,7 +200,7 @@ export class CityProductionService extends BaseGameService {
     // Complete the production
     let totalCost = 0;
     if (city.productionType === 'unit' && city.currentProduction) {
-      const unitType = UNIT_TYPES[city.currentProduction];
+      const unitType = this.unitTypes[city.currentProduction];
       totalCost = unitType?.cost || 0;
     } else if (city.productionType === 'building' && city.currentProduction) {
       const building = this.buildingTypes[city.currentProduction];
@@ -314,7 +327,7 @@ export class CityProductionService extends BaseGameService {
     let totalCost = 0;
 
     if (city.productionType === 'unit') {
-      const unitType = UNIT_TYPES[city.currentProduction];
+      const unitType = this.unitTypes[city.currentProduction];
       if (unitType) {
         productionName = unitType.name;
         totalCost = unitType.cost;

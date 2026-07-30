@@ -54,7 +54,8 @@ export class MapRenderer {
 
   constructor(
     ctx: CanvasRenderingContext2D,
-    tilesetProvider: TilesetProvider = new Amplio2TilesetProvider()
+    tilesetProvider: TilesetProvider = new Amplio2TilesetProvider(),
+    private readonly rulesetName: string = 'civ2civ3'
   ) {
     this.ctx = ctx;
     this.tilesetLoader = tilesetProvider;
@@ -92,8 +93,8 @@ export class MapRenderer {
       if (this.isDisposed) return;
 
       const [presentation, nationStyles] = await Promise.all([
-        rulesetService.loadPresentationRuleset('classic'),
-        rulesetService.getNationStyles('classic'),
+        rulesetService.loadPresentationRuleset(this.rulesetName),
+        rulesetService.getNationStyles(this.rulesetName),
       ]);
       if (this.isDisposed) return;
 

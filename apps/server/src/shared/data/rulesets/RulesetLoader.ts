@@ -3,7 +3,7 @@
  * Provides type-safe, validated access to ruleset data with synchronous loading
  */
 
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import {
   TerrainRulesetFileSchema,
@@ -83,6 +83,35 @@ export class RulesetLoader {
       RulesetLoader.instance = new RulesetLoader(baseDir);
     }
     return RulesetLoader.instance;
+  }
+
+  /**
+   * Return the converted rulesets that are actually installed with this server.
+   * A ruleset is considered loadable only when it has the complete core data set;
+   * this lets the UI/API discover new converted reference rulesets without a
+   * hand-maintained allowlist.
+   */
+  getAvailableRulesets(): string[] {
+    return readdirSync(this.baseDir, { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => entry.name)
+      .filter(name =>
+        [
+          'terrain.json',
+          'buildings.json',
+          'techs.json',
+          'units.json',
+          'governments.json',
+          'game.json',
+          'effects.json',
+          'nations.json',
+        ].every(file => existsSync(join(this.baseDir, name, file)))
+      )
+      .sort();
+  }
+
+  hasRuleset(rulesetName: string): boolean {
+    return this.getAvailableRulesets().includes(rulesetName);
   }
 
   /**

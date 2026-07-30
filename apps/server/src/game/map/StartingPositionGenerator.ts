@@ -19,6 +19,7 @@ import { MapTile, TerrainType, TemperatureType, MapStartpos } from './MapTypes';
 import { PlayerState } from '@game/managers/GameManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { MapTopology, type MapTopologyOptions } from './MapTopology';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 /**
  * Island data structure matching freeciv's islands_data_type
@@ -48,7 +49,12 @@ export class StartingPositionGenerator {
   private islandsIndex: number[] = [];
   private topology: MapTopology;
 
-  constructor(width: number, height: number, topologyOptions: MapTopologyOptions = {}) {
+  constructor(
+    width: number,
+    height: number,
+    topologyOptions: MapTopologyOptions = {},
+    private readonly rulesetName: string = DEFAULT_RULESET
+  ) {
     this.width = width;
     this.height = height;
     this.topology = new MapTopology(width, height, topologyOptions);
@@ -128,7 +134,7 @@ export class StartingPositionGenerator {
    * Ruleset-backed city output calculation used by Freeciv start scoring
    */
   private getCityTileOutput(tile: MapTile, outputType: 'food' | 'production' | 'trade'): number {
-    const terrain = rulesetLoader.getTerrain(tile.terrain);
+    const terrain = rulesetLoader.getTerrain(tile.terrain, this.rulesetName);
     const field = outputType === 'production' ? 'shields' : outputType;
     let output = terrain[field] ?? 0;
 
@@ -151,7 +157,7 @@ export class StartingPositionGenerator {
    */
   private getResourceOutput(resource: string, outputType: 'food' | 'production' | 'trade'): number {
     try {
-      const definition = rulesetLoader.getResource(resource);
+      const definition = rulesetLoader.getResource(resource, this.rulesetName);
       const field = outputType === 'production' ? 'shield' : outputType;
       const value = definition[field];
       return typeof value === 'number' ? value : 0;
@@ -164,14 +170,14 @@ export class StartingPositionGenerator {
    * Calculate potential irrigation bonus
    */
   private getIrrigationBonus(tile: MapTile): number {
-    return rulesetLoader.getTerrain(tile.terrain).irrigationFoodIncr ?? 0;
+    return rulesetLoader.getTerrain(tile.terrain, this.rulesetName).irrigationFoodIncr ?? 0;
   }
 
   /**
    * Calculate potential mining bonus
    */
   private getMiningBonus(tile: MapTile): number {
-    return rulesetLoader.getTerrain(tile.terrain).miningShieldIncr ?? 0;
+    return rulesetLoader.getTerrain(tile.terrain, this.rulesetName).miningShieldIncr ?? 0;
   }
 
   /**
@@ -240,7 +246,7 @@ export class StartingPositionGenerator {
    * Check if terrain has TER_STARTER flag equivalent
    */
   private isStarterTerrain(terrain: TerrainType): boolean {
-    const flags = rulesetLoader.getTerrain(terrain).flags;
+    const flags = rulesetLoader.getTerrain(terrain, this.rulesetName).flags;
     return (Array.isArray(flags) ? flags : [flags]).includes('Starter');
   }
 
@@ -248,7 +254,7 @@ export class StartingPositionGenerator {
    * Check if terrain has TER_NO_CITIES flag equivalent
    */
   private isNoCitiesTerrain(terrain: TerrainType): boolean {
-    const flags = rulesetLoader.getTerrain(terrain).flags;
+    const flags = rulesetLoader.getTerrain(terrain, this.rulesetName).flags;
     return (Array.isArray(flags) ? flags : [flags]).includes('NoCities');
   }
 

@@ -1,0 +1,109 @@
+{
+  "source": "reference/freeciv/data/stub/units.ruleset",
+  "datafile": {
+    "description": "<modpack> unit_type data for Freeciv",
+    "options": "+Freeciv-ruleset-3.4-Devel-2025.Jan.17",
+    "format_version": 50
+  },
+  "about": {
+    "name": "Freeciv stub Units Ruleset",
+    "summary": "<modpack> unit_type data for Freeciv"
+  },
+  "veteran_system": {
+    "veteran_names": "green",
+    "veteran_base_raise_chance": 0,
+    "veteran_power_fact": 100,
+    "veteran_work_raise_chance": 0,
+    "veteran_move_bonus": 0
+  },
+  "unit_classes": {
+    "Generic": {
+      "name": "Generic",
+      "min_speed": 1,
+      "hp_loss_pct": 0,
+      "flags": [],
+      "id": "Generic"
+    },
+    "Generic Ship": {
+      "name": "Generic Ship",
+      "min_speed": 1,
+      "hp_loss_pct": 0,
+      "flags": [],
+      "id": "Generic Ship"
+    }
+  },
+  "units": {
+    "generic": {
+      "name": "Generic",
+      "class": "Generic",
+      "graphic": "u.warriors",
+      "graphic_alt": "-",
+      "sound_move": "m_warriors",
+      "sound_move_alt": "m_generic",
+      "sound_fight": "f_warriors",
+      "sound_fight_alt": "f_generic",
+      "build_cost": 10,
+      "pop_cost": 0,
+      "attack": 1,
+      "defense": 1,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "transport_cap": 0,
+      "fuel": 0,
+      "uk_happy": 0,
+      "uk_shield": 0,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "tp_defense": "Alight",
+      "flags": ["Workers"],
+      "roles": ["ExplorerStartUnit", "Firstbuild", "CitiesStartUnit"],
+      "helptext": "This is the only land unit type you can build.",
+      "id": "generic",
+      "cost": 10,
+      "movement": 1,
+      "bombard_rate": 0,
+      "paratroopers_range": 0,
+      "cargo": [],
+      "unit_class": "Generic",
+      "veteran_levels": 1
+    },
+    "ship": {
+      "name": "Generic Ship",
+      "class": "Generic Ship",
+      "graphic": "u.warriors",
+      "graphic_alt": "-",
+      "sound_move": "m_warriors",
+      "sound_move_alt": "m_generic",
+      "sound_fight": "f_warriors",
+      "sound_fight_alt": "f_generic",
+      "build_cost": 10,
+      "pop_cost": 0,
+      "attack": 1,
+      "defense": 1,
+      "hitpoints": 10,
+      "firepower": 1,
+      "move_rate": 1,
+      "vision_radius_sq": 2,
+      "transport_cap": 2,
+      "fuel": 0,
+      "uk_happy": 0,
+      "uk_shield": 0,
+      "uk_food": 0,
+      "uk_gold": 0,
+      "tp_defense": "Alight",
+      "cargo": ["Generic"],
+      "flags": [],
+      "roles": ["Ferryboat", "BarbarianBoat"],
+      "helptext": "This is the only ship type you can build.",
+      "id": "ship",
+      "cost": 10,
+      "movement": 1,
+      "bombard_rate": 0,
+      "paratroopers_range": 0,
+      "unit_class": "Generic Ship",
+      "veteran_levels": 1
+    }
+  }
+}

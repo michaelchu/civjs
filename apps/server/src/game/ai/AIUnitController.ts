@@ -545,7 +545,7 @@ export class FreecivAIUnitController {
                 gameId: game.id,
                 city,
                 attacker,
-                unitTypes: Object.values(UNIT_TYPES),
+                unitTypes: Object.values(game.unitManager.getUnitTypes?.() ?? UNIT_TYPES),
                 canBuild: (cityId, unitTypeId) =>
                   game.cityManager.canCityContinueProduction(cityId, 'unit', unitTypeId),
                 rateDefense: (defender, projectedAttacker) =>

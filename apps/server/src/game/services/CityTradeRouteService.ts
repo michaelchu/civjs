@@ -15,6 +15,7 @@ import type { TradeRules } from '@shared/data/rulesets/schemas';
  */
 export class CityTradeRouteService extends BaseGameService {
   private playerTechsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
+  private readonly tradeRules: TradeRules;
 
   constructor(
     private cities: Map<string, CityState>,
@@ -33,9 +34,10 @@ export class CityTradeRouteService extends BaseGameService {
       getCurrentTurn: () => 0,
     },
     private readonly effectsManager: EffectsManager = new EffectsManager(),
-    private readonly tradeRules: TradeRules = rulesetLoader.getTradeRules()
+    tradeRules?: TradeRules
   ) {
     super(logger);
+    this.tradeRules = tradeRules ?? rulesetLoader.getTradeRules(effectsManager.getRulesetName());
   }
 
   getServiceName(): string {
@@ -135,7 +137,10 @@ export class CityTradeRouteService extends BaseGameService {
           ((sourceCity.tradePerTurn ?? 0) + (partnerCity.tradePerTurn ?? 0))) /
           24
       ),
-      goods: Object.keys(rulesetLoader.loadGameRulesRuleset().goods)[0] ?? 'good',
+      goods:
+        Object.keys(
+          rulesetLoader.loadGameRulesRuleset(this.effectsManager.getRulesetName()).goods
+        )[0] ?? 'good',
     };
   }
 

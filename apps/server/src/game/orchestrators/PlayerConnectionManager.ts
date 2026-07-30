@@ -11,6 +11,7 @@ import { gameState } from '@database/redis';
 import { games, players } from '@database/schema';
 import { eq } from 'drizzle-orm';
 import { RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import serverConfig from '@config';
 import { getNextPlayerColorTheme, type PlayerColor } from '../../utils/playerColors';
 import { isSettableAILevel } from '../ai/AIProfile';
@@ -93,7 +94,11 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     const playerNumber = game.players.length + 1;
 
     // Validate and select nation
-    const selectedNation = await this.validateAndSelectNation(civilization, game.players);
+    const selectedNation = await this.validateAndSelectNation(
+      civilization,
+      game.players,
+      game.ruleset ?? DEFAULT_RULESET
+    );
 
     // Get next available color theme from predefined palette
     // For backward compatibility, we store the primary color in the old 'color' field
@@ -260,7 +265,10 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     });
 
     // Get available nations for AI players
-    const availableNations = await this.getAvailableNations(game.players);
+    const availableNations = await this.getAvailableNations(
+      game.players,
+      game.ruleset ?? DEFAULT_RULESET
+    );
 
     for (let i = 0; i < aiPlayersNeeded && i < availableNations.length; i++) {
       const playerNumber = game.players.length + i + 1;
@@ -361,11 +369,12 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
    */
   private async validateAndSelectNation(
     civilization: string | undefined,
-    existingPlayers: any[]
+    existingPlayers: any[],
+    rulesetName: string
   ): Promise<string> {
     // Validate nation is not already taken (reference: freeciv/server/plrhand.c:2129)
     if (civilization && civilization !== 'random') {
-      const nations = RulesetLoader.getInstance().loadNationsRuleset('classic').nations;
+      const nations = RulesetLoader.getInstance().loadNationsRuleset(rulesetName).nations;
       if (!nations[civilization] || civilization === 'barbarian' || civilization === 'pirate') {
         throw new Error('That nation is not supported in the Civ III–V roster.');
       }
@@ -382,7 +391,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     if (civilization === 'random') {
       try {
         const loader = RulesetLoader.getInstance();
-        const nationsRuleset = loader.loadNationsRuleset('classic');
+        const nationsRuleset = loader.loadNationsRuleset(rulesetName);
 
         if (nationsRuleset) {
           // Get supported nations that are not already taken.
@@ -411,10 +420,13 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
   /**
    * Get available nations for AI players
    */
-  private async getAvailableNations(existingPlayers: any[]): Promise<string[]> {
+  private async getAvailableNations(
+    existingPlayers: any[],
+    rulesetName: string
+  ): Promise<string[]> {
     try {
       const loader = RulesetLoader.getInstance();
-      const nationsRuleset = loader.loadNationsRuleset('classic');
+      const nationsRuleset = loader.loadNationsRuleset(rulesetName);
 
       if (!nationsRuleset) {
         // Fallback nations if ruleset loading fails

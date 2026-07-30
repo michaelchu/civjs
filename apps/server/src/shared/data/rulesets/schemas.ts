@@ -21,23 +21,9 @@ export const MapgenTerrainPropertySchema = z.enum([
 ]);
 
 // Terrain types enum schema
-export const TerrainTypeSchema = z.enum([
-  'ocean',
-  'deep_ocean',
-  'coast',
-  'lake',
-  'inaccessible',
-  'glacier',
-  'tundra',
-  'desert',
-  'forest',
-  'jungle',
-  'swamp',
-  'grassland',
-  'plains',
-  'hills',
-  'mountains',
-]);
+// Terrain IDs are ruleset-defined: classic's familiar names are not a
+// universal Freeciv vocabulary (alien, civ1 and stub prove this directly).
+export const TerrainTypeSchema = z.string().min(1);
 
 // Individual terrain ruleset schema
 export const TerrainRulesetSchema = z
@@ -80,22 +66,14 @@ export const TerrainRulesetFileSchema = z
       name: z.string(),
       summary: z.string(),
     }),
-    terrains: z.partialRecord(TerrainTypeSchema, TerrainRulesetSchema),
+    terrains: z.record(z.string(), TerrainRulesetSchema),
   })
   .passthrough();
 
 // Unit schemas - Enhanced for full freeciv compatibility
-export const UnitClassSchema = z.enum([
-  'Land',
-  'Sea',
-  'Helicopter',
-  'Air',
-  'Missile',
-  'Nuclear',
-  'Big Land',
-  'Small Land',
-  'Trireme', // Freeciv classic ship class
-]);
+// Unit classes are ruleset-defined. Classic uses Land, Sea, Air, and related
+// classes; Civ2Civ3 also defines Merchant for trade units.
+export const UnitClassSchema = z.string().min(1);
 
 /**
  * Unit-class catalogue fields loaded from the classic ruleset.
@@ -106,7 +84,7 @@ export const UnitClassRulesetSchema = z
   .object({
     id: UnitClassSchema,
     name: UnitClassSchema,
-    min_speed: z.number().positive(),
+    min_speed: z.number().min(0),
     hp_loss_pct: z.number().min(0),
     flags: z.array(z.string()),
   })
@@ -205,8 +183,8 @@ export const UnitTypeRulesetSchema = z
     name: z.string(),
     internal_name: z.string().optional(),
     cost: z.number().positive(),
-    movement: z.number().positive().optional(), // Legacy field
-    move_rate: z.number().positive().optional(), // Freeciv field
+    movement: z.number().min(0).optional(), // Legacy field
+    move_rate: z.number().min(0).optional(), // Freeciv field
     attack: z.number().min(0), // Separate attack from defense
     defense: z.number().min(0), // Separate defense from attack
     hitpoints: z.number().positive(), // Unit health
@@ -217,12 +195,16 @@ export const UnitTypeRulesetSchema = z
     vision_layer: z.enum(['Main', 'Stealth', 'Subsurface']).optional().default('Main'),
     transport_cap: z.number().min(0).optional().default(0),
     cargo: z.array(UnitClassSchema).optional().default([]),
-    targets: z.array(UnitClassSchema).optional().default([]),
+    targets: z
+      .union([z.array(UnitClassSchema), UnitClassSchema])
+      .transform(value => (Array.isArray(value) ? value : [value]))
+      .optional()
+      .default([]),
     bonuses: z
       .array(
         z.object({
           flag: z.string(),
-          type: z.enum(['DefenseMultiplier', 'DefenseDivider', 'LowFirepower']),
+          type: z.string().min(1),
           value: z.number(),
         })
       )
@@ -482,21 +464,40 @@ export const RequirementSchema = z.object({
 // @reference reference/freeciv/data/classic/effects.ruleset:50-710
 // @reference reference/freeciv/common/requirements.c:4803-4828
 export const EffectRequirementTypeSchema = z.enum([
+  'AI',
+  'Achievement',
+  'Action',
   'Activity',
   'Age',
   'Building',
+  'BuildingFlag',
+  'BuildingGenus',
   'CityStatus',
   'CityTile',
+  'Counter',
+  'DiplRel',
   'Extra',
+  'ExtraFlag',
   'Gov',
+  'MaxDistanceSq',
+  'MaxRegionTiles',
   'MaxUnitsOnTile',
+  'MinCulture',
+  'MinSize',
+  'MinTechs',
+  'MinVeteran',
   'MinYear',
+  'Nation',
   'NationGroup',
   'OutputType',
   'Specialist',
   'Tech',
   'Terrain',
+  'TerrainAlter',
   'TerrainClass',
+  'TerrainFlag',
+  'TileRel',
+  'Topology',
   'UnitClass',
   'UnitClassFlag',
   'UnitState',
@@ -512,53 +513,15 @@ export const EffectRequirementSchema = RequirementSchema.extend({
 // are the universal kinds present in the shipped source files, rather than a
 // hand-picked subset of the kinds already consumed by EffectsManager.
 // @reference reference/freeciv/common/requirements.c:4803-4828
-export const RulesetRequirementTypeSchema = z.enum([
-  'Activity',
-  'Building',
-  'BuildingGenus',
-  'CityTile',
-  'DiplRel',
-  'Extra',
-  'Gov',
-  'MaxHitPoints',
-  'MaxLatitude',
-  'MaxUnitsOnTile',
-  'MinHitPoints',
-  'MinLatitude',
-  'MinMoveFrags',
-  'MinSize',
-  'NationGroup',
-  'PlayerState',
-  'Style',
-  'Tech',
-  'Terrain',
-  'TerrainAlter',
-  'TerrainClass',
-  'TerrainFlag',
-  'UnitClass',
-  'UnitClassFlag',
-  'UnitState',
-  'UnitTypeFlag',
-  'tech',
-]);
+// Preserve unfamiliar requirement kinds from other reference rulesets. The
+// evaluator reports unsupported kinds at runtime instead of rejecting data.
+export const RulesetRequirementTypeSchema = z.string().min(1);
 
-export const RulesetRequirementRangeSchema = z.enum([
-  'Local',
-  'CAdjacent',
-  'Adjacent',
-  'Tile',
-  'City',
-  'TradeRoute',
-  'Continent',
-  'Player',
-  'Team',
-  'Alliance',
-  'World',
-]);
+export const RulesetRequirementRangeSchema = z.string().min(1);
 
 export const RulesetRequirementSchema = z.object({
   type: RulesetRequirementTypeSchema,
-  name: z.string(),
+  name: z.union([z.string(), z.number()]).transform(String),
   range: RulesetRequirementRangeSchema,
   present: z.boolean().optional().default(true),
 });
@@ -583,13 +546,13 @@ export const ActionEnablerSchema = z.object({
 export const ActionsRulesetFileSchema = RulesetMetadataSchema.extend({
   auto_attack: z
     .object({
-      if_attacker: z.array(RulesetRequirementSchema),
-      attack_actions: z.array(z.string()),
+      if_attacker: z.array(RulesetRequirementSchema).default([]),
+      attack_actions: z.array(z.string()).default([]),
     })
     .passthrough(),
   settings: z.record(z.string(), z.unknown()),
   action_properties: z.record(z.string(), z.record(z.string(), z.unknown())),
-  enablers: z.array(ActionEnablerSchema).min(1),
+  enablers: z.array(ActionEnablerSchema),
 });
 
 export const ExtraRulesetSchema = z
@@ -647,7 +610,7 @@ export const RulesetCityStyleSchema = z
 export const MusicStyleSchema = z.object({
   music_peaceful: z.string(),
   music_combat: z.string(),
-  reqs: z.array(RulesetRequirementSchema),
+  reqs: z.array(RulesetRequirementSchema).default([]),
 });
 
 export const StylesRulesetFileSchema = RulesetMetadataSchema.extend({
@@ -660,8 +623,8 @@ export const StylesRulesetFileSchema = RulesetMetadataSchema.extend({
 export const GameParametersSchema = z.object({
   init_city_radius_sq: z.number(),
   init_vis_radius_sq: z.number(),
-  base_bribe_cost: z.number(),
-  base_incite_cost: z.number(),
+  base_bribe_cost: z.number().default(0),
+  base_incite_cost: z.number().default(0),
   incite_improvement_factor: z.number(),
   incite_unit_factor: z.number(),
   incite_total_factor: z.number(),
@@ -674,7 +637,9 @@ export const GameParametersSchema = z.object({
   tech_trade_loss_allow_holes: z.boolean(),
   tech_parasite_allow_holes: z.boolean(),
   tech_loss_allow_holes: z.boolean(),
-  gameloss_style: z.string(),
+  gameloss_style: z
+    .union([z.string(), z.array(z.string())])
+    .transform(value => (Array.isArray(value) ? value.join(',') : value)),
   paradrop_to_transport: z.boolean(),
   gold_upkeep_style: z.enum(['City', 'Mixed', 'Nation']),
   output_granularity: z.number().positive(),
@@ -683,10 +648,10 @@ export const GameParametersSchema = z.object({
 });
 
 export const CivstyleSchema = z.object({
-  base_pollution: z.number(),
-  happy_cost: z.number(),
-  food_cost: z.number(),
-  granary_food_ini: z.number(),
+  base_pollution: z.number().default(0),
+  happy_cost: z.number().default(0),
+  food_cost: z.number().default(0),
+  granary_food_ini: z.union([z.number(), z.array(z.number()).min(1)]),
   granary_food_inc: z.number(),
   min_city_center_food: z.number(),
   min_city_center_shield: z.number(),
@@ -694,8 +659,12 @@ export const CivstyleSchema = z.object({
 });
 
 export const GameOptionsSchema = z.object({
-  global_init_techs: z.string(),
-  global_init_buildings: z.string(),
+  global_init_techs: z
+    .union([z.string(), z.array(z.string())])
+    .transform(value => (Array.isArray(value) ? value.join(',') : value)),
+  global_init_buildings: z
+    .union([z.string(), z.array(z.string())])
+    .transform(value => (Array.isArray(value) ? value.join(',') : value)),
 });
 
 export const ResearchRulesSchema = z.object({
@@ -704,7 +673,7 @@ export const ResearchRulesSchema = z.object({
   min_tech_cost: z.number(),
   tech_leakage: z.string(),
   tech_upkeep_style: z.enum(['None', 'Basic', 'Cities']),
-  tech_upkeep_divider: z.number().positive(),
+  tech_upkeep_divider: z.number().positive().default(1),
   free_tech_method: z.string(),
 });
 
@@ -736,7 +705,7 @@ export const CultureRulesSchema = z.object({
 });
 
 export const CalendarRulesSchema = z.object({
-  start_year: z.number().int(),
+  start_year: z.number().int().default(-4000),
   skip_year_0: z.boolean(),
   fragments: z.number().int().min(0),
   fragment_names: z.array(z.string()),
@@ -773,13 +742,13 @@ export const GameRulesetFileSchema = z.object({
     format_version: z.number(),
   }),
   ruledit: z.object({
-    description_file: z.string(),
+    description_file: z.string().default(''),
     std_tileset_compat: z.boolean(),
   }),
   about: z.object({
     name: z.string(),
     summary: z.string(),
-    description: z.string(),
+    description: z.string().default(''),
   }),
   options: GameOptionsSchema,
   tileset: z.record(z.string(), z.unknown()),
@@ -837,7 +806,12 @@ export const GameRulesetFileSchema = z.object({
 // its enum and rejects unknown names during ruleset loading.
 // @reference reference/freeciv/gen_headers/enums/effects_enums.def:5-167
 // @reference reference/freeciv/server/ruleset/ruleload.c:6342-6363
-export const EffectTypeSchema = z.enum([
+export const EffectTypeSchema = z
+  .string()
+  .min(1)
+  .describe('Freeciv effect type; runtime support is reported by EffectsManager');
+/* Runtime-supported effects are enumerated by EffectsManager.EffectType. */
+/*
   'Output_Waste',
   'Output_Waste_By_Distance',
   'Output_Waste_By_Rel_Distance',
@@ -901,7 +875,7 @@ export const EffectTypeSchema = z.enum([
   'Tech_Upkeep_Free',
   'Min_HP_Pct',
   'HP_Regen_2',
-]);
+*/
 
 export const EffectSchema = z.object({
   id: z.string(),
@@ -932,18 +906,18 @@ export const LeaderSchema = z.object({
 });
 
 export const TraitRangeSchema = z.object({
-  expansionist_min: z.number(),
-  expansionist_max: z.number(),
-  expansionist_default: z.number(),
-  trader_min: z.number(),
-  trader_max: z.number(),
-  trader_default: z.number(),
-  aggressive_min: z.number(),
-  aggressive_max: z.number(),
-  aggressive_default: z.number(),
-  builder_min: z.number(),
-  builder_max: z.number(),
-  builder_default: z.number(),
+  expansionist_min: z.number().default(0),
+  expansionist_max: z.number().default(0),
+  expansionist_default: z.number().default(0),
+  trader_min: z.number().default(0),
+  trader_max: z.number().default(0),
+  trader_default: z.number().default(0),
+  aggressive_min: z.number().default(0),
+  aggressive_max: z.number().default(0),
+  aggressive_default: z.number().default(0),
+  builder_min: z.number().default(0),
+  builder_max: z.number().default(0),
+  builder_default: z.number().default(0),
 });
 
 export const NationRulesetSchema = z
@@ -1056,7 +1030,7 @@ export const CityFoundingRulesSchema = z.object({
 export const SpecialistRulesetSchema = z
   .object({
     name: z.string(),
-    rule_name: z.string(),
+    rule_name: z.string().optional(),
     short_name: z.string(),
     graphic: z.string(),
     reqs: z.array(RequirementSchema).optional().default([]),

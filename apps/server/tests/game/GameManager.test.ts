@@ -136,7 +136,7 @@ describe('GameManager', () => {
           maxPlayers: 8,
           mapWidth: 80,
           mapHeight: 50,
-          ruleset: 'classic',
+          ruleset: 'civ2civ3',
         })
       );
     });

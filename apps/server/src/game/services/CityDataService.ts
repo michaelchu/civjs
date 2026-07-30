@@ -1,3 +1,4 @@
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 /**
  * CityDataService - Handles city data transformation and serialization for client communication
  *
@@ -169,7 +170,7 @@ export class CityDataService {
    */
   static transformCityForClient(
     city: CityState,
-    rulesetName: string = 'classic',
+    rulesetName: string = DEFAULT_RULESET,
     dependencies: CityDataRulesetDependencies = defaultRulesetDependencies,
     presentation?: CityPresentation,
     units: Iterable<CityUnitSnapshot> = [],
@@ -370,7 +371,7 @@ export class CityDataService {
    */
   static transformCitiesForClient(
     cities: CityState[],
-    rulesetName: string = 'classic',
+    rulesetName: string = DEFAULT_RULESET,
     dependencies: CityDataRulesetDependencies = defaultRulesetDependencies,
     presentations: Record<string, CityPresentation> = {},
     units: Iterable<CityUnitSnapshot> = [],
@@ -418,13 +419,20 @@ export class CityDataService {
    * Calculate granary size using freeciv formula
    * @reference freeciv/common/city.c:2132 city_granary_size()
    */
-  private static calculateGranarySize(population: number, rulesetName: string = 'classic'): number {
+  private static calculateGranarySize(
+    population: number,
+    rulesetName: string = DEFAULT_RULESET
+  ): number {
     try {
       const civstyle = rulesetLoader.getCivstyle(rulesetName);
       const granaryFoodIni = civstyle.granary_food_ini;
       const granaryFoodInc = civstyle.granary_food_inc;
 
-      // Freeciv formula: base initial size + increment per additional population
+      // Freeciv permits a per-size initial-granary table as well as the
+      // classic scalar-plus-increment form.
+      if (Array.isArray(granaryFoodIni)) {
+        return granaryFoodIni[Math.min(Math.max(0, population - 1), granaryFoodIni.length - 1)]!;
+      }
       return granaryFoodIni + (population - 1) * granaryFoodInc;
     } catch {
       // Fallback to classic values if ruleset loading fails
@@ -528,11 +536,11 @@ export class CityDataService {
   private static getProductionCost(
     itemId: string,
     type: string,
-    rulesetName: string = 'classic',
+    rulesetName: string = DEFAULT_RULESET,
     dependencies: CityDataRulesetDependencies = defaultRulesetDependencies
   ): number {
     if (type === 'unit') {
-      const unitType = rulesetUnitsService.getUnitType(itemId);
+      const unitType = rulesetUnitsService.getUnitType(itemId, rulesetName);
       return unitType?.cost || 10;
     } else if (type === 'building') {
       return dependencies.buildings.getBuildingTypes(rulesetName)[itemId]?.cost || 40;

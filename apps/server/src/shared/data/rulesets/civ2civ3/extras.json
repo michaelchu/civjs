@@ -1,0 +1,1431 @@
+{
+  "source": "reference/freeciv/data/civ2civ3/terrain.ruleset",
+  "datafile": {
+    "description": "Civ2Civ3 tile_type data for Freeciv",
+    "options": "+Freeciv-ruleset-3.4-Devel-2025.Jan.17 web-compatible",
+    "format_version": 50
+  },
+  "resources": {
+    "resource_gold": {
+      "extra": "Gold",
+      "identifier": "$",
+      "trade": 6
+    },
+    "resource_iron": {
+      "extra": "Iron",
+      "identifier": "/",
+      "shield": 3
+    },
+    "resource_game": {
+      "extra": "Game",
+      "identifier": "e",
+      "food": 2,
+      "shield": 1
+    },
+    "resource_furs": {
+      "extra": "Furs",
+      "identifier": "u",
+      "food": 1,
+      "trade": 3
+    },
+    "resource_coal": {
+      "extra": "Coal",
+      "identifier": "c",
+      "shield": 2
+    },
+    "resource_fish": {
+      "extra": "Fish",
+      "identifier": "y",
+      "food": 2
+    },
+    "resource_fruit": {
+      "extra": "Fruit",
+      "identifier": "f",
+      "food": 3,
+      "trade": 1
+    },
+    "resource_gems": {
+      "extra": "Gems",
+      "identifier": "g",
+      "trade": 4
+    },
+    "resource_buffalo": {
+      "extra": "Buffalo",
+      "identifier": "b",
+      "shield": 2
+    },
+    "resource_wheat": {
+      "extra": "Wheat",
+      "identifier": "j",
+      "food": 2
+    },
+    "resource_oasis": {
+      "extra": "Oasis",
+      "identifier": "o",
+      "food": 3
+    },
+    "resource_peat": {
+      "extra": "Peat",
+      "identifier": "a",
+      "shield": 4
+    },
+    "resource_pheasant": {
+      "extra": "Pheasant",
+      "identifier": "p",
+      "food": 2
+    },
+    "resource_bonus": {
+      "extra": "Resources",
+      "identifier": "r",
+      "shield": 1
+    },
+    "resource_icy_ivory": {
+      "extra": "Ivory",
+      "identifier": "i",
+      "food": 1,
+      "shield": 1,
+      "trade": 4
+    },
+    "resource_silk": {
+      "extra": "Silk",
+      "identifier": "s",
+      "trade": 3
+    },
+    "resource_spice": {
+      "extra": "Spice",
+      "identifier": "t",
+      "food": 1,
+      "trade": 4
+    },
+    "resource_whales": {
+      "extra": "Whales",
+      "identifier": "v",
+      "food": 1,
+      "shield": 1
+    },
+    "resource_wine": {
+      "extra": "Wine",
+      "identifier": "w",
+      "trade": 4
+    },
+    "resource_oil": {
+      "extra": "Oil",
+      "identifier": "x",
+      "shield": 3
+    }
+  },
+  "extras": {
+    "extra_irrigation": {
+      "name": "Irrigation",
+      "category": "Infra",
+      "causes": "Irrigation",
+      "rmcauses": "Pillage",
+      "graphic": "tx.irrigation",
+      "graphic_alt": "-",
+      "activity_gfx": "unit.irrigation",
+      "act_gfx_alt": "unit.cultivate",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "build_time": 0,
+      "removal_time": 0,
+      "conflicts": ["Mine", "Oil Well"],
+      "hidden_by": "Farmland",
+      "flags": "IrrigationSource",
+      "helptext": [
+        "Building an irrigation system on a suitable tile causes it to produce some extra food each turn. Most tiles yield one extra food; a desert with a river will yield two, if it is not already benefiting from an oasis.",
+        "Without knowledge of Electricity, irrigation requires a nearby source of water: an ocean, lake, or river tile, or another tile with an irrigation system, must share an edge (not just a corner) with the target tile. However, once irrigated, land remains so even if the water source is removed. Once Electricity is known, any suitable tile may be irrigated without a water source.",
+        "Building irrigation on a tile with a mine or oil well will destroy it.",
+        "City center tiles get their terrain's irrigation bonus automatically, if there is no conflicting mine or oil well on the tile; however, this does not make cities count as a water source for further irrigation. Irrigation can be built on the city tile simply to allow building further irrigation elsewhere, but will not give the tile any further bonus."
+      ]
+    },
+    "extra_mine": {
+      "name": "Mine",
+      "category": "Infra",
+      "causes": "Mine",
+      "rmcauses": "Pillage",
+      "graphic": "tx.mine",
+      "graphic_alt": "-",
+      "activity_gfx": "unit.mine",
+      "act_gfx_alt": "unit.plant",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "reqs": [
+        {
+          "type": "TerrainClass",
+          "name": "Oceanic",
+          "range": "Tile",
+          "present": false,
+          "quiet": "TRUE"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Sea",
+          "range": "Local",
+          "present": false,
+          "quiet": "TRUE"
+        }
+      ],
+      "build_time": 0,
+      "removal_time": 0,
+      "conflicts": ["Irrigation", "Farmland"],
+      "hidden_by": "Oil Well",
+      "helptext": [
+        "Mines can be built on some types of terrain, which increases the number of production points produced by that tile. Hills and Mountains get an extra 2 production points per tile; other terrains get 1 extra production point.",
+        "Building a mine on an irrigated tile will destroy the irrigation."
+      ]
+    },
+    "extra_oil_well": {
+      "name": "Oil Well",
+      "category": "Infra",
+      "causes": "Mine",
+      "rmcauses": "Pillage",
+      "graphic": "tx.oil_mine",
+      "graphic_alt": "tx.mine",
+      "activity_gfx": "unit.oil_mine",
+      "act_gfx_alt": "unit.mine",
+      "act_gfx_alt2": "unit.plant",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Refining",
+          "range": "Player",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "TerrainFlag",
+          "name": "Oil",
+          "range": "Tile",
+          "present": true,
+          "quiet": "TRUE"
+        },
+        {
+          "type": "Extra",
+          "name": "Mine",
+          "range": "Tile",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Sea",
+          "range": "Local",
+          "present": false,
+          "quiet": "TRUE"
+        }
+      ],
+      "build_time": 0,
+      "removal_time": 0,
+      "conflicts": ["Irrigation", "Farmland"],
+      "helptext": "Once Refining is known, mines on Desert and Glacier tiles can be upgraded to oil wells for an extra production point."
+    },
+    "extra_oil_platform": {
+      "name": "Oil Platform",
+      "category": "Infra",
+      "causes": "Mine",
+      "rmcauses": "Pillage",
+      "graphic": "tx.oil_rig",
+      "graphic_alt": "tx.mine",
+      "activity_gfx": "unit.oil_rig",
+      "act_gfx_alt": "unit.mine",
+      "act_gfx_alt2": "unit.plant",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Miniaturization",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "Terrain",
+          "name": "Deep Ocean",
+          "range": "Tile",
+          "present": true
+        }
+      ],
+      "build_time": 0,
+      "removal_time": 0,
+      "conflicts": "Buoy",
+      "helptext": [
+        "Oil platforms allow cities with Offshore Platforms to get an extra production point from Deep Ocean tiles.",
+        "Oil platforms can be built by Workers and similar units on board ships, or directly by Transport units."
+      ]
+    },
+    "extra_pollution": {
+      "name": "Pollution",
+      "category": "Nuisance",
+      "causes": "Pollution",
+      "rmcauses": "Clean",
+      "graphic": "tx.pollution",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "unit.pollution",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "reqs": [
+        {
+          "type": "TerrainFlag",
+          "name": "NoPollution",
+          "range": "Tile",
+          "present": false,
+          "quiet": "TRUE"
+        }
+      ],
+      "removal_time": 0,
+      "flags": "GlobalWarming",
+      "helptext": [
+        "Pollution appears on tiles around cities with high production or population, or when a Mfg. Plant suffers an industrial accident. It halves all output from its tile, and contributes to the risk of global warming.",
+        "The pollution can only be cleared by dispatching Workers, Migrants, Settlers, Engineers, or a Transport with the \"clean pollution\" order.",
+        "Pollution from production is likely to start becoming important as your civilization becomes more industrialized, giving you buildings such as Factory and Power Plant which boost production. Replacing a Power Plant with cleaner forms of energy -- a Hydro Plant / Hoover Dam, Nuclear Plant, or Solar Plant -- will reduce pollution from production, as will a Recycling Center.",
+        "The city's population starts adding to pollution with the Factory, Super Highways, Offshore Platform, and Mfg. Plant buildings; each building causes the population to add more to pollution. A Mass Transit will counteract the pollution from two buildings in a city, and the Eiffel Tower wonder will counteract the pollution from one building in all the owner's cities.",
+        "The contribution of these factors can be seen in the city dialog; once it exceeds a threshold, the excess is the percent chance of pollution appearing each turn.",
+        "When an unused tile becomes polluted, there is the temptation to avoid the effort of cleaning it; but the spread of pollution has far more terrible results than the immediate economic impact -- every polluted tile increases the chance of global warming. Each time global warming advances, the entire world loses coastal land to the sea and to jungles and swamps, and inland tiles are lost to desert. This tends to devastate cities and leads to global impoverishment.",
+        "The risk of global warming is cumulative; the longer polluted tiles are left uncleaned, the higher the risk becomes, and the risk can linger for some time even after all pollution has been cleaned. If a long time passes with an elevated risk of warming, its effects will be all the more severe when it does occur."
+      ]
+    },
+    "extra_hut": {
+      "name": "Minor Tribe Village",
+      "rule_name": "Hut",
+      "category": "Bonus",
+      "causes": "Hut",
+      "rmcauses": "Enter",
+      "graphic": "tx.village",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "reqs": [
+        {
+          "type": "TerrainClass",
+          "name": "Land",
+          "range": "Tile"
+        },
+        {
+          "type": "MaxLatitude",
+          "name": "980",
+          "range": "Tile"
+        },
+        {
+          "type": "MinLatitude",
+          "name": "-980",
+          "range": "Tile"
+        }
+      ],
+      "helptext": [
+        "Villages (also called \"huts\") are primitive communities spread across the world at the beginning of the game. Any land unit can enter a village, making the village disappear and deliver a random response. If the village proves hostile, it could produce barbarians or the unit entering may simply be destroyed. If they are friendly, the player could receive gold, a new technology, a military unit (occasionally a settler; and sometimes a unit that the player cannot yet create), or even a new city.",
+        "Later in the game, helicopters may also enter villages, but overflight by other aircraft will cause the villagers to take fright and disband."
+      ]
+    },
+    "extra_farmland": {
+      "name": "Farmland",
+      "category": "Infra",
+      "causes": "Irrigation",
+      "rmcauses": "Pillage",
+      "graphic": "tx.farmland",
+      "graphic_alt": "-",
+      "activity_gfx": "unit.farmland",
+      "act_gfx_alt": "unit.irrigation",
+      "act_gfx_alt2": "unit.cultivate",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Refrigeration",
+          "range": "Player"
+        },
+        {
+          "type": "Extra",
+          "name": "Irrigation",
+          "range": "Tile"
+        }
+      ],
+      "build_time": 0,
+      "removal_time": 0,
+      "conflicts": ["Mine", "Oil Well"],
+      "helptext": [
+        "Once Refrigeration is known, irrigation systems can be upgraded to farmland by irrigating them a second time; if the city working the tile has a Supermarket, a farmland tile provides 50% more food. (Hence, farmland is only useful on tiles which with irrigation yield 2 or more food.)",
+        "Farmland on a tile prevents any trade bonus from Super Highways.",
+        "Like irrigation, farmland is incompatible with mines and oil wells."
+      ]
+    },
+    "extra_fallout": {
+      "name": "Fallout",
+      "category": "Nuisance",
+      "causes": "Fallout",
+      "rmcauses": "Clean",
+      "graphic": "tx.fallout",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "unit.fallout",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "reqs": [
+        {
+          "type": "TerrainFlag",
+          "name": "NoPollution",
+          "range": "Tile",
+          "present": false,
+          "quiet": "TRUE"
+        }
+      ],
+      "removal_time": 0,
+      "flags": "NuclearWinter",
+      "helptext": [
+        "Nuclear fallout can appear on tiles when a Nuclear unit is detonated, or when a city's Nuclear Plant has an accident. It halves all output from its tile.",
+        "Every tile with nuclear fallout also increases the risk of global nuclear winter. If nuclear winter occurs, land across the globe changes into desert, tundra, and ice, and lakes and oceans freeze.",
+        "Settlers, Workers, Migrants, Engineers, and Transport units can all clean up nuclear fallout."
+      ]
+    },
+    "extra_fort": {
+      "name": "Fort",
+      "category": "Infra",
+      "causes": "Base",
+      "rmcauses": "Pillage",
+      "graphic": "base.outpost",
+      "graphic_alt": "base.fortress",
+      "activity_gfx": "unit.outpost",
+      "act_gfx_alt": "unit.fortress",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Construction",
+          "range": "Player",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "TerrainClass",
+          "name": "Land",
+          "range": "Tile",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "Fortress",
+          "range": "Local",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "CityTile",
+          "name": "Center",
+          "range": "Tile",
+          "present": false,
+          "quiet": "TRUE"
+        }
+      ],
+      "build_time": 0,
+      "build_time_factor": 2,
+      "removal_time": 0,
+      "native_to": ["Land", "Small Land", "Merchant", "Big Land"],
+      "conflicts": ["Airstrip", "Airbase"],
+      "hidden_by": "Fortress",
+      "flags": ["NativeTile", "DiplomatDefense"],
+      "helptext": "Forts are rapidly-built fortifications providing some defense (+50%) against land units and boats. A fort is also necessary to start building a fortress."
+    },
+    "extra_fortress": {
+      "name": "Fortress",
+      "category": "Infra",
+      "causes": "Base",
+      "rmcauses": "Pillage",
+      "graphic": "base.fortress",
+      "graphic_alt": "-",
+      "activity_gfx": "unit.fortress",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "reqs": [
+        {
+          "type": "Extra",
+          "name": "Fort",
+          "range": "Tile",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "Tech",
+          "name": "Construction",
+          "range": "Player",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "TerrainClass",
+          "name": "Land",
+          "range": "Tile",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "Fortress",
+          "range": "Local",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "CityTile",
+          "name": "Center",
+          "range": "Tile",
+          "present": false,
+          "quiet": "TRUE"
+        },
+        {
+          "type": "Extra",
+          "name": "River",
+          "range": "Tile",
+          "present": false,
+          "quiet": "FALSE"
+        }
+      ],
+      "build_time": 0,
+      "build_time_factor": 2,
+      "removal_time": 0,
+      "native_to": ["Land", "Small Land", "Merchant", "Big Land"],
+      "conflicts": ["Airstrip", "Airbase"],
+      "no_aggr_near_city": 3,
+      "flags": ["NativeTile", "DiplomatDefense"],
+      "helptext": [
+        "Fortresses are more permanent forts; construction on them can only begin once the underlying fort is complete. Forts on River tiles cannot be upgraded to Fortresses.",
+        "Compared to a fort, units in a fortress receive extra defense (+50%) against all units (in total, their defense against land units and boats is doubled), and do not count as aggressive if near a friendly city. Any kind of land unit remaining in a fortress for a whole turn without moving recovers a quarter of its hit points.",
+        "With Astronomy, fortresses gain watchtowers from which units can see further afield."
+      ]
+    },
+    "extra_airstrip": {
+      "name": "Airstrip",
+      "category": "Infra",
+      "causes": "Base",
+      "rmcauses": "Pillage",
+      "graphic": "base.airstrip",
+      "graphic_alt": "base.airbase",
+      "activity_gfx": "unit.airstrip",
+      "act_gfx_alt": "unit.airbase",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Radio",
+          "range": "Player",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "TerrainClass",
+          "name": "Land",
+          "range": "Tile",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "Workers",
+          "range": "Local",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "CityTile",
+          "name": "Center",
+          "range": "Tile",
+          "present": false,
+          "quiet": "TRUE"
+        }
+      ],
+      "build_time": 0,
+      "build_time_factor": 2,
+      "removal_time": 0,
+      "native_to": ["Air", "Helicopter", "Missile"],
+      "conflicts": ["Fort", "Fortress"],
+      "hidden_by": "Airbase",
+      "flags": ["Refuel", "ParadropFrom"],
+      "helptext": [
+        "Airstrips are rapidly-built runways allowing air units to land, refuel, and recover outside cities; an aircraft remaining on an airstrip for a whole turn without moving recovers a tenth of its hit points (that is, the same amount it loses each turn while airborne). However, air units on an airstrip are vulnerable to attack by land units.",
+        "Any units on an airstrip receive extra defense (+50%) against enemy aircraft.",
+        "An airstrip is necessary to start building an airbase."
+      ]
+    },
+    "extra_airbase": {
+      "name": "Airbase",
+      "category": "Infra",
+      "causes": "Base",
+      "rmcauses": "Pillage",
+      "graphic": "base.airbase",
+      "graphic_alt": "-",
+      "activity_gfx": "unit.airbase",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "reqs": [
+        {
+          "type": "Extra",
+          "name": "Airstrip",
+          "range": "Tile",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "Tech",
+          "name": "Radio",
+          "range": "Player",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "TerrainClass",
+          "name": "Land",
+          "range": "Tile",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "Workers",
+          "range": "Local",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "CityTile",
+          "name": "Center",
+          "range": "Tile",
+          "present": false,
+          "quiet": "TRUE"
+        },
+        {
+          "type": "Extra",
+          "name": "River",
+          "range": "Tile",
+          "present": false,
+          "quiet": "FALSE"
+        }
+      ],
+      "build_time": 0,
+      "build_time_factor": 2,
+      "removal_time": 0,
+      "native_to": ["Air", "Helicopter", "Missile"],
+      "conflicts": ["Fort", "Fortress"],
+      "no_aggr_near_city": 3,
+      "flags": ["Refuel", "ParadropFrom"],
+      "helptext": [
+        "Airbases are more permanent airstrips; construction on them can only begin once the underlying airstrip is complete. Airstrips on River tiles cannot be upgraded to Airbases.",
+        "Compared to an airstrip, units in an airbase receive extra defense (+50%) against all units (in total, their defense against air units and missiles is doubled), do not count as aggressive if near a friendly city, and can see further afield. Also, air units recover more hit points (a third per turn, the same as in a city without an Airport)."
+      ]
+    },
+    "extra_buoy": {
+      "name": "Buoy",
+      "category": "Infra",
+      "causes": "Base",
+      "rmcauses": "Pillage",
+      "graphic": "base.buoy",
+      "graphic_alt": "base.fortress",
+      "activity_gfx": "unit.buoy",
+      "act_gfx_alt": "unit.fortress",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Radio",
+          "range": "Player",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "TerrainClass",
+          "name": "Oceanic",
+          "range": "Tile",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "Workers",
+          "range": "Local",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "CityTile",
+          "name": "Center",
+          "range": "Tile",
+          "present": false,
+          "quiet": "TRUE"
+        }
+      ],
+      "build_time": 3,
+      "removal_time": 0,
+      "conflicts": "Oil Platform",
+      "flags": "ShowFlag",
+      "helptext": "Buoys may be built in the ocean by Transports (or by worker units on a sea-going vessel) to allow their owner to see the surrounding tiles."
+    },
+    "extra_ruins": {
+      "name": "Ruins",
+      "category": "Bonus",
+      "rmcauses": "Pillage",
+      "graphic": "extra.ruins",
+      "graphic_alt": "base.ruins",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "reqs": [
+        {
+          "type": "TerrainClass",
+          "name": "Land",
+          "range": "Tile",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "CityTile",
+          "name": "Center",
+          "range": "Tile",
+          "present": false,
+          "quiet": "TRUE"
+        }
+      ],
+      "buildable": false,
+      "removal_time": 0,
+      "flags": "TerrChangeRemoves",
+      "helptext": "Ruins mark the former site of a city that was destroyed or abandoned. They have no effect on gameplay."
+    },
+    "extra_road": {
+      "name": "Road",
+      "category": "Infra",
+      "causes": "Road",
+      "rmcauses": "Pillage",
+      "graphic": "road.road",
+      "graphic_alt": "-",
+      "activity_gfx": "unit.road",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "reqs": [
+        {
+          "type": "UnitTypeFlag",
+          "name": "Workers",
+          "range": "Local",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Sea",
+          "range": "Local",
+          "present": false,
+          "quiet": "TRUE"
+        },
+        {
+          "type": "TerrainClass",
+          "name": "Land",
+          "range": "Tile",
+          "present": true,
+          "quiet": "FALSE"
+        }
+      ],
+      "build_time": 0,
+      "removal_time": 0,
+      "native_to": ["Land", "Small Land", "Big Land", "Merchant"],
+      "hidden_by": ["Railroad", "Maglev"],
+      "bridged_over": "River",
+      "flags": ["NativeTile", "AlwaysOnCityCenter"],
+      "helptext": [
+        "Roads allow your land units to move more quickly, and allow wheeledBig Land units such as Chariots and Catapults to travel throughotherwise difficult terrain (Mountains, Jungle, and Swamp).",
+        "On some terrains, roads also provide a trade bonus.",
+        "Building roads on river tiles requires knowledge of Bridge Building.City center tiles automatically get roads (even on a river tile)."
+      ]
+    },
+    "extra_railroad": {
+      "name": "Railroad",
+      "category": "Infra",
+      "causes": "Road",
+      "rmcauses": "Pillage",
+      "graphic": "road.rail",
+      "graphic_alt": "-",
+      "activity_gfx": "unit.rail",
+      "act_gfx_alt": "unit.road",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Railroad",
+          "range": "Player",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "Extra",
+          "name": "Road",
+          "range": "Tile",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "Workers",
+          "range": "Local",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Sea",
+          "range": "Local",
+          "present": false,
+          "quiet": "TRUE"
+        },
+        {
+          "type": "TerrainClass",
+          "name": "Land",
+          "range": "Tile",
+          "present": true,
+          "quiet": "FALSE"
+        }
+      ],
+      "build_time": 3,
+      "removal_time": 0,
+      "native_to": ["Land", "Small Land", "Big Land", "Merchant"],
+      "flags": ["NativeTile", "AutoOnCityCenter"],
+      "hidden_by": "Maglev",
+      "bridged_over": "River",
+      "helptext": [
+        "Once you learn the Railroad technology, you may upgrade your roadsto railroads. Units travel considerably faster along railroads thanalong roads.",
+        "A railroad also increases any shield resources produced by a tile by half.A tile whose road is upgraded to a railroad retains any trade bonusfrom the road as well.",
+        "City center tiles with roads are automatically upgraded to railroadswhen you learn the Railroad technology."
+      ]
+    },
+    "extra_maglev": {
+      "name": "Maglev",
+      "category": "Infra",
+      "causes": "Road",
+      "rmcauses": "Pillage",
+      "graphic": "road.maglev",
+      "graphic_alt": "road.rail",
+      "activity_gfx": "unit.maglev",
+      "act_gfx_alt": "unit.road",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Superconductors",
+          "range": "Player",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "Extra",
+          "name": "Railroad",
+          "range": "Tile",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "Workers",
+          "range": "Local",
+          "present": true,
+          "quiet": "FALSE"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Sea",
+          "range": "Local",
+          "present": false,
+          "quiet": "TRUE"
+        },
+        {
+          "type": "TerrainClass",
+          "name": "Land",
+          "range": "Tile",
+          "present": true,
+          "quiet": "FALSE"
+        }
+      ],
+      "build_time": 3,
+      "removal_time": 0,
+      "native_to": ["Land", "Small Land"],
+      "flags": ["NativeTile", "AutoOnCityCenter"],
+      "bridged_over": "River",
+      "helptext": [
+        "With sufficient technology, you may build magnetic levitation systemsalong your railroad routes. Land and Small Land units expend nomovement points when riding a maglev; you may ride indefinitely.(As may your enemies!)",
+        "Your regular railroads are still used to carry heavy Big Land andMerchant units for which the maglev system is unsuitable, and theycontinue to provide production and trade bonuses.",
+        "City center tiles with railroads are automatically upgraded to maglevwhen you learn about Superconductors."
+      ]
+    },
+    "extra_river": {
+      "name": "River",
+      "category": "Natural",
+      "causes": "Road",
+      "graphic": "road.river",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "buildable": false,
+      "native_to": ["Land", "Small Land", "Merchant", "Trireme"],
+      "defense_bonus": 25,
+      "flags": ["NativeTile", "IrrigationSource", "AllowsFarmlandOnDesert"],
+      "helptext": [
+        "Any land terrain type may have a River on it. A River adds 1trade to the resources produced by that tile. It also increases atile's defense factor by 25%.",
+        "Land units may move along rivers for faster travel (but not diagonally).Triremes may also travel up rivers (although later boats cannot).",
+        "Roads and railroads can only be built on River tiles if yourcivilization has learned Bridge Building technology. Fortresses andAirbases cannot be built on River tiles.",
+        "Cities built on or next to rivers incur a small risk of flooding,which will destroy stored food."
+      ]
+    },
+    "extra_gold": {
+      "name": "Gold",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.gold",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    },
+    "extra_iron": {
+      "name": "Iron",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.iron",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    },
+    "extra_game": {
+      "name": "Game",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.tundra_game",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    },
+    "extra_furs": {
+      "name": "Furs",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.furs",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    },
+    "extra_coal": {
+      "name": "Coal",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.coal",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    },
+    "extra_fish": {
+      "name": "Fish",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.fish",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    },
+    "extra_fruit": {
+      "name": "Fruit",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.fruit",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    },
+    "extra_gems": {
+      "name": "Gems",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.gems",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    },
+    "extra_buffalo": {
+      "name": "Buffalo",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.buffalo",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    },
+    "extra_wheat": {
+      "name": "Wheat",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.wheat",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    },
+    "extra_oasis": {
+      "name": "Oasis",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.oasis",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "flags": "AllowsFarmlandOnDesert"
+    },
+    "extra_peat": {
+      "name": "Peat",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.peat",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    },
+    "extra_pheasant": {
+      "name": "Pheasant",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.pheasant",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    },
+    "extra_resources": {
+      "name": "Resources",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.grassland_resources",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    },
+    "extra_ivory": {
+      "name": "Ivory",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.arctic_ivory",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    },
+    "extra_silk": {
+      "name": "Silk",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.silk",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    },
+    "extra_spice": {
+      "name": "Spice",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.spice",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    },
+    "extra_whales": {
+      "name": "Whales",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.whales",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    },
+    "extra_wine": {
+      "name": "Wine",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.wine",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    },
+    "extra_oil": {
+      "name": "Oil",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.oil",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    }
+  },
+  "bases": {
+    "base_fort": {
+      "extra": "Fort",
+      "gui_type": "Fortress",
+      "border_sq": -1
+    },
+    "base_fortress": {
+      "extra": "Fortress",
+      "gui_type": "Fortress",
+      "border_sq": -1
+    },
+    "base_airstrip": {
+      "extra": "Airstrip",
+      "gui_type": "Airbase",
+      "border_sq": -1
+    },
+    "base_airbase": {
+      "extra": "Airbase",
+      "gui_type": "Airbase",
+      "border_sq": -1
+    },
+    "base_buoy": {
+      "extra": "Buoy",
+      "gui_type": "Fortress",
+      "vision_main_sq": 5
+    }
+  },
+  "roads": {
+    "road_road": {
+      "extra": "Road",
+      "move_cost": 2,
+      "food_incr": 0,
+      "shield_incr": 0,
+      "trade_incr": 1,
+      "food_bonus": 0,
+      "shield_bonus": 0,
+      "trade_bonus": 0,
+      "compat_special": "Road",
+      "gui_type": "Road"
+    },
+    "road_railroad": {
+      "extra": "Railroad",
+      "move_cost": 1,
+      "food_incr": 0,
+      "shield_incr": 0,
+      "trade_incr": 0,
+      "food_bonus": 0,
+      "shield_bonus": 50,
+      "trade_bonus": 0,
+      "compat_special": "Railroad",
+      "gui_type": "Railroad"
+    },
+    "road_maglev": {
+      "extra": "Maglev",
+      "move_cost": 0,
+      "food_incr": 0,
+      "shield_incr": 0,
+      "trade_incr": 0,
+      "food_bonus": 0,
+      "shield_bonus": 0,
+      "trade_bonus": 0,
+      "gui_type": "Maglev"
+    },
+    "road_river": {
+      "extra": "River",
+      "move_cost": 2,
+      "move_mode": "Cardinal",
+      "trade_incr_const": 1,
+      "compat_special": "River",
+      "flags": "River",
+      "gui_type": "Other"
+    }
+  },
+  "terrain_extra_settings": {
+    "terrain_inaccesible": {
+      "terrain": "Inaccessible",
+      "extra_settings": []
+    },
+    "terrain_lake": {
+      "terrain": "Lake",
+      "extra_settings": [
+        {
+          "extra": "Pollution",
+          "removal_time": 3
+        },
+        {
+          "extra": "Fallout",
+          "removal_time": 3
+        }
+      ]
+    },
+    "terrain_ocean": {
+      "terrain": "Ocean",
+      "extra_settings": [
+        {
+          "extra": "Pollution",
+          "removal_time": 3
+        },
+        {
+          "extra": "Fallout",
+          "removal_time": 3
+        }
+      ]
+    },
+    "terrain_deep_ocean": {
+      "terrain": "Deep Ocean",
+      "extra_settings": [
+        {
+          "extra": "Pollution",
+          "removal_time": 3
+        },
+        {
+          "extra": "Fallout",
+          "removal_time": 3
+        }
+      ]
+    },
+    "terrain_glacier": {
+      "terrain": "Glacier",
+      "extra_settings": [
+        {
+          "extra": "Pollution",
+          "removal_time": 3
+        },
+        {
+          "extra": "Fallout",
+          "removal_time": 3
+        }
+      ]
+    },
+    "terrain_desert": {
+      "terrain": "Desert",
+      "extra_settings": [
+        {
+          "extra": "Pollution",
+          "removal_time": 3
+        },
+        {
+          "extra": "Fallout",
+          "removal_time": 3
+        }
+      ]
+    },
+    "terrain_forest": {
+      "terrain": "Forest",
+      "extra_settings": [
+        {
+          "extra": "Pollution",
+          "removal_time": 3
+        },
+        {
+          "extra": "Fallout",
+          "removal_time": 3
+        }
+      ]
+    },
+    "terrain_grassland": {
+      "terrain": "Grassland",
+      "extra_settings": [
+        {
+          "extra": "Pollution",
+          "removal_time": 3
+        },
+        {
+          "extra": "Fallout",
+          "removal_time": 3
+        }
+      ]
+    },
+    "terrain_hills": {
+      "terrain": "Hills",
+      "extra_settings": [
+        {
+          "extra": "Pollution",
+          "removal_time": 3
+        },
+        {
+          "extra": "Fallout",
+          "removal_time": 3
+        }
+      ]
+    },
+    "terrain_jungle": {
+      "terrain": "Jungle",
+      "extra_settings": [
+        {
+          "extra": "Pollution",
+          "removal_time": 3
+        },
+        {
+          "extra": "Fallout",
+          "removal_time": 3
+        }
+      ]
+    },
+    "terrain_mountains": {
+      "terrain": "Mountains",
+      "extra_settings": [
+        {
+          "extra": "Pollution",
+          "removal_time": 3
+        },
+        {
+          "extra": "Fallout",
+          "removal_time": 3
+        }
+      ]
+    },
+    "terrain_plains": {
+      "terrain": "Plains",
+      "extra_settings": [
+        {
+          "extra": "Pollution",
+          "removal_time": 3
+        },
+        {
+          "extra": "Fallout",
+          "removal_time": 3
+        }
+      ]
+    },
+    "terrain_swamp": {
+      "terrain": "Swamp",
+      "extra_settings": [
+        {
+          "extra": "Pollution",
+          "removal_time": 3
+        },
+        {
+          "extra": "Fallout",
+          "removal_time": 3
+        }
+      ]
+    },
+    "terrain_tundra": {
+      "terrain": "Tundra",
+      "extra_settings": [
+        {
+          "extra": "Pollution",
+          "removal_time": 3
+        },
+        {
+          "extra": "Fallout",
+          "removal_time": 3
+        }
+      ]
+    }
+  }
+}

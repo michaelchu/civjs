@@ -2,7 +2,6 @@ import request from 'supertest';
 import express from 'express';
 import { NationsController } from '../../src/controllers/nationsController';
 import { RulesetLoader } from '../../src/shared/data/rulesets/RulesetLoader';
-import { setupTestDatabase, cleanupTestDatabase } from '../utils/testDatabase';
 
 // Mock the logger to avoid console noise in tests
 jest.mock('../../src/utils/logger', () => ({
@@ -17,17 +16,9 @@ jest.mock('../../src/utils/logger', () => ({
 describe('NationsController - Integration Tests with Real Ruleset Data', () => {
   let app: express.Application;
 
-  beforeAll(async () => {
-    // Setup test database (even though this controller doesn't use it directly,
-    // it may be needed for other integration scenarios)
-    await setupTestDatabase();
-
-    // Initialize RulesetLoader with actual data
+  beforeAll(() => {
+    // The controller is ruleset-file backed and requires no database fixture.
     RulesetLoader.getInstance();
-  });
-
-  afterAll(async () => {
-    await cleanupTestDatabase();
   });
 
   beforeEach(() => {
@@ -43,7 +34,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
   });
 
   describe('GET /api/nations', () => {
-    it('should return all nations for default (classic) ruleset', async () => {
+    it('should return all nations for the configured default ruleset', async () => {
       const response = await request(app).get('/api/nations').expect(200);
 
       expect(response.body.success).toBe(true);
@@ -51,7 +42,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
       expect(response.body.data.nations).toBeInstanceOf(Array);
       expect(response.body.data.nations.length).toBeGreaterThan(0);
       expect(response.body.data.metadata).toBeDefined();
-      expect(response.body.data.metadata.ruleset).toBe('classic');
+      expect(response.body.data.metadata.ruleset).toBe('civ2civ3');
       expect(response.body.data.metadata.count).toBe(response.body.data.nations.length);
 
       // Verify nation structure
@@ -174,7 +165,8 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
       expect(response.body.data).toBeDefined();
       expect(response.body.data.rulesets).toBeInstanceOf(Array);
       expect(response.body.data.rulesets).toContain('classic');
-      expect(response.body.data.default).toBe('classic');
+      expect(response.body.data.rulesets).toContain('civ2civ3');
+      expect(response.body.data.default).toBe('civ2civ3');
     });
 
     it('should return consistent response structure', async () => {

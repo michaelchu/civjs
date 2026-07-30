@@ -5,6 +5,7 @@ import { HeightBasedMapService } from '@game/map/HeightBasedMapService';
 import { IslandMapService } from '@game/map/IslandMapService';
 import { FairIslandsService } from '@game/map/FairIslandsService';
 import { MapAccessService } from '@game/map/MapAccessService';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { ValidationResult } from '@game/map/MapValidator';
 import { MapTopology, type MapTopologyOptions } from '@game/map/MapTopology';
 import { DisabledScenarioProvider, type ScenarioProvider } from '@game/map/ScenarioProvider';
@@ -56,7 +57,8 @@ export class MapManager {
     temperatureParam: number = 50,
     topologyOptions: MapTopologyOptions = {},
     scenarioId: string = 'earth-small',
-    generationOptions: MapGenerationOptions = {}
+    generationOptions: MapGenerationOptions = {},
+    rulesetName: string = DEFAULT_RULESET
   ) {
     this.width = width;
     this.height = height;
@@ -78,7 +80,8 @@ export class MapManager {
       cleanupTemperatureMapAfterUse,
       temperatureParam,
       topologyOptions,
-      generationOptions
+      generationOptions,
+      rulesetName
     );
 
     this.islandMapService = new IslandMapService(
@@ -91,7 +94,8 @@ export class MapManager {
       cleanupTemperatureMapAfterUse,
       temperatureParam,
       topologyOptions,
-      generationOptions
+      generationOptions,
+      rulesetName
     );
 
     this.fairIslandsService = new FairIslandsService(
@@ -104,7 +108,8 @@ export class MapManager {
       cleanupTemperatureMapAfterUse,
       temperatureParam,
       topologyOptions,
-      generationOptions
+      generationOptions,
+      rulesetName
     );
 
     this.mapAccessService = new MapAccessService(width, height, topologyOptions);

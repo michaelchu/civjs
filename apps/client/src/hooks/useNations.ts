@@ -24,7 +24,7 @@ interface UseNationState {
 /**
  * Hook to fetch and manage all nations for a ruleset
  */
-export function useNations(ruleset: string = 'classic') {
+export function useNations(ruleset: string = 'civ2civ3') {
   const [state, setState] = useState<UseNationsState>({
     nations: [],
     loading: true,
@@ -81,7 +81,7 @@ export function useNations(ruleset: string = 'classic') {
 /**
  * Hook to fetch and manage a single nation
  */
-export function useNation(id: string, ruleset: string = 'classic') {
+export function useNation(id: string, ruleset: string = 'civ2civ3') {
   const [state, setState] = useState<UseNationState>({
     nation: null,
     loading: true,
@@ -138,7 +138,7 @@ export function useNation(id: string, ruleset: string = 'classic') {
 /**
  * Hook to get available nations filtered and sorted for selection
  */
-export function useNationSelection(ruleset: string = 'classic') {
+export function useNationSelection(ruleset: string = 'civ2civ3') {
   const { nations, loading, error, metadata, refetch } = useNations(ruleset);
 
   // Keep game-internal factions out of the player selection UI.
@@ -163,7 +163,7 @@ export function useNationSelection(ruleset: string = 'classic') {
 /**
  * Hook for nation leaders
  */
-export function useNationLeaders(nationId: string, ruleset: string = 'classic') {
+export function useNationLeaders(nationId: string, ruleset: string = 'civ2civ3') {
   const [leaders, setLeaders] = useState<NationLeader[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -1,10 +1,11 @@
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 /* eslint-disable complexity */
 import { randomUUID } from 'crypto';
 import { logger } from '@utils/logger';
 import { DatabaseProvider } from '@database';
 import { cities, games } from '@database/schema';
 import { eq } from 'drizzle-orm';
-import { UNIT_TYPES } from '@game/constants/UnitConstants';
+import { type UnitType, rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import {
   SpecialistType,
   SPECIALIST_TYPES,
@@ -277,7 +278,7 @@ export interface BuildingType {
 
 /** @reference reference/freeciv/data/classic/buildings.ruleset */
 export const BUILDING_TYPES: Record<string, BuildingType> =
-  rulesetBuildingsService.getPlayableBuildingTypes();
+  rulesetBuildingsService.getPlayableBuildingTypes('classic');
 
 // Callback interface for events
 export interface CityManagerCallbacks {
@@ -360,7 +361,9 @@ export class CityManager {
     gameId: string,
     databaseProvider: DatabaseProvider,
     effectsManager: EffectsManager,
-    callbacks: CityManagerCallbacks = {}
+    callbacks: CityManagerCallbacks = {},
+    private readonly unitTypes: Record<string, UnitType> = rulesetUnitsService.getUnitTypes(),
+    private readonly buildingTypes: Record<string, BuildingType> = BUILDING_TYPES
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
@@ -384,6 +387,11 @@ export class CityManager {
 
   public setCurrentTurnProvider(provider: () => number): void {
     this.currentTurnProvider = provider;
+  }
+
+  /** The playable building catalogue selected for this game instance. */
+  public getBuildingTypes(): Readonly<Record<string, BuildingType>> {
+    return this.buildingTypes;
   }
 
   public setPlayerTechsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
@@ -438,7 +446,7 @@ export class CityManager {
     this.buildingService = new CityBuildingService(
       this.cities,
       this.databaseProvider,
-      BUILDING_TYPES,
+      this.buildingTypes,
       this.effectsManager
     );
 
@@ -466,9 +474,11 @@ export class CityManager {
 
     this.productionService = new CityProductionService(
       this.cities,
-      BUILDING_TYPES,
+      this.buildingTypes,
       this.playerGoldProvider,
-      this.spendPlayerGoldProvider
+      this.spendPlayerGoldProvider,
+      this.unitTypes,
+      this.effectsManager
     );
 
     this.governorService = new CityGovernorService(
@@ -480,7 +490,10 @@ export class CityManager {
 
     this.captureService = new CityCaptureService(
       this.cities,
-      this.updateTradeRoutesOnPlayerChange.bind(this)
+      this.updateTradeRoutesOnPlayerChange.bind(this),
+      undefined,
+      undefined,
+      this.buildingTypes
     );
 
     // Initialize citizen management service
@@ -522,9 +535,11 @@ export class CityManager {
     this.spendPlayerGoldProvider = spendPlayerGold;
     this.productionService = new CityProductionService(
       this.cities,
-      BUILDING_TYPES,
+      this.buildingTypes,
       getPlayerGold,
-      spendPlayerGold
+      spendPlayerGold,
+      this.unitTypes,
+      this.effectsManager
     );
   }
 
@@ -573,6 +588,8 @@ export class CityManager {
       cities: this.cities,
       callbacks: this.callbacks,
       effectsManager: this.effectsManager,
+      unitTypes: this.unitTypes,
+      buildingTypes: this.buildingTypes,
       io: this.io,
       governorService: this.governorService,
       tileManagementService: this.tileManagementService,
@@ -886,9 +903,9 @@ export class CityManager {
   /**
    * Calculate granary size for a given population - delegates to CityCalculationService
    * @param population City population
-   * @param rulesetName Ruleset to use (defaults to 'classic')
+   * @param rulesetName Ruleset to use (defaults to the configured game default)
    */
-  public calculateGranarySize(population: number, rulesetName: string = 'classic'): number {
+  public calculateGranarySize(population: number, rulesetName: string = DEFAULT_RULESET): number {
     return this.calculationService.calculateGranarySize(population, rulesetName);
   }
 
@@ -1011,7 +1028,7 @@ export class CityManager {
         return false;
       }
 
-      const building = BUILDING_TYPES[value];
+      const building = this.buildingTypes[value];
       if (!building) return false;
       const playerTechs = this.playerTechsProvider(city.playerId);
       if (building.requiredTech && !playerTechs.has(building.requiredTech)) return false;
@@ -1054,7 +1071,7 @@ export class CityManager {
       }
       return true;
     } else if (kind === 'unit') {
-      const unit = UNIT_TYPES[value];
+      const unit = this.unitTypes[value];
       if (!unit || unit.flags?.includes('NoBuild') || unit.flags?.includes('BarbarianOnly')) {
         return false;
       }
@@ -1089,10 +1106,10 @@ export class CityManager {
       if (!isSpaceshipPart(productionId) && city.buildings.includes(productionId)) {
         throw new Error(`Building already exists: ${productionId}`);
       }
-      if (!BUILDING_TYPES[productionId]) {
+      if (!this.buildingTypes[productionId]) {
         throw new Error(`Unknown building type: ${productionId}`);
       }
-      const building = BUILDING_TYPES[productionId];
+      const building = this.buildingTypes[productionId];
       if (!this.canCityQueueItem(city, 'building', productionId)) {
         throw new Error(`Building is not currently available: ${productionId}`);
       }
@@ -1107,17 +1124,17 @@ export class CityManager {
         throw new Error(`Great Wonder is already built or under construction: ${productionId}`);
       }
     } else if (productionType === 'unit') {
-      if (!Object.values(UNIT_TYPES).some(unitType => unitType.id === productionId)) {
+      if (!Object.values(this.unitTypes).some(unitType => unitType.id === productionId)) {
         throw new Error(`Unknown unit type: ${productionId}`);
       }
     }
 
     let productionCost = 0;
     if (productionType === 'unit') {
-      const unitType = UNIT_TYPES[productionId];
+      const unitType = this.unitTypes[productionId];
       productionCost = unitType?.cost || 0;
     } else {
-      const building = BUILDING_TYPES[productionId];
+      const building = this.buildingTypes[productionId];
       productionCost = building?.cost || 0;
     }
 
@@ -1743,7 +1760,7 @@ export class CityManager {
     if (!city || city.playerId !== playerId) {
       return { success: false, goldReceived: 0, reason: 'City not found or not owned by player' };
     }
-    const building = BUILDING_TYPES[buildingId];
+    const building = this.buildingTypes[buildingId];
     if (!building || building.genus !== 'Improvement') {
       return { success: false, goldReceived: 0, reason: 'Building cannot be sold' };
     }
@@ -2042,7 +2059,7 @@ export class CityManager {
       return { success: false, reason: 'Cannot disband your only city' };
     }
     const containsWonder = city.buildings.some(buildingId => {
-      const building = BUILDING_TYPES[buildingId];
+      const building = this.buildingTypes[buildingId];
       return building?.genus === 'GreatWonder' || building?.genus === 'SmallWonder';
     });
     if (containsWonder) {
@@ -2287,7 +2304,7 @@ export class CityManager {
     if (!city || city.playerId !== playerId || !city.currentProduction || shields <= 0) {
       return false;
     }
-    const building = rulesetBuildingsService.getBuildingTypes()[city.currentProduction];
+    const building = this.buildingTypes[city.currentProduction];
     if (building?.genus !== 'GreatWonder') return false;
     city.productionStock = (city.productionStock ?? city.shieldStock ?? 0) + shields;
     city.shieldStock = city.productionStock;
@@ -2347,7 +2364,7 @@ export class CityManager {
     targetY: number
   ): Promise<ActionResult> {
     const city = this.getCityAt(targetX, targetY);
-    const unitType = UNIT_TYPES[unitTypeId];
+    const unitType = this.unitTypes[unitTypeId];
     if (!city || !unitType) return { success: false, message: 'Target city not found' };
 
     let success = false;
@@ -2402,7 +2419,9 @@ export class CityManager {
   ): Promise<boolean> {
     const source = this.cities.get(sourceCityId);
     const destination = this.cities.get(destinationCityId);
-    const parameters = rulesetLoader.loadGameRulesRuleset().game_parameters;
+    const parameters = rulesetLoader.loadGameRulesRuleset(
+      this.effectsManager.getRulesetName()
+    ).game_parameters;
     const sourceUnavailable =
       !parameters.airlift_from_always_enabled &&
       (!source?.buildings.includes('airport') || source?.airliftUsedTurn === turn);

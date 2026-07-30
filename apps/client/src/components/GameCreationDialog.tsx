@@ -12,7 +12,7 @@ export const GameCreationDialog: React.FC = () => {
   const [error, setError] = useState('');
 
   // Fetch nations using our hook
-  const { nations, loading: nationsLoading, error: nationsError } = useNationSelection('classic');
+  const { nations, loading: nationsLoading, error: nationsError } = useNationSelection('civ2civ3');
 
   const navigate = useNavigate();
 

@@ -1,0 +1,329 @@
+{
+  "source": "reference/freeciv/data/granularity/terrain.ruleset",
+  "datafile": {
+    "description": "Granularity tile_type data for Freeciv",
+    "options": "+Freeciv-ruleset-3.4-Devel-2025.Jan.17",
+    "format_version": 50
+  },
+  "resources": {
+    "resource_iron": {
+      "extra": "Iron",
+      "food": 0,
+      "shield": 0,
+      "trade": 0,
+      "identifier": "/"
+    },
+    "resource_wheat": {
+      "extra": "Wheat",
+      "identifier": "j",
+      "food": 50
+    },
+    "resource_generic": {
+      "extra": "Generic Resource",
+      "food": 0,
+      "shield": 0,
+      "trade": 100,
+      "identifier": "g"
+    }
+  },
+  "extras": {
+    "extra_irrigation": {
+      "name": "Irrigation",
+      "category": "Infra",
+      "infracost": 2500,
+      "graphic": "tx.irrigation",
+      "graphic_alt": "-",
+      "activity_gfx": "unit.irrigation",
+      "act_gfx_alt": "unit.cultivate",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "buildable": true,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Agriculture",
+          "range": "Player"
+        },
+        {
+          "type": "TerrainClass",
+          "name": "Land",
+          "range": "Tile"
+        }
+      ],
+      "build_time": 3,
+      "removal_time": 0,
+      "helptext": "Irrigation increases tile food production. Full bonus is achieved only when player also knows the Plow tech, otherwise only 3/4 of the bonus is effective."
+    },
+    "extra_nets": {
+      "name": "Nets",
+      "category": "Infra",
+      "infracost": 2500,
+      "graphic": "tx.nets",
+      "graphic_alt": "tx.irrigation",
+      "activity_gfx": "unit.nets",
+      "act_gfx_alt": "unit.irrigation",
+      "act_gfx_alt2": "unit.cultivate",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "buildable": true,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Rope",
+          "range": "Player"
+        },
+        {
+          "type": "TerrainClass",
+          "name": "Oceanic",
+          "range": "Tile"
+        }
+      ],
+      "build_time": 3,
+      "removal_time": 0,
+      "helptext": "Nets increase ocean tile food production."
+    },
+    "extra_mine": {
+      "name": "Mine",
+      "category": "Infra",
+      "infracost": 2500,
+      "graphic": "tx.mine",
+      "graphic_alt": "-",
+      "activity_gfx": "unit.mine",
+      "act_gfx_alt": "unit.plant",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "buildable": true,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Mining",
+          "range": "Player"
+        },
+        {
+          "type": "Terrain",
+          "name": "Mountains",
+          "range": "Tile"
+        }
+      ],
+      "build_time": 4,
+      "removal_time": 0,
+      "helptext": "Mine increases tile shield production."
+    },
+    "extra_fort": {
+      "name": "Fort",
+      "category": "Infra",
+      "causes": "Base",
+      "graphic": "base.fort",
+      "graphic_alt": "base.fortress",
+      "activity_gfx": "unit.fort",
+      "act_gfx_alt": "unit.fortress",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "buildable": true,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Military Constructs",
+          "range": "Player"
+        },
+        {
+          "type": "TerrainClass",
+          "name": "Land",
+          "range": "Tile"
+        }
+      ],
+      "build_time": 7,
+      "removal_time": 0,
+      "defense_bonus": 35,
+      "helptext": "Simplest of military castles, Fort provides just 35% defense bonus."
+    },
+    "extra_path": {
+      "name": "Path",
+      "category": "Infra",
+      "causes": "Road",
+      "infracost": 300,
+      "graphic": "road.path",
+      "graphic_alt": "road.road",
+      "activity_gfx": "unit.path",
+      "act_gfx_alt": "unit.road",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "buildable": true,
+      "hidden_by": "Road",
+      "build_time": 1,
+      "removal_time": 0,
+      "flags": "AutoOnCityCenter",
+      "helptext": "Path is the simplest road type, buildable from the beginning."
+    },
+    "extra_road": {
+      "name": "Road",
+      "category": "Infra",
+      "causes": "Road",
+      "infracost": 600,
+      "graphic": "road.road",
+      "graphic_alt": "-",
+      "activity_gfx": "unit.road",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "buildable": true,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Road Building",
+          "range": "Player"
+        },
+        {
+          "type": "Extra",
+          "name": "Path",
+          "range": "Tile"
+        }
+      ],
+      "build_time": 3,
+      "removal_time": 0,
+      "flags": "AutoOnCityCenter",
+      "helptext": "Roads allow your land units to move more quickly, and on some terrain,also provide a trade bonus."
+    },
+    "extra_river": {
+      "name": "River",
+      "category": "Natural",
+      "causes": "Road",
+      "graphic": "road.river",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "buildable": false,
+      "native_to": "Land",
+      "helptext": "Any land terrain type may have a River on it.Land units may move along a River (but not diagonally) for fast travel."
+    },
+    "extra_iron": {
+      "name": "Iron",
+      "category": "Resource",
+      "causes": "Resource",
+      "visibility_req": "Iron Working",
+      "graphic": "ts.iron",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-",
+      "helptext": "Adds +200 to the tile shield output. Becomes visible and usable by the Iron Working tech."
+    },
+    "extra_wheat": {
+      "name": "Wheat",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.wheat",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    },
+    "extra_gresource": {
+      "name": "Generic Resource",
+      "category": "Resource",
+      "causes": "Resource",
+      "graphic": "ts.grassland_resources",
+      "graphic_alt": "-",
+      "activity_gfx": "None",
+      "act_gfx_alt": "-",
+      "act_gfx_alt2": "-",
+      "rmact_gfx": "None",
+      "rmact_gfx_alt": "-",
+      "rmact_gfx_alt2": "-"
+    }
+  },
+  "bases": {
+    "base_fort": {
+      "extra": "Fort",
+      "gui_type": "Other",
+      "border_sq": -1
+    }
+  },
+  "roads": {
+    "road_path": {
+      "extra": "Path",
+      "move_cost": 60,
+      "food_incr": 0,
+      "shield_incr": 0,
+      "trade_incr": 10,
+      "food_bonus": 0,
+      "shield_bonus": 0,
+      "trade_bonus": 0,
+      "compat_special": "None",
+      "gui_type": "Other"
+    },
+    "road_road": {
+      "extra": "Road",
+      "move_cost": 30,
+      "food_incr": 0,
+      "shield_incr": 0,
+      "trade_incr": 90,
+      "food_bonus": 0,
+      "shield_bonus": 0,
+      "trade_bonus": 0,
+      "compat_special": "None",
+      "gui_type": "Other"
+    },
+    "road_river": {
+      "extra": "River",
+      "move_cost": 30,
+      "move_mode": "Cardinal",
+      "food_incr": 0,
+      "shield_incr": 0,
+      "trade_incr": 0,
+      "food_bonus": 0,
+      "shield_bonus": 0,
+      "trade_bonus": 0,
+      "compat_special": "None",
+      "gui_type": "Other",
+      "flags": ["River", "UnrestrictedInfra"]
+    }
+  },
+  "terrain_extra_settings": {
+    "terrain_grassland": {
+      "terrain": "Grassland",
+      "extra_settings": []
+    },
+    "terrain_forest": {
+      "terrain": "Forest",
+      "extra_settings": []
+    },
+    "terrain_mountains": {
+      "terrain": "Mountains",
+      "extra_settings": []
+    },
+    "terrain_plains": {
+      "terrain": "Plains",
+      "extra_settings": []
+    },
+    "terrain_ocean": {
+      "terrain": "Ocean",
+      "extra_settings": []
+    },
+    "terrain_deep_ocean": {
+      "terrain": "Deep Ocean",
+      "extra_settings": []
+    }
+  }
+}

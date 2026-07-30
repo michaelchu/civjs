@@ -1,3 +1,4 @@
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 /**
  * Ruleset-native city disasters.
  *
@@ -75,7 +76,7 @@ export class DisasterManager {
   ) {}
 
   static createRulesetConfig(
-    rulesetName: string = 'classic',
+    rulesetName: string = DEFAULT_RULESET,
     frequency: number = CLASSIC_DISASTER_FREQUENCY
   ): DisasterConfig {
     const sections = rulesetLoader.loadGameRulesRuleset(rulesetName).disasters;

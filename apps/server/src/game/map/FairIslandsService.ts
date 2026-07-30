@@ -12,6 +12,7 @@ import { BaseMapGenerationService } from './BaseMapGenerationService';
 import { IslandMapService } from './IslandMapService';
 import { Position } from './MapValidator';
 import { type MapTopologyOptions } from './MapTopology';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { createBaseTile, isLandTile, setTerrainGameProperties } from './TerrainUtils';
 
 /**
@@ -43,7 +44,8 @@ export class FairIslandsService extends BaseMapGenerationService {
     cleanupTemperatureMapAfterUse: boolean = false,
     temperatureParam: number = 50,
     topologyOptions: MapTopologyOptions = {},
-    generationOptions: MapGenerationOptions = {}
+    generationOptions: MapGenerationOptions = {},
+    rulesetName: string = DEFAULT_RULESET
   ) {
     super(
       width,
@@ -55,7 +57,8 @@ export class FairIslandsService extends BaseMapGenerationService {
       cleanupTemperatureMapAfterUse,
       temperatureParam,
       topologyOptions,
-      generationOptions
+      generationOptions,
+      rulesetName
     );
 
     // Create island map service for actual generation
@@ -69,7 +72,8 @@ export class FairIslandsService extends BaseMapGenerationService {
       cleanupTemperatureMapAfterUse,
       temperatureParam,
       topologyOptions,
-      generationOptions
+      generationOptions,
+      rulesetName
     );
   }
 

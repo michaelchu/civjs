@@ -10,7 +10,7 @@ export type UnitMovementType = 'land' | 'sea' | 'air';
 
 export interface UnitCombatBonus {
   flag: string;
-  type: 'DefenseMultiplier' | 'DefenseDivider' | 'LowFirepower';
+  type: string;
   value: number;
 }
 
@@ -226,16 +226,16 @@ export const rulesetUnitsService = RulesetUnitsService.getInstance();
 // Provide backward-compatible exports that use the dynamic service
 export const UNIT_TYPES = new Proxy({} as Record<string, UnitType>, {
   get(_, prop: string) {
-    return rulesetUnitsService.getUnitType(prop);
+    return rulesetUnitsService.getUnitType(prop, 'classic');
   },
   ownKeys(_) {
-    return Reflect.ownKeys(rulesetUnitsService.getUnitTypes());
+    return Reflect.ownKeys(rulesetUnitsService.getUnitTypes('classic'));
   },
   has(_, prop: string) {
-    return rulesetUnitsService.getUnitType(prop) !== undefined;
+    return rulesetUnitsService.getUnitType(prop, 'classic') !== undefined;
   },
   getOwnPropertyDescriptor(_, prop: string) {
-    const unit = rulesetUnitsService.getUnitType(prop);
+    const unit = rulesetUnitsService.getUnitType(prop, 'classic');
     if (unit) {
       return {
         enumerable: true,
@@ -248,7 +248,7 @@ export const UNIT_TYPES = new Proxy({} as Record<string, UnitType>, {
 });
 
 export function getUnitType(unitTypeId: string): UnitType | undefined {
-  return rulesetUnitsService.getUnitType(unitTypeId);
+  return rulesetUnitsService.getUnitType(unitTypeId, 'classic');
 }
 
 export { UnitType as UnitTypeInterface };

@@ -223,7 +223,7 @@ export class GameManagementHandler extends BaseSocketHandler {
         maxPlayers: game.maxPlayers,
         currentTurn: game.currentTurn,
         mapSize: game.mapSize,
-        ruleset: 'classic',
+        ruleset: game.ruleset ?? 'civ2civ3',
       }));
 
       socket.emit('packet', {

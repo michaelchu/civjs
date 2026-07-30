@@ -27,9 +27,14 @@ import { shallow } from 'zustand/shallow';
 interface MapCanvasProps {
   width: number;
   height: number;
+  rulesetName?: string;
 }
 
-export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
+export const MapCanvas: React.FC<MapCanvasProps> = ({
+  width,
+  height,
+  rulesetName = 'civ2civ3',
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<MapRenderer | null>(null);
   const [rendererReady, setRendererReady] = useState(false);
@@ -207,7 +212,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      renderer = new MapRenderer(ctx);
+      renderer = new MapRenderer(ctx, undefined, rulesetName);
       rendererRef.current = renderer;
 
       try {
@@ -250,7 +255,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ width, height }) => {
         rendererRef.current = null;
       }
     };
-  }, []); // Empty dependency array - initialize only once!
+  }, [rulesetName]);
 
   useEffect(() => {
     const handlePreferencesChanged = (event: Event) => {

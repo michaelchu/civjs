@@ -1,0 +1,5945 @@
+{
+  "source": "reference/freeciv/data/webperimental/effects.ruleset",
+  "datafile": {
+    "description": "Experimental web-client effects data for Freeciv",
+    "options": "+Freeciv-ruleset-3.4-Devel-2025.Jan.17 web-compatible",
+    "format_version": 50
+  },
+  "about": {
+    "name": "Freeciv webperimental Effects Ruleset",
+    "summary": "Experimental web-client effects data for Freeciv"
+  },
+  "user_effects": {},
+  "effects": {
+    "ai_cheat_no_max_rates": {
+      "id": "ai_cheat_no_max_rates",
+      "type": "Max_Rates",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "AI",
+          "name": "Cheating",
+          "range": "Player"
+        }
+      ]
+    },
+    "ai_cheat_science": {
+      "id": "ai_cheat_science",
+      "type": "Output_Bonus",
+      "value": 40,
+      "reqs": [
+        {
+          "type": "AI",
+          "name": "Cheating",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Science",
+          "range": "Local"
+        }
+      ]
+    },
+    "ai_cheat_happiness": {
+      "id": "ai_cheat_happiness",
+      "type": "Make_Content",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "AI",
+          "name": "Cheating",
+          "range": "Player"
+        }
+      ]
+    },
+    "ai_cheat_pollution": {
+      "id": "ai_cheat_pollution",
+      "type": "Pollu_Prod_Pct",
+      "value": -25,
+      "reqs": [
+        {
+          "type": "AI",
+          "name": "Cheating",
+          "range": "Player"
+        }
+      ]
+    },
+    "ai_cheat_veteran": {
+      "id": "ai_cheat_veteran",
+      "type": "Veteran_Combat",
+      "value": 20,
+      "reqs": [
+        {
+          "type": "AI",
+          "name": "Cheating",
+          "range": "Player"
+        }
+      ]
+    },
+    "ai_cheat_incite_cost": {
+      "id": "ai_cheat_incite_cost",
+      "type": "Incite_Cost_Pct",
+      "value": 20,
+      "reqs": [
+        {
+          "type": "AI",
+          "name": "Cheating",
+          "range": "Player"
+        }
+      ]
+    },
+    "ai_restricted_science": {
+      "id": "ai_restricted_science",
+      "type": "Output_Bonus",
+      "value": -25,
+      "reqs": [
+        {
+          "type": "AI",
+          "name": "Restricted",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Science",
+          "range": "Local"
+        }
+      ]
+    },
+    "ai_restricted_defense": {
+      "id": "ai_restricted_defense",
+      "type": "Defend_Bonus",
+      "value": -20,
+      "reqs": [
+        {
+          "type": "AI",
+          "name": "Restricted",
+          "range": "Player"
+        }
+      ]
+    },
+    "ai_restricted_attack": {
+      "id": "ai_restricted_attack",
+      "type": "Attack_Bonus",
+      "value": -20,
+      "reqs": [
+        {
+          "type": "AI",
+          "name": "Restricted",
+          "range": "Player"
+        }
+      ]
+    },
+    "ai_restricted_bribe": {
+      "id": "ai_restricted_bribe",
+      "type": "Unit_Bribe_Cost_Pct",
+      "value": -20,
+      "reqs": [
+        {
+          "type": "AI",
+          "name": "Restricted",
+          "range": "Player"
+        }
+      ]
+    },
+    "ai_restricted_routes": {
+      "id": "ai_restricted_routes",
+      "type": "Max_Trade_Routes",
+      "value": -1,
+      "reqs": [
+        {
+          "type": "AI",
+          "name": "Restricted",
+          "range": "Player"
+        }
+      ]
+    },
+    "ai_restricted_trade_bonus": {
+      "id": "ai_restricted_trade_bonus",
+      "type": "Trade_Revenue_Bonus",
+      "value": -100,
+      "reqs": [
+        {
+          "type": "AI",
+          "name": "Restricted",
+          "range": "Player"
+        }
+      ]
+    },
+    "ai_restricted_migration": {
+      "id": "ai_restricted_migration",
+      "type": "Migration_Pct",
+      "value": -20,
+      "reqs": [
+        {
+          "type": "AI",
+          "name": "Restricted",
+          "range": "Player"
+        }
+      ]
+    },
+    "ai_restricted_incite_cost": {
+      "id": "ai_restricted_incite_cost",
+      "type": "Incite_Cost_Pct",
+      "value": -20,
+      "reqs": [
+        {
+          "type": "AI",
+          "name": "Restricted",
+          "range": "Player"
+        }
+      ]
+    },
+    "unhappysize": {
+      "id": "unhappysize",
+      "type": "City_Unhappy_Size",
+      "value": 4
+    },
+    "barb1": {
+      "id": "barb1",
+      "type": "No_Diplomacy",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "NationGroup",
+          "name": "Barbarian",
+          "range": "Player"
+        }
+      ]
+    },
+    "barb_disappear": {
+      "id": "barb_disappear",
+      "type": "Retire_Pct",
+      "value": 10,
+      "reqs": [
+        {
+          "type": "NationGroup",
+          "name": "Barbarian",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "Age",
+          "name": "5",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "CityTile",
+          "name": "Center",
+          "range": "Tile",
+          "present": false
+        }
+      ]
+    },
+    "leader_escape": {
+      "id": "leader_escape",
+      "type": "Retire_Pct",
+      "value": 31,
+      "reqs": [
+        {
+          "type": "UnitType",
+          "name": "Barbarian Leader",
+          "range": "Local"
+        },
+        {
+          "type": "Age",
+          "name": "5",
+          "range": "Local"
+        },
+        {
+          "type": "TerrainClass",
+          "name": "Oceanic",
+          "range": "Adjacent"
+        },
+        {
+          "type": "MaxUnitsOnTile",
+          "name": "1",
+          "range": "Tile"
+        }
+      ]
+    },
+    "elvis": {
+      "id": "elvis",
+      "type": "Specialist_Output",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Specialist",
+          "name": "elvis",
+          "range": "Local"
+        },
+        {
+          "type": "OutputType",
+          "name": "luxury",
+          "range": "Local"
+        }
+      ]
+    },
+    "scientist": {
+      "id": "scientist",
+      "type": "Specialist_Output",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Specialist",
+          "name": "scientist",
+          "range": "Local"
+        },
+        {
+          "type": "OutputType",
+          "name": "science",
+          "range": "Local"
+        }
+      ]
+    },
+    "taxman": {
+      "id": "taxman",
+      "type": "Specialist_Output",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Specialist",
+          "name": "taxman",
+          "range": "Local"
+        },
+        {
+          "type": "OutputType",
+          "name": "gold",
+          "range": "Local"
+        }
+      ]
+    },
+    "fortress_vision": {
+      "id": "fortress_vision",
+      "type": "Unit_Vision_Radius_Sq",
+      "value": 8,
+      "reqs": [
+        {
+          "type": "Extra",
+          "name": "Fortress",
+          "range": "Tile"
+        },
+        {
+          "type": "Tech",
+          "name": "Invention",
+          "range": "player"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Land",
+          "range": "Local"
+        }
+      ]
+    },
+    "upkeep_tech_free": {
+      "id": "upkeep_tech_free",
+      "type": "Tech_Upkeep_Free",
+      "value": 3
+    },
+    "fortress_hp_regen": {
+      "id": "fortress_hp_regen",
+      "type": "HP_Regen",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Extra",
+          "name": "Fortress",
+          "range": "Tile"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Land",
+          "range": "Local"
+        }
+      ]
+    },
+    "fortified": {
+      "id": "fortified",
+      "type": "Fortify_Defense_Bonus",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Activity",
+          "name": "Fortified",
+          "range": "Local"
+        }
+      ]
+    },
+    "city_fortified": {
+      "id": "city_fortified",
+      "type": "Fortify_Defense_Bonus",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "CityTile",
+          "name": "Center",
+          "range": "Tile",
+          "present": true
+        },
+        {
+          "type": "Activity",
+          "name": "Fortified",
+          "range": "Local",
+          "present": false
+        },
+        {
+          "type": "UnitClassFlag",
+          "name": "CanFortify",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "Cant_Fortify",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "city_min_hp": {
+      "id": "city_min_hp",
+      "type": "Min_HP_Pct",
+      "value": 33,
+      "reqs": [
+        {
+          "type": "CityTile",
+          "name": "Center",
+          "range": "Tile"
+        }
+      ]
+    },
+    "fortified_regen": {
+      "id": "fortified_regen",
+      "type": "HP_Regen_2",
+      "value": 10,
+      "reqs": [
+        {
+          "type": "Activity",
+          "name": "Fortified",
+          "range": "Local"
+        }
+      ]
+    },
+    "base_regen": {
+      "id": "base_regen",
+      "type": "HP_Regen_2",
+      "value": 10,
+      "reqs": [
+        {
+          "type": "UnitClass",
+          "name": "Helicopter",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "city_vision": {
+      "id": "city_vision",
+      "type": "City_Vision_Radius_Sq",
+      "value": 5
+    },
+    "mountains_vision": {
+      "id": "mountains_vision",
+      "type": "Unit_Vision_Radius_Sq",
+      "value": 4,
+      "reqs": [
+        {
+          "type": "Terrain",
+          "name": "Mountains",
+          "range": "Tile"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Land",
+          "range": "Local"
+        }
+      ]
+    },
+    "trade_routes_base": {
+      "id": "trade_routes_base",
+      "type": "Max_Trade_Routes",
+      "value": 2
+    },
+    "trade_routes_magnetism": {
+      "id": "trade_routes_magnetism",
+      "type": "Max_Trade_Routes",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Magnetism",
+          "range": "Player"
+        }
+      ]
+    },
+    "trade_routes_corporation": {
+      "id": "trade_routes_corporation",
+      "type": "Max_Trade_Routes",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "The Corporation",
+          "range": "Player"
+        }
+      ]
+    },
+    "conquest_tech": {
+      "id": "conquest_tech",
+      "type": "Conquest_Tech_Pct",
+      "value": 100
+    },
+    "nuclear_powered_boats": {
+      "id": "nuclear_powered_boats",
+      "type": "Move_Bonus",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Nuclear Power",
+          "range": "Player"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Sea",
+          "range": "Local"
+        }
+      ]
+    },
+    "anarchy_upkeep": {
+      "id": "anarchy_upkeep",
+      "type": "Upkeep_Free",
+      "value": 99,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Anarchy",
+          "range": "Player"
+        }
+      ]
+    },
+    "anarchy_upkeep_tech_free": {
+      "id": "anarchy_upkeep_tech_free",
+      "type": "Tech_Upkeep_Free",
+      "value": 9999,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Anarchy",
+          "range": "Player"
+        }
+      ]
+    },
+    "republic": {
+      "id": "republic",
+      "type": "Make_Content_Mil",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Republic",
+          "range": "Player"
+        }
+      ]
+    },
+    "corruption_anarchy0": {
+      "id": "corruption_anarchy0",
+      "type": "Output_Waste",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Anarchy",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
+        }
+      ]
+    },
+    "corruption_anarchy1": {
+      "id": "corruption_anarchy1",
+      "type": "Output_Waste_By_Distance",
+      "value": 200,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Anarchy",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
+        }
+      ]
+    },
+    "corruption_despotism0": {
+      "id": "corruption_despotism0",
+      "type": "Output_Waste",
+      "value": 37,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Despotism",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
+        }
+      ]
+    },
+    "corruption_despotism1": {
+      "id": "corruption_despotism1",
+      "type": "Output_Waste_By_Distance",
+      "value": 400,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Despotism",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
+        }
+      ]
+    },
+    "corruption_monarchy0": {
+      "id": "corruption_monarchy0",
+      "type": "Output_Waste",
+      "value": 15,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Monarchy",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
+        }
+      ]
+    },
+    "corruption_monarchy1": {
+      "id": "corruption_monarchy1",
+      "type": "Output_Waste_By_Distance",
+      "value": 200,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Monarchy",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
+        }
+      ]
+    },
+    "corruption_communism0": {
+      "id": "corruption_communism0",
+      "type": "Output_Waste",
+      "value": 20,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Communism",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
+        }
+      ]
+    },
+    "corruption_republic0": {
+      "id": "corruption_republic0",
+      "type": "Output_Waste",
+      "value": 15,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Republic",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
+        }
+      ]
+    },
+    "corruption_republic1": {
+      "id": "corruption_republic1",
+      "type": "Output_Waste_By_Distance",
+      "value": 200,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Republic",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
+        }
+      ]
+    },
+    "base_unit_upkeep_not_gold": {
+      "id": "base_unit_upkeep_not_gold",
+      "type": "Upkeep_Pct",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "OutputType",
+          "name": "Gold",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "base_unit_upkeep_gold": {
+      "id": "base_unit_upkeep_gold",
+      "type": "Upkeep_Pct",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "OutputType",
+          "name": "Gold",
+          "range": "Local"
+        },
+        {
+          "type": "UnitState",
+          "name": "HasHomeCity",
+          "range": "Local"
+        }
+      ]
+    },
+    "republic_unit_upkeep": {
+      "id": "republic_unit_upkeep",
+      "type": "Upkeep_Pct",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Republic",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Food",
+          "range": "Local"
+        }
+      ]
+    },
+    "democracy_unit_upkeep": {
+      "id": "democracy_unit_upkeep",
+      "type": "Upkeep_Pct",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Democracy",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Food",
+          "range": "Local"
+        }
+      ]
+    },
+    "republic_unit_unhappiness": {
+      "id": "republic_unit_unhappiness",
+      "type": "Unhappy_Factor",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Republic",
+          "range": "Player"
+        }
+      ]
+    },
+    "democracy_unit_unhappiness": {
+      "id": "democracy_unit_unhappiness",
+      "type": "Unhappy_Factor",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Democracy",
+          "range": "Player"
+        }
+      ]
+    },
+    "upkeep_free_units_anarchy": {
+      "id": "upkeep_free_units_anarchy",
+      "type": "Unit_Upkeep_Free_Per_City",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Anarchy",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local"
+        }
+      ]
+    },
+    "upkeep_free_units_despotism": {
+      "id": "upkeep_free_units_despotism",
+      "type": "Unit_Upkeep_Free_Per_City",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Despotism",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local"
+        }
+      ]
+    },
+    "upkeep_free_units_monarchy": {
+      "id": "upkeep_free_units_monarchy",
+      "type": "Unit_Upkeep_Free_Per_City",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Monarchy",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local"
+        }
+      ]
+    },
+    "upkeep_free_units_communism": {
+      "id": "upkeep_free_units_communism",
+      "type": "Unit_Upkeep_Free_Per_City",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Communism",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local"
+        }
+      ]
+    },
+    "civil_war_0": {
+      "id": "civil_war_0",
+      "type": "Civil_War_Chance",
+      "value": 90,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Anarchy",
+          "range": "Player"
+        }
+      ]
+    },
+    "civil_war_1": {
+      "id": "civil_war_1",
+      "type": "Civil_War_Chance",
+      "value": 80,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Despotism",
+          "range": "Player"
+        }
+      ]
+    },
+    "civil_war_2": {
+      "id": "civil_war_2",
+      "type": "Civil_War_Chance",
+      "value": 70,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Monarchy",
+          "range": "Player"
+        }
+      ]
+    },
+    "civil_war_3": {
+      "id": "civil_war_3",
+      "type": "Civil_War_Chance",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Communism",
+          "range": "Player"
+        }
+      ]
+    },
+    "civil_war_4": {
+      "id": "civil_war_4",
+      "type": "Civil_War_Chance",
+      "value": 40,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Republic",
+          "range": "Player"
+        }
+      ]
+    },
+    "civil_war_5": {
+      "id": "civil_war_5",
+      "type": "Civil_War_Chance",
+      "value": 30,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Democracy",
+          "range": "Player"
+        }
+      ]
+    },
+    "empire_size_base_0": {
+      "id": "empire_size_base_0",
+      "type": "Empire_Size_Base",
+      "value": 9,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Anarchy",
+          "range": "Player"
+        }
+      ]
+    },
+    "empire_size_base_1": {
+      "id": "empire_size_base_1",
+      "type": "Empire_Size_Base",
+      "value": 10,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Despotism",
+          "range": "Player"
+        }
+      ]
+    },
+    "empire_size_base_2": {
+      "id": "empire_size_base_2",
+      "type": "Empire_Size_Base",
+      "value": 11,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Monarchy",
+          "range": "Player"
+        }
+      ]
+    },
+    "empire_size_base_3": {
+      "id": "empire_size_base_3",
+      "type": "Empire_Size_Base",
+      "value": 12,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Communism",
+          "range": "Player"
+        }
+      ]
+    },
+    "empire_size_base_4": {
+      "id": "empire_size_base_4",
+      "type": "Empire_Size_Base",
+      "value": 13,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Republic",
+          "range": "Player"
+        }
+      ]
+    },
+    "empire_size_base_5": {
+      "id": "empire_size_base_5",
+      "type": "Empire_Size_Base",
+      "value": 14,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Democracy",
+          "range": "Player"
+        }
+      ]
+    },
+    "empire_size_step_0": {
+      "id": "empire_size_step_0",
+      "type": "Empire_Size_Step",
+      "value": 6,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Anarchy",
+          "range": "Player"
+        }
+      ]
+    },
+    "empire_size_step_1": {
+      "id": "empire_size_step_1",
+      "type": "Empire_Size_Step",
+      "value": 10,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Despotism",
+          "range": "Player"
+        }
+      ]
+    },
+    "empire_size_step_2": {
+      "id": "empire_size_step_2",
+      "type": "Empire_Size_Step",
+      "value": 12,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Monarchy",
+          "range": "Player"
+        }
+      ]
+    },
+    "empire_size_step_3": {
+      "id": "empire_size_step_3",
+      "type": "Empire_Size_Step",
+      "value": 14,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Republic",
+          "range": "Player"
+        }
+      ]
+    },
+    "empire_size_step_4": {
+      "id": "empire_size_step_4",
+      "type": "Empire_Size_Step",
+      "value": 16,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Democracy",
+          "range": "Player"
+        }
+      ]
+    },
+    "max_rates_0": {
+      "id": "max_rates_0",
+      "type": "Max_Rates",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Anarchy",
+          "range": "Player"
+        }
+      ]
+    },
+    "max_rates_1": {
+      "id": "max_rates_1",
+      "type": "Max_Rates",
+      "value": 60,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Despotism",
+          "range": "Player"
+        }
+      ]
+    },
+    "max_rates_2": {
+      "id": "max_rates_2",
+      "type": "Max_Rates",
+      "value": 70,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Monarchy",
+          "range": "Player"
+        }
+      ]
+    },
+    "max_rates_3": {
+      "id": "max_rates_3",
+      "type": "Max_Rates",
+      "value": 80,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Communism",
+          "range": "Player"
+        }
+      ]
+    },
+    "max_rates_4": {
+      "id": "max_rates_4",
+      "type": "Max_Rates",
+      "value": 80,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Republic",
+          "range": "Player"
+        }
+      ]
+    },
+    "max_rates_5": {
+      "id": "max_rates_5",
+      "type": "Max_Rates",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Democracy",
+          "range": "Player"
+        }
+      ]
+    },
+    "martial_law_each_0": {
+      "id": "martial_law_each_0",
+      "type": "Martial_Law_By_Unit",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Anarchy",
+          "range": "Player"
+        }
+      ]
+    },
+    "martial_law_each_1": {
+      "id": "martial_law_each_1",
+      "type": "Martial_Law_By_Unit",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Despotism",
+          "range": "Player"
+        }
+      ]
+    },
+    "martial_law_each_2": {
+      "id": "martial_law_each_2",
+      "type": "Martial_Law_By_Unit",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Monarchy",
+          "range": "Player"
+        }
+      ]
+    },
+    "martial_law_each_3": {
+      "id": "martial_law_each_3",
+      "type": "Martial_Law_By_Unit",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Communism",
+          "range": "Player"
+        }
+      ]
+    },
+    "martial_law_max_0": {
+      "id": "martial_law_max_0",
+      "type": "Martial_Law_Max",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Anarchy",
+          "range": "Player"
+        }
+      ]
+    },
+    "martial_law_max_1": {
+      "id": "martial_law_max_1",
+      "type": "Martial_Law_Max",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Despotism",
+          "range": "Player"
+        }
+      ]
+    },
+    "martial_law_max_2": {
+      "id": "martial_law_max_2",
+      "type": "Martial_Law_Max",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Monarchy",
+          "range": "Player"
+        }
+      ]
+    },
+    "martial_law_max_3": {
+      "id": "martial_law_max_3",
+      "type": "Martial_Law_Max",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Communism",
+          "range": "Player"
+        }
+      ]
+    },
+    "rapture_grow_0": {
+      "id": "rapture_grow_0",
+      "type": "Rapture_Grow",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Republic",
+          "range": "Player"
+        }
+      ]
+    },
+    "rapture_grow_1": {
+      "id": "rapture_grow_1",
+      "type": "Rapture_Grow",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Democracy",
+          "range": "Player"
+        }
+      ]
+    },
+    "communism_0": {
+      "id": "communism_0",
+      "type": "Veteran_Build",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Communism",
+          "range": "Player"
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "Diplomat",
+          "range": "Local"
+        }
+      ]
+    },
+    "gov_tile_bonus_0": {
+      "id": "gov_tile_bonus_0",
+      "type": "Output_Penalty_Tile",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Anarchy",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "CityStatus",
+          "name": "Celebration",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "gov_tile_bonus_1": {
+      "id": "gov_tile_bonus_1",
+      "type": "Output_Penalty_Tile",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Despotism",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "CityStatus",
+          "name": "Celebration",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "gov_tile_bonus_2": {
+      "id": "gov_tile_bonus_2",
+      "type": "Output_Inc_Tile_Celebrate",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
+        },
+        {
+          "type": "Gov",
+          "name": "Monarchy",
+          "range": "Player"
+        }
+      ]
+    },
+    "gov_tile_bonus_3": {
+      "id": "gov_tile_bonus_3",
+      "type": "Output_Inc_Tile_Celebrate",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
+        },
+        {
+          "type": "Gov",
+          "name": "Communism",
+          "range": "Player"
+        }
+      ]
+    },
+    "gov_tile_bonus_4": {
+      "id": "gov_tile_bonus_4",
+      "type": "Output_Inc_Tile",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Republic",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
+        }
+      ]
+    },
+    "gov_tile_bonus_5": {
+      "id": "gov_tile_bonus_5",
+      "type": "Output_Inc_Tile",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Democracy",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
+        }
+      ]
+    },
+    "revolution_0": {
+      "id": "revolution_0",
+      "type": "Revolution_Unhappiness",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Democracy",
+          "range": "Player"
+        }
+      ]
+    },
+    "senate_0": {
+      "id": "senate_0",
+      "type": "Has_Senate",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Republic",
+          "range": "Player"
+        }
+      ]
+    },
+    "senate_1": {
+      "id": "senate_1",
+      "type": "Has_Senate",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Democracy",
+          "range": "Player"
+        }
+      ]
+    },
+    "partisans_communism": {
+      "id": "partisans_communism",
+      "type": "Inspire_Partisans",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Communism",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "Tech",
+          "name": "Communism",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "Tech",
+          "name": "Gunpowder",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "Tech",
+          "name": "Guerilla Warfare",
+          "range": "World",
+          "present": true
+        },
+        {
+          "type": "NationGroup",
+          "name": "Barbarian",
+          "range": "Player",
+          "present": false
+        }
+      ]
+    },
+    "partisans_democracy": {
+      "id": "partisans_democracy",
+      "type": "Inspire_Partisans",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Democracy",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "Tech",
+          "name": "Communism",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "Tech",
+          "name": "Gunpowder",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "Tech",
+          "name": "Guerilla Warfare",
+          "range": "World",
+          "present": true
+        },
+        {
+          "type": "NationGroup",
+          "name": "Barbarian",
+          "range": "Player",
+          "present": false
+        }
+      ]
+    },
+    "airport": {
+      "id": "airport",
+      "type": "Veteran_Build",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Airport",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "UnitClass",
+          "name": "Air",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "NonMil",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "airport_0a": {
+      "id": "airport_0a",
+      "type": "Veteran_Build",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Airport",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "UnitClass",
+          "name": "Helicopter",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "NonMil",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "airport_0b": {
+      "id": "airport_0b",
+      "type": "Veteran_Build",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Airport",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "UnitClass",
+          "name": "Missile",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "NonMil",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "airport_1": {
+      "id": "airport_1",
+      "type": "HP_Regen",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Airport",
+          "range": "City"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Air",
+          "range": "Local"
+        }
+      ]
+    },
+    "airport_1a": {
+      "id": "airport_1a",
+      "type": "HP_Regen",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Airport",
+          "range": "City"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Helicopter",
+          "range": "Local"
+        }
+      ]
+    },
+    "airport_2": {
+      "id": "airport_2",
+      "type": "Airlift",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Airport",
+          "range": "City"
+        }
+      ]
+    },
+    "airlift_basic": {
+      "id": "airlift_basic",
+      "type": "Airlift",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Flight",
+          "range": "Player"
+        }
+      ]
+    },
+    "aqueduct_size": {
+      "id": "aqueduct_size",
+      "type": "Size_Adj",
+      "value": 8
+    },
+    "aqueduct": {
+      "id": "aqueduct",
+      "type": "Size_Adj",
+      "value": 4,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Aqueduct",
+          "range": "City"
+        }
+      ]
+    },
+    "aqueduct_health": {
+      "id": "aqueduct_health",
+      "type": "Health_Pct",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Aqueduct",
+          "range": "City"
+        }
+      ]
+    },
+    "bank": {
+      "id": "bank",
+      "type": "Output_Bonus",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Marketplace",
+          "range": "City"
+        },
+        {
+          "type": "Building",
+          "name": "Bank",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Gold",
+          "range": "Local"
+        }
+      ]
+    },
+    "bank_1": {
+      "id": "bank_1",
+      "type": "Output_Bonus",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Marketplace",
+          "range": "City"
+        },
+        {
+          "type": "Building",
+          "name": "Bank",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Luxury",
+          "range": "Local"
+        }
+      ]
+    },
+    "barracks_veteran": {
+      "id": "barracks_veteran",
+      "type": "Veteran_Build",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "BuildingFlag",
+          "name": "Barracks",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "UnitClass",
+          "name": "Land",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "NonMil",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "barracks_regen": {
+      "id": "barracks_regen",
+      "type": "HP_Regen",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "BuildingFlag",
+          "name": "Barracks",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "UnitClass",
+          "name": "Land",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "cathedral": {
+      "id": "cathedral",
+      "type": "Make_Content",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Cathedral",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Michelangelo's Chapel",
+          "range": "Player",
+          "present": false
+        }
+      ]
+    },
+    "cathedral_1": {
+      "id": "cathedral_1",
+      "type": "Make_Content",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Theology",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Cathedral",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Michelangelo's Chapel",
+          "range": "Player",
+          "present": false
+        }
+      ]
+    },
+    "cathedral_2": {
+      "id": "cathedral_2",
+      "type": "Make_Content",
+      "value": -1,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Communism",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Cathedral",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Michelangelo's Chapel",
+          "range": "Player",
+          "present": false
+        }
+      ]
+    },
+    "city_walls": {
+      "id": "city_walls",
+      "type": "Defend_Bonus",
+      "value": 200,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "City Walls",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "UnitClass",
+          "name": "Land",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Great Wall",
+          "range": "Player",
+          "present": false
+        },
+        {
+          "type": "UnitType",
+          "name": "Howitzer",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "city_walls_0": {
+      "id": "city_walls_0",
+      "type": "Defend_Bonus",
+      "value": 200,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "City Walls",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "UnitClass",
+          "name": "Helicopter",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Great Wall",
+          "range": "Player",
+          "present": false
+        }
+      ]
+    },
+    "city_walls_1": {
+      "id": "city_walls_1",
+      "type": "Unit_No_Lose_Pop",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "City Walls",
+          "range": "City"
+        }
+      ]
+    },
+    "city_walls_visible": {
+      "id": "city_walls_visible",
+      "type": "Visible_Walls",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "City Walls",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Great Wall",
+          "range": "Player",
+          "present": false
+        }
+      ]
+    },
+    "coastal_defense": {
+      "id": "coastal_defense",
+      "type": "Defend_Bonus",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Coastal Defense",
+          "range": "City"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Sea",
+          "range": "Local"
+        }
+      ]
+    },
+    "coastal_defense_trireme": {
+      "id": "coastal_defense_trireme",
+      "type": "Defend_Bonus",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Coastal Defense",
+          "range": "City"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Trireme",
+          "range": "Local"
+        }
+      ]
+    },
+    "colosseum": {
+      "id": "colosseum",
+      "type": "Make_Content",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Colosseum",
+          "range": "City"
+        }
+      ]
+    },
+    "colosseum_1": {
+      "id": "colosseum_1",
+      "type": "Make_Content",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Electricity",
+          "range": "Player"
+        },
+        {
+          "type": "Building",
+          "name": "Colosseum",
+          "range": "City"
+        }
+      ]
+    },
+    "courthouse": {
+      "id": "courthouse",
+      "type": "Output_Waste_Pct",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Courthouse",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Palace",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "courthouse_2": {
+      "id": "courthouse_2",
+      "type": "Make_Content",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Democracy",
+          "range": "Player"
+        },
+        {
+          "type": "Building",
+          "name": "Courthouse",
+          "range": "City"
+        }
+      ]
+    },
+    "courthouse_3": {
+      "id": "courthouse_3",
+      "type": "Incite_Cost_Pct",
+      "value": 300,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Courthouse",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "MaxUnitsOnTile",
+          "name": "0",
+          "range": "Tile",
+          "present": false
+        }
+      ]
+    },
+    "incite_cost_empty_courthouse": {
+      "id": "incite_cost_empty_courthouse",
+      "type": "Incite_Cost_Pct",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "MaxUnitsOnTile",
+          "name": "0",
+          "range": "Tile",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Courthouse",
+          "range": "City",
+          "present": true
+        }
+      ]
+    },
+    "diplomat_defense_fortress": {
+      "id": "diplomat_defense_fortress",
+      "type": "Spy_Resistant",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Extra",
+          "name": "Fortress",
+          "range": "Tile"
+        }
+      ]
+    },
+    "incite_cost_empty": {
+      "id": "incite_cost_empty",
+      "type": "Incite_Cost_Pct",
+      "value": -50,
+      "reqs": [
+        {
+          "type": "MaxUnitsOnTile",
+          "name": "0",
+          "range": "Tile",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Courthouse",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "factory": {
+      "id": "factory",
+      "type": "Output_Bonus",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Factory",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local"
+        }
+      ]
+    },
+    "granary_grow": {
+      "id": "granary_grow",
+      "type": "Growth_Food",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Granary",
+          "range": "City"
+        }
+      ]
+    },
+    "granary_shrink": {
+      "id": "granary_shrink",
+      "type": "Shrink_Food",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Granary",
+          "range": "City"
+        }
+      ]
+    },
+    "harbor": {
+      "id": "harbor",
+      "type": "Output_Add_Tile",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "TerrainClass",
+          "name": "Oceanic",
+          "range": "Tile"
+        },
+        {
+          "type": "Building",
+          "name": "Harbour",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Food",
+          "range": "Local"
+        }
+      ]
+    },
+    "hydro_plant": {
+      "id": "hydro_plant",
+      "type": "Output_Bonus",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Factory",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Hydro Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Hoover Dam",
+          "range": "Player",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Nuclear Plant",
+          "range": "City",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "hydro_plant_1": {
+      "id": "hydro_plant_1",
+      "type": "Output_Bonus",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Mfg. Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Hydro Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Hoover Dam",
+          "range": "Player",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Nuclear Plant",
+          "range": "City",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "hydro_plant_2": {
+      "id": "hydro_plant_2",
+      "type": "Pollu_Prod_Pct",
+      "value": -25,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Factory",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Hydro Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Recycling Center",
+          "range": "City",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Hoover Dam",
+          "range": "Player",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Nuclear Plant",
+          "range": "City",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "hydro_plant_3": {
+      "id": "hydro_plant_3",
+      "type": "Pollu_Prod_Pct",
+      "value": -25,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Mfg. Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Hydro Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Recycling Center",
+          "range": "City",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Hoover Dam",
+          "range": "Player",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Nuclear Plant",
+          "range": "City",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "library": {
+      "id": "library",
+      "type": "Output_Bonus",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Library",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Science",
+          "range": "Local"
+        }
+      ]
+    },
+    "marketplace": {
+      "id": "marketplace",
+      "type": "Output_Bonus",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Marketplace",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Gold",
+          "range": "Local"
+        }
+      ]
+    },
+    "marketplace_1": {
+      "id": "marketplace_1",
+      "type": "Output_Bonus",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Marketplace",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Luxury",
+          "range": "Local"
+        }
+      ]
+    },
+    "pollu_pop_base": {
+      "id": "pollu_pop_base",
+      "type": "Pollu_Pop_Pct_2",
+      "value": -100
+    },
+    "pollu_pop_automobile": {
+      "id": "pollu_pop_automobile",
+      "type": "Pollu_Pop_Pct_2",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Automobile",
+          "range": "Player"
+        }
+      ]
+    },
+    "pollu_pop_industrialization": {
+      "id": "pollu_pop_industrialization",
+      "type": "Pollu_Pop_Pct_2",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Industrialization",
+          "range": "Player"
+        }
+      ]
+    },
+    "pollu_pop_mass_production": {
+      "id": "pollu_pop_mass_production",
+      "type": "Pollu_Pop_Pct_2",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Mass Production",
+          "range": "Player"
+        }
+      ]
+    },
+    "pollu_pop_plastics": {
+      "id": "pollu_pop_plastics",
+      "type": "Pollu_Pop_Pct_2",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Plastics",
+          "range": "Player"
+        }
+      ]
+    },
+    "mass_transit": {
+      "id": "mass_transit",
+      "type": "Pollu_Pop_Pct",
+      "value": -100,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Mass Transit",
+          "range": "City"
+        }
+      ]
+    },
+    "mfg_plant": {
+      "id": "mfg_plant",
+      "type": "Output_Bonus",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Mfg. Plant",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local"
+        }
+      ]
+    },
+    "nuclear_plant": {
+      "id": "nuclear_plant",
+      "type": "Output_Bonus",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Factory",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Nuclear Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Hoover Dam",
+          "range": "Player",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "nuclear_plant_1": {
+      "id": "nuclear_plant_1",
+      "type": "Output_Bonus",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Mfg. Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Nuclear Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Hoover Dam",
+          "range": "Player",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "nuclear_plant_2": {
+      "id": "nuclear_plant_2",
+      "type": "Pollu_Prod_Pct",
+      "value": -25,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Factory",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Nuclear Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Recycling Center",
+          "range": "City",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Hoover Dam",
+          "range": "Player",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "nuclear_plant_3": {
+      "id": "nuclear_plant_3",
+      "type": "Pollu_Prod_Pct",
+      "value": -25,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Mfg. Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Nuclear Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Recycling Center",
+          "range": "City",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Hoover Dam",
+          "range": "Player",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "offshore_platform": {
+      "id": "offshore_platform",
+      "type": "Output_Add_Tile",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "TerrainClass",
+          "name": "Oceanic",
+          "range": "Tile"
+        },
+        {
+          "type": "Building",
+          "name": "Offshore Platform",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local"
+        }
+      ]
+    },
+    "palace": {
+      "id": "palace",
+      "type": "Output_Waste_Pct",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Palace",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
+        }
+      ]
+    },
+    "palace_2": {
+      "id": "palace_2",
+      "type": "Spy_Resistant",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Palace",
+          "range": "City"
+        }
+      ]
+    },
+    "palace_2_sabotage": {
+      "id": "palace_2_sabotage",
+      "type": "Building_Saboteur_Resistant",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Palace",
+          "range": "City"
+        }
+      ]
+    },
+    "palace_3": {
+      "id": "palace_3",
+      "type": "Capital_City",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Palace",
+          "range": "City"
+        }
+      ]
+    },
+    "palace_gov_center": {
+      "id": "palace_gov_center",
+      "type": "Gov_Center",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Palace",
+          "range": "City"
+        }
+      ]
+    },
+    "palace_5": {
+      "id": "palace_5",
+      "type": "Output_Bonus",
+      "value": 75,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Despotism",
+          "range": "Player"
+        },
+        {
+          "type": "Building",
+          "name": "Palace",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local"
+        }
+      ]
+    },
+    "palace_6": {
+      "id": "palace_6",
+      "type": "Output_Bonus",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Monarchy",
+          "range": "Player"
+        },
+        {
+          "type": "Building",
+          "name": "Palace",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local"
+        }
+      ]
+    },
+    "police_station": {
+      "id": "police_station",
+      "type": "Make_Content_Mil",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Republic",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Police Station",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Women's Suffrage",
+          "range": "Player",
+          "present": false
+        }
+      ]
+    },
+    "police_station_1": {
+      "id": "police_station_1",
+      "type": "Make_Content_Mil",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Democracy",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Police Station",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Women's Suffrage",
+          "range": "Player",
+          "present": false
+        }
+      ]
+    },
+    "port_facility": {
+      "id": "port_facility",
+      "type": "Veteran_Build",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Port Facility",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "UnitClass",
+          "name": "Sea",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "NonMil",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "port_facility_1": {
+      "id": "port_facility_1",
+      "type": "HP_Regen",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Port Facility",
+          "range": "City"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Sea",
+          "range": "Local"
+        }
+      ]
+    },
+    "port_facility_trireme": {
+      "id": "port_facility_trireme",
+      "type": "Veteran_Build",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Port Facility",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "UnitClass",
+          "name": "Trireme",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "NonMil",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "port_facility_trireme_1": {
+      "id": "port_facility_trireme_1",
+      "type": "HP_Regen",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Port Facility",
+          "range": "City"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Trireme",
+          "range": "Local"
+        }
+      ]
+    },
+    "power_plant": {
+      "id": "power_plant",
+      "type": "Output_Bonus",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Factory",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Power Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Hoover Dam",
+          "range": "Player",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Nuclear Plant",
+          "range": "City",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Hydro Plant",
+          "range": "City",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "power_plant_1": {
+      "id": "power_plant_1",
+      "type": "Output_Bonus",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Mfg. Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Power Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Hoover Dam",
+          "range": "Player",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Nuclear Plant",
+          "range": "City",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Hydro Plant",
+          "range": "City",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "recycling_center": {
+      "id": "recycling_center",
+      "type": "Pollu_Prod_Pct",
+      "value": -66,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Recycling Center",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "recycling_center_1": {
+      "id": "recycling_center_1",
+      "type": "Pollu_Prod_Pct",
+      "value": -16,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Recycling Center",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Factory",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Mfg. Plant",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "recycling_center_2": {
+      "id": "recycling_center_2",
+      "type": "Pollu_Prod_Pct",
+      "value": -16,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Recycling Center",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Mfg. Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Factory",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "recycling_center_3": {
+      "id": "recycling_center_3",
+      "type": "Pollu_Prod_Pct",
+      "value": -66,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Recycling Center",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Factory",
+          "range": "City",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Mfg. Plant",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "research_lab": {
+      "id": "research_lab",
+      "type": "Output_Bonus",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Library",
+          "range": "City"
+        },
+        {
+          "type": "Building",
+          "name": "Research Lab",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Science",
+          "range": "Local"
+        }
+      ]
+    },
+    "research_lab_1": {
+      "id": "research_lab_1",
+      "type": "Output_Bonus",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "University",
+          "range": "City"
+        },
+        {
+          "type": "Building",
+          "name": "Research Lab",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Science",
+          "range": "Local"
+        }
+      ]
+    },
+    "sam_battery": {
+      "id": "sam_battery",
+      "type": "Defend_Bonus",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "SAM Battery",
+          "range": "City"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Air",
+          "range": "Local"
+        }
+      ]
+    },
+    "sdi_defense": {
+      "id": "sdi_defense",
+      "type": "Nuke_Proof",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "SDI Defense",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "Foreign",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "Team",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "sdi_defense_1": {
+      "id": "sdi_defense_1",
+      "type": "Defend_Bonus",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "SDI Defense",
+          "range": "City"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Missile",
+          "range": "Local"
+        }
+      ]
+    },
+    "sewer_system": {
+      "id": "sewer_system",
+      "type": "Size_Unlimit",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Aqueduct",
+          "range": "City"
+        },
+        {
+          "type": "Building",
+          "name": "Sewer System",
+          "range": "City"
+        }
+      ]
+    },
+    "sewer_system_health": {
+      "id": "sewer_system_health",
+      "type": "Health_Pct",
+      "value": 30,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Aqueduct",
+          "range": "City"
+        },
+        {
+          "type": "Building",
+          "name": "Sewer System",
+          "range": "City"
+        }
+      ]
+    },
+    "solar_plant": {
+      "id": "solar_plant",
+      "type": "Output_Bonus",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Factory",
+          "range": "City"
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local"
+        }
+      ]
+    },
+    "solar_plant_1": {
+      "id": "solar_plant_1",
+      "type": "Output_Bonus",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Mfg. Plant",
+          "range": "City"
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local"
+        }
+      ]
+    },
+    "solar_plant_2": {
+      "id": "solar_plant_2",
+      "type": "Pollu_Prod_Pct",
+      "value": -50,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Factory",
+          "range": "City"
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City"
+        }
+      ]
+    },
+    "solar_plant_3": {
+      "id": "solar_plant_3",
+      "type": "Pollu_Prod_Pct",
+      "value": -50,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Mfg. Plant",
+          "range": "City"
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City"
+        }
+      ]
+    },
+    "space_component": {
+      "id": "space_component",
+      "type": "SS_Component",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Space Component",
+          "range": "City"
+        }
+      ]
+    },
+    "space_module": {
+      "id": "space_module",
+      "type": "SS_Module",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Space Module",
+          "range": "City"
+        }
+      ]
+    },
+    "space_structural": {
+      "id": "space_structural",
+      "type": "SS_Structural",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Space Structural",
+          "range": "City"
+        }
+      ]
+    },
+    "plastics_slowdown": {
+      "id": "plastics_slowdown",
+      "type": "Slow_Down_Timeline",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Plastics",
+          "range": "World",
+          "survives": "TRUE"
+        }
+      ]
+    },
+    "superconductor_slowdown": {
+      "id": "superconductor_slowdown",
+      "type": "Slow_Down_Timeline",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Superconductors",
+          "range": "World",
+          "survives": "TRUE"
+        }
+      ]
+    },
+    "spaceflight_slowdown": {
+      "id": "spaceflight_slowdown",
+      "type": "Slow_Down_Timeline",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Space Flight",
+          "range": "World",
+          "survives": "TRUE"
+        }
+      ]
+    },
+    "stock_exchange": {
+      "id": "stock_exchange",
+      "type": "Output_Bonus",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Bank",
+          "range": "City"
+        },
+        {
+          "type": "Building",
+          "name": "Stock Exchange",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Gold",
+          "range": "Local"
+        }
+      ]
+    },
+    "stock_exchange_1": {
+      "id": "stock_exchange_1",
+      "type": "Output_Bonus",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Bank",
+          "range": "City"
+        },
+        {
+          "type": "Building",
+          "name": "Stock Exchange",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Luxury",
+          "range": "Local"
+        }
+      ]
+    },
+    "super_highways": {
+      "id": "super_highways",
+      "type": "Output_Per_Tile",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Extra",
+          "name": "Road",
+          "range": "Tile"
+        },
+        {
+          "type": "Building",
+          "name": "Super Highways",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
+        }
+      ]
+    },
+    "mine": {
+      "id": "mine",
+      "type": "Mining_Pct",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Extra",
+          "name": "Mine",
+          "range": "Tile"
+        }
+      ]
+    },
+    "oil_well": {
+      "id": "oil_well",
+      "type": "Mining_Pct",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Extra",
+          "name": "Oil Well",
+          "range": "Tile"
+        }
+      ]
+    },
+    "irrigation": {
+      "id": "irrigation",
+      "type": "Irrigation_Pct",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Extra",
+          "name": "Irrigation",
+          "range": "Tile"
+        }
+      ]
+    },
+    "irrigation_center": {
+      "id": "irrigation_center",
+      "type": "Irrigation_Pct",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "CityTile",
+          "name": "Center",
+          "range": "Tile",
+          "present": true
+        },
+        {
+          "type": "Extra",
+          "name": "Irrigation",
+          "range": "Tile",
+          "present": false
+        },
+        {
+          "type": "TerrainAlter",
+          "name": "CanIrrigate",
+          "range": "Tile",
+          "present": true
+        },
+        {
+          "type": "Extra",
+          "name": "Mine",
+          "range": "Tile",
+          "present": false
+        },
+        {
+          "type": "Extra",
+          "name": "Oil Well",
+          "range": "Tile",
+          "present": false
+        }
+      ]
+    },
+    "supermarket": {
+      "id": "supermarket",
+      "type": "Output_Per_Tile",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Extra",
+          "name": "Farmland",
+          "range": "Tile"
+        },
+        {
+          "type": "Building",
+          "name": "Supermarket",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Food",
+          "range": "Local"
+        }
+      ]
+    },
+    "supermarket_center": {
+      "id": "supermarket_center",
+      "type": "Output_Per_Tile",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "CityTile",
+          "name": "Center",
+          "range": "Tile",
+          "present": true
+        },
+        {
+          "type": "Extra",
+          "name": "Farmland",
+          "range": "Tile",
+          "present": false
+        },
+        {
+          "type": "TerrainAlter",
+          "name": "CanIrrigate",
+          "range": "Tile",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Supermarket",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "OutputType",
+          "name": "Food",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "Extra",
+          "name": "Mine",
+          "range": "Tile",
+          "present": false
+        },
+        {
+          "type": "Extra",
+          "name": "Oil Well",
+          "range": "Tile",
+          "present": false
+        }
+      ]
+    },
+    "temple": {
+      "id": "temple",
+      "type": "Make_Content",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Temple",
+          "range": "City"
+        }
+      ]
+    },
+    "temple_1": {
+      "id": "temple_1",
+      "type": "Make_Content",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Mysticism",
+          "range": "Player"
+        },
+        {
+          "type": "Building",
+          "name": "Temple",
+          "range": "City"
+        }
+      ]
+    },
+    "university": {
+      "id": "university",
+      "type": "Output_Bonus",
+      "value": 150,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Library",
+          "range": "City"
+        },
+        {
+          "type": "Building",
+          "name": "University",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Science",
+          "range": "Local"
+        }
+      ]
+    },
+    "telegraph_border_vision": {
+      "id": "telegraph_border_vision",
+      "type": "Border_Vision",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Electricity",
+          "range": "Player"
+        }
+      ]
+    },
+    "apollo_program": {
+      "id": "apollo_program",
+      "type": "Reveal_Map",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Apollo Program",
+          "range": "Player"
+        }
+      ]
+    },
+    "apollo_program_1": {
+      "id": "apollo_program_1",
+      "type": "Enable_Space",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Apollo Program",
+          "range": "World",
+          "survives": "TRUE"
+        }
+      ]
+    },
+    "asmiths_trading_co": {
+      "id": "asmiths_trading_co",
+      "type": "Upkeep_Free",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "A.Smith's Trading Co.",
+          "range": "Alliance"
+        }
+      ]
+    },
+    "colossus": {
+      "id": "colossus",
+      "type": "Output_Inc_Tile",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Colossus",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Trade",
+          "range": "Local"
+        }
+      ]
+    },
+    "copernicus_observatory": {
+      "id": "copernicus_observatory",
+      "type": "Output_Bonus",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Copernicus' Observatory",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Science",
+          "range": "Local"
+        }
+      ]
+    },
+    "cure_for_cancer": {
+      "id": "cure_for_cancer",
+      "type": "Force_Content",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Cure For Cancer",
+          "range": "Player"
+        }
+      ]
+    },
+    "cure_for_cancer_health": {
+      "id": "cure_for_cancer_health",
+      "type": "Health_Pct",
+      "value": 20,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Cure For Cancer",
+          "range": "Player"
+        }
+      ]
+    },
+    "darwins_voyage": {
+      "id": "darwins_voyage",
+      "type": "Give_Imm_Tech",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Darwin's Voyage",
+          "range": "Player"
+        }
+      ]
+    },
+    "eiffel_tower": {
+      "id": "eiffel_tower",
+      "type": "Gain_AI_Love",
+      "value": 20,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Eiffel Tower",
+          "range": "Player"
+        }
+      ]
+    },
+    "great_library": {
+      "id": "great_library",
+      "type": "Tech_Parasite",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Great Library",
+          "range": "Player"
+        }
+      ]
+    },
+    "great_wall": {
+      "id": "great_wall",
+      "type": "Defend_Bonus",
+      "value": 200,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Great Wall",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "UnitClass",
+          "name": "Land",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "CityTile",
+          "name": "Center",
+          "range": "Tile",
+          "present": true
+        },
+        {
+          "type": "UnitType",
+          "name": "Howitzer",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "great_wall_0": {
+      "id": "great_wall_0",
+      "type": "Defend_Bonus",
+      "value": 200,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Great Wall",
+          "range": "Player"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Helicopter",
+          "range": "Local"
+        },
+        {
+          "type": "CityTile",
+          "name": "Center",
+          "range": "Tile"
+        }
+      ]
+    },
+    "great_wall_1": {
+      "id": "great_wall_1",
+      "type": "Unit_No_Lose_Pop",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Great Wall",
+          "range": "Player"
+        }
+      ]
+    },
+    "great_wall_visible": {
+      "id": "great_wall_visible",
+      "type": "Visible_Walls",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Great Wall",
+          "range": "Player"
+        }
+      ]
+    },
+    "hanging_gardens": {
+      "id": "hanging_gardens",
+      "type": "Make_Happy",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Hanging Gardens",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Hanging Gardens",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "hanging_gardens_1": {
+      "id": "hanging_gardens_1",
+      "type": "Make_Happy",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Hanging Gardens",
+          "range": "City"
+        }
+      ]
+    },
+    "hoover_dam": {
+      "id": "hoover_dam",
+      "type": "Output_Bonus",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Factory",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Hoover Dam",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "hoover_dam_1": {
+      "id": "hoover_dam_1",
+      "type": "Output_Bonus",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Mfg. Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Hoover Dam",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "hoover_dam_2": {
+      "id": "hoover_dam_2",
+      "type": "Pollu_Prod_Pct",
+      "value": -25,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Factory",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Hoover Dam",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Recycling Center",
+          "range": "City",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "hoover_dam_3": {
+      "id": "hoover_dam_3",
+      "type": "Pollu_Prod_Pct",
+      "value": -25,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Mfg. Plant",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Hoover Dam",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "Building",
+          "name": "Recycling Center",
+          "range": "City",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Solar Plant",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "isaac_newtons_college": {
+      "id": "isaac_newtons_college",
+      "type": "Output_Bonus",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "University",
+          "range": "City"
+        },
+        {
+          "type": "Building",
+          "name": "Isaac Newton's College",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Science",
+          "range": "Local"
+        }
+      ]
+    },
+    "js_bachs_cathedral": {
+      "id": "js_bachs_cathedral",
+      "type": "Force_Content",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "J.S. Bach's Cathedral",
+          "range": "Alliance"
+        }
+      ]
+    },
+    "king_richards_crusade": {
+      "id": "king_richards_crusade",
+      "type": "Output_Add_Tile",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "King Richard's Crusade",
+          "range": "City"
+        },
+        {
+          "type": "OutputType",
+          "name": "Shield",
+          "range": "Local"
+        }
+      ]
+    },
+    "leonardos_workshop": {
+      "id": "leonardos_workshop",
+      "type": "Upgrade_Unit",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Leonardo's Workshop",
+          "range": "Player"
+        }
+      ]
+    },
+    "lighthouse": {
+      "id": "lighthouse",
+      "type": "Move_Bonus",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Lighthouse",
+          "range": "Player"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Sea",
+          "range": "Local"
+        }
+      ]
+    },
+    "lighthouse_2": {
+      "id": "lighthouse_2",
+      "type": "Veteran_Build",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Lighthouse",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "UnitClass",
+          "name": "Sea",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "NonMil",
+          "range": "Local",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Port Facility",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "lighthouse_trireme_move": {
+      "id": "lighthouse_trireme_move",
+      "type": "Move_Bonus",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Lighthouse",
+          "range": "Player"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Trireme",
+          "range": "Local"
+        }
+      ]
+    },
+    "lighthouse_trireme_veteran": {
+      "id": "lighthouse_trireme_veteran",
+      "type": "Veteran_Build",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Lighthouse",
+          "range": "Player",
+          "present": true
+        },
+        {
+          "type": "UnitClass",
+          "name": "Trireme",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "NonMil",
+          "range": "Local",
+          "present": false
+        },
+        {
+          "type": "Building",
+          "name": "Port Facility",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "magellans_expedition": {
+      "id": "magellans_expedition",
+      "type": "Move_Bonus",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Magellan's Expedition",
+          "range": "Player"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Sea",
+          "range": "Local"
+        }
+      ]
+    },
+    "magellan_trireme": {
+      "id": "magellan_trireme",
+      "type": "Move_Bonus",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Magellan's Expedition",
+          "range": "Player"
+        },
+        {
+          "type": "UnitClass",
+          "name": "Trireme",
+          "range": "Local"
+        }
+      ]
+    },
+    "manhattan_project": {
+      "id": "manhattan_project",
+      "type": "Enable_Nuke",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Manhattan Project",
+          "range": "World",
+          "survives": "TRUE"
+        }
+      ]
+    },
+    "marco_polos_contact": {
+      "id": "marco_polos_contact",
+      "type": "Have_Contacts",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Marco Polo's Embassy",
+          "range": "Player"
+        }
+      ]
+    },
+    "marco_polos_embassy": {
+      "id": "marco_polos_embassy",
+      "type": "Have_Embassies",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Marco Polo's Embassy",
+          "range": "Player"
+        }
+      ]
+    },
+    "michelangelos_chapel": {
+      "id": "michelangelos_chapel",
+      "type": "Make_Content",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Michelangelo's Chapel",
+          "range": "Player"
+        }
+      ]
+    },
+    "michelangelos_chapel_1": {
+      "id": "michelangelos_chapel_1",
+      "type": "Make_Content",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Theology",
+          "range": "Player"
+        },
+        {
+          "type": "Building",
+          "name": "Michelangelo's Chapel",
+          "range": "Player"
+        }
+      ]
+    },
+    "michelangelos_chapel_2": {
+      "id": "michelangelos_chapel_2",
+      "type": "Make_Content",
+      "value": -1,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Communism",
+          "range": "Player"
+        },
+        {
+          "type": "Building",
+          "name": "Michelangelo's Chapel",
+          "range": "Player"
+        }
+      ]
+    },
+    "oracle": {
+      "id": "oracle",
+      "type": "Make_Content",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Temple",
+          "range": "City"
+        },
+        {
+          "type": "Building",
+          "name": "Oracle",
+          "range": "Player"
+        }
+      ]
+    },
+    "pyramids_grow": {
+      "id": "pyramids_grow",
+      "type": "Growth_Food",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Pyramids",
+          "range": "Player"
+        }
+      ]
+    },
+    "pyramids_shrink": {
+      "id": "pyramids_shrink",
+      "type": "Shrink_Food",
+      "value": 25,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Pyramids",
+          "range": "Player"
+        }
+      ]
+    },
+    "seti_program": {
+      "id": "seti_program",
+      "type": "Output_Bonus",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Research Lab",
+          "range": "City"
+        },
+        {
+          "type": "Building",
+          "name": "SETI Program",
+          "range": "Player"
+        },
+        {
+          "type": "OutputType",
+          "name": "Science",
+          "range": "Local"
+        }
+      ]
+    },
+    "shakespeares_theatre": {
+      "id": "shakespeares_theatre",
+      "type": "No_Unhappy",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Shakespeare's Theatre",
+          "range": "City"
+        }
+      ]
+    },
+    "statue_of_liberty": {
+      "id": "statue_of_liberty",
+      "type": "Any_Government",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Statue of Liberty",
+          "range": "Player"
+        }
+      ]
+    },
+    "statue_of_liberty_1": {
+      "id": "statue_of_liberty_1",
+      "type": "No_Anarchy",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Statue of Liberty",
+          "range": "Player"
+        }
+      ]
+    },
+    "sun_tzus_war_academy": {
+      "id": "sun_tzus_war_academy",
+      "type": "Veteran_Build",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Sun Tzu's War Academy",
+          "range": "Alliance",
+          "present": true
+        },
+        {
+          "type": "UnitClass",
+          "name": "Land",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "NonMil",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "sun_tzus_war_academy_1": {
+      "id": "sun_tzus_war_academy_1",
+      "type": "Veteran_Combat",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Sun Tzu's War Academy",
+          "range": "Alliance",
+          "present": true
+        },
+        {
+          "type": "UnitClass",
+          "name": "Land",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "Diplomat",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "united_nations": {
+      "id": "united_nations",
+      "type": "Unit_Recover",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "United Nations",
+          "range": "Player"
+        }
+      ]
+    },
+    "womens_suffrage": {
+      "id": "womens_suffrage",
+      "type": "Make_Content_Mil",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Republic",
+          "range": "Player"
+        },
+        {
+          "type": "Building",
+          "name": "Women's Suffrage",
+          "range": "Player"
+        }
+      ]
+    },
+    "womens_suffrage_1": {
+      "id": "womens_suffrage_1",
+      "type": "Make_Content_Mil",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Gov",
+          "name": "Democracy",
+          "range": "Player"
+        },
+        {
+          "type": "Building",
+          "name": "Women's Suffrage",
+          "range": "Player"
+        }
+      ]
+    },
+    "flight_trade_revenue_reduce": {
+      "id": "flight_trade_revenue_reduce",
+      "type": "Trade_Revenue_Bonus",
+      "value": -585,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Flight",
+          "range": "Player"
+        }
+      ]
+    },
+    "railroad_trade_revenue_reduce": {
+      "id": "railroad_trade_revenue_reduce",
+      "type": "Trade_Revenue_Bonus",
+      "value": -585,
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Railroad",
+          "range": "Player"
+        }
+      ]
+    },
+    "enter_marketplace_bonus_reduction": {
+      "id": "enter_marketplace_bonus_reduction",
+      "type": "Trade_Revenue_Bonus",
+      "value": -1585,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Enter Marketplace",
+          "range": "Local"
+        }
+      ]
+    },
+    "bonus_fudge_factor": {
+      "id": "bonus_fudge_factor",
+      "type": "Trade_Revenue_Bonus",
+      "value": 1585
+    },
+    "calendar_base": {
+      "id": "calendar_base",
+      "type": "Turn_Years",
+      "value": 50
+    },
+    "calendar_1": {
+      "id": "calendar_1",
+      "type": "Turn_Years",
+      "value": -25,
+      "reqs": [
+        {
+          "type": "MinYear",
+          "name": "-1000",
+          "range": "World"
+        }
+      ]
+    },
+    "calendar_2": {
+      "id": "calendar_2",
+      "type": "Turn_Years",
+      "value": -5,
+      "reqs": [
+        {
+          "type": "MinYear",
+          "name": "0",
+          "range": "World"
+        }
+      ]
+    },
+    "calendar_3": {
+      "id": "calendar_3",
+      "type": "Turn_Years",
+      "value": -10,
+      "reqs": [
+        {
+          "type": "MinYear",
+          "name": "1000",
+          "range": "World"
+        }
+      ]
+    },
+    "calendar_4": {
+      "id": "calendar_4",
+      "type": "Turn_Years",
+      "value": -5,
+      "reqs": [
+        {
+          "type": "MinYear",
+          "name": "1500",
+          "range": "World"
+        }
+      ]
+    },
+    "calendar_5": {
+      "id": "calendar_5",
+      "type": "Turn_Years",
+      "value": -3,
+      "reqs": [
+        {
+          "type": "MinYear",
+          "name": "1750",
+          "range": "World"
+        }
+      ]
+    },
+    "calendar_6": {
+      "id": "calendar_6",
+      "type": "Turn_Years",
+      "value": -1,
+      "reqs": [
+        {
+          "type": "MinYear",
+          "name": "1900",
+          "range": "World"
+        }
+      ]
+    },
+    "tech_cost_base": {
+      "id": "tech_cost_base",
+      "type": "Tech_Cost_Factor",
+      "value": 1
+    },
+    "tech_leakage": {
+      "id": "tech_leakage",
+      "type": "Tech_Leakage",
+      "value": 1
+    },
+    "tile_workable": {
+      "id": "tile_workable",
+      "type": "Tile_Workable",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Terrain",
+          "name": "Inaccessible",
+          "range": "Tile",
+          "present": false
+        }
+      ]
+    },
+    "city_build_slots_basic": {
+      "id": "city_build_slots_basic",
+      "type": "City_Build_Slots",
+      "value": 1
+    },
+    "city_image_1": {
+      "id": "city_image_1",
+      "type": "City_Image",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "MinSize",
+          "name": "4",
+          "range": "City"
+        }
+      ]
+    },
+    "city_image_2": {
+      "id": "city_image_2",
+      "type": "City_Image",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "MinSize",
+          "name": "8",
+          "range": "City"
+        }
+      ]
+    },
+    "city_image_3": {
+      "id": "city_image_3",
+      "type": "City_Image",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "MinSize",
+          "name": "12",
+          "range": "City"
+        }
+      ]
+    },
+    "city_image_4": {
+      "id": "city_image_4",
+      "type": "City_Image",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "MinSize",
+          "name": "16",
+          "range": "City"
+        }
+      ]
+    },
+    "pollution": {
+      "id": "pollution",
+      "type": "Output_Tile_Punish_Pct",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Extra",
+          "name": "Pollution",
+          "range": "Tile",
+          "present": true
+        },
+        {
+          "type": "Extra",
+          "name": "Fallout",
+          "range": "Tile",
+          "present": false
+        }
+      ]
+    },
+    "fallout": {
+      "id": "fallout",
+      "type": "Output_Tile_Punish_Pct",
+      "value": 50,
+      "reqs": [
+        {
+          "type": "Extra",
+          "name": "Fallout",
+          "range": "Tile",
+          "present": true
+        },
+        {
+          "type": "Extra",
+          "name": "Pollution",
+          "range": "Tile",
+          "present": false
+        }
+      ]
+    },
+    "pollution_fallout": {
+      "id": "pollution_fallout",
+      "type": "Output_Tile_Punish_Pct",
+      "value": 75,
+      "reqs": [
+        {
+          "type": "Extra",
+          "name": "Fallout",
+          "range": "Tile"
+        },
+        {
+          "type": "Extra",
+          "name": "Pollution",
+          "range": "Tile"
+        }
+      ]
+    },
+    "attack_bombard_no_city_destruction": {
+      "id": "attack_bombard_no_city_destruction",
+      "type": "Unit_No_Lose_Pop",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "MinSize",
+          "name": "2",
+          "range": "City",
+          "present": false
+        }
+      ]
+    },
+    "unit_bribe_cost_settlers": {
+      "id": "unit_bribe_cost_settlers",
+      "type": "Unit_Bribe_Cost_Pct",
+      "value": -50,
+      "reqs": [
+        {
+          "type": "UnitTypeFlag",
+          "name": "Cities",
+          "range": "Local"
+        }
+      ]
+    },
+    "suitcase_nuke_odds_base": {
+      "id": "suitcase_nuke_odds_base",
+      "type": "Action_Odds_Pct",
+      "value": -69,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Suitcase Nuke",
+          "range": "Local"
+        }
+      ]
+    },
+    "suitcase_nuke_odds_first_veteran": {
+      "id": "suitcase_nuke_odds_first_veteran",
+      "type": "Action_Odds_Pct",
+      "value": 6,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Suitcase Nuke",
+          "range": "Local"
+        },
+        {
+          "type": "MinVeteran",
+          "name": "1",
+          "range": "Local"
+        }
+      ]
+    },
+    "suitcase_nuke_blast_size": {
+      "id": "suitcase_nuke_blast_size",
+      "type": "Nuke_Blast_Radius_1_Sq",
+      "value": 0,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Suitcase Nuke",
+          "range": "Local"
+        }
+      ]
+    },
+    "suitcase_nuke_esc_odds_base": {
+      "id": "suitcase_nuke_esc_odds_base",
+      "type": "Action_Odds_Pct",
+      "value": -57,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Suitcase Nuke Escape",
+          "range": "Local"
+        }
+      ]
+    },
+    "suitcase_nuke_esc_odds_last_veteran": {
+      "id": "suitcase_nuke_esc_odds_last_veteran",
+      "type": "Action_Odds_Pct",
+      "value": 6,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Suitcase Nuke Escape",
+          "range": "Local"
+        },
+        {
+          "type": "MinVeteran",
+          "name": "3",
+          "range": "Local"
+        }
+      ]
+    },
+    "suitcase_nuke_escape_blast_size": {
+      "id": "suitcase_nuke_escape_blast_size",
+      "type": "Nuke_Blast_Radius_1_Sq",
+      "value": 0,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Suitcase Nuke Escape",
+          "range": "Local"
+        }
+      ]
+    },
+    "steal_gold_base": {
+      "id": "steal_gold_base",
+      "type": "Max_Stolen_Gold_Pm",
+      "value": 50
+    },
+    "steal_gold_capital": {
+      "id": "steal_gold_capital",
+      "type": "Max_Stolen_Gold_Pm",
+      "value": 250,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Palace",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Gov",
+          "name": "Anarchy",
+          "range": "Player",
+          "present": false
+        }
+      ]
+    },
+    "central_planning_committee": {
+      "id": "central_planning_committee",
+      "type": "Max_Stolen_Gold_Pm",
+      "value": 200,
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Palace",
+          "range": "City"
+        },
+        {
+          "type": "Gov",
+          "name": "Communism",
+          "range": "Player"
+        }
+      ]
+    },
+    "thiefs_share_base": {
+      "id": "thiefs_share_base",
+      "type": "Thiefs_Share_Pm",
+      "value": 10
+    },
+    "incident_success_steal_gold": {
+      "id": "incident_success_steal_gold",
+      "type": "Casus_Belli_Success",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Steal Gold",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "incident_success_steal_gold_escape": {
+      "id": "incident_success_steal_gold_escape",
+      "type": "Casus_Belli_Success",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Steal Gold Escape",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "incident_success_steal_maps": {
+      "id": "incident_success_steal_maps",
+      "type": "Casus_Belli_Success",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Steal Maps Escape",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "steal_maps_pct": {
+      "id": "steal_maps_pct",
+      "type": "Maps_Stolen_Pct",
+      "value": -50,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Steal Maps Escape",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "illegal_action_move_cost_base": {
+      "id": "illegal_action_move_cost_base",
+      "type": "Illegal_Action_Move_Cost",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Found City",
+          "range": "Local",
+          "present": false
+        },
+        {
+          "type": "Action",
+          "name": "Join City",
+          "range": "Local",
+          "present": false
+        },
+        {
+          "type": "Action",
+          "name": "Transport Board",
+          "range": "Local",
+          "present": false
+        },
+        {
+          "type": "Action",
+          "name": "Transport Deboard",
+          "range": "Local",
+          "present": false
+        },
+        {
+          "type": "Action",
+          "name": "Transport Disembark",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "incident_caught_steal_tech": {
+      "id": "incident_caught_steal_tech",
+      "type": "Casus_Belli_Caught",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Steal Tech",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "incident_success_steal_tech": {
+      "id": "incident_success_steal_tech",
+      "type": "Casus_Belli_Success",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Steal Tech",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "incident_caught_steal_tech_esc": {
+      "id": "incident_caught_steal_tech_esc",
+      "type": "Casus_Belli_Caught",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Steal Tech Escape Expected",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "incident_success_steal_tech_esc": {
+      "id": "incident_success_steal_tech_esc",
+      "type": "Casus_Belli_Success",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Steal Tech Escape Expected",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "incident_caught_tgt_steal_tech": {
+      "id": "incident_caught_tgt_steal_tech",
+      "type": "Casus_Belli_Caught",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Targeted Steal Tech Escape Expected",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "incident_success_tgt_steal_tech": {
+      "id": "incident_success_tgt_steal_tech",
+      "type": "Casus_Belli_Success",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Targeted Steal Tech Escape Expected",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "incident_success_bribe_unit": {
+      "id": "incident_success_bribe_unit",
+      "type": "Casus_Belli_Success",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Bribe Unit",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "incident_success_sabotage_unit_terrorist_state": {
+      "id": "incident_success_sabotage_unit_terrorist_state",
+      "type": "Casus_Belli_Success",
+      "value": 1000,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Sabotage Unit Escape",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "incident_success_spy_attack": {
+      "id": "incident_success_spy_attack",
+      "type": "Casus_Belli_Success",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Spy Attack",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "incident_success_incite": {
+      "id": "incident_success_incite",
+      "type": "Casus_Belli_Success",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Incite City",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "incident_success_incite_esc": {
+      "id": "incident_success_incite_esc",
+      "type": "Casus_Belli_Success",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Incite City Escape",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "incident_success_poison_terrorist_state": {
+      "id": "incident_success_poison_terrorist_state",
+      "type": "Casus_Belli_Success",
+      "value": 1000,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Poison City Escape",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "incident_success_sabotage_city_terrorist_state": {
+      "id": "incident_success_sabotage_city_terrorist_state",
+      "type": "Casus_Belli_Success",
+      "value": 1000,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Sabotage City",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "incident_success_sabotage_city_esc_terrorist_state": {
+      "id": "incident_success_sabotage_city_esc_terrorist_state",
+      "type": "Casus_Belli_Success",
+      "value": 1000,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Sabotage City Escape",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "incident_success_tgt_sabotage_city_terrorist_state": {
+      "id": "incident_success_tgt_sabotage_city_terrorist_state",
+      "type": "Casus_Belli_Success",
+      "value": 1000,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Targeted Sabotage City Escape",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "tgt_sabotage_city_half_chance": {
+      "id": "tgt_sabotage_city_half_chance",
+      "type": "Action_Odds_Pct",
+      "value": -50,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Targeted Sabotage City Escape",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "incident_success_sabotage_city_production": {
+      "id": "incident_success_sabotage_city_production",
+      "type": "Casus_Belli_Success",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Sabotage City Production Escape",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "sabotage_city_production_city_half_chance": {
+      "id": "sabotage_city_production_city_half_chance",
+      "type": "Action_Odds_Pct",
+      "value": -50,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Sabotage City Production Escape",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "incident_success_explode_nuke": {
+      "id": "incident_success_explode_nuke",
+      "type": "Casus_Belli_Success",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Explode Nuclear",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "explode_nuke_blast_radius": {
+      "id": "explode_nuke_blast_radius",
+      "type": "Nuke_Blast_Radius_1_Sq",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Explode Nuclear",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "incident_success_explode_nuke_city": {
+      "id": "incident_success_explode_nuke_city",
+      "type": "Casus_Belli_Success",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Nuke City",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "nuke_city_blast_radius": {
+      "id": "nuke_city_blast_radius",
+      "type": "Nuke_Blast_Radius_1_Sq",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Nuke City",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "incident_success_explode_nuke_units": {
+      "id": "incident_success_explode_nuke_units",
+      "type": "Casus_Belli_Success",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Nuke Units",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "incident_success_suitcase_nuke": {
+      "id": "incident_success_suitcase_nuke",
+      "type": "Casus_Belli_Success",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Suitcase Nuke",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "incident_success_suitcase_nuke_terrorist_state": {
+      "id": "incident_success_suitcase_nuke_terrorist_state",
+      "type": "Casus_Belli_Success",
+      "value": 1000,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Suitcase Nuke",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "incident_success_suitcase_nuke_veteran": {
+      "id": "incident_success_suitcase_nuke_veteran",
+      "type": "Casus_Belli_Success",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Suitcase Nuke Escape",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "incident_success_suitcase_nuke_veteran_terrorist_state": {
+      "id": "incident_success_suitcase_nuke_veteran_terrorist_state",
+      "type": "Casus_Belli_Success",
+      "value": 1000,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Suitcase Nuke Escape",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "DiplRel",
+          "name": "War",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "nuke_units_blast_radius": {
+      "id": "nuke_units_blast_radius",
+      "type": "Nuke_Blast_Radius_1_Sq",
+      "value": 2,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Nuke Units",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "great_wonder_buy_cost": {
+      "id": "great_wonder_buy_cost",
+      "type": "Building_Buy_Cost_Pct",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "BuildingGenus",
+          "name": "GreatWonder",
+          "range": "Local"
+        }
+      ]
+    },
+    "action_establish_embassy_success_move_cost": {
+      "id": "action_establish_embassy_success_move_cost",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Establish Embassy",
+          "range": "Local",
+          "quiet": "TRUE"
+        }
+      ]
+    },
+    "action_success_move_cost_poison_city_escape": {
+      "id": "action_success_move_cost_poison_city_escape",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 65535,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Poison City Escape",
+          "range": "Local",
+          "quiet": "TRUE"
+        }
+      ]
+    },
+    "action_success_move_cost_steal_gold_escape": {
+      "id": "action_success_move_cost_steal_gold_escape",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 65535,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Steal Gold Escape",
+          "range": "Local",
+          "quiet": "TRUE"
+        }
+      ]
+    },
+    "action_success_move_cost_sabotage_city_escape": {
+      "id": "action_success_move_cost_sabotage_city_escape",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 65535,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Sabotage City Escape",
+          "range": "Local",
+          "quiet": "TRUE"
+        }
+      ]
+    },
+    "action_success_move_cost_targeted_sabotage_city_escape": {
+      "id": "action_success_move_cost_targeted_sabotage_city_escape",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 65535,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Targeted Sabotage City Escape",
+          "range": "Local",
+          "quiet": "TRUE"
+        }
+      ]
+    },
+    "action_success_move_cost_sabotage_city_production_escape": {
+      "id": "action_success_move_cost_sabotage_city_production_escape",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 65535,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Sabotage City Production Escape",
+          "range": "Local",
+          "quiet": "TRUE"
+        }
+      ]
+    },
+    "action_success_move_cost_steal_tech_escape_expected": {
+      "id": "action_success_move_cost_steal_tech_escape_expected",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 65535,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Steal Tech Escape Expected",
+          "range": "Local",
+          "quiet": "TRUE"
+        }
+      ]
+    },
+    "action_success_move_cost_targeted_steal_tech_escape_expected": {
+      "id": "action_success_move_cost_targeted_steal_tech_escape_expected",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 65535,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Targeted Steal Tech Escape Expected",
+          "range": "Local",
+          "quiet": "TRUE"
+        }
+      ]
+    },
+    "action_success_move_cost_incite_city_escape": {
+      "id": "action_success_move_cost_incite_city_escape",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 65535,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Incite City Escape",
+          "range": "Local",
+          "quiet": "TRUE"
+        }
+      ]
+    },
+    "action_success_move_cost_sabotage_unit_escape": {
+      "id": "action_success_move_cost_sabotage_unit_escape",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 65535,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Sabotage Unit Escape",
+          "range": "Local",
+          "quiet": "TRUE"
+        }
+      ]
+    },
+    "action_success_move_cost_steal_maps_escape": {
+      "id": "action_success_move_cost_steal_maps_escape",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 65535,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Steal Maps Escape",
+          "range": "Local",
+          "quiet": "TRUE"
+        }
+      ]
+    },
+    "action_success_move_cost_suitcase_nuke_escape": {
+      "id": "action_success_move_cost_suitcase_nuke_escape",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 65535,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Suitcase Nuke Escape",
+          "range": "Local",
+          "quiet": "TRUE"
+        }
+      ]
+    },
+    "action_success_move_cost_investigate": {
+      "id": "action_success_move_cost_investigate",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Investigate City",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "action_success_move_cost_expel": {
+      "id": "action_success_move_cost_expel",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Expel Unit",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "action_success_move_cost_expelled": {
+      "id": "action_success_move_cost_expelled",
+      "type": "Action_Success_Target_Move_Cost",
+      "value": 65535,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Expel Unit",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "action_success_move_cost_disrupt": {
+      "id": "action_success_move_cost_disrupt",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "User Action 1",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "action_success_move_cost_disrupted": {
+      "id": "action_success_move_cost_disrupted",
+      "type": "Action_Success_Target_Move_Cost",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "User Action 1",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "action_success_move_cost_bombard": {
+      "id": "action_success_move_cost_bombard",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 65535,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Bombard",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "action_success_move_cost_heal_unit": {
+      "id": "action_success_move_cost_heal_unit",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Heal Unit",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "action_success_move_cost_healed": {
+      "id": "action_success_move_cost_healed",
+      "type": "Action_Success_Target_Move_Cost",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Heal Unit",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "heal_amount": {
+      "id": "heal_amount",
+      "type": "Heal_Unit_Pct",
+      "value": -75,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Heal Unit",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "action_success_move_cost_royal_sapper": {
+      "id": "action_success_move_cost_royal_sapper",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 65535,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Surgical Strike Building",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "action_success_attack_one_attack": {
+      "id": "action_success_attack_one_attack",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 65535,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Attack",
+          "range": "Local",
+          "quiet": "TRUE"
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "OneAttack",
+          "range": "Local",
+          "quiet": "TRUE"
+        }
+      ]
+    },
+    "action_success_attack_normal": {
+      "id": "action_success_attack_normal",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Attack",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "OneAttack",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "action_success_ransom_one_attack": {
+      "id": "action_success_ransom_one_attack",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 65535,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Collect Ransom",
+          "range": "Local",
+          "quiet": "TRUE"
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "OneAttack",
+          "range": "Local",
+          "quiet": "TRUE"
+        }
+      ]
+    },
+    "action_success_ransom": {
+      "id": "action_success_ransom",
+      "type": "Action_Success_Actor_Move_Cost",
+      "value": 3,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Collect Ransom",
+          "range": "Local",
+          "present": true
+        },
+        {
+          "type": "UnitTypeFlag",
+          "name": "OneAttack",
+          "range": "Local",
+          "present": false
+        }
+      ]
+    },
+    "strike_half_chance": {
+      "id": "strike_half_chance",
+      "type": "Action_Odds_Pct",
+      "value": -50,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Surgical Strike Building",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "unit_shield_value_recycle": {
+      "id": "unit_shield_value_recycle",
+      "type": "Unit_Shield_Value_Pct",
+      "value": -50,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Disband Unit Recover",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "unit_shield_value_in_upgrade_price_calc": {
+      "id": "unit_shield_value_in_upgrade_price_calc",
+      "type": "Unit_Shield_Value_Pct",
+      "value": -50,
+      "reqs": [
+        {
+          "type": "Action",
+          "name": "Upgrade Unit",
+          "range": "Local",
+          "present": true
+        }
+      ]
+    },
+    "claim_land": {
+      "id": "claim_land",
+      "type": "Tile_Claimable",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "TileRel",
+          "name": "Same Region",
+          "range": "Tile"
+        }
+      ]
+    },
+    "claim_ocean_adj": {
+      "id": "claim_ocean_adj",
+      "type": "Tile_Claimable",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "MaxDistanceSq",
+          "name": "2",
+          "range": "Tile"
+        }
+      ]
+    },
+    "claim_ocean_lake": {
+      "id": "claim_ocean_lake",
+      "type": "Tile_Claimable",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "MaxRegionTiles",
+          "name": "20",
+          "range": "Continent"
+        },
+        {
+          "type": "TileRel",
+          "name": "Region Surrounded",
+          "range": "Tile"
+        }
+      ]
+    },
+    "claim_ocean_bay": {
+      "id": "claim_ocean_bay",
+      "type": "Tile_Claimable",
+      "value": 1,
+      "reqs": [
+        {
+          "type": "MaxRegionTiles",
+          "name": "3",
+          "range": "Adjacent"
+        },
+        {
+          "type": "TileRel",
+          "name": "Only Other Region",
+          "range": "Adjacent"
+        },
+        {
+          "type": "TileRel",
+          "name": "Same Region",
+          "range": "Adjacent"
+        }
+      ]
+    },
+    "civil_war_city_celebration": {
+      "id": "civil_war_city_celebration",
+      "type": "Civil_War_City_Bonus",
+      "value": 5,
+      "reqs": [
+        {
+          "type": "CityStatus",
+          "name": "Celebration",
+          "range": "City"
+        }
+      ]
+    },
+    "civil_war_city_disorder": {
+      "id": "civil_war_city_disorder",
+      "type": "Civil_War_City_Bonus",
+      "value": -5,
+      "reqs": [
+        {
+          "type": "CityStatus",
+          "name": "Disorder",
+          "range": "City"
+        }
+      ]
+    }
+  }
+}

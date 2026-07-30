@@ -12,7 +12,7 @@ const router = Router();
  * GET /api/nations
  * Get all available nations for a ruleset
  * Query params:
- *   - ruleset: string (optional, defaults to 'classic')
+ *   - ruleset: string (optional, defaults to the configured game default)
  */
 router.get('/', NationsController.getNations);
 
@@ -26,7 +26,7 @@ router.get('/rulesets', NationsController.getRulesets);
  * GET /api/nations/:id
  * Get a specific nation by ID
  * Query params:
- *   - ruleset: string (optional, defaults to 'classic')
+ *   - ruleset: string (optional, defaults to the configured game default)
  */
 router.get('/:id', NationsController.getNationById);
 
@@ -34,7 +34,7 @@ router.get('/:id', NationsController.getNationById);
  * GET /api/nations/:id/leaders
  * Get leaders for a specific nation
  * Query params:
- *   - ruleset: string (optional, defaults to 'classic')
+ *   - ruleset: string (optional, defaults to the configured game default)
  */
 router.get('/:id/leaders', NationsController.getNationLeaders);
 

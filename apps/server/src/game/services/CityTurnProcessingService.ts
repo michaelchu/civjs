@@ -1,3 +1,4 @@
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 /**
  * CityTurnProcessingService - Handles city turn processing pipeline
  *
@@ -18,7 +19,7 @@
 
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
-import { UNIT_TYPES } from '@game/constants/UnitConstants';
+import { type UnitType, rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { rulesetBuildingsService } from './RulesetBuildingsService';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
@@ -26,6 +27,7 @@ import type { Server as SocketServer } from 'socket.io';
 import type { CityGovernorService } from './CityGovernorService';
 import type { CityTileManagementService } from './CityTileManagementService';
 import { isSpaceshipPart } from './SpaceshipService';
+import type { BuildingType } from '@game/managers/CityManager';
 
 // Import types from CityManager (we'll need to make these available)
 export interface CityState {
@@ -90,8 +92,6 @@ export interface CityManagerCallbacks {
   onCityTurnProcessed?: (city: CityState) => void;
 }
 
-/** @reference reference/freeciv/data/classic/buildings.ruleset */
-const BUILDING_TYPES = rulesetBuildingsService.getBuildingTypes();
 const WEALTH_PRODUCTION_ID = 'capitalization';
 
 /**
@@ -123,6 +123,8 @@ export interface CityTurnProcessingDependencies {
   cities: Map<string, CityState>;
   callbacks: CityManagerCallbacks;
   effectsManager: EffectsManager;
+  unitTypes?: Record<string, UnitType>;
+  buildingTypes?: Record<string, BuildingType>;
   io?: SocketServer;
   governorService?: CityGovernorService;
   tileManagementService?: CityTileManagementService;
@@ -145,11 +147,19 @@ export interface CityTurnProcessingDependencies {
 export class CityTurnProcessingService extends BaseGameService {
   private dependencies: CityTurnProcessingDependencies;
   private readonly effectsManager: EffectsManager;
+  private readonly unitTypes: Record<string, UnitType>;
+  private readonly buildingTypes: Record<string, BuildingType>;
 
   constructor(dependencies: CityTurnProcessingDependencies) {
     super(logger);
     this.dependencies = dependencies;
     this.effectsManager = dependencies.effectsManager;
+    this.unitTypes =
+      dependencies.unitTypes ??
+      rulesetUnitsService.getUnitTypes(this.effectsManager.getRulesetName());
+    this.buildingTypes =
+      dependencies.buildingTypes ??
+      rulesetBuildingsService.getBuildingTypes(this.effectsManager.getRulesetName());
   }
 
   getServiceName(): string {
@@ -414,8 +424,8 @@ export class CityTurnProcessingService extends BaseGameService {
       const next = city.worklist.shift() as ProductionItem;
       const nextType = next.kind === 'wonder' ? 'building' : next.kind;
       const exists =
-        (nextType === 'unit' && Boolean(UNIT_TYPES[next.value])) ||
-        (nextType === 'building' && Boolean(BUILDING_TYPES[next.value]));
+        (nextType === 'unit' && Boolean(this.unitTypes[next.value])) ||
+        (nextType === 'building' && Boolean(this.buildingTypes[next.value]));
       if (
         exists &&
         (this.dependencies.canCityContinueProduction?.(city.id, nextType, next.value) ?? true)
@@ -446,26 +456,26 @@ export class CityTurnProcessingService extends BaseGameService {
     let productionIsValid = true;
 
     if (city.productionType === 'unit') {
-      const unitType = UNIT_TYPES[city.currentProduction];
+      const unitType = this.unitTypes[city.currentProduction];
       if (!unitType) {
         logger.error(`Invalid unit type in production for city ${city.name}`, {
           cityId: city.id,
           productionType: city.productionType,
           currentProduction: city.currentProduction,
-          availableUnitTypes: Object.keys(UNIT_TYPES),
+          availableUnitTypes: Object.keys(this.unitTypes),
         });
         productionIsValid = false;
       } else {
         productionCost = unitType.cost || 0;
       }
     } else if (city.productionType === 'building') {
-      const building = BUILDING_TYPES[city.currentProduction];
+      const building = this.buildingTypes[city.currentProduction];
       if (!building) {
         logger.error(`Invalid building type in production for city ${city.name}`, {
           cityId: city.id,
           productionType: city.productionType,
           currentProduction: city.currentProduction,
-          availableBuildingTypes: Object.keys(BUILDING_TYPES),
+          availableBuildingTypes: Object.keys(this.buildingTypes),
         });
         productionIsValid = false;
       } else {
@@ -502,7 +512,9 @@ export class CityTurnProcessingService extends BaseGameService {
 
     if (newProductionStock >= productionCost) {
       const populationCost =
-        city.productionType === 'unit' ? (UNIT_TYPES[city.currentProduction]?.pop_cost ?? 0) : 0;
+        city.productionType === 'unit'
+          ? (this.unitTypes[city.currentProduction]?.pop_cost ?? 0)
+          : 0;
       // The default Freeciv city option does not allow a population-cost unit
       // to consume the city's final citizen.
       if (populationCost > 0 && city.population <= populationCost) {
@@ -591,8 +603,8 @@ export class CityTurnProcessingService extends BaseGameService {
       const next = city.worklist.shift() as ProductionItem;
       const nextType = next.kind === 'wonder' ? 'building' : next.kind;
       const exists =
-        (nextType === 'unit' && Boolean(UNIT_TYPES[next.value])) ||
-        (nextType === 'building' && Boolean(BUILDING_TYPES[next.value]));
+        (nextType === 'unit' && Boolean(this.unitTypes[next.value])) ||
+        (nextType === 'building' && Boolean(this.buildingTypes[next.value]));
       if (
         exists &&
         (this.dependencies.canCityContinueProduction?.(city.id, nextType, next.value) ?? true)
@@ -626,13 +638,17 @@ export class CityTurnProcessingService extends BaseGameService {
   /**
    * Calculate granary size needed for city growth
    */
-  public calculateGranarySize(population: number, rulesetName: string = 'classic'): number {
+  public calculateGranarySize(population: number, rulesetName: string = DEFAULT_RULESET): number {
     try {
       const civstyle = rulesetLoader.getCivstyle(rulesetName);
       const granaryFoodIni = civstyle.granary_food_ini;
       const granaryFoodInc = civstyle.granary_food_inc;
 
-      // Freeciv formula: base initial size + increment per additional population
+      // Freeciv permits a per-size initial-granary table as well as the
+      // classic scalar-plus-increment form.
+      if (Array.isArray(granaryFoodIni)) {
+        return granaryFoodIni[Math.min(Math.max(0, population - 1), granaryFoodIni.length - 1)]!;
+      }
       return granaryFoodIni + (population - 1) * granaryFoodInc;
     } catch {
       // Fallback to classic values if ruleset loading fails

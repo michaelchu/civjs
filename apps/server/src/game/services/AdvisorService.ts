@@ -1,17 +1,18 @@
 import { ActionType } from '@app-types/shared/actions';
-import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { createAIProfile } from '@game/ai/AIProfile';
 import { buildAuthoritativeCityDangerAssessments } from '@game/ai/AICityDangerPlanner';
 import { explorationAdditionalStepCost, planExploration } from '@game/ai/AIExplorerPlanner';
 import { rankCityProduction, rankMilitaryTargets, rankResearch } from '@game/ai/AIPlanner';
 import { planTreasury } from '@game/ai/AITreasuryPlanner';
 import { planWorkerImprovements } from '@game/ai/AIWorkerPlanner';
-import { BUILDING_TYPES } from '@game/managers/CityManager';
 import { EffectType } from '@game/managers/EffectsManager';
 import type { GameInstance } from '@game/managers/GameManager';
 import type { Unit } from '@game/managers/UnitManager';
 import type { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import { planSpaceship } from '@game/ai/AISpaceshipPlanner';
+import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
+import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 export interface AdvisorRecommendations {
   playerId: string;
@@ -124,8 +125,12 @@ export class FreecivAdvisorService {
         city,
         cities,
         units: friendlyUnits,
-        unitTypes: UNIT_TYPES,
-        buildingTypes: BUILDING_TYPES,
+        unitTypes:
+          game.unitManager.getUnitTypes?.() ??
+          rulesetUnitsService.getUnitTypes(game.config?.ruleset ?? DEFAULT_RULESET),
+        buildingTypes:
+          game.cityManager.getBuildingTypes?.() ??
+          rulesetBuildingsService.getPlayableBuildingTypes(game.config?.ruleset ?? DEFAULT_RULESET),
         canBuild: (kind, id) =>
           game.cityManager.canCityContinueProduction?.(city.id, kind, id) ?? false,
         dangerAssessment: danger,
@@ -151,8 +156,12 @@ export class FreecivAdvisorService {
     const researchChoices = rankResearch({
       available: game.researchManager.getAvailableTechnologies(playerId),
       catalogue,
-      unitTypes: UNIT_TYPES,
-      buildingTypes: BUILDING_TYPES,
+      unitTypes:
+        game.unitManager.getUnitTypes?.() ??
+        rulesetUnitsService.getUnitTypes(game.config?.ruleset ?? DEFAULT_RULESET),
+      buildingTypes:
+        game.cityManager.getBuildingTypes?.() ??
+        rulesetBuildingsService.getPlayableBuildingTypes(game.config?.ruleset ?? DEFAULT_RULESET),
       governmentTechs: governmentTechnologyIds(game),
       militaryPressure: relations.hostile.size,
       cityCount: cities.length,
@@ -275,8 +284,12 @@ export class FreecivAdvisorService {
       cities,
       unitCount,
       atWar: hostileUnits.length > 0,
-      unitTypes: UNIT_TYPES,
-      buildingTypes: BUILDING_TYPES,
+      unitTypes:
+        game.unitManager.getUnitTypes?.() ??
+        rulesetUnitsService.getUnitTypes(game.config?.ruleset ?? DEFAULT_RULESET),
+      buildingTypes:
+        game.cityManager.getBuildingTypes?.() ??
+        rulesetBuildingsService.getPlayableBuildingTypes(game.config?.ruleset ?? DEFAULT_RULESET),
       buyCost: cityId => game.cityManager.calculateBuyCost(cityId),
       threat: city =>
         hostileUnits.reduce(

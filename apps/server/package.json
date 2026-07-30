@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon",
     "build": "tsc --project tsconfig.prod.json && npm run copy-assets && npm run copy-start",
-    "copy-assets": "node -e \"const fs = require('fs'); for (const asset of ['rulesets/classic', 'scenarios']) { fs.mkdirSync('dist/shared/data/' + asset, { recursive: true }); fs.cpSync('src/shared/data/' + asset, 'dist/shared/data/' + asset, { recursive: true }); }\"",
+    "copy-assets": "node -e \"const fs = require('fs'); for (const asset of ['rulesets', 'scenarios']) { fs.mkdirSync('dist/shared/data/' + asset, { recursive: true }); fs.cpSync('src/shared/data/' + asset, 'dist/shared/data/' + asset, { recursive: true }); }\"",
     "copy-start": "node -e \"const fs = require('fs'); fs.copyFileSync('start.js', 'dist/start.js');\"",
     "start": "node dist/start.js",
     "start:dev": "echo 'Starting migration...' && npm run db:migrate && echo 'Migration complete, starting server...' && node dist/start.js",

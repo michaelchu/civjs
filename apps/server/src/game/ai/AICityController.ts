@@ -31,6 +31,10 @@ import { planSpaceship } from '@game/ai/AISpaceshipPlanner';
 import type { DiplomaticState } from '@game/managers/DiplomacyManager';
 import type { MapTile } from '@game/map/MapTypes';
 
+const unitTypesFor = (game: GameInstance) => game.unitManager.getUnitTypes?.() ?? UNIT_TYPES;
+const buildingTypesFor = (game: GameInstance) =>
+  game.cityManager.getBuildingTypes?.() ?? BUILDING_TYPES;
+
 function mergeWant(wants: Map<string, number>, id: string, want: number): void {
   wants.set(id, Math.max(want, wants.get(id) ?? 0));
 }
@@ -134,7 +138,7 @@ export class FreecivAICityController {
     let { expansionQueued } = context;
 
     for (const city of cities) {
-      for (const type of Object.values(UNIT_TYPES)) {
+      for (const type of Object.values(unitTypesFor(game))) {
         if (
           type.paratroopersRange > 0 &&
           type.flags?.includes('Paratroopers') &&
@@ -177,8 +181,8 @@ export class FreecivAICityController {
             city,
             cities,
             units,
-            unitTypes: UNIT_TYPES,
-            buildingTypes: BUILDING_TYPES,
+            unitTypes: unitTypesFor(game),
+            buildingTypes: buildingTypesFor(game),
             canBuild: (kind, id) => canContinueProduction(city.id, kind, id),
             dangerAssessment,
             profile,
@@ -280,12 +284,12 @@ export class FreecivAICityController {
     return costs;
   }
 
-  private reservedWonderIds(cities: CityState[]): Set<string> {
+  private reservedWonderIds(game: GameInstance, cities: CityState[]): Set<string> {
     return new Set(
       cities
         .flatMap(city => [city.currentProduction, ...(city.worklist ?? []).map(item => item.value)])
         .filter((buildingId): buildingId is string =>
-          Boolean(buildingId && BUILDING_TYPES[buildingId]?.genus === 'GreatWonder')
+          Boolean(buildingId && buildingTypesFor(game)[buildingId]?.genus === 'GreatWonder')
         )
     );
   }
@@ -420,12 +424,12 @@ export class FreecivAICityController {
       friendlyUnits: units,
       profile,
     });
-    const reservedWonders = this.reservedWonderIds(cities);
+    const reservedWonders = this.reservedWonderIds(game, cities);
     const wonderPlan = planWonderCoordination({
       cities,
       units,
-      unitTypes: UNIT_TYPES,
-      buildingTypes: BUILDING_TYPES,
+      unitTypes: unitTypesFor(game),
+      buildingTypes: buildingTypesFor(game),
       canBuild: (cityId, unitTypeId) =>
         canContinueProduction?.(cityId, 'unit', unitTypeId) ?? false,
       distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
@@ -504,7 +508,7 @@ export class FreecivAICityController {
       gameId: game.id,
       playerId,
       city,
-      unitTypes: Object.values(UNIT_TYPES),
+      unitTypes: Object.values(unitTypesFor(game)),
       targetUnits: prospectiveUnits,
       targetCities: prospectiveCities,
       canBuild: (cityId, unitTypeId) =>
@@ -533,7 +537,7 @@ export class FreecivAICityController {
       city,
       friendlyUnits: units,
       hostileUnits: prospectiveUnits,
-      unitTypes: Object.values(UNIT_TYPES),
+      unitTypes: Object.values(unitTypesFor(game)),
       canBuild: unitTypeId => canContinueProduction?.(city.id, 'unit', unitTypeId) ?? false,
       getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
       distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
@@ -546,7 +550,7 @@ export class FreecivAICityController {
       gameId: game.id,
       playerId,
       city,
-      unitTypes: Object.values(UNIT_TYPES),
+      unitTypes: Object.values(unitTypesFor(game)),
       hostileUnits: prospectiveUnits,
       hostileCities: prospectiveCities,
       canBuild: unitTypeId => canContinueProduction?.(city.id, 'unit', unitTypeId) ?? false,
@@ -575,7 +579,7 @@ export class FreecivAICityController {
       gameId: game.id,
       playerId,
       city,
-      unitTypes: Object.values(UNIT_TYPES),
+      unitTypes: Object.values(unitTypesFor(game)),
       units: allUnits,
       cities: allKnownCities,
       alliedPlayerIds,
@@ -644,7 +648,7 @@ export class FreecivAICityController {
       profile,
       offensiveUnitWants,
     } = options;
-    const diplomatTypes = Object.values(UNIT_TYPES).filter(
+    const diplomatTypes = Object.values(unitTypesFor(game)).filter(
       type =>
         type.flags?.includes('Diplomat') &&
         (canContinueProduction?.(city.id, 'unit', type.id) ?? false)
@@ -691,7 +695,7 @@ export class FreecivAICityController {
     const diplomatWants = rankVirtualDiplomatProduction({
       playerId,
       city,
-      unitTypes: Object.values(UNIT_TYPES),
+      unitTypes: Object.values(unitTypesFor(game)),
       friendlyUnits: units,
       foreignCities: diplomatTargetCities,
       canBuild: unitTypeId => canContinueProduction?.(city.id, 'unit', unitTypeId) ?? false,
@@ -728,7 +732,7 @@ export class FreecivAICityController {
       mergeWant(offensiveUnitWants, unitTypeId, want);
     }
     const diplomatTechWants = rankDiplomatTechnologyWants({
-      unitTypes: Object.values(UNIT_TYPES),
+      unitTypes: Object.values(unitTypesFor(game)),
       knownTechs,
       cityDiplomatThreat: diplomatThreat,
       conventionalDefenderCount,
@@ -749,7 +753,7 @@ export class FreecivAICityController {
     const { game, playerId, city, ranked, reservedWonders } = options;
     const queued = ranked.slice(0, 2).map(choice => ({
       kind:
-        BUILDING_TYPES[choice.value.id]?.genus === 'GreatWonder'
+        buildingTypesFor(game)[choice.value.id]?.genus === 'GreatWonder'
           ? ('wonder' as const)
           : choice.value.kind,
       value: choice.value.id,
@@ -758,7 +762,7 @@ export class FreecivAICityController {
     const added = await game.cityManager.addToWorklist(city.id, queued, playerId);
     if (added) {
       for (const item of queued) {
-        if (BUILDING_TYPES[item.value]?.genus === 'GreatWonder') {
+        if (buildingTypesFor(game)[item.value]?.genus === 'GreatWonder') {
           reservedWonders.add(item.value);
         }
       }
@@ -819,7 +823,7 @@ export class FreecivAICityController {
     if (city.currentProduction) return { actions: 0, expansionQueued };
     const choice = this.initialProductionChoice(game, city, ranked, expansionQueued);
     await game.cityManager.setCityProduction(city.id, choice.type, choice.id, playerId);
-    if (BUILDING_TYPES[choice.id]?.genus === 'GreatWonder') reservedWonders.add(choice.id);
+    if (buildingTypesFor(game)[choice.id]?.genus === 'GreatWonder') reservedWonders.add(choice.id);
     return { actions: 1, expansionQueued: choice.expansionQueued };
   }
 
@@ -862,8 +866,8 @@ export class FreecivAICityController {
     const plan = planWonderCoordination({
       cities,
       units,
-      unitTypes: UNIT_TYPES,
-      buildingTypes: BUILDING_TYPES,
+      unitTypes: unitTypesFor(game),
+      buildingTypes: buildingTypesFor(game),
       canBuild: (cityId, unitTypeId) =>
         game.cityManager.canCityContinueProduction?.(cityId, 'unit', unitTypeId) ?? false,
       distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),

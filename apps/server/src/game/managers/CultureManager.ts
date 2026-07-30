@@ -23,6 +23,7 @@ import {
 } from '@database/schema';
 import { eq } from 'drizzle-orm';
 import { EffectsManager, EffectType, type EffectContext } from './EffectsManager';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 // Type definitions for culture calculations
 export type CityWithBuildings = Omit<
@@ -90,7 +91,7 @@ export class CultureManager {
   private effectsManager: EffectsManager;
   private runtimeState: RuntimeCultureState = {};
 
-  constructor(databaseProvider: DatabaseProvider, rulesetName: string = 'classic') {
+  constructor(databaseProvider: DatabaseProvider, rulesetName: string = DEFAULT_RULESET) {
     this.databaseProvider = databaseProvider;
     this.effectsManager = new EffectsManager(rulesetName);
   }

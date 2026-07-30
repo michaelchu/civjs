@@ -76,6 +76,11 @@ export enum EffectType {
   HP_REGEN_2 = 'HP_Regen_2',
   RETIRE_PCT = 'Retire_Pct',
   TECH_UPKEEP_FREE = 'Tech_Upkeep_Free',
+  BUILDING_BUY_COST_PCT = 'Building_Buy_Cost_Pct',
+  AIRLIFT = 'Airlift',
+  MOVE_BONUS = 'Move_Bonus',
+  UNIT_BRIBE_COST_PCT = 'Unit_Bribe_Cost_Pct',
+  INCITE_COST_PCT = 'Incite_Cost_Pct',
 
   // Culture system effects (freeciv culture.c and effects_enums.def)
   PERFORMANCE = 'Performance', // EFT_PERFORMANCE (123) - Immediate culture boost
@@ -118,6 +123,7 @@ export interface EffectContext {
   mapWidth?: number;
   mapHeight?: number;
   buildingId?: string;
+  buildingGenus?: string;
   government?: string;
   outputType?: OutputType;
   specialist?: string;
@@ -159,6 +165,13 @@ export interface EffectResult {
   }>;
 }
 
+export interface EffectCoverage {
+  total: number;
+  runtimeSupported: number;
+  retainedForFutureRuntimeSupport: number;
+  unsupportedTypes: string[];
+}
+
 /**
  * EffectsManager - Centralized effects calculation system
  * Direct port of freeciv effects system architecture
@@ -186,6 +199,32 @@ export class EffectsManager {
     provider: (x1: number, y1: number, x2: number, y2: number) => number
   ): void {
     this.realDistanceProvider = provider;
+  }
+
+  public getRulesetName(): string {
+    return this.rulesetName;
+  }
+
+  /**
+   * Report which retained ruleset effects have executable CivJS effect
+   * handlers. This keeps unimplemented Freeciv effects visible to tests and
+   * tooling instead of silently dropping them during conversion.
+   */
+  public getEffectCoverage(): EffectCoverage {
+    const executableTypes = new Set<string>(Object.values(EffectType));
+    const effects = Object.values(this.getEffects());
+    const unsupportedTypes = [
+      ...new Set(
+        effects.filter(effect => !executableTypes.has(effect.type)).map(effect => effect.type)
+      ),
+    ].sort();
+    const runtimeSupported = effects.filter(effect => executableTypes.has(effect.type)).length;
+    return {
+      total: effects.length,
+      runtimeSupported,
+      retainedForFutureRuntimeSupport: effects.length - runtimeSupported,
+      unsupportedTypes,
+    };
   }
 
   /**
@@ -567,6 +606,8 @@ export class EffectsManager {
       const buildings = req.range === 'Player' ? context.playerBuildings : context.cityBuildings;
       return this.requirementResult('Building', req, this.cityHasBuilding(buildings, req.name));
     };
+    this.requirementHandlers['BuildingGenus'] = (req, context) =>
+      this.requirementResult('BuildingGenus', req, this.matches(context.buildingGenus, req.name));
 
     // Technology requirement handler
     this.requirementHandlers['Tech'] = (req, context) => {

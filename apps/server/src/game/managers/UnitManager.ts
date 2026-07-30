@@ -9,7 +9,7 @@ import {
   getTerrainMovementCost,
   SINGLE_MOVE,
 } from '@game/constants/MovementConstants';
-import { UNIT_TYPES, getUnitType, UnitType } from '@game/constants/UnitConstants';
+import { type UnitType, rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import { ActionSystem } from '@game/systems/ActionSystem';
 import { ActionType, ActionResult } from '@app-types/shared/actions';
 import { EffectsManager, EffectType, type EffectContext } from '@game/managers/EffectsManager';
@@ -300,7 +300,10 @@ export class UnitManager {
       broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
     },
     effectsManager?: EffectsManager,
-    private readonly random: () => number = Math.random
+    private readonly random: () => number = Math.random,
+    private readonly unitTypes: Record<string, UnitType> = rulesetUnitsService.getUnitTypes(
+      'classic'
+    )
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
@@ -309,11 +312,21 @@ export class UnitManager {
     this.mapManager = mapManager;
     this.gameManagerCallback = gameManagerCallback;
     this.effectsManager = effectsManager ?? new EffectsManager();
-    this.actionSystem = new ActionSystem(gameId, gameManagerCallback, mapManager);
+    this.actionSystem = new ActionSystem(
+      gameId,
+      gameManagerCallback,
+      mapManager,
+      this.effectsManager.getRulesetName(),
+      this.unitTypes
+    );
   }
 
   public setUnitLifecycleObserver(observer: (event: UnitLifecycleEvent) => void): void {
     this.unitLifecycleObserver = observer;
+  }
+
+  private getRulesetName(): string {
+    return this.effectsManager?.getRulesetName() ?? 'civ2civ3';
   }
 
   public setDiplomatActionExecutor(
@@ -415,7 +428,7 @@ export class UnitManager {
     y: number,
     homeCityId?: string
   ): Promise<Unit> {
-    const unitType = UNIT_TYPES[unitTypeId];
+    const unitType = this.unitTypes[unitTypeId];
     if (!unitType) {
       throw new Error(`Unknown unit type: ${unitTypeId}`);
     }
@@ -438,6 +451,7 @@ export class UnitManager {
         : 0;
 
     const createdTurn = this.currentTurnProvider?.() ?? 1;
+    const movementPoints = this.getUnitMovementPoints(playerId, unitType, veteranLevel);
     // Save to database and get the generated ID
     const [dbUnit] = await this.databaseProvider
       .getDatabase()
@@ -453,8 +467,8 @@ export class UnitManager {
         attackStrength: unitType.combat,
         defenseStrength: unitType.combat,
         rangedStrength: unitType.range > 1 ? unitType.combat : 0,
-        movementPoints: (unitType.movement * 3).toString(),
-        maxMovementPoints: (unitType.movement * 3).toString(),
+        movementPoints: movementPoints.toString(),
+        maxMovementPoints: movementPoints.toString(),
         fuel: unitType.fuel ?? 0,
         veteranLevel,
         homeCityId,
@@ -471,7 +485,7 @@ export class UnitManager {
       unitTypeId,
       x,
       y,
-      movementLeft: unitType.movement * 3, // Convert movement points to fragments
+      movementLeft: movementPoints,
       fuel: unitType.fuel ?? 0,
       health: 100,
       veteranLevel,
@@ -519,7 +533,7 @@ export class UnitManager {
       ) {
         throw new Error('Cannot capture a city unless its owner is at war');
       }
-      const unitType = UNIT_TYPES[unit.unitTypeId];
+      const unitType = this.unitTypes[unit.unitTypeId];
       const canCapture =
         unitType?.rulesetUnitClassFlags.includes('CanOccupyCity') &&
         !unitType.flags?.includes('NonMil');
@@ -634,7 +648,8 @@ export class UnitManager {
     if (hutIndex >= 0) {
       improvements.splice(hutIndex, 1);
       changed = true;
-      const frightens = UNIT_TYPES[unit.unitTypeId].rulesetUnitClassFlags.includes('HutFrighten');
+      const frightens =
+        this.unitTypes[unit.unitTypeId].rulesetUnitClassFlags.includes('HutFrighten');
       if (!frightens) {
         await this.resolveHutReward(unit);
       }
@@ -666,10 +681,10 @@ export class UnitManager {
       return;
     }
     if (chance <= 9) {
-      const mercenary = Object.values(UNIT_TYPES).find(
+      const mercenary = Object.values(this.unitTypes).find(
         type =>
           type.roles?.includes('Hut') &&
-          type.rulesetUnitClass === UNIT_TYPES[unit.unitTypeId].rulesetUnitClass
+          type.rulesetUnitClass === this.unitTypes[unit.unitTypeId].rulesetUnitClass
       );
       if (mercenary) {
         await this.createUnit(unit.playerId, mercenary.id, unit.x, unit.y, unit.homeCityId);
@@ -786,7 +801,7 @@ export class UnitManager {
     newX: number,
     newY: number
   ): boolean {
-    const type = UNIT_TYPES[unit.unitTypeId];
+    const type = this.unitTypes[unit.unitTypeId];
     const subjectToZoc =
       type?.rulesetUnitClassFlags.includes('ZOC') && !type.flags?.includes('IgZOC');
     if (!subjectToZoc) return true;
@@ -826,7 +841,7 @@ export class UnitManager {
       ) {
         return false;
       }
-      const type = UNIT_TYPES[candidate.unitTypeId];
+      const type = this.unitTypes[candidate.unitTypeId];
       return Boolean(
         type?.rulesetUnitClassFlags.includes('ZOC') && !type.flags?.includes('HasNoZOC')
       );
@@ -884,8 +899,8 @@ export class UnitManager {
       throw new Error('Transported units cannot directly participate in combat');
     }
 
-    const attackerType = UNIT_TYPES[attacker.unitTypeId];
-    const defenderType = UNIT_TYPES[defender.unitTypeId];
+    const attackerType = this.unitTypes[attacker.unitTypeId];
+    const defenderType = this.unitTypes[defender.unitTypeId];
     const defenderTileUnits = this.getUnitsAt(defender.x, defender.y).filter(
       unit => unit.playerId === defender.playerId && unit.id !== defender.id
     );
@@ -1078,10 +1093,15 @@ export class UnitManager {
           (!hostilePlayers || hostilePlayers.has(candidate.playerId))
       )
       .sort((left, right) => {
-        const leftType = UNIT_TYPES[left.unitTypeId];
-        const rightType = UNIT_TYPES[right.unitTypeId];
+        const leftType = this.unitTypes[left.unitTypeId];
+        const rightType = this.unitTypes[right.unitTypeId];
         const leftScore =
-          this.calculateCombatStrength(left, leftType, attacker, UNIT_TYPES[attacker.unitTypeId]) *
+          this.calculateCombatStrength(
+            left,
+            leftType,
+            attacker,
+            this.unitTypes[attacker.unitTypeId]
+          ) *
           Math.max(1, left.health) *
           Math.max(1, leftType.firepower ?? 1);
         const rightScore =
@@ -1089,7 +1109,7 @@ export class UnitManager {
             right,
             rightType,
             attacker,
-            UNIT_TYPES[attacker.unitTypeId]
+            this.unitTypes[attacker.unitTypeId]
           ) *
           Math.max(1, right.health) *
           Math.max(1, rightType.firepower ?? 1);
@@ -1229,12 +1249,12 @@ export class UnitManager {
     await this.retireEligibleUnits(playerId);
     for (const unit of [...this.units.values()]) {
       if (unit.playerId === playerId) {
-        const unitType = UNIT_TYPES[unit.unitTypeId];
+        const unitType = this.unitTypes[unit.unitTypeId];
         if (!(await this.restoreUnitFuel(unit, unitType))) {
           continue;
         }
         // Restore full movement points in fragments
-        unit.movementLeft = unitType.movement * 3;
+        unit.movementLeft = this.getUnitMovementPoints(unit.playerId, unitType, unit.veteranLevel);
 
         if (this.effectsManager && unit.health < 100) {
           const { gain } = this.calculateUnitHitpointRecovery(unit);
@@ -1267,7 +1287,7 @@ export class UnitManager {
     if (!this.effectsManager) {
       return { regeneration: 0, minimum: 0, secondary: 0, gain: 0 };
     }
-    const unitType = UNIT_TYPES[unit.unitTypeId];
+    const unitType = this.unitTypes[unit.unitTypeId];
     if (!unitType) return { regeneration: 0, minimum: 0, secondary: 0, gain: 0 };
     const context = this.createHitpointRecoveryContext(unit, unitType, x, y);
     const regeneration = this.effectsManager.calculateEffect(EffectType.HP_REGEN, context).value;
@@ -1396,7 +1416,8 @@ export class UnitManager {
   }
 
   private getTerrainClass(terrain: TerrainType): string {
-    return rulesetLoader.getTerrain(terrain).properties?.MG_OCEAN_DEPTH !== undefined
+    return rulesetLoader.getTerrain(terrain, this.getRulesetName()).properties?.MG_OCEAN_DEPTH !==
+      undefined
       ? 'Oceanic'
       : 'Land';
   }
@@ -1446,7 +1467,7 @@ export class UnitManager {
       .where(eq(units.gameId, this.gameId));
 
     for (const dbUnit of dbUnits) {
-      const unitType = UNIT_TYPES[dbUnit.unitType];
+      const unitType = this.unitTypes[dbUnit.unitType];
       if (!unitType) {
         logger.warn(`Unknown unit type: ${dbUnit.unitType} for unit ${dbUnit.id}`);
         continue; // Skip invalid unit types
@@ -1530,7 +1551,10 @@ export class UnitManager {
     }
 
     if (unitType.rulesetUnitClassFlags.includes('TerrainDefense')) {
-      const terrainDefense = rulesetLoader.getTerrain(this.getTerrainAt(unit.x, unit.y)).defense;
+      const terrainDefense = rulesetLoader.getTerrain(
+        this.getTerrainAt(unit.x, unit.y),
+        this.getRulesetName()
+      ).defense;
       strength = Math.floor((strength * (100 + terrainDefense)) / 100);
     }
 
@@ -1540,7 +1564,10 @@ export class UnitManager {
       )
     );
     if (unitType.rulesetUnitClass === 'Land' && tileExtras.has('fortress')) {
-      const fortressDefense = Number(rulesetLoader.getExtra('Fortress').defense_bonus ?? 0);
+      const fortressDefense = Number(
+        rulesetLoader.getExtra('Fortress', this.effectsManager?.getRulesetName() ?? 'classic')
+          ?.defense_bonus ?? 0
+      );
       strength = Math.floor((strength * (100 + fortressDefense)) / 100);
     }
 
@@ -1616,16 +1643,16 @@ export class UnitManager {
    * city, veteran, hit-point, and firepower rules used by real combat.
    */
   calculateUnitAttackRating(unit: Unit): number {
-    const type = UNIT_TYPES[unit.unitTypeId];
+    const type = this.unitTypes[unit.unitTypeId];
     if (!type) return 0;
     const hitpoints = Math.max(1, type.hitpoints ?? 10) * Math.max(0.01, unit.health / 100);
     return this.calculateAttackStrength(unit, type) * hitpoints * Math.max(1, type.firepower ?? 1);
   }
 
   calculateUnitDefenseRating(unit: Unit, attacker?: Unit): number {
-    const type = UNIT_TYPES[unit.unitTypeId];
+    const type = this.unitTypes[unit.unitTypeId];
     if (!type) return 0;
-    const attackerType = attacker ? UNIT_TYPES[attacker.unitTypeId] : undefined;
+    const attackerType = attacker ? this.unitTypes[attacker.unitTypeId] : undefined;
     const hitpoints = Math.max(1, type.hitpoints ?? 10) * Math.max(0.01, unit.health / 100);
     const firepower =
       attacker && attackerType
@@ -1642,8 +1669,8 @@ export class UnitManager {
    * @reference reference/freeciv/common/combat.c:480-497 unit_win_chance
    */
   calculateUnitWinChance(attacker: Unit, defender: Unit): number {
-    const attackerType = UNIT_TYPES[attacker.unitTypeId];
-    const defenderType = UNIT_TYPES[defender.unitTypeId];
+    const attackerType = this.unitTypes[attacker.unitTypeId];
+    const defenderType = this.unitTypes[defender.unitTypeId];
     if (!attackerType || !defenderType) return 0;
     const attack = this.calculateAttackStrength(attacker, attackerType);
     const defense = this.calculateCombatStrength(defender, defenderType, attacker, attackerType);
@@ -1684,8 +1711,8 @@ export class UnitManager {
    * @reference reference/freeciv/common/aicore/pf_tools.c:50-81
    */
   canUnitTargetUnit(attacker: Unit, defender: Unit): boolean {
-    const attackerType = UNIT_TYPES[attacker.unitTypeId];
-    const defenderType = UNIT_TYPES[defender.unitTypeId];
+    const attackerType = this.unitTypes[attacker.unitTypeId];
+    const defenderType = this.unitTypes[defender.unitTypeId];
     if (!attackerType || !defenderType) return false;
     if (!defenderType.rulesetUnitClassFlags.includes('Unreachable')) return true;
     if (attackerType.targetClasses?.includes(defenderType.rulesetUnitClass ?? '')) return true;
@@ -1756,12 +1783,11 @@ export class UnitManager {
       unit.veteranLevel = newLevel;
 
       // Update movement points for veteran bonus
-      const veteranLevel = this.getVeteranLevel(newLevel);
-      const unitType = UNIT_TYPES[unit.unitTypeId];
-      const maxMovement = (unitType.movement + veteranLevel.moveBonus) * 3; // Convert to fragments
+      const unitType = this.unitTypes[unit.unitTypeId];
+      const maxMovement = this.getUnitMovementPoints(unit.playerId, unitType, newLevel);
 
       // If unit hasn't moved this turn, give them bonus movement
-      if (unit.movementLeft === unitType.movement * 3) {
+      if (unit.movementLeft === this.getUnitMovementPoints(unit.playerId, unitType, oldLevel)) {
         unit.movementLeft = maxMovement;
       }
 
@@ -1825,8 +1851,8 @@ export class UnitManager {
    * @reference freeciv/server/unittools.c unit_versus_unit()
    */
   calculateCombatExperience(attacker: Unit, defender: Unit, attackerWon: boolean): number {
-    const attackerType = UNIT_TYPES[attacker.unitTypeId];
-    const defenderType = UNIT_TYPES[defender.unitTypeId];
+    const attackerType = this.unitTypes[attacker.unitTypeId];
+    const defenderType = this.unitTypes[defender.unitTypeId];
 
     if (!attackerType || !defenderType) {
       return 0;
@@ -1909,7 +1935,7 @@ export class UnitManager {
     toY: number
   ): number {
     const destinationTerrain = this.getTerrainAt(toX, toY);
-    const unitType = UNIT_TYPES[unit.unitTypeId];
+    const unitType = this.unitTypes[unit.unitTypeId];
     if (unitType?.rulesetUnitClass === 'Trireme' && destinationTerrain === 'deep_ocean') {
       return -1;
     }
@@ -1939,8 +1965,29 @@ export class UnitManager {
   /**
    * Get unit type maximum movement points
    */
+  private getUnitMovementPoints(
+    playerId: string,
+    unitType: UnitType,
+    veteranLevel: number = 0
+  ): number {
+    const effectsManager = this.effectsManager;
+    const effectBonus = effectsManager
+      ? effectsManager.calculateEffect(EffectType.MOVE_BONUS, {
+          playerId,
+          unitType: unitType.id,
+          unitClass: unitType.rulesetUnitClass,
+          unitClassFlags: new Set(unitType.rulesetUnitClassFlags ?? []),
+          unitTypeFlags: new Set(unitType.flags ?? []),
+          playerTechs: this.playerTechsProvider(playerId),
+          playerBuildings: new Set(this.gameManagerCallback?.getPlayerBuildings?.(playerId) ?? []),
+        }).value
+      : 0;
+    const veteranBonus = this.getVeteranLevel(veteranLevel).moveBonus;
+    return Math.max(0, unitType.movement + veteranBonus + effectBonus) * 3;
+  }
+
   getUnitMaxMovement(unitTypeId: string): number {
-    const unitType = getUnitType(unitTypeId);
+    const unitType = this.unitTypes[unitTypeId];
     return unitType ? unitType.movement : 1;
   }
 
@@ -2118,11 +2165,16 @@ export class UnitManager {
     return this.units;
   }
 
+  /** The immutable unit catalogue selected for this game instance. */
+  getUnitTypes(): Readonly<Record<string, UnitType>> {
+    return this.unitTypes;
+  }
+
   /**
    * Get unit type definition by ID
    */
   getUnitType(unitTypeId: string): UnitType | undefined {
-    return getUnitType(unitTypeId);
+    return this.unitTypes[unitTypeId];
   }
 
   /**
@@ -2162,7 +2214,7 @@ export class UnitManager {
     actionType: ActionType,
     defender?: Unit
   ): { successChance: number; escapeChance: number } {
-    const actorType = UNIT_TYPES[actor.unitTypeId];
+    const actorType = this.unitTypes[actor.unitTypeId];
     const isSpy = actorType.flags?.includes('Spy') ?? false;
     const guaranteedActions = new Set([
       ActionType.ESTABLISH_EMBASSY,
@@ -2174,7 +2226,7 @@ export class UnitManager {
     successChance += actor.veteranLevel * 5;
 
     if (defender) {
-      const defenderType = UNIT_TYPES[defender.unitTypeId];
+      const defenderType = this.unitTypes[defender.unitTypeId];
       if (defenderType.flags?.includes('Diplomat')) {
         successChance -= 20 + defender.veteranLevel * 5;
       }
@@ -2351,7 +2403,7 @@ export class UnitManager {
     targetY: number
   ): boolean {
     const city = this.gameManagerCallback?.getCityAt?.(targetX, targetY);
-    const unitType = UNIT_TYPES[unit.unitTypeId];
+    const unitType = this.unitTypes[unit.unitTypeId];
     if (!city || !unitType || !this.gameManagerCallback?.executeCityUnitAction) return false;
     if (unit.x !== targetX || unit.y !== targetY) return false;
     if (actionType === ActionType.MARKETPLACE) {
@@ -2376,7 +2428,7 @@ export class UnitManager {
       targetX === undefined || targetY === undefined
         ? null
         : this.gameManagerCallback?.getCityAt?.(targetX, targetY);
-    const unitType = UNIT_TYPES[unit.unitTypeId];
+    const unitType = this.unitTypes[unit.unitTypeId];
     if (
       !city ||
       city.playerId !== unit.playerId ||
@@ -2399,7 +2451,7 @@ export class UnitManager {
 
   private async executeUpgradeUnit(unit: Unit): Promise<ActionResult> {
     const city = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
-    const from = UNIT_TYPES[unit.unitTypeId];
+    const from = this.unitTypes[unit.unitTypeId];
     const to = from ? this.getBestUpgrade(from, unit.playerId) : undefined;
     if (!city || city.playerId !== unit.playerId || !to) {
       return { success: false, message: 'Unit cannot be upgraded here' };
@@ -2440,7 +2492,7 @@ export class UnitManager {
     let best: UnitType | undefined;
     while (candidate.obsolete_by && !visited.has(candidate.obsolete_by)) {
       visited.add(candidate.obsolete_by);
-      const next = UNIT_TYPES[candidate.obsolete_by];
+      const next = this.unitTypes[candidate.obsolete_by];
       if (!next) break;
       if (!next.requiredTech || techs.has(next.requiredTech)) best = next;
       candidate = next;
@@ -2449,7 +2501,7 @@ export class UnitManager {
   }
 
   private canParadrop(unit: Unit, targetX?: number, targetY?: number): boolean {
-    const unitType = UNIT_TYPES[unit.unitTypeId];
+    const unitType = this.unitTypes[unit.unitTypeId];
     if (!this.isParadropActorReady(unit, unitType)) return false;
     if (
       targetX === undefined ||
@@ -2576,7 +2628,7 @@ export class UnitManager {
 
   private canAirlift(unit: Unit, targetX?: number, targetY?: number): boolean {
     const actorInvalid =
-      UNIT_TYPES[unit.unitTypeId].rulesetUnitClass !== 'Land' ||
+      this.unitTypes[unit.unitTypeId].rulesetUnitClass !== 'Land' ||
       unit.transportedBy ||
       unit.movementLeft <= 0;
     if (actorInvalid || targetX === undefined || targetY === undefined) return false;
@@ -2590,14 +2642,24 @@ export class UnitManager {
     source: CityAtLocation | null | undefined,
     destination: CityAtLocation | null | undefined
   ): boolean {
-    const parameters = rulesetLoader.loadGameRulesRuleset().game_parameters;
+    const effectsManager = this.effectsManager;
+    if (!effectsManager) return false;
+    const parameters = rulesetLoader.loadGameRulesRuleset(
+      effectsManager.getRulesetName()
+    ).game_parameters;
+    const hasAirlift = (city: CityAtLocation): boolean =>
+      effectsManager.calculateEffect(EffectType.AIRLIFT, {
+        playerId: unit.playerId,
+        cityId: city.id,
+        cityBuildings: new Set(city.buildings ?? []),
+      }).value > 0 || city.buildings?.includes('airport') === true;
     return Boolean(
       source &&
         destination &&
         source.id !== destination.id &&
         source.playerId === unit.playerId &&
-        (parameters.airlift_from_always_enabled || source.buildings?.includes('airport')) &&
-        (parameters.airlift_to_always_enabled || destination.buildings?.includes('airport')) &&
+        (parameters.airlift_from_always_enabled || hasAirlift(source)) &&
+        (parameters.airlift_to_always_enabled || hasAirlift(destination)) &&
         this.gameManagerCallback?.reserveAirlift
     );
   }
@@ -2662,7 +2724,7 @@ export class UnitManager {
   }
 
   private canBombard(unit: Unit, targetX?: number, targetY?: number): boolean {
-    const type = UNIT_TYPES[unit.unitTypeId];
+    const type = this.unitTypes[unit.unitTypeId];
     if (
       type.bombardRate <= 0 ||
       unit.movementLeft <= 0 ||
@@ -2691,7 +2753,7 @@ export class UnitManager {
     if (!(await this.isHostileArea(unit, targetX!, targetY!, 0))) {
       return { success: false, message: 'Bombardment requires a state of war' };
     }
-    const type = UNIT_TYPES[unit.unitTypeId];
+    const type = this.unitTypes[unit.unitTypeId];
     const combatRules = rulesetLoader.getCombatRules();
     const bombardRate = combatRules.damage_reduces_bombard_rate
       ? Math.max(1, Math.floor((type.bombardRate * unit.health) / 100))
@@ -2701,7 +2763,7 @@ export class UnitManager {
     );
     const affectedUnitIds: string[] = [];
     for (const target of targets) {
-      const targetType = UNIT_TYPES[target.unitTypeId];
+      const targetType = this.unitTypes[target.unitTypeId];
       const firepower = this.calculateModifiedFirepower(unit, target, type, targetType);
       const damage = Math.max(
         1,
@@ -2731,7 +2793,7 @@ export class UnitManager {
 
   private canTargetCombatUnit(unit: Unit, targetX?: number, targetY?: number): boolean {
     if (unit.movementLeft <= 0 || targetX === undefined || targetY === undefined) return false;
-    const type = UNIT_TYPES[unit.unitTypeId];
+    const type = this.unitTypes[unit.unitTypeId];
     if ((type.attack ?? 0) <= 0 || this.calculateDistance(unit.x, unit.y, targetX, targetY) > 1) {
       return false;
     }
@@ -2744,7 +2806,7 @@ export class UnitManager {
   }
 
   private canNuclearExplode(unit: Unit, targetX?: number, targetY?: number): boolean {
-    const type = UNIT_TYPES[unit.unitTypeId];
+    const type = this.unitTypes[unit.unitTypeId];
     const x = targetX ?? unit.x;
     const y = targetY ?? unit.y;
     return Boolean(
@@ -2897,7 +2959,7 @@ export class UnitManager {
     targetY?: number
   ): Promise<ActionResult> {
     if (
-      !UNIT_TYPES[unit.unitTypeId].rulesetUnitClassFlags.includes('Missile') ||
+      !this.unitTypes[unit.unitTypeId].rulesetUnitClassFlags.includes('Missile') ||
       !this.canTargetCombatUnit(unit, targetX, targetY)
     ) {
       return { success: false, message: 'Unit cannot perform a suicide attack' };
@@ -2921,8 +2983,8 @@ export class UnitManager {
   private async setAutomation(unit: Unit, actionType: ActionType): Promise<ActionResult> {
     const automation = actionType === ActionType.AUTO_SETTLER ? 'settler' : 'explore';
     if (
-      (automation === 'settler' && !UNIT_TYPES[unit.unitTypeId].canBuildImprovements) ||
-      (automation === 'explore' && UNIT_TYPES[unit.unitTypeId].movement <= 0)
+      (automation === 'settler' && !this.unitTypes[unit.unitTypeId].canBuildImprovements) ||
+      (automation === 'explore' && this.unitTypes[unit.unitTypeId].movement <= 0)
     ) {
       return { success: false, message: `Unit cannot use ${automation} automation` };
     }
@@ -3070,15 +3132,15 @@ export class UnitManager {
     }
     if (actionType === ActionType.SUICIDE_ATTACK) {
       return (
-        UNIT_TYPES[unit.unitTypeId].rulesetUnitClassFlags.includes('Missile') &&
+        this.unitTypes[unit.unitTypeId].rulesetUnitClassFlags.includes('Missile') &&
         this.canTargetCombatUnit(unit, targetX, targetY)
       );
     }
     if (actionType === ActionType.AUTO_EXPLORE) {
-      return UNIT_TYPES[unit.unitTypeId].movement > 0;
+      return this.unitTypes[unit.unitTypeId].movement > 0;
     }
     if (actionType === ActionType.AUTO_SETTLER) {
-      return UNIT_TYPES[unit.unitTypeId].canBuildImprovements;
+      return this.unitTypes[unit.unitTypeId].canBuildImprovements;
     }
     if (actionType === ActionType.PATROL) {
       return Boolean(
@@ -3114,12 +3176,12 @@ export class UnitManager {
           unit.x === targetX &&
           unit.y === targetY &&
           unit.homeCityId &&
-          !UNIT_TYPES[unit.unitTypeId].flags?.includes('NoHome')
+          !this.unitTypes[unit.unitTypeId].flags?.includes('NoHome')
       );
     }
     if (actionType === ActionType.UPGRADE_UNIT) {
       const city = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
-      const from = UNIT_TYPES[unit.unitTypeId];
+      const from = this.unitTypes[unit.unitTypeId];
       const to = from ? this.getBestUpgrade(from, unit.playerId) : undefined;
       return Boolean(city && city.playerId === unit.playerId && to);
     }
@@ -3775,7 +3837,9 @@ export class UnitManager {
    */
   private getActivityDuration(orderType: string, unit: Unit): number {
     const tile = this.mapManager?.getTile(unit.x, unit.y);
-    const terrain = tile ? rulesetLoader.getTerrain(tile.terrain) : undefined;
+    const terrain = tile
+      ? rulesetLoader.getTerrain(tile.terrain, this.getRulesetName())
+      : undefined;
     const baseTimes: Record<string, number> = {
       road: terrain?.roadTime ?? 0,
       railroad: rulesetLoader.getExtra('Railroad').build_time ?? 0,
@@ -3835,7 +3899,10 @@ export class UnitManager {
         extras.add('mine');
         break;
       case 'cultivate': {
-        const cultivated = rulesetLoader.getTerrain(tile.terrain).cultivateTo;
+        const cultivated = rulesetLoader.getTerrain(
+          tile.terrain,
+          this.getRulesetName()
+        ).cultivateTo;
         if (cultivated) {
           this.mapManager.updateTileProperty(unit.x, unit.y, 'terrain', cultivated as TerrainType);
           extras.delete('irrigation');
@@ -3844,7 +3911,7 @@ export class UnitManager {
         break;
       }
       case 'plant': {
-        const planted = rulesetLoader.getTerrain(tile.terrain).plantTo;
+        const planted = rulesetLoader.getTerrain(tile.terrain, this.getRulesetName()).plantTo;
         if (planted) {
           this.mapManager.updateTileProperty(unit.x, unit.y, 'terrain', planted as TerrainType);
           extras.delete('irrigation');
@@ -3859,7 +3926,10 @@ export class UnitManager {
         extras.add('airbase');
         break;
       case 'transform': {
-        const transformed = rulesetLoader.getTerrain(tile.terrain).transformTo;
+        const transformed = rulesetLoader.getTerrain(
+          tile.terrain,
+          this.getRulesetName()
+        ).transformTo;
         if (transformed) {
           this.mapManager.updateTileProperty(unit.x, unit.y, 'terrain', transformed as TerrainType);
           extras.delete('irrigation');
@@ -3977,7 +4047,7 @@ export class UnitManager {
 
       // Check if unit is in visible tiles
       const tileKey = `${unit.x},${unit.y}`;
-      const layer = UNIT_TYPES[unit.unitTypeId]?.visionLayer ?? 'Main';
+      const layer = this.unitTypes[unit.unitTypeId]?.visionLayer ?? 'Main';
       if (layer === 'Stealth') return detectionTiles?.invisible.has(tileKey) ?? false;
       if (layer === 'Subsurface') return detectionTiles?.subsurface.has(tileKey) ?? false;
       return visibleTiles.has(tileKey);
@@ -3994,7 +4064,7 @@ export class UnitManager {
       return 0;
     }
 
-    const transportType = UNIT_TYPES[transport.unitTypeId];
+    const transportType = this.unitTypes[transport.unitTypeId];
     if (!transportType || !transportType.transport_capacity) {
       return 0;
     }
@@ -4027,7 +4097,7 @@ export class UnitManager {
       return false; // Transport not found
     }
 
-    const unitType = UNIT_TYPES[unit.unitTypeId];
+    const unitType = this.unitTypes[unit.unitTypeId];
     const x = targetX ?? transport.x;
     const y = targetY ?? transport.y;
     if (!this.isValidPosition(x, y) || this.calculateDistance(transport.x, transport.y, x, y) > 1) {
@@ -4085,8 +4155,8 @@ export class UnitManager {
    * @reference freeciv-web/javascript/unit.js unit_could_possibly_load()
    */
   private isValidTransportCombination(transportType: string, cargoType: string): boolean {
-    const transport = UNIT_TYPES[transportType];
-    const cargo = UNIT_TYPES[cargoType];
+    const transport = this.unitTypes[transportType];
+    const cargo = this.unitTypes[cargoType];
     return Boolean(
       transport &&
         cargo &&
@@ -4163,7 +4233,7 @@ export class UnitManager {
     const y = targetY ?? transport.y;
     if (!this.canUnloadUnit(unitId, x, y)) return false;
 
-    const cargoType = UNIT_TYPES[cargo.unitTypeId];
+    const cargoType = this.unitTypes[cargo.unitTypeId];
     // Aircraft launch from a carrier as their normal movement; unloading land
     // cargo is the action that consumes the passenger's turn.
     const remainingMovement =

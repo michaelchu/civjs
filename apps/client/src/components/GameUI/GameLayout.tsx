@@ -28,15 +28,17 @@ export const GameLayout: React.FC = () => {
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
   const currentPlayer = useGameStore(state => state.players[state.currentPlayerId]);
   const researchedTechs = useGameStore(state => state.research?.researchedTechs);
+  const rulesetName =
+    (clientState as { config?: { ruleset?: string } } | null)?.config?.ruleset ?? 'civ2civ3';
 
   useEffect(() => {
     let active = true;
     const applyMusicTheme = async () => {
-      const presentation = await rulesetService.loadPresentationRuleset('classic');
+      const presentation = await rulesetService.loadPresentationRuleset(rulesetName);
       if (!active) return;
       const theme = resolveMusicStyle({
         requestedNationStyle: currentPlayer
-          ? (await rulesetService.getNationStyles('classic'))[currentPlayer.nation]
+          ? (await rulesetService.getNationStyles(rulesetName))[currentPlayer.nation]
           : undefined,
         nationStyles: presentation.nation_styles,
         musicStyles: presentation.music_styles,
@@ -116,7 +118,11 @@ export const GameLayout: React.FC = () => {
         <div className="flex-1 relative">
           {/* Keep MapCanvas mounted but hidden to avoid reloading tileset */}
           <div className={`h-full relative ${activeTab === 'map' ? 'block' : 'hidden'}`}>
-            <MapCanvas width={canvasSize.width} height={canvasSize.height} />
+            <MapCanvas
+              width={canvasSize.width}
+              height={canvasSize.height}
+              rulesetName={rulesetName}
+            />
 
             {/* Overlay UI elements - COMMENTED OUT */}
             {/* <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end pointer-events-none">

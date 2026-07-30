@@ -4,7 +4,11 @@
   "description": "CivJS - A modern civilization game built with TypeScript, React, and Node.js",
   "private": true,
   "scripts": {
+    "rulesets:convert": "node tools/convert-classic-rulesets.mjs",
+    "rulesets:list-reference": "node tools/convert-classic-rulesets.mjs --list",
+    "rulesets:convert-all": "node tools/convert-classic-rulesets.mjs --all",
     "rulesets:convert-classic": "node tools/convert-classic-rulesets.mjs",
+    "rulesets:convert-civ2civ3": "node tools/convert-classic-rulesets.mjs civ2civ3",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:client": "cd apps/client && npm run dev",
     "dev:server": "cd apps/server && npm run dev",

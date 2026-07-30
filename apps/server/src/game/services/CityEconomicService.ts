@@ -313,7 +313,9 @@ export class CityEconomicService extends BaseGameService {
     let totalUpkeep = 0;
 
     if (city.buildings) {
-      const buildingTypes = rulesetBuildingsService.getBuildingTypes();
+      const buildingTypes = rulesetBuildingsService.getBuildingTypes(
+        this.effectsManager.getRulesetName()
+      );
       for (const buildingId of city.buildings) {
         totalUpkeep += buildingTypes[buildingId]?.upkeep ?? 0;
       }
@@ -358,7 +360,9 @@ export class CityEconomicService extends BaseGameService {
     const breakdown: Array<{ buildingId: string; name: string; upkeep: number }> = [];
 
     if (city.buildings) {
-      const buildingTypes = rulesetBuildingsService.getBuildingTypes();
+      const buildingTypes = rulesetBuildingsService.getBuildingTypes(
+        this.effectsManager.getRulesetName()
+      );
       for (const buildingId of city.buildings) {
         const building = buildingTypes[buildingId];
         const upkeep = building?.upkeep ?? 0;

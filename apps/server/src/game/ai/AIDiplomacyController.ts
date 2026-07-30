@@ -195,7 +195,7 @@ export class FreecivAIDiplomacyController {
       targetCities: otherCities,
       ownUnits,
       targetUnits: otherUnits,
-      unitTypes: UNIT_TYPES,
+      unitTypes: game.unitManager.getUnitTypes?.() ?? UNIT_TYPES,
       ownTechCount: ownTechs.size,
       targetTechCount: otherTechs.size,
       targetGold: game.players.get(nation.id)?.gold ?? 0,

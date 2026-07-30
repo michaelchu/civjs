@@ -1,14 +1,40 @@
 #!/usr/bin/env node
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dataRoot = join(root, 'reference/freeciv/data');
-const sourceDir = join(root, 'reference/freeciv/data/classic');
-const targetDir = join(root, 'apps/server/src/shared/data/rulesets/classic');
+const requestedRuleset = process.argv[2] ?? 'classic';
+
+if (requestedRuleset === '--all' || requestedRuleset === '--list') {
+  const rulesetNames = readdirSync(dataRoot, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .map(entry => entry.name)
+    .filter(name => existsSync(join(dataRoot, name, 'game.ruleset')))
+    .sort();
+
+  if (requestedRuleset === '--list') {
+    process.stdout.write(`${rulesetNames.join('\n')}\n`);
+    process.exit(0);
+  }
+
+  for (const name of rulesetNames) {
+    execFileSync(process.execPath, [fileURLToPath(import.meta.url), name], { stdio: 'inherit' });
+  }
+  process.exit(0);
+}
+
+const rulesetName = requestedRuleset;
+const sourceDir = join(root, 'reference/freeciv/data', rulesetName);
+const targetDir = join(root, 'apps/server/src/shared/data/rulesets', rulesetName);
+const classicTargetDir = join(root, 'apps/server/src/shared/data/rulesets/classic');
+
+if (!/^[a-z0-9][a-z0-9_-]*$/i.test(rulesetName)) {
+  throw new Error(`Invalid ruleset name: ${rulesetName}`);
+}
 
 function stripComments(lines) {
   let quoted = false;
@@ -145,10 +171,14 @@ function metadata(datafile, source) {
   };
 }
 
+function referenceSource(fileName) {
+  return `reference/freeciv/data/${rulesetName}/${fileName}`;
+}
+
 function convertActions() {
   const sections = parseSecfile('actions.ruleset');
   return {
-    ...metadata(sections.datafile, 'reference/freeciv/data/classic/actions.ruleset'),
+    ...metadata(sections.datafile, referenceSource('actions.ruleset')),
     auto_attack: sections.auto_attack,
     settings: sections.actions,
     action_properties: Object.fromEntries(
@@ -171,7 +201,7 @@ function convertExtras() {
   const select = prefix =>
     Object.fromEntries(Object.entries(sections).filter(([id]) => id.startsWith(prefix)));
   return {
-    ...metadata(sections.datafile, 'reference/freeciv/data/classic/terrain.ruleset'),
+    ...metadata(sections.datafile, referenceSource('terrain.ruleset')),
     resources: select('resource_'),
     extras: select('extra_'),
     bases: select('base_'),
@@ -182,6 +212,35 @@ function convertExtras() {
         { terrain: terrain.name, extra_settings: terrain.extra_settings ?? [] },
       ])
     ),
+  };
+}
+
+function convertEffects() {
+  const sections = parseSecfile('effects.ruleset');
+  const effects = Object.fromEntries(
+    Object.entries(sections)
+      .filter(([id]) => id.startsWith('effect_'))
+      .map(([id, effect]) => [
+        id.slice('effect_'.length),
+        {
+          id: id.slice('effect_'.length),
+          type: effect.type,
+          value: effect.value,
+          ...(effect.reqs?.length ? { reqs: effect.reqs } : {}),
+          ...(effect.comment ? { comment: effect.comment } : {}),
+        },
+      ])
+  );
+  return {
+    ...metadata(sections.datafile, referenceSource('effects.ruleset')),
+    about: {
+      name: `Freeciv ${rulesetName} Effects Ruleset`,
+      summary: asText(sections.datafile.description),
+    },
+    user_effects: Object.fromEntries(
+      Object.entries(sections).filter(([id]) => id.startsWith('ueff_'))
+    ),
+    effects,
   };
 }
 
@@ -250,7 +309,7 @@ function convertTerrain() {
   );
 
   return {
-    ...metadata(sections.datafile, 'reference/freeciv/data/classic/terrain.ruleset'),
+    ...metadata(sections.datafile, referenceSource('terrain.ruleset')),
     about: {
       name: 'Freeciv Classic Terrain Ruleset',
       summary: asText(sections.datafile.description),
@@ -264,7 +323,7 @@ function convertStyles() {
   const select = prefix =>
     Object.fromEntries(Object.entries(sections).filter(([id]) => id.startsWith(prefix)));
   return {
-    ...metadata(sections.datafile, 'reference/freeciv/data/classic/styles.ruleset'),
+    ...metadata(sections.datafile, referenceSource('styles.ruleset')),
     nation_styles: select('style_'),
     city_styles: select('citystyle_'),
     music_styles: select('musicstyle_'),
@@ -276,6 +335,12 @@ function asArray(value) {
   return Array.isArray(value) ? value : [value];
 }
 
+function asNumberList(value) {
+  if (typeof value !== 'string' || !value.includes(',')) return value;
+  const values = value.split(',').map(entry => Number(entry.trim()));
+  return values.every(Number.isFinite) ? values : value;
+}
+
 function selectSections(sections, prefix) {
   return Object.fromEntries(
     Object.entries(sections)
@@ -285,7 +350,7 @@ function selectSections(sections, prefix) {
 }
 
 function loadTargetJson(fileName) {
-  return JSON.parse(readFileSync(join(targetDir, fileName), 'utf8'));
+  return JSON.parse(readFileSync(join(classicTargetDir, fileName), 'utf8'));
 }
 
 function normalizeId(value) {
@@ -383,9 +448,9 @@ function convertUnits() {
   );
 
   return {
-    ...metadata(sections.datafile, 'reference/freeciv/data/classic/units.ruleset'),
+    ...metadata(sections.datafile, referenceSource('units.ruleset')),
     about: {
-      name: 'Freeciv Classic Units Ruleset',
+      name: `Freeciv ${rulesetName} Units Ruleset`,
       summary: asText(sections.datafile.description),
     },
     veteran_system: sections.veteran_system,
@@ -442,9 +507,9 @@ function convertBuildings() {
   );
 
   return {
-    ...metadata(sections.datafile, 'reference/freeciv/data/classic/buildings.ruleset'),
+    ...metadata(sections.datafile, referenceSource('buildings.ruleset')),
     about: {
-      name: 'Freeciv Classic Buildings Ruleset',
+      name: `Freeciv ${rulesetName} Buildings Ruleset`,
       summary: asText(sections.datafile.description),
     },
     buildings,
@@ -484,9 +549,9 @@ function convertTechs() {
   );
 
   return {
-    ...metadata(sections.datafile, 'reference/freeciv/data/classic/techs.ruleset'),
+    ...metadata(sections.datafile, referenceSource('techs.ruleset')),
     about: {
-      name: 'Freeciv Classic Technologies Ruleset',
+      name: `Freeciv ${rulesetName} Technologies Ruleset`,
       summary: asText(sections.datafile.description),
     },
     control: sections.control,
@@ -514,9 +579,9 @@ function convertGovernments() {
       })
   );
   return {
-    ...metadata(sections.datafile, 'reference/freeciv/data/classic/governments.ruleset'),
+    ...metadata(sections.datafile, referenceSource('governments.ruleset')),
     about: {
-      name: 'Freeciv Classic Governments Ruleset',
+      name: `Freeciv ${rulesetName} Governments Ruleset`,
       summary: asText(sections.datafile.description),
     },
     governments: {
@@ -579,9 +644,9 @@ function convertNations() {
   );
 
   return {
-    datafile: metadata(main.datafile, 'reference/freeciv/data/classic/nations.ruleset').datafile,
+    datafile: metadata(main.datafile, referenceSource('nations.ruleset')).datafile,
     about: {
-      name: 'Freeciv Classic Nations Ruleset',
+      name: `Freeciv ${rulesetName} Nations Ruleset`,
       summary: asText(main.datafile.description),
     },
     compatibility: main.compatibility,
@@ -600,9 +665,9 @@ function convertCities() {
   const sections = parseSecfile('cities.ruleset');
   const legacy = loadTargetJson('cities.json');
   return {
-    ...metadata(sections.datafile, 'reference/freeciv/data/classic/cities.ruleset'),
+    ...metadata(sections.datafile, referenceSource('cities.ruleset')),
     about: {
-      name: 'Freeciv Classic Cities Ruleset',
+      name: `Freeciv ${rulesetName} Cities Ruleset`,
       summary: asText(sections.datafile.description),
     },
     specialists: selectSections(sections, 'specialist_'),
@@ -619,7 +684,7 @@ function convertGame() {
   const incite = sections.incite_cost;
 
   return {
-    ...metadata(sections.datafile, 'reference/freeciv/data/classic/game.ruleset'),
+    ...metadata(sections.datafile, referenceSource('game.ruleset')),
     ruledit: sections.ruledit,
     about: sections.about,
     capabilities: asArray(sections.about.capabilities),
@@ -631,7 +696,7 @@ function convertGame() {
       base_pollution: civstyle.base_pollution,
       happy_cost: civstyle.happy_cost,
       food_cost: civstyle.food_cost,
-      granary_food_ini: civstyle.granary_food_ini,
+      granary_food_ini: asNumberList(civstyle.granary_food_ini),
       granary_food_inc: civstyle.granary_food_inc,
       min_city_center_food: civstyle.min_city_center_food,
       min_city_center_shield: civstyle.min_city_center_shield,
@@ -691,10 +756,12 @@ function convertGame() {
 }
 
 const generatedFiles = [];
+mkdirSync(targetDir, { recursive: true });
 for (const [fileName, data] of [
   ['actions.json', convertActions()],
   ['buildings.json', convertBuildings()],
   ['cities.json', convertCities()],
+  ['effects.json', convertEffects()],
   ['extras.json', convertExtras()],
   ['game.json', convertGame()],
   ['governments.json', convertGovernments()],

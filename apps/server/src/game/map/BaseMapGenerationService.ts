@@ -11,6 +11,7 @@ import { TerrainGenerator } from './TerrainGenerator';
 import { MapValidator, ValidationResult } from './MapValidator';
 import { createBaseTile } from './TerrainUtils';
 import { MapTopology, type MapTopologyOptions } from './MapTopology';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 /**
  * Base abstract service class for map generation services
@@ -60,7 +61,8 @@ export abstract class BaseMapGenerationService {
     cleanupTemperatureMapAfterUse: boolean = false,
     temperatureParam: number = 50,
     topologyOptions: MapTopologyOptions = {},
-    generationOptions: MapGenerationOptions = {}
+    generationOptions: MapGenerationOptions = {},
+    rulesetName: string = DEFAULT_RULESET
   ) {
     this.width = width;
     this.height = height;
@@ -109,7 +111,12 @@ export abstract class BaseMapGenerationService {
     );
     this.riverGenerator = new RiverGenerator(width, height, this.random, topologyOptions);
     this.resourceGenerator = new ResourceGenerator(width, height, this.random);
-    this.startingPositionGenerator = new StartingPositionGenerator(width, height, topologyOptions);
+    this.startingPositionGenerator = new StartingPositionGenerator(
+      width,
+      height,
+      topologyOptions,
+      rulesetName
+    );
     this.terrainGenerator = new TerrainGenerator(
       width,
       height,

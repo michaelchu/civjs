@@ -14,7 +14,7 @@ import type { CityManager } from '@game/managers/CityManager';
 import type { ResearchManager } from '@game/managers/ResearchManager';
 import type { EconomicManager } from '@game/systems/Economic/EconomicManager';
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
-import { UNIT_TYPES } from '@game/constants/UnitConstants';
+import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 
 export interface PlayerAction {
@@ -738,7 +738,9 @@ export class TurnProcessingService {
 
       // Calculate economic output for each city
       for (const city of cities) {
-        const buildingTypes = rulesetBuildingsService.getBuildingTypes();
+        const buildingTypes = rulesetBuildingsService.getBuildingTypes(
+          this.effectsManager.getRulesetName()
+        );
         const buildingUpkeep = city.buildings.reduce(
           (total, buildingId) => total + (buildingTypes[buildingId]?.upkeep ?? 0),
           0
@@ -790,8 +792,8 @@ export class TurnProcessingService {
         .filter(unit => unit.homeCityId === city.id)
         .sort(
           (left, right) =>
-            (UNIT_TYPES[right.unitTypeId]?.uk_shield ?? 0) -
-            (UNIT_TYPES[left.unitTypeId]?.uk_shield ?? 0)
+            (this.getUnitType(right.unitTypeId)?.uk_shield ?? 0) -
+            (this.getUnitType(left.unitTypeId)?.uk_shield ?? 0)
         );
       let upkeep = city.unitShieldUpkeep ?? 0;
       const available = city.grossProductionPerTurn ?? 0;
@@ -799,7 +801,7 @@ export class TurnProcessingService {
       while (upkeep > available) {
         const unit = supported.shift();
         if (!unit) break;
-        const cost = UNIT_TYPES[unit.unitTypeId]?.uk_shield ?? 0;
+        const cost = this.getUnitType(unit.unitTypeId)?.uk_shield ?? 0;
         if (cost <= 0) continue;
         await this.unitManager.removeUnit(unit.id);
         removedUnit = true;
@@ -807,6 +809,13 @@ export class TurnProcessingService {
       }
       if (removedUnit) this.cityManager.calculateCityOutputs(city.id);
     }
+  }
+
+  private getUnitType(unitTypeId: string) {
+    return (
+      this.unitManager.getUnitType?.(unitTypeId) ??
+      rulesetUnitsService.getUnitType(unitTypeId, this.effectsManager.getRulesetName())
+    );
   }
 
   private async resolveTreasuryDeficit(
@@ -821,7 +830,9 @@ export class TurnProcessingService {
       cityOutputs.reduce((sum, output) => sum + output.netGoldContribution, 0);
     if (projected >= 0) return;
 
-    const buildingTypes = rulesetBuildingsService.getBuildingTypes();
+    const buildingTypes = rulesetBuildingsService.getBuildingTypes(
+      this.effectsManager.getRulesetName()
+    );
     const sellable = cities
       .flatMap(city =>
         city.buildings.map(buildingId => ({
@@ -861,12 +872,12 @@ export class TurnProcessingService {
       .sort(
         (left, right) =>
           Math.max(
-            UNIT_TYPES[right.unitTypeId]?.uk_gold ?? 0,
-            UNIT_TYPES[right.unitTypeId]?.uk_shield ?? 0
+            this.unitManager.getUnitType(right.unitTypeId)?.uk_gold ?? 0,
+            this.unitManager.getUnitType(right.unitTypeId)?.uk_shield ?? 0
           ) -
           Math.max(
-            UNIT_TYPES[left.unitTypeId]?.uk_gold ?? 0,
-            UNIT_TYPES[left.unitTypeId]?.uk_shield ?? 0
+            this.unitManager.getUnitType(left.unitTypeId)?.uk_gold ?? 0,
+            this.unitManager.getUnitType(left.unitTypeId)?.uk_shield ?? 0
           )
       );
     for (const unit of units) {
@@ -877,8 +888,8 @@ export class TurnProcessingService {
         output.costs.unitUpkeep,
         Math.max(
           1,
-          UNIT_TYPES[unit.unitTypeId]?.uk_gold ?? 0,
-          UNIT_TYPES[unit.unitTypeId]?.uk_shield ?? 0
+          this.unitManager.getUnitType(unit.unitTypeId)?.uk_gold ?? 0,
+          this.unitManager.getUnitType(unit.unitTypeId)?.uk_shield ?? 0
         )
       );
       await this.unitManager.removeUnit(unit.id);

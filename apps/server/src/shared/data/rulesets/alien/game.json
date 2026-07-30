@@ -1,0 +1,484 @@
+{
+  "source": "reference/freeciv/data/alien/game.ruleset",
+  "datafile": {
+    "description": "Alien World game rules for Freeciv",
+    "options": "+Freeciv-ruleset-3.4-Devel-2025.Jan.17",
+    "format_version": 50
+  },
+  "ruledit": {
+    "description_file": "alien/README.alien",
+    "std_tileset_compat": false
+  },
+  "about": {
+    "name": "Alien World",
+    "summary": "One of the design goals of this ruleset was that it has to provide gameplay different from standard rules. Do not assume that any rules you know from classic rules apply with this ruleset.\n\nSee https://www.freeciv.org/wiki/Alien_World and https://www.cazfi.net/freeciv/alien/ for additional ruleset info.",
+    "description": "*alien/README.alien*",
+    "capabilities": ""
+  },
+  "capabilities": [],
+  "options": {
+    "global_init_techs": "",
+    "global_init_buildings": ["Headquarters", "Basic Infrastructure"],
+    "popup_tech_help": true
+  },
+  "tileset": {
+    "preferred": "alio"
+  },
+  "soundset": {},
+  "musicset": {},
+  "civstyle": {
+    "base_pollution": -20,
+    "happy_cost": 2,
+    "food_cost": 2,
+    "granary_food_ini": 20,
+    "granary_food_inc": 10,
+    "min_city_center_food": 1,
+    "min_city_center_shield": 1,
+    "min_city_center_trade": 1
+  },
+  "game_parameters": {
+    "init_city_radius_sq": 3,
+    "init_vis_radius_sq": 5,
+    "base_bribe_cost": 750,
+    "ransom_gold": 100,
+    "upgrade_veteran_loss": 0,
+    "autoupgrade_veteran_loss": 0,
+    "pillage_select": true,
+    "tech_steal_allow_holes": true,
+    "tech_trade_allow_holes": true,
+    "tech_trade_loss_allow_holes": true,
+    "tech_parasite_allow_holes": true,
+    "tech_loss_allow_holes": true,
+    "gameloss_style": "",
+    "paradrop_to_transport": false,
+    "gold_upkeep_style": "Nation",
+    "output_granularity": 1,
+    "airlift_from_always_enabled": false,
+    "airlift_to_always_enabled": true,
+    "base_incite_cost": 1000,
+    "incite_improvement_factor": 1,
+    "incite_unit_factor": 2,
+    "incite_total_factor": 100
+  },
+  "wonder_visibility": {
+    "small_wonders": "Always"
+  },
+  "illness": {
+    "illness_on": false,
+    "illness_base_factor": 50,
+    "illness_min_size": 2,
+    "illness_trade_infection": 0,
+    "illness_pollution_factor": 0
+  },
+  "combat_rules": {
+    "tired_attack": true,
+    "only_killing_makes_veteran": false,
+    "only_real_fight_makes_veteran": false,
+    "combat_odds_scaled_veterancy": true,
+    "damage_reduces_bombard_rate": true,
+    "low_firepower_badwallattacker": 1,
+    "low_firepower_pearl_harbor": 1,
+    "low_firepower_combat_bonus": 1,
+    "low_firepower_nonnat_bombard": 1,
+    "nuke_pop_loss_pct": 49,
+    "nuke_defender_survival_chance_pct": 0
+  },
+  "borders": {
+    "radius_sq_city": 4,
+    "size_effect": 1,
+    "radius_sq_city_permanent": 0
+  },
+  "research": {
+    "tech_cost_style": "Classic",
+    "base_tech_cost": 20,
+    "min_tech_cost": 20,
+    "tech_leakage": "None",
+    "tech_upkeep_style": "None",
+    "tech_upkeep_divider": 2000,
+    "free_tech_method": "Goal"
+  },
+  "culture": {
+    "victory_min_points": 1000,
+    "victory_lead_pct": 200,
+    "history_interest_pml": 0,
+    "migration_pml": 50
+  },
+  "world_peace": {
+    "victory_turns": 20
+  },
+  "calendar": {
+    "start_year": 250,
+    "skip_year_0": false,
+    "fragments": 4,
+    "fragment_names": ["Q1", "Q2", "Q3", "Q4"],
+    "positive_label": "GE",
+    "negative_label": "BGE"
+  },
+  "disasters": {
+    "earthquake": {
+      "name": "Earthquake",
+      "frequency": 10,
+      "effects": "DestroyBuilding"
+    },
+    "fire": {
+      "name": "Fire",
+      "frequency": 10,
+      "effects": "DestroyBuilding"
+    },
+    "radiation_burst": {
+      "name": "Radiation Burst",
+      "frequency": 10,
+      "effects": "ReducePopulation"
+    },
+    "rebels": {
+      "name": "Rebels",
+      "frequency": 10,
+      "effects": ["EmptyFoodStock", "EmptyProdStock", "Fallout"]
+    },
+    "alien_microbes": {
+      "name": "Alien Microbes",
+      "frequency": 10,
+      "effects": "ReducePopulation"
+    }
+  },
+  "trade": {
+    "settings": [
+      {
+        "type": "National",
+        "pct": 100,
+        "cancelling": "Cancel",
+        "bonus": "Both"
+      },
+      {
+        "type": "NationalIC",
+        "pct": 100,
+        "cancelling": "Cancel",
+        "bonus": "Both"
+      },
+      {
+        "type": "IN",
+        "pct": 300,
+        "cancelling": "Cancel",
+        "bonus": "Both"
+      },
+      {
+        "type": "INIC",
+        "pct": 300,
+        "cancelling": "Cancel",
+        "bonus": "Both"
+      },
+      {
+        "type": "Ally",
+        "pct": 300,
+        "cancelling": "Cancel",
+        "bonus": "Both"
+      },
+      {
+        "type": "AllyIC",
+        "pct": 300,
+        "cancelling": "Cancel",
+        "bonus": "Both"
+      },
+      {
+        "type": "Enemy",
+        "pct": 300,
+        "cancelling": "Cancel",
+        "bonus": "Both"
+      },
+      {
+        "type": "EnemyIC",
+        "pct": 300,
+        "cancelling": "Cancel",
+        "bonus": "Both"
+      },
+      {
+        "type": "Team",
+        "pct": 300,
+        "cancelling": "Cancel",
+        "bonus": "Both"
+      },
+      {
+        "type": "TeamIC",
+        "pct": 300,
+        "cancelling": "Cancel",
+        "bonus": "Both"
+      }
+    ],
+    "min_trade_route_val": 0,
+    "reveal_trade_partner": false,
+    "goods_selection": "Arrival"
+  },
+  "goods": {
+    "commodities": {
+      "name": "Commodities",
+      "replace_priority": 1
+    }
+  },
+  "access_area": {
+    "access_unit": ""
+  },
+  "diplomacy_clauses": {
+    "advance": {
+      "type": "Advance"
+    },
+    "gold": {
+      "type": "Gold"
+    },
+    "map": {
+      "type": "Map"
+    },
+    "seamap": {
+      "type": "Seamap"
+    },
+    "city": {
+      "type": "City"
+    },
+    "ceasefire": {
+      "type": "Ceasefire"
+    },
+    "peace": {
+      "type": "Peace"
+    },
+    "alliance": {
+      "type": "Alliance"
+    },
+    "vision": {
+      "type": "Vision"
+    },
+    "embassy": {
+      "type": "Embassy"
+    }
+  },
+  "player_colors": {
+    "background.r": 86,
+    "background.g": 86,
+    "background.b": 86,
+    "colorlist": [
+      {
+        "r": 255,
+        "g": 0,
+        "b": 0
+      },
+      {
+        "r": 255,
+        "g": 255,
+        "b": 0
+      },
+      {
+        "r": 0,
+        "g": 255,
+        "b": 255
+      },
+      {
+        "r": 138,
+        "g": 43,
+        "b": 226
+      },
+      {
+        "r": 255,
+        "g": 165,
+        "b": 0
+      },
+      {
+        "r": 255,
+        "g": 0,
+        "b": 255
+      },
+      {
+        "r": 173,
+        "g": 216,
+        "b": 230
+      },
+      {
+        "r": 0,
+        "g": 255,
+        "b": 127
+      },
+      {
+        "r": 250,
+        "g": 128,
+        "b": 114
+      },
+      {
+        "r": 124,
+        "g": 252,
+        "b": 0
+      },
+      {
+        "r": 139,
+        "g": 0,
+        "b": 0
+      },
+      {
+        "r": 255,
+        "g": 192,
+        "b": 203
+      },
+      {
+        "r": 211,
+        "g": 211,
+        "b": 211
+      },
+      {
+        "r": 218,
+        "g": 112,
+        "b": 214
+      },
+      {
+        "r": 255,
+        "g": 20,
+        "b": 147
+      },
+      {
+        "r": 100,
+        "g": 149,
+        "b": 237
+      },
+      {
+        "r": 255,
+        "g": 215,
+        "b": 0
+      },
+      {
+        "r": 245,
+        "g": 222,
+        "b": 179
+      },
+      {
+        "r": 255,
+        "g": 255,
+        "b": 128
+      },
+      {
+        "r": 192,
+        "g": 255,
+        "b": 128
+      },
+      {
+        "r": 204,
+        "g": 255,
+        "b": 0
+      },
+      {
+        "r": 255,
+        "g": 211,
+        "b": 140
+      },
+      {
+        "r": 255,
+        "g": 79,
+        "b": 0
+      },
+      {
+        "r": 240,
+        "g": 145,
+        "b": 169
+      },
+      {
+        "r": 255,
+        "g": 219,
+        "b": 88
+      },
+      {
+        "r": 153,
+        "g": 17,
+        "b": 153
+      },
+      {
+        "r": 184,
+        "g": 134,
+        "b": 11
+      },
+      {
+        "r": 255,
+        "g": 102,
+        "b": 0
+      },
+      {
+        "r": 102,
+        "g": 205,
+        "b": 170
+      },
+      {
+        "r": 195,
+        "g": 33,
+        "b": 72
+      },
+      {
+        "r": 168,
+        "g": 153,
+        "b": 230
+      },
+      {
+        "r": 255,
+        "g": 250,
+        "b": 205
+      }
+    ]
+  },
+  "teams": {},
+  "settings": {
+    "set": [
+      {
+        "name": "topology",
+        "value": "ISO|HEX",
+        "lock": "FALSE"
+      },
+      {
+        "name": "wrap",
+        "value": "WRAPX|WRAPY",
+        "lock": "FALSE"
+      },
+      {
+        "name": "mapsize",
+        "value": "PLAYER",
+        "lock": "FALSE"
+      },
+      {
+        "name": "tilesperplayer",
+        "value": 300,
+        "lock": "FALSE"
+      },
+      {
+        "name": "aifill",
+        "value": 7,
+        "lock": "FALSE"
+      },
+      {
+        "name": "sciencebox",
+        "value": 150,
+        "lock": "FALSE"
+      },
+      {
+        "name": "foodbox",
+        "value": 150,
+        "lock": "FALSE"
+      },
+      {
+        "name": "revolen",
+        "value": 7,
+        "lock": "FALSE"
+      },
+      {
+        "name": "citymindist",
+        "value": 3,
+        "lock": "FALSE"
+      },
+      {
+        "name": "startunits",
+        "value": "cx",
+        "lock": "FALSE"
+      },
+      {
+        "name": "plrcolormode",
+        "value": "NATION_ORDER",
+        "lock": "FALSE"
+      },
+      {
+        "name": "traitdistribution",
+        "value": "FIXED",
+        "lock": "TRUE"
+      }
+    ]
+  }
+}

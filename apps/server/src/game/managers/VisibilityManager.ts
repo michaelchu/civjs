@@ -1,6 +1,5 @@
 import { logger } from '@utils/logger';
 import { UnitManager } from '@game/managers/UnitManager';
-import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { MapManager } from '@game/managers/MapManager';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
@@ -173,7 +172,7 @@ export class VisibilityManager {
 
   private addUnitVision(sourcePlayerId: string, visibility: PlayerVisibility): void {
     for (const unit of this.unitManager.getPlayerUnits(sourcePlayerId)) {
-      const unitType = UNIT_TYPES[unit.unitTypeId];
+      const unitType = this.unitManager.getUnitType(unit.unitTypeId);
       if (!unitType) continue;
 
       const tile = this.mapManager.getTile(unit.x, unit.y);

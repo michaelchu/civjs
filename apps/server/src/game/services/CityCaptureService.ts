@@ -34,7 +34,8 @@ export class CityCaptureService extends BaseGameService {
       RulesetBuildingsService,
       'getBuildingTypes'
     > = rulesetBuildingsService,
-    private readonly random: () => number = Math.random
+    private readonly random: () => number = Math.random,
+    private readonly buildingTypes?: Readonly<Record<string, Pick<{ genus: string }, 'genus'>>>
   ) {
     super(logger);
   }
@@ -112,7 +113,7 @@ export class CityCaptureService extends BaseGameService {
       // @reference reference/freeciv/server/citytools.c:924-950
       // @reference reference/freeciv/common/game.h:574
       const buildingsDestroyed: string[] = [];
-      const buildingTypes = this.buildingsService.getBuildingTypes();
+      const buildingTypes = this.buildingTypes ?? this.buildingsService.getBuildingTypes();
       city.buildings = city.buildings.filter(buildingId => {
         const genus = buildingTypes[buildingId]?.genus;
         const destroyed =

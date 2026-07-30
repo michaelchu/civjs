@@ -32,6 +32,10 @@ export class CityTileManagementService extends BaseGameService {
     return 'CityTileManagementService';
   }
 
+  private get rulesetName(): string {
+    return this.effectsManager.getRulesetName();
+  }
+
   setPlayerGovernmentProvider(provider: (playerId: string) => string): void {
     this.playerGovernmentProvider = provider;
   }
@@ -258,7 +262,8 @@ export class CityTileManagementService extends BaseGameService {
     if (!resource) return 0;
     try {
       const value = (this.ruleset.getResource ?? rulesetLoader.getResource.bind(rulesetLoader))(
-        resource
+        resource,
+        this.rulesetName
       )[output];
       return typeof value === 'number' ? value : 0;
     } catch {
@@ -277,7 +282,7 @@ export class CityTileManagementService extends BaseGameService {
     shields: number;
     trade: number;
   } {
-    const definition = this.ruleset.getTerrain(terrain as TerrainType);
+    const definition = this.ruleset.getTerrain(terrain as TerrainType, this.rulesetName);
     return {
       food: definition.food,
       shields: definition.shields,
@@ -436,10 +441,16 @@ export class CityTileManagementService extends BaseGameService {
             }
           : tile.outputs;
         if (mapTile?.improvements?.includes('irrigation')) {
-          outputs.food += this.ruleset.getTerrain(mapTile.terrain).irrigationFoodIncr;
+          outputs.food += this.ruleset.getTerrain(
+            mapTile.terrain,
+            this.rulesetName
+          ).irrigationFoodIncr;
         }
         if (mapTile?.improvements?.includes('mine')) {
-          outputs.shields += this.ruleset.getTerrain(mapTile.terrain).miningShieldIncr;
+          outputs.shields += this.ruleset.getTerrain(
+            mapTile.terrain,
+            this.rulesetName
+          ).miningShieldIncr;
         }
         const terrain = mapTile?.terrain ?? tile.terrain ?? '';
         const hasRoad = mapTile?.hasRoad || mapTile?.improvements?.includes('road');
@@ -481,7 +492,7 @@ export class CityTileManagementService extends BaseGameService {
       city.happiness.angry === 0 &&
       city.happiness.happy >= Math.ceil(city.population / 2);
     const adjusted = { ...outputs };
-    const terrainRules = this.ruleset.getTerrain(terrain as TerrainType);
+    const terrainRules = this.ruleset.getTerrain(terrain as TerrainType, this.rulesetName);
     const terrainClass = terrainRules.properties?.MG_OCEAN_DEPTH !== undefined ? 'Oceanic' : 'Land';
     const outputTypes = {
       food: OutputType.FOOD,

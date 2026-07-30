@@ -54,12 +54,12 @@ import {
 } from '@game/services/NativeSaveService';
 import { ActionType, type ActionResult } from '@app-types/shared/actions';
 import type { SpaceshipState } from '@game/services/SpaceshipService';
-import { getUnitType } from '@game/constants/UnitConstants';
 import { GoldSpendingType } from '@game/systems/Economic/types/EconomicTypes';
 import {
   calculateDiplomatBribeCost,
   calculateDiplomatInciteCost,
 } from '@game/services/DiplomatActionEconomics';
+import { rulesetUnitsService, type UnitType } from '@game/services/RulesetUnitsService';
 
 // Freeciv dai_incident_simple() converts action badness into MAX_AI_LOVE / 35
 // victim penalties. CivJS stores love on the same -1000..1000 scale.
@@ -641,7 +641,7 @@ export class GameManager {
     const game = this.games.get(gameId);
     if (!game) return { success: false, message: 'Game not found' };
     const unit = game.unitManager.getUnit(unitId);
-    const unitType = unit ? getUnitType(unit.unitTypeId) : undefined;
+    const unitType = unit ? this.getGameUnitType(game, unit.unitTypeId) : undefined;
     const unitFlags = unitType?.flags ?? [];
     if (!unit || unit.playerId !== playerId || !unitFlags.includes('Diplomat')) {
       return { success: false, message: 'A diplomat or spy owned by the player is required' };
@@ -682,7 +682,7 @@ export class GameManager {
     let actorSurvives = unitFlags.includes('Spy');
     const attemptMission = async (): Promise<ActionResult | null> => {
       const defender = game.unitManager.getUnitsAt(targetX, targetY).find(candidate => {
-        const candidateType = getUnitType(candidate.unitTypeId);
+        const candidateType = this.getGameUnitType(game, candidate.unitTypeId);
         return (
           candidate.playerId !== playerId &&
           candidateType?.flags?.includes('Diplomat') &&
@@ -855,7 +855,7 @@ export class GameManager {
       return { success: false, message: 'An adjacent, single foreign unit is required' };
     }
     const target = targets[0]!;
-    const targetType = getUnitType(target.unitTypeId);
+    const targetType = this.getGameUnitType(game, target.unitTypeId);
     await this.diplomacyManager.establishContact(gameId, playerId, target.playerId);
     const relation = await this.getDiplomaticState(gameId, playerId, target.playerId);
     let result: ActionResult;
@@ -874,7 +874,7 @@ export class GameManager {
       await game.unitManager.removeUnit(actor.id);
       return {
         success: false,
-        message: `The ${getUnitType(actor.unitTypeId)?.name ?? actor.unitTypeId} was intercepted`,
+        message: `The ${this.getGameUnitType(game, actor.unitTypeId)?.name ?? actor.unitTypeId} was intercepted`,
         unitDestroyed: true,
       };
     };
@@ -1338,10 +1338,20 @@ export class GameManager {
       if (!pair.has(unit.playerId)) continue;
       const tileOwner = game.mapManager.getTile(unit.x, unit.y)?.owner;
       const otherPlayerId = unit.playerId === firstPlayerId ? secondPlayerId : firstPlayerId;
-      const unitType = getUnitType(unit.unitTypeId);
+      const unitType = this.getGameUnitType(game, unit.unitTypeId);
       if (tileOwner !== otherPlayerId || unitType?.flags?.includes('NonMil')) continue;
       await game.unitManager.removeUnit(unit.id);
     }
+  }
+
+  private getGameUnitType(game: GameInstance, unitTypeId: string): UnitType | undefined {
+    const unitManager = game.unitManager as GameInstance['unitManager'] & {
+      getUnitType?: (id: string) => UnitType | undefined;
+    };
+    return (
+      unitManager.getUnitType?.(unitTypeId) ??
+      rulesetUnitsService.getUnitType(unitTypeId, game.config?.ruleset ?? 'civ2civ3')
+    );
   }
 
   public async getGame(gameId: string): Promise<any | null> {

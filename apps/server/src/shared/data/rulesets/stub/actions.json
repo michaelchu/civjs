@@ -1,0 +1,22 @@
+{
+  "source": "reference/freeciv/data/stub/actions.ruleset",
+  "datafile": {
+    "description": "<modpack> actions data for Freeciv",
+    "options": "+Freeciv-ruleset-3.4-Devel-2025.Jan.17",
+    "format_version": 50
+  },
+  "auto_attack": {},
+  "settings": {
+    "bombard_max_range": 1,
+    "bombard_2_max_range": 1,
+    "bombard_3_max_range": 1,
+    "bombard_lethal_max_range": 1,
+    "explode_nuclear_consuming_always": true,
+    "nuke_city_consuming_always": true,
+    "nuke_city_target_kind": "City",
+    "nuke_units_consuming_always": true,
+    "found_city_consuming_always": true
+  },
+  "action_properties": {},
+  "enablers": []
+}

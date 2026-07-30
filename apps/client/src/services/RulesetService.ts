@@ -71,7 +71,7 @@ export class RulesetService {
     return RulesetService.instance;
   }
 
-  async loadCitiesRuleset(rulesetName: string = 'classic'): Promise<CitiesRuleset> {
+  async loadCitiesRuleset(rulesetName: string = 'civ2civ3'): Promise<CitiesRuleset> {
     const cached = this.citiesCache.get(rulesetName);
     if (cached) return cached;
 
@@ -86,19 +86,19 @@ export class RulesetService {
     return ruleset;
   }
 
-  async getCityStyles(rulesetName: string = 'classic'): Promise<Record<string, CityStyle>> {
+  async getCityStyles(rulesetName: string = 'civ2civ3'): Promise<Record<string, CityStyle>> {
     return (await this.loadCitiesRuleset(rulesetName)).city_styles;
   }
 
-  async getCityStyle(styleId: string, rulesetName: string = 'classic'): Promise<CityStyle | null> {
+  async getCityStyle(styleId: string, rulesetName: string = 'civ2civ3'): Promise<CityStyle | null> {
     return (await this.getCityStyles(rulesetName))[styleId] || null;
   }
 
-  async getCityFoundingRules(rulesetName: string = 'classic'): Promise<CityFoundingRules> {
+  async getCityFoundingRules(rulesetName: string = 'civ2civ3'): Promise<CityFoundingRules> {
     return (await this.loadCitiesRuleset(rulesetName)).founding_rules;
   }
 
-  async getNationStyles(rulesetName: string = 'classic'): Promise<Record<string, string>> {
+  async getNationStyles(rulesetName: string = 'civ2civ3'): Promise<Record<string, string>> {
     const cached = this.nationStylesCache.get(rulesetName);
     if (cached) return cached;
     const response = await fetch(
@@ -117,7 +117,7 @@ export class RulesetService {
     return nationStyles;
   }
 
-  async loadPresentationRuleset(rulesetName: string = 'classic'): Promise<PresentationRuleset> {
+  async loadPresentationRuleset(rulesetName: string = 'civ2civ3'): Promise<PresentationRuleset> {
     const cached = this.presentationCache.get(rulesetName);
     if (cached) return cached;
     const response = await fetch(

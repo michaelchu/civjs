@@ -1,3 +1,4 @@
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 /**
  * CityCalculationService - Pure calculation methods for cities
  *
@@ -212,7 +213,8 @@ export class CityCalculationService extends BaseGameService {
       convertedTrade.luxury + specialistOutputs.luxury
     );
 
-    const foodConsumption = city.population * rulesetLoader.getCivstyle('classic').food_cost;
+    const foodConsumption =
+      city.population * rulesetLoader.getCivstyle(this.effectsManager.getRulesetName()).food_cost;
     const totalOutputs: CityOutputs = {
       food: grossFood - foodConsumption - (playerContext.unitUpkeep?.food ?? 0),
       shields: Math.max(0, grossShields - (playerContext.unitUpkeep?.shield ?? 0)),
@@ -241,7 +243,7 @@ export class CityCalculationService extends BaseGameService {
    */
   private calculateFallbackCityOutputs(city: CityState, taxRates?: TaxRates): CityOutputs {
     try {
-      const civstyle = rulesetLoader.getCivstyle('classic');
+      const civstyle = rulesetLoader.getCivstyle(this.effectsManager.getRulesetName());
       const food = civstyle.min_city_center_food;
       const shields = civstyle.min_city_center_shield;
       const trade = civstyle.min_city_center_trade;
@@ -280,7 +282,9 @@ export class CityCalculationService extends BaseGameService {
     shieldProduction: number,
     playerContext?: CityPlayerContext
   ): number {
-    const basePollution = rulesetLoader.getCivstyle('classic').base_pollution;
+    const basePollution = rulesetLoader.getCivstyle(
+      this.effectsManager.getRulesetName()
+    ).base_pollution;
     const context = playerContext
       ? this.buildCityEffectContext(city, playerContext)
       : {
@@ -375,13 +379,17 @@ export class CityCalculationService extends BaseGameService {
    * @param rulesetName Ruleset to use for calculations
    * @returns Required food storage for next growth
    */
-  calculateGranarySize(population: number, rulesetName: string = 'classic'): number {
+  calculateGranarySize(population: number, rulesetName: string = DEFAULT_RULESET): number {
     try {
       const civstyle = rulesetLoader.getCivstyle(rulesetName);
       const granaryFoodIni = civstyle.granary_food_ini;
       const granaryFoodInc = civstyle.granary_food_inc;
 
-      // Freeciv formula: base initial size + increment per additional population
+      // Freeciv permits a per-size initial-granary table as well as the
+      // classic scalar-plus-increment form.
+      if (Array.isArray(granaryFoodIni)) {
+        return granaryFoodIni[Math.min(Math.max(0, population - 1), granaryFoodIni.length - 1)]!;
+      }
       return granaryFoodIni + (population - 1) * granaryFoodInc;
     } catch {
       // Fallback to classic values if ruleset loading fails

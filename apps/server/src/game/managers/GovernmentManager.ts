@@ -1,3 +1,4 @@
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { DatabaseProvider } from '@database';
 import { governmentChanges, players as playersTable } from '@database/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -60,17 +61,20 @@ export interface PlayerGovernment {
 }
 
 // Load governments from ruleset system
-export function getGovernments(rulesetName: string = 'classic'): Record<string, Government> {
+export function getGovernments(rulesetName: string = DEFAULT_RULESET): Record<string, Government> {
   return rulesetLoader.getGovernments(rulesetName);
 }
 
 // Get individual government
-export function getGovernment(governmentId: string, rulesetName: string = 'classic'): Government {
+export function getGovernment(
+  governmentId: string,
+  rulesetName: string = DEFAULT_RULESET
+): Government {
   return rulesetLoader.getGovernment(governmentId, rulesetName);
 }
 
 // Get revolution government type
-export function getRevolutionGovernment(rulesetName: string = 'classic'): string {
+export function getRevolutionGovernment(rulesetName: string = DEFAULT_RULESET): string {
   return rulesetLoader.getRevolutionGovernment(rulesetName);
 }
 

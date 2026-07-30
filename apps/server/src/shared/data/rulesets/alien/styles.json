@@ -1,0 +1,60 @@
+{
+  "source": "reference/freeciv/data/alien/styles.ruleset",
+  "datafile": {
+    "description": "Nation theme data for Freeciv",
+    "options": "+Freeciv-ruleset-3.4-Devel-2025.Jan.17",
+    "format_version": 50
+  },
+  "nation_styles": {
+    "style_human": {
+      "name": "Human"
+    }
+  },
+  "city_styles": {
+    "citystyle_human": {
+      "name": "Human",
+      "graphic": "city.human",
+      "graphic_alt": "city.classical",
+      "citizens_graphic": "human",
+      "reqs": [
+        {
+          "type": "Style",
+          "name": "Human",
+          "range": "Player"
+        }
+      ]
+    },
+    "citystyle_dual": {
+      "name": "Dual",
+      "graphic": "city.dual",
+      "graphic_alt": "city.modern",
+      "citizens_graphic": "dual",
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Alien Rights",
+          "range": "Player"
+        }
+      ]
+    },
+    "citystyle_oceanic": {
+      "name": "Oceanic",
+      "graphic": "city.ocean",
+      "graphic_alt": "city.modern",
+      "citizens_graphic": "dual",
+      "reqs": [
+        {
+          "type": "TerrainClass",
+          "name": "Oceanic",
+          "range": "Tile"
+        }
+      ]
+    }
+  },
+  "music_styles": {
+    "musicstyle_human": {
+      "music_peaceful": "music_peace",
+      "music_combat": "music_combat"
+    }
+  }
+}

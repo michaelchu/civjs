@@ -27,6 +27,10 @@ function normalizeRulesetId(value: string): string {
     .replace(/^_|_$/g, '');
 }
 
+const unitTypesFor = (game: GameInstance) => game.unitManager.getUnitTypes?.() ?? UNIT_TYPES;
+const buildingTypesFor = (game: GameInstance) =>
+  game.cityManager.getBuildingTypes?.() ?? BUILDING_TYPES;
+
 function createResearchDistance(
   catalogue: Technology[],
   researchedTechs: Iterable<string>
@@ -109,7 +113,7 @@ export class FreecivAIDomesticController {
     const threatWants = rankThreatTechnologyWants({
       cities,
       hostileUnits,
-      unitTypes: UNIT_TYPES,
+      unitTypes: unitTypesFor(game),
       researchedTechs: knownTechs,
       canBuildNow: (cityId, unitTypeId) =>
         game.cityManager.canCityContinueProduction?.(cityId, 'unit', unitTypeId) ?? false,
@@ -162,8 +166,8 @@ export class FreecivAIDomesticController {
       ? rankResearch({
           available,
           catalogue,
-          unitTypes: UNIT_TYPES,
-          buildingTypes: BUILDING_TYPES,
+          unitTypes: unitTypesFor(game),
+          buildingTypes: buildingTypesFor(game),
           governmentTechs: this.governmentTechnologyIds(game),
           militaryPressure: strategy.hostileCount,
           cityCount: strategy.cities.length,
@@ -264,8 +268,8 @@ export class FreecivAIDomesticController {
       cities,
       unitCount: game.unitManager.getPlayerUnits(playerId).length,
       atWar: hostileIds.size > 0,
-      unitTypes: UNIT_TYPES,
-      buildingTypes: BUILDING_TYPES,
+      unitTypes: unitTypesFor(game),
+      buildingTypes: buildingTypesFor(game),
       buyCost: cityId => game.cityManager.calculateBuyCost(cityId),
       threat: city =>
         hostileUnits.reduce((sum, unit) => {

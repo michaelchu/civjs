@@ -9,10 +9,10 @@ import { logger } from '@utils/logger';
 import type { Server as SocketServer } from 'socket.io';
 import { PacketType, PACKET_NAMES, PROTOCOL_VERSION } from '@app-types/packet';
 import type { GameInstance } from '@game/managers/GameManager';
-import { getUnitType } from '@game/constants/UnitConstants';
 import { rulesetActionsService } from '@game/services/RulesetActionsService';
 import { resolveCityPresentations } from '@game/services/CityPresentationService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
 
 const LOBBY_EVENTS = new Set(['player-joined', 'player-connection-changed']);
 
@@ -698,7 +698,9 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
    * @reference Original GameManager.ts:800-832 formatUnitForClient()
    */
   private formatUnitForClient(unit: any, unitManager: any): any {
-    const unitType = getUnitType(unit.unitTypeId || unit.type);
+    const unitType =
+      unitManager.getUnitType?.(unit.unitTypeId || unit.type) ??
+      rulesetUnitsService.getUnitType(unit.unitTypeId || unit.type, 'classic');
     return {
       id: unit.id,
       owner: unit.playerId,
@@ -771,7 +773,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     const exploredTiles = gameInstance.visibilityManager.getExploredTiles(playerId);
     const allCities = gameInstance.cityManager.getAllCities();
     const debugVisibility = this.isDebugVisibilityEnabled(gameId, playerId);
-    const rulesetName = gameInstance.config?.ruleset ?? 'classic';
+    const rulesetName = gameInstance.config?.ruleset ?? 'civ2civ3';
     const smallWonderVisibility =
       rulesetLoader.loadGameRulesRuleset(rulesetName).wonder_visibility.small_wonders;
     const visibleCities = debugVisibility

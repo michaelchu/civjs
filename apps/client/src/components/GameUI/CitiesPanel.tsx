@@ -90,6 +90,9 @@ export const CitiesPanel: React.FC = () => {
   const cities = useGameStore(state => state.cities);
   const units = useGameStore(state => state.units);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
+  const clientState = useGameStore(state => state.clientState);
+  const rulesetName =
+    (clientState as { config?: { ruleset?: string } } | null)?.config?.ruleset ?? 'civ2civ3';
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [productions, setProductions] = useState<ProductionOption[]>([]);
@@ -288,7 +291,7 @@ export const CitiesPanel: React.FC = () => {
       {
         id: crypto.randomUUID(),
         name,
-        ruleset: 'classic',
+        ruleset: rulesetName,
         items: worklistDraft.map(option => ({
           productionId: option.id,
           type: option.type,

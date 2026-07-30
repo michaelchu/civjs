@@ -1,0 +1,60 @@
+{
+  "source": "reference/freeciv/data/stub/effects.ruleset",
+  "datafile": {
+    "description": "<modpack> effects data for Freeciv",
+    "options": "+Freeciv-ruleset-3.4-Devel-2025.Jan.17",
+    "format_version": 50
+  },
+  "about": {
+    "name": "Freeciv stub Effects Ruleset",
+    "summary": "<modpack> effects data for Freeciv"
+  },
+  "user_effects": {},
+  "effects": {
+    "city_vision": {
+      "id": "city_vision",
+      "type": "City_Vision_Radius_Sq",
+      "value": 5
+    },
+    "base_unit_upkeep": {
+      "id": "base_unit_upkeep",
+      "type": "Upkeep_Pct",
+      "value": 100
+    },
+    "empire_size_base": {
+      "id": "empire_size_base",
+      "type": "Empire_Size_Base",
+      "value": 1
+    },
+    "empire_size_step_base": {
+      "id": "empire_size_step_base",
+      "type": "Empire_Size_Step",
+      "value": 1
+    },
+    "max_rates_base": {
+      "id": "max_rates_base",
+      "type": "Max_Rates",
+      "value": 40
+    },
+    "base_size": {
+      "id": "base_size",
+      "type": "Size_Adj",
+      "value": 1
+    },
+    "tech_cost_base": {
+      "id": "tech_cost_base",
+      "type": "Tech_Cost_Factor",
+      "value": 1
+    },
+    "tile_workable": {
+      "id": "tile_workable",
+      "type": "Tile_Workable",
+      "value": 1
+    },
+    "city_build_slots_basic": {
+      "id": "city_build_slots_basic",
+      "type": "City_Build_Slots",
+      "value": 1
+    }
+  }
+}

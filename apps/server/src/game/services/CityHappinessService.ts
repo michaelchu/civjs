@@ -61,9 +61,6 @@ export const FEELING_FINAL = 5; // after wonders (final result)
 
 export { SpecialistType, SPECIALIST_TYPES, type SpecialistDefinition };
 
-/** @reference reference/freeciv/data/classic/buildings.ruleset */
-const BUILDING_TYPES = rulesetBuildingsService.getBuildingTypes();
-
 /**
  * Detailed happiness calculation result with breakdown
  */
@@ -487,9 +484,12 @@ export class CityHappinessService extends BaseGameService {
     const happiness = this.calculateHappiness(city);
 
     if (happiness.unhappy > 0) {
-      const temple = BUILDING_TYPES.temple;
-      const cathedral = BUILDING_TYPES.cathedral;
-      const colosseum = BUILDING_TYPES.colosseum;
+      const buildingTypes = rulesetBuildingsService.getBuildingTypes(
+        this.effectsManager.getRulesetName()
+      );
+      const temple = buildingTypes.temple;
+      const cathedral = buildingTypes.cathedral;
+      const colosseum = buildingTypes.colosseum;
 
       // Recommend Temple if not built
       if (temple && !city.buildings.includes('temple')) {

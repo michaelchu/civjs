@@ -8,6 +8,7 @@
  */
 
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import type {
   MapgenTerrainProperty,
   TerrainType,
@@ -40,32 +41,41 @@ export function pickTerrain(
   target: MapgenTerrainProperty,
   prefer: MapgenTerrainProperty,
   avoid: MapgenTerrainProperty,
-  random: () => number
+  random: () => number,
+  rulesetName: string = DEFAULT_RULESET
 ): TerrainType {
-  return rulesetLoader.pickTerrain(target, prefer, avoid, random, 'classic');
+  return rulesetLoader.pickTerrain(target, prefer, avoid, random, rulesetName);
 }
 
 /**
  * Get terrain properties for a given terrain type
  */
 export function getTerrainProperties(
-  terrain: TerrainType
+  terrain: TerrainType,
+  rulesetName: string = DEFAULT_RULESET
 ): Partial<Record<MapgenTerrainProperty, number>> {
-  return rulesetLoader.getTerrainProperties(terrain, 'classic');
+  return rulesetLoader.getTerrainProperties(terrain, rulesetName);
 }
 
 /**
  * Check if a terrain has a specific property
  */
-export function terrainHasProperty(terrain: TerrainType, property: MapgenTerrainProperty): boolean {
-  return rulesetLoader.terrainHasProperty(terrain, property, 'classic');
+export function terrainHasProperty(
+  terrain: TerrainType,
+  property: MapgenTerrainProperty,
+  rulesetName: string = DEFAULT_RULESET
+): boolean {
+  return rulesetLoader.terrainHasProperty(terrain, property, rulesetName);
 }
 
 /**
  * Get terrain transform result
  */
-export function getTerrainTransform(terrain: TerrainType): TerrainType | undefined {
-  return rulesetLoader.getTerrainTransform(terrain, 'classic');
+export function getTerrainTransform(
+  terrain: TerrainType,
+  rulesetName: string = DEFAULT_RULESET
+): TerrainType | undefined {
+  return rulesetLoader.getTerrainTransform(terrain, rulesetName);
 }
 
 // Re-export the rulesetLoader instance for direct access to all rulesets

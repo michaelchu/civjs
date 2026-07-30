@@ -100,22 +100,8 @@ export interface MapGenerationOptions {
   separatePoles?: boolean;
 }
 
-export type TerrainType =
-  | 'ocean'
-  | 'coast'
-  | 'deep_ocean'
-  | 'lake'
-  | 'inaccessible'
-  | 'glacier'
-  | 'grassland'
-  | 'plains'
-  | 'desert'
-  | 'tundra'
-  | 'forest'
-  | 'jungle'
-  | 'swamp'
-  | 'hills'
-  | 'mountains';
+/** Ruleset-defined terrain identifier (not limited to the classic catalogue). */
+export type TerrainType = string;
 
 export type ResourceType =
   | 'resources'

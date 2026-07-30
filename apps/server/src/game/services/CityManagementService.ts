@@ -4,6 +4,7 @@ import { CityDataService } from '@game/services/CityDataService';
 import { logger } from '@utils/logger';
 import type { CityState } from '@game/managers/CityManager';
 import { getUniqueCityName } from '@game/constants/CityNames';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 /**
  * CityManagementService - High-level city operations service
@@ -112,7 +113,7 @@ export class CityManagementService extends BaseGameService {
     if (cityData) {
       const clientCityData = CityDataService.transformCityForClient(
         cityData,
-        'classic',
+        gameInstance.config?.ruleset ?? DEFAULT_RULESET,
         undefined,
         undefined,
         gameInstance.unitManager.getAllUnits?.().values() ?? []

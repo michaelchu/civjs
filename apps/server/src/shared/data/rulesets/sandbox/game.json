@@ -1,0 +1,707 @@
+{
+  "source": "reference/freeciv/data/sandbox/game.ruleset",
+  "datafile": {
+    "description": "Sandbox game rules for Freeciv",
+    "options": "+Freeciv-ruleset-3.4-Devel-2025.Jan.17",
+    "format_version": 50
+  },
+  "ruledit": {
+    "description_file": "sandbox/README.sandbox",
+    "std_tileset_compat": true
+  },
+  "about": {
+    "name": "Sandbox ruleset",
+    "summary": "You are playing Freeciv with sandbox ruleset. This showcases new or unusual features available in Freeciv without regard for strict game balancing, playability, AI performance, availability of graphics, or savegame compatibility between versions.\n\nThis ruleset was originally based on current default ruleset, civ2civ3, as it stood in 2.6.",
+    "description": "*sandbox/README.sandbox*",
+    "capabilities": "std-terrains"
+  },
+  "capabilities": ["std-terrains"],
+  "options": {
+    "global_init_techs": "",
+    "global_init_buildings": "Palace"
+  },
+  "tileset": {},
+  "soundset": {},
+  "musicset": {},
+  "civstyle": {
+    "base_pollution": -20,
+    "happy_cost": 2,
+    "food_cost": 2,
+    "granary_food_ini": [20, 20, 20, 20, 20, 30, 30, 40],
+    "granary_food_inc": 0,
+    "min_city_center_food": 0,
+    "min_city_center_shield": 0,
+    "min_city_center_trade": 0
+  },
+  "game_parameters": {
+    "init_city_radius_sq": 5,
+    "init_vis_radius_sq": 5,
+    "base_bribe_cost": 750,
+    "ransom_gold": 100,
+    "upgrade_veteran_loss": 1,
+    "autoupgrade_veteran_loss": 1,
+    "pillage_select": true,
+    "tech_steal_allow_holes": false,
+    "tech_trade_allow_holes": false,
+    "tech_trade_loss_allow_holes": false,
+    "tech_parasite_allow_holes": false,
+    "tech_loss_allow_holes": false,
+    "gameloss_style": "",
+    "paradrop_to_transport": true,
+    "gold_upkeep_style": "Mixed",
+    "output_granularity": 1,
+    "airlift_from_always_enabled": false,
+    "airlift_to_always_enabled": true,
+    "base_incite_cost": 1000,
+    "incite_improvement_factor": 1,
+    "incite_unit_factor": 2,
+    "incite_total_factor": 100
+  },
+  "wonder_visibility": {
+    "small_wonders": "Embassy"
+  },
+  "illness": {
+    "illness_on": true,
+    "illness_base_factor": 10,
+    "illness_min_size": 5,
+    "illness_trade_infection": 100,
+    "illness_pollution_factor": 50
+  },
+  "combat_rules": {
+    "tired_attack": true,
+    "only_killing_makes_veteran": false,
+    "only_real_fight_makes_veteran": true,
+    "combat_odds_scaled_veterancy": true,
+    "damage_reduces_bombard_rate": true,
+    "low_firepower_badwallattacker": 1,
+    "low_firepower_pearl_harbor": 1,
+    "low_firepower_combat_bonus": 1,
+    "low_firepower_nonnat_bombard": 1,
+    "nuke_pop_loss_pct": 49,
+    "nuke_defender_survival_chance_pct": 0
+  },
+  "borders": {
+    "radius_sq_city": 5,
+    "size_effect": 1,
+    "radius_sq_city_permanent": -3
+  },
+  "research": {
+    "tech_cost_style": "Linear",
+    "base_tech_cost": 10,
+    "min_tech_cost": 10,
+    "tech_leakage": "Embassies",
+    "tech_upkeep_style": "Cities",
+    "tech_upkeep_divider": 6000,
+    "free_tech_method": "Cheapest"
+  },
+  "culture": {
+    "victory_min_points": 20000,
+    "victory_lead_pct": 100,
+    "history_interest_pml": 0,
+    "migration_pml": 50
+  },
+  "world_peace": {
+    "victory_turns": 20
+  },
+  "calendar": {
+    "start_year": -4000,
+    "skip_year_0": true,
+    "fragments": 0,
+    "fragment_names": [],
+    "positive_label": "CE",
+    "negative_label": "BCE"
+  },
+  "disasters": {
+    "earthquake": {
+      "name": "Earthquake",
+      "reqs": [
+        {
+          "type": "Terrain",
+          "name": "Hills",
+          "range": "Tile"
+        }
+      ],
+      "frequency": 10,
+      "effects": "EmptyProdStock"
+    },
+    "flood": {
+      "name": "Flood",
+      "reqs": [
+        {
+          "type": "Extra",
+          "name": "River",
+          "range": "Adjacent"
+        }
+      ],
+      "frequency": 10,
+      "effects": "EmptyFoodStock"
+    },
+    "fire": {
+      "name": "Fire",
+      "reqs": [
+        {
+          "type": "MinSize",
+          "name": "9",
+          "range": "City"
+        }
+      ],
+      "frequency": 10,
+      "effects": "DestroyBuilding"
+    },
+    "industrial_accident": {
+      "name": "Industrial Accident",
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Mfg. Plant",
+          "range": "City"
+        }
+      ],
+      "frequency": 10,
+      "effects": ["ReducePopulation", "Pollution"]
+    },
+    "nuclear_accident": {
+      "name": "Nuclear Accident",
+      "reqs": [
+        {
+          "type": "Building",
+          "name": "Nuclear Plant",
+          "range": "City"
+        }
+      ],
+      "frequency": 10,
+      "effects": ["ReducePopulation", "Fallout"]
+    },
+    "robbery": {
+      "name": "Robbery",
+      "frequency": 10,
+      "effects": "Robbery"
+    }
+  },
+  "trade": {
+    "settings": [
+      {
+        "type": "National",
+        "pct": 0,
+        "cancelling": "Cancel",
+        "bonus": "Both"
+      },
+      {
+        "type": "NationalIC",
+        "pct": 0,
+        "cancelling": "Cancel",
+        "bonus": "Both"
+      },
+      {
+        "type": "IN",
+        "pct": 100,
+        "cancelling": "Cancel",
+        "bonus": "Gold"
+      },
+      {
+        "type": "INIC",
+        "pct": 200,
+        "cancelling": "Cancel",
+        "bonus": "Gold"
+      },
+      {
+        "type": "Ally",
+        "pct": 100,
+        "cancelling": "Cancel",
+        "bonus": "Gold"
+      },
+      {
+        "type": "AllyIC",
+        "pct": 200,
+        "cancelling": "Cancel",
+        "bonus": "Gold"
+      },
+      {
+        "type": "Enemy",
+        "pct": 0,
+        "cancelling": "Cancel",
+        "bonus": "Gold"
+      },
+      {
+        "type": "EnemyIC",
+        "pct": 0,
+        "cancelling": "Cancel",
+        "bonus": "Gold"
+      },
+      {
+        "type": "Team",
+        "pct": 100,
+        "cancelling": "Cancel",
+        "bonus": "Gold"
+      },
+      {
+        "type": "TeamIC",
+        "pct": 200,
+        "cancelling": "Cancel",
+        "bonus": "Gold"
+      }
+    ],
+    "min_trade_route_val": 0,
+    "reveal_trade_partner": false,
+    "goods_selection": "Leaving"
+  },
+  "goods": {
+    "wares": {
+      "name": "Wares",
+      "replace_priority": 1,
+      "flags": "Bidirectional"
+    },
+    "spice": {
+      "name": "Spice",
+      "replace_priority": 1,
+      "reqs": [
+        {
+          "type": "Extra",
+          "name": "Spice",
+          "range": "City"
+        }
+      ],
+      "from_pct": 135,
+      "to_pct": 100,
+      "flags": "Depletes"
+    },
+    "gems": {
+      "name": "Gems",
+      "replace_priority": 1,
+      "reqs": [
+        {
+          "type": "Extra",
+          "name": "Gems",
+          "range": "City"
+        }
+      ],
+      "from_pct": 135,
+      "to_pct": 100,
+      "flags": "Depletes"
+    },
+    "jewelry": {
+      "name": "Jewelry",
+      "replace_priority": 1,
+      "reqs": [
+        {
+          "type": "Good",
+          "name": "Gems",
+          "range": "City"
+        }
+      ],
+      "from_pct": 250,
+      "to_pct": 150,
+      "flags": "Depletes"
+    },
+    "ore": {
+      "name": "Ore",
+      "replace_priority": 1,
+      "reqs": [
+        {
+          "type": "Extra",
+          "name": "Mine",
+          "range": "City"
+        }
+      ],
+      "flags": "Depletes"
+    },
+    "metal": {
+      "name": "Metal",
+      "replace_priority": 1,
+      "reqs": [
+        {
+          "type": "Good",
+          "name": "Ore",
+          "range": "City"
+        }
+      ],
+      "from_pct": 135,
+      "to_pct": 100,
+      "flags": "Depletes"
+    },
+    "good": {
+      "name": "Goods",
+      "replace_priority": 1,
+      "reqs": [
+        {
+          "type": "Good",
+          "name": "Metal",
+          "range": "City",
+          "present": true
+        },
+        {
+          "type": "Tech",
+          "name": "Electronics",
+          "range": "Player",
+          "present": false
+        }
+      ],
+      "from_pct": 150,
+      "to_pct": 135,
+      "flags": "Depletes"
+    },
+    "equipment": {
+      "name": "Equipment",
+      "replace_priority": 1,
+      "reqs": [
+        {
+          "type": "Good",
+          "name": "Metal",
+          "range": "City"
+        },
+        {
+          "type": "Tech",
+          "name": "Electronics",
+          "range": "Player"
+        }
+      ],
+      "from_pct": 200,
+      "to_pct": 150,
+      "flags": "Depletes"
+    }
+  },
+  "access_area": {
+    "access_unit": ""
+  },
+  "diplomacy_clauses": {
+    "advance": {
+      "type": "Advance",
+      "giver_reqs": [
+        {
+          "type": "Tech",
+          "name": "Writing",
+          "range": "Player"
+        }
+      ],
+      "receiver_reqs": [
+        {
+          "type": "Tech",
+          "name": "Writing",
+          "range": "Player"
+        }
+      ]
+    },
+    "gold": {
+      "type": "Gold"
+    },
+    "map": {
+      "type": "Map"
+    },
+    "seamap": {
+      "type": "Seamap"
+    },
+    "city": {
+      "type": "City"
+    },
+    "ceasefire": {
+      "type": "Ceasefire"
+    },
+    "peace": {
+      "type": "Peace"
+    },
+    "alliance": {
+      "type": "Alliance"
+    },
+    "vision": {
+      "type": "Vision"
+    },
+    "embassy": {
+      "type": "Embassy"
+    },
+    "sharedtiles": {
+      "type": "SharedTiles"
+    }
+  },
+  "player_colors": {
+    "background.r": 86,
+    "background.g": 86,
+    "background.b": 86,
+    "colorlist": [
+      {
+        "r": 255,
+        "g": 0,
+        "b": 0
+      },
+      {
+        "r": 255,
+        "g": 255,
+        "b": 0
+      },
+      {
+        "r": 0,
+        "g": 255,
+        "b": 255
+      },
+      {
+        "r": 138,
+        "g": 43,
+        "b": 226
+      },
+      {
+        "r": 255,
+        "g": 165,
+        "b": 0
+      },
+      {
+        "r": 255,
+        "g": 0,
+        "b": 255
+      },
+      {
+        "r": 173,
+        "g": 216,
+        "b": 230
+      },
+      {
+        "r": 0,
+        "g": 255,
+        "b": 127
+      },
+      {
+        "r": 250,
+        "g": 128,
+        "b": 114
+      },
+      {
+        "r": 124,
+        "g": 252,
+        "b": 0
+      },
+      {
+        "r": 139,
+        "g": 0,
+        "b": 0
+      },
+      {
+        "r": 255,
+        "g": 192,
+        "b": 203
+      },
+      {
+        "r": 211,
+        "g": 211,
+        "b": 211
+      },
+      {
+        "r": 218,
+        "g": 112,
+        "b": 214
+      },
+      {
+        "r": 255,
+        "g": 20,
+        "b": 147
+      },
+      {
+        "r": 100,
+        "g": 149,
+        "b": 237
+      },
+      {
+        "r": 255,
+        "g": 215,
+        "b": 0
+      },
+      {
+        "r": 245,
+        "g": 222,
+        "b": 179
+      },
+      {
+        "r": 255,
+        "g": 255,
+        "b": 128
+      },
+      {
+        "r": 192,
+        "g": 255,
+        "b": 128
+      },
+      {
+        "r": 204,
+        "g": 255,
+        "b": 0
+      },
+      {
+        "r": 255,
+        "g": 211,
+        "b": 140
+      },
+      {
+        "r": 255,
+        "g": 79,
+        "b": 0
+      },
+      {
+        "r": 240,
+        "g": 145,
+        "b": 169
+      },
+      {
+        "r": 255,
+        "g": 219,
+        "b": 88
+      },
+      {
+        "r": 153,
+        "g": 17,
+        "b": 153
+      },
+      {
+        "r": 184,
+        "g": 134,
+        "b": 11
+      },
+      {
+        "r": 255,
+        "g": 102,
+        "b": 0
+      },
+      {
+        "r": 102,
+        "g": 205,
+        "b": 170
+      },
+      {
+        "r": 195,
+        "g": 33,
+        "b": 72
+      },
+      {
+        "r": 168,
+        "g": 153,
+        "b": 230
+      },
+      {
+        "r": 255,
+        "g": 250,
+        "b": 205
+      }
+    ]
+  },
+  "teams": {},
+  "settings": {
+    "set": [
+      {
+        "name": "aifill",
+        "value": 12,
+        "lock": "FALSE"
+      },
+      {
+        "name": "generator",
+        "value": "FRACTAL",
+        "lock": "FALSE"
+      },
+      {
+        "name": "topology",
+        "value": "ISO",
+        "lock": "FALSE"
+      },
+      {
+        "name": "wrap",
+        "value": "WRAPX|WRAPY",
+        "lock": "FALSE"
+      },
+      {
+        "name": "mapsize",
+        "value": "PLAYER",
+        "lock": "FALSE"
+      },
+      {
+        "name": "tilesperplayer",
+        "value": 100,
+        "lock": "FALSE"
+      },
+      {
+        "name": "tinyisles",
+        "value": "ENABLED",
+        "lock": "FALSE"
+      },
+      {
+        "name": "startunits",
+        "value": "cwx",
+        "lock": "FALSE"
+      },
+      {
+        "name": "citymindist",
+        "value": 3,
+        "lock": "FALSE"
+      },
+      {
+        "name": "techlevel",
+        "value": 1,
+        "lock": "FALSE"
+      },
+      {
+        "name": "borders",
+        "value": "ENABLED",
+        "lock": "FALSE"
+      },
+      {
+        "name": "foggedborders",
+        "value": "ENABLED",
+        "lock": "FALSE"
+      },
+      {
+        "name": "restrictinfra",
+        "value": "ENABLED",
+        "lock": "FALSE"
+      },
+      {
+        "name": "unreachableprotects",
+        "value": "DISABLED",
+        "lock": "FALSE"
+      },
+      {
+        "name": "onsetbarbs",
+        "value": 120,
+        "lock": "FALSE"
+      },
+      {
+        "name": "occupychance",
+        "value": 50,
+        "lock": "FALSE"
+      },
+      {
+        "name": "techlossforgiveness",
+        "value": 0,
+        "lock": "FALSE"
+      },
+      {
+        "name": "techlossrestore",
+        "value": 50,
+        "lock": "FALSE"
+      },
+      {
+        "name": "multiresearch",
+        "value": "ENABLED",
+        "lock": "FALSE"
+      },
+      {
+        "name": "tradeworldrelpct",
+        "value": 100,
+        "lock": "FALSE"
+      },
+      {
+        "name": "northlatitude",
+        "value": 1000,
+        "lock": "TRUE"
+      },
+      {
+        "name": "southlatitude",
+        "value": -1000,
+        "lock": "TRUE"
+      },
+      {
+        "name": "disasters",
+        "value": 100,
+        "lock": "FALSE"
+      },
+      {
+        "name": "animals",
+        "value": 14,
+        "lock": "FALSE"
+      }
+    ]
+  }
+}

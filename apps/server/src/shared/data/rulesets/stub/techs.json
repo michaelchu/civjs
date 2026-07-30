@@ -1,0 +1,31 @@
+{
+  "source": "reference/freeciv/data/stub/techs.ruleset",
+  "datafile": {
+    "description": "<modpack> technology data for Freeciv",
+    "options": "+Freeciv-ruleset-3.4-Devel-2025.Jan.17",
+    "format_version": 50
+  },
+  "about": {
+    "name": "Freeciv stub Technologies Ruleset",
+    "summary": "<modpack> technology data for Freeciv"
+  },
+  "control": {},
+  "techs": {
+    "generic": {
+      "name": "Generic Tech",
+      "req1": "None",
+      "req2": "None",
+      "flags": [],
+      "graphic": "a.alphabet",
+      "graphic_alt": "-",
+      "helptext": "This is the only technology you can research.",
+      "id": "generic",
+      "freeciv_id": 1,
+      "internal_name": "Generic Tech",
+      "cost": 1,
+      "requirements": [],
+      "root_req": null,
+      "order": 1
+    }
+  }
+}

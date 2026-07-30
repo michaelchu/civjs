@@ -1,0 +1,86 @@
+{
+  "datafile": {
+    "description": "<modpack> nations data for Freeciv",
+    "options": "+Freeciv-ruleset-3.4-Devel-2025.Jan.17",
+    "format_version": 50
+  },
+  "about": {
+    "name": "Freeciv stub Nations Ruleset",
+    "summary": "<modpack> nations data for Freeciv"
+  },
+  "compatibility": {
+    "default_government": "Generic",
+    "allowed_govs": ["Anarchy", "Generic"],
+    "allowed_terrains": ["Ocean", "Generic"],
+    "allowed_styles": "Generic"
+  },
+  "default_traits": {},
+  "nation_sets": {
+    "nset_full": {
+      "name": "Full",
+      "rule_name": "all"
+    }
+  },
+  "nation_groups": {
+    "ngroup_generic": {
+      "name": "Generic",
+      "match": 2
+    }
+  },
+  "nations": {
+    "generic": {
+      "name": "People",
+      "plural": "People",
+      "groups": ["Generic"],
+      "legend": "This is the only nation you can select.",
+      "leaders": [
+        {
+          "name": "Generic",
+          "sex": "Male"
+        }
+      ],
+      "flag": "f.aborigines",
+      "flag_alt": "f.-",
+      "style": "Generic",
+      "init_techs": [],
+      "init_buildings": [],
+      "init_units": [],
+      "cities": ["Generic"],
+      "id": "generic",
+      "adjective": "People",
+      "class": "Generic",
+      "init_government": "Generic",
+      "civilwar_nations": [],
+      "conflicts": [],
+      "traits": {}
+    },
+    "barbarian": {
+      "name": "Barbarian",
+      "plural": "Barbarians",
+      "legend": "Since the dawn of civilization, barbarians have been a threat tocultured peoples everywhere.",
+      "leaders": [
+        {
+          "name": "Barbarian",
+          "sex": "Male"
+        }
+      ],
+      "flag": "f.barbarian",
+      "flag_alt": "f.-",
+      "style": "Generic",
+      "init_techs": [],
+      "init_buildings": [],
+      "init_units": [],
+      "cities": ["Barbaricum"],
+      "is_playable": false,
+      "barbarian_type": "LandAndSea",
+      "id": "barbarian",
+      "adjective": "Barbarian",
+      "class": "Other",
+      "init_government": "Generic",
+      "civilwar_nations": [],
+      "groups": [],
+      "conflicts": [],
+      "traits": {}
+    }
+  }
+}

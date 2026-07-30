@@ -24,6 +24,7 @@ import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastMana
 import type { EconomicManager } from '@game/systems/Economic/EconomicManager';
 import type { GovernmentManager } from '@game/managers/GovernmentManager';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 export interface TurnEvent {
   type: 'unit_move' | 'city_production' | 'research_complete' | 'diplomacy' | 'combat';
@@ -96,7 +97,7 @@ export class TurnManager {
     economicManager?: EconomicManager,
     governmentManager?: GovernmentManager,
     effectsManager: EffectsManager = new EffectsManager(),
-    rulesetName: string = 'classic'
+    rulesetName: string = DEFAULT_RULESET
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;

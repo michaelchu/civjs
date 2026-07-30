@@ -1,3 +1,4 @@
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import type { CityState } from '@game/managers/CityManager';
 import type { PlayerState } from '@game/managers/GameManager';
 import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
@@ -31,7 +32,7 @@ export function resolveCityPresentation(
   city: CityState,
   player: Pick<PlayerState, 'civilization'> | undefined,
   researchedTechs: ReadonlySet<string>,
-  rulesetName: string = 'classic',
+  rulesetName: string = DEFAULT_RULESET,
   loader: PresentationRuleset = rulesetLoader
 ): CityPresentation {
   let nationStyle = 'European';
@@ -92,7 +93,7 @@ export function resolveCityPresentations(
   cities: CityState[],
   players: ReadonlyMap<string, PlayerState>,
   getResearchedTechs: (playerId: string) => string[],
-  rulesetName: string = 'classic'
+  rulesetName: string = DEFAULT_RULESET
 ): Record<string, CityPresentation> {
   return Object.fromEntries(
     cities.map(city => [

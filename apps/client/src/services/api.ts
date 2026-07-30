@@ -118,14 +118,14 @@ export const nationsApi = {
   /**
    * Get all available nations for a ruleset
    */
-  async getNations(ruleset: string = 'classic'): Promise<ApiResponse<NationsResponse>> {
+  async getNations(ruleset: string = 'civ2civ3'): Promise<ApiResponse<NationsResponse>> {
     return fetchApi<NationsResponse>(`/nations?ruleset=${encodeURIComponent(ruleset)}`);
   },
 
   /**
    * Get a specific nation by ID
    */
-  async getNation(id: string, ruleset: string = 'classic'): Promise<ApiResponse<NationResponse>> {
+  async getNation(id: string, ruleset: string = 'civ2civ3'): Promise<ApiResponse<NationResponse>> {
     return fetchApi<NationResponse>(
       `/nations/${encodeURIComponent(id)}?ruleset=${encodeURIComponent(ruleset)}`
     );
@@ -143,7 +143,7 @@ export const nationsApi = {
    */
   async getNationLeaders(
     id: string,
-    ruleset: string = 'classic'
+    ruleset: string = 'civ2civ3'
   ): Promise<ApiResponse<NationLeadersResponse>> {
     return fetchApi<NationLeadersResponse>(
       `/nations/${encodeURIComponent(id)}/leaders?ruleset=${encodeURIComponent(ruleset)}`

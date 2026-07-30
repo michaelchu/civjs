@@ -1,0 +1,212 @@
+{
+  "source": "reference/freeciv/data/stub/game.ruleset",
+  "datafile": {
+    "description": "<modpack> game rules for Freeciv",
+    "options": "+Freeciv-ruleset-3.4-Devel-2025.Jan.17",
+    "format_version": 50
+  },
+  "ruledit": {
+    "std_tileset_compat": true
+  },
+  "about": {
+    "name": "Stub",
+    "summary": "This ruleset is meant to be used as starting point for real rulesets, not playable ruleset in itself.",
+    "capabilities": ""
+  },
+  "capabilities": [],
+  "options": {
+    "global_init_techs": "",
+    "global_init_buildings": ""
+  },
+  "tileset": {},
+  "soundset": {},
+  "musicset": {},
+  "civstyle": {
+    "base_pollution": -20,
+    "happy_cost": 2,
+    "food_cost": 2,
+    "granary_food_ini": 20,
+    "granary_food_inc": 10,
+    "min_city_center_food": 1,
+    "min_city_center_shield": 1,
+    "min_city_center_trade": 0
+  },
+  "game_parameters": {
+    "init_city_radius_sq": 5,
+    "init_vis_radius_sq": 5,
+    "base_bribe_cost": 750,
+    "ransom_gold": 100,
+    "upgrade_veteran_loss": 0,
+    "autoupgrade_veteran_loss": 0,
+    "pillage_select": true,
+    "tech_steal_allow_holes": true,
+    "tech_trade_allow_holes": true,
+    "tech_trade_loss_allow_holes": true,
+    "tech_parasite_allow_holes": true,
+    "tech_loss_allow_holes": true,
+    "gameloss_style": "",
+    "paradrop_to_transport": false,
+    "gold_upkeep_style": "City",
+    "output_granularity": 1,
+    "airlift_from_always_enabled": false,
+    "airlift_to_always_enabled": true,
+    "base_incite_cost": 1000,
+    "incite_improvement_factor": 1,
+    "incite_unit_factor": 2,
+    "incite_total_factor": 100
+  },
+  "wonder_visibility": {
+    "small_wonders": "Always"
+  },
+  "illness": {
+    "illness_on": false,
+    "illness_base_factor": 25,
+    "illness_min_size": 3,
+    "illness_trade_infection": 50,
+    "illness_pollution_factor": 50
+  },
+  "combat_rules": {
+    "tired_attack": false,
+    "only_killing_makes_veteran": false,
+    "only_real_fight_makes_veteran": false,
+    "combat_odds_scaled_veterancy": false,
+    "damage_reduces_bombard_rate": true,
+    "low_firepower_badwallattacker": 1,
+    "low_firepower_pearl_harbor": 1,
+    "low_firepower_combat_bonus": 1,
+    "low_firepower_nonnat_bombard": 1,
+    "nuke_pop_loss_pct": 49,
+    "nuke_defender_survival_chance_pct": 0
+  },
+  "borders": {
+    "radius_sq_city": 0,
+    "size_effect": 0,
+    "radius_sq_city_permanent": 0
+  },
+  "research": {
+    "tech_cost_style": "Classic",
+    "base_tech_cost": 20,
+    "min_tech_cost": 20,
+    "tech_leakage": "None",
+    "tech_upkeep_style": "None",
+    "tech_upkeep_divider": 2000,
+    "free_tech_method": "Goal"
+  },
+  "culture": {
+    "victory_min_points": 1000,
+    "victory_lead_pct": 200,
+    "history_interest_pml": 0,
+    "migration_pml": 50
+  },
+  "world_peace": {
+    "victory_turns": 20
+  },
+  "calendar": {
+    "start_year": 0,
+    "skip_year_0": false,
+    "fragments": 0,
+    "fragment_names": [],
+    "positive_label": "CE",
+    "negative_label": "BCE"
+  },
+  "disasters": {},
+  "trade": {
+    "settings": [
+      {
+        "type": "National",
+        "pct": 0,
+        "cancelling": "Cancel",
+        "bonus": "None"
+      },
+      {
+        "type": "NationalIC",
+        "pct": 0,
+        "cancelling": "Cancel",
+        "bonus": "None"
+      },
+      {
+        "type": "IN",
+        "pct": 0,
+        "cancelling": "Cancel",
+        "bonus": "None"
+      },
+      {
+        "type": "INIC",
+        "pct": 0,
+        "cancelling": "Cancel",
+        "bonus": "None"
+      },
+      {
+        "type": "Ally",
+        "pct": 0,
+        "cancelling": "Cancel",
+        "bonus": "None"
+      },
+      {
+        "type": "AllyIC",
+        "pct": 0,
+        "cancelling": "Cancel",
+        "bonus": "None"
+      },
+      {
+        "type": "Enemy",
+        "pct": 0,
+        "cancelling": "Cancel",
+        "bonus": "None"
+      },
+      {
+        "type": "EnemyIC",
+        "pct": 0,
+        "cancelling": "Cancel",
+        "bonus": "None"
+      },
+      {
+        "type": "Team",
+        "pct": 0,
+        "cancelling": "Cancel",
+        "bonus": "None"
+      },
+      {
+        "type": "TeamIC",
+        "pct": 0,
+        "cancelling": "Cancel",
+        "bonus": "None"
+      }
+    ],
+    "min_trade_route_val": 0,
+    "reveal_trade_partner": false,
+    "goods_selection": "Leaving"
+  },
+  "goods": {
+    "good": {
+      "name": "Goods",
+      "replace_priority": 1
+    }
+  },
+  "access_area": {
+    "access_unit": ""
+  },
+  "diplomacy_clauses": {},
+  "player_colors": {
+    "background.r": 86,
+    "background.g": 86,
+    "background.b": 86,
+    "colorlist": [
+      {
+        "r": 255,
+        "g": 0,
+        "b": 0
+      }
+    ]
+  },
+  "teams": {},
+  "settings": {
+    "set": [
+      {
+        "name": "startunits",
+        "value": "c",
+        "lock": "TRUE"
+      }
+    ]
+  }
+}

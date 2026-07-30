@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { RulesetLoader } from '../shared/data/rulesets/RulesetLoader';
+import { DEFAULT_RULESET } from '../shared/data/rulesets/defaultRuleset';
 import logger from '../utils/logger';
 
 /**
@@ -12,7 +13,7 @@ export class NationsController {
    */
   static async getNations(req: Request, res: Response): Promise<void> {
     try {
-      const { ruleset = 'classic' } = req.query;
+      const { ruleset = DEFAULT_RULESET } = req.query;
 
       // Express query parameters are always strings or arrays
       // Check for invalid values like arrays or empty strings
@@ -89,7 +90,7 @@ export class NationsController {
   static async getNationById(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { ruleset = 'classic' } = req.query;
+      const { ruleset = DEFAULT_RULESET } = req.query;
 
       if (typeof ruleset !== 'string' || Array.isArray(ruleset) || ruleset.trim() === '') {
         res.status(400).json({
@@ -145,14 +146,13 @@ export class NationsController {
    */
   static async getRulesets(_req: Request, res: Response): Promise<void> {
     try {
-      // For now we support only classic ruleset, but this can be extended
-      const availableRulesets = ['classic'];
+      const availableRulesets = RulesetLoader.getInstance().getAvailableRulesets();
 
       res.json({
         success: true,
         data: {
           rulesets: availableRulesets,
-          default: 'classic',
+          default: DEFAULT_RULESET,
         },
       });
     } catch (error) {
@@ -170,7 +170,7 @@ export class NationsController {
   static async getNationLeaders(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { ruleset = 'classic' } = req.query;
+      const { ruleset = DEFAULT_RULESET } = req.query;
 
       if (typeof ruleset !== 'string' || Array.isArray(ruleset) || ruleset.trim() === '') {
         res.status(400).json({

@@ -22,7 +22,7 @@ export const games = pgTable('games', {
   mapWidth: integer('map_width').default(80).notNull(),
   mapHeight: integer('map_height').default(50).notNull(),
   victoryConditions: jsonb('victory_conditions').default([]).notNull(),
-  ruleset: varchar('ruleset', { length: 50 }).default('classic').notNull(),
+  ruleset: varchar('ruleset', { length: 50 }).default('civ2civ3').notNull(),
 
   // Culture system settings (freeciv-based)
   historyInterestPml: integer('history_interest_pml').default(0).notNull(), // Per mille interest rate for culture compound growth

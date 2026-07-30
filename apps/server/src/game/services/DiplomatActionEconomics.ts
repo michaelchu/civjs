@@ -1,8 +1,10 @@
-import { BUILDING_TYPES, type CityState } from '@game/managers/CityManager';
+import type { CityState } from '@game/managers/CityManager';
 import type { GameInstance } from '@game/managers/GameManager';
 import type { Unit } from '@game/managers/UnitManager';
-import { getUnitType } from '@game/constants/UnitConstants';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
+import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
+import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 
 /**
  * @reference reference/freeciv/common/unit.c:2371-2471 unit_bribe_cost()
@@ -12,17 +14,30 @@ export function calculateDiplomatBribeCost(
   target: Unit,
   ownerGold: number
 ): number {
-  const targetType = getUnitType(target.unitTypeId);
+  const rulesetName = game.config?.ruleset ?? 'civ2civ3';
+  const targetType =
+    game.unitManager.getUnitType?.(target.unitTypeId) ??
+    rulesetUnitsService.getUnitType(target.unitTypeId, rulesetName);
   const capital = game.cityManager
     .getPlayerCities(target.playerId)
     .find(city => city.buildings.includes('palace'));
   const distance = capital
     ? game.mapManager.getDistance(capital.x, capital.y, target.x, target.y)
     : 32;
-  const { base_bribe_cost: baseBribeCost } = rulesetLoader.loadGameRulesRuleset().game_parameters;
+  const { base_bribe_cost: baseBribeCost } =
+    rulesetLoader.loadGameRulesRuleset(rulesetName).game_parameters;
   let cost = (baseBribeCost + ownerGold) / (distance + 2);
   cost *= (targetType?.cost ?? 10) / 10;
   cost *= 0.5 * (1 + target.health / 100);
+  const premium = new EffectsManager(rulesetName).calculateEffect(EffectType.UNIT_BRIBE_COST_PCT, {
+    playerId: target.playerId,
+    unitId: target.id,
+    unitType: target.unitTypeId,
+    unitClass: targetType?.rulesetUnitClass,
+    unitClassFlags: new Set(targetType?.rulesetUnitClassFlags ?? []),
+    unitTypeFlags: new Set(targetType?.flags ?? []),
+  }).value;
+  cost *= (100 + premium) / 100;
   return Math.max(1, Math.floor(cost));
 }
 
@@ -40,17 +55,24 @@ export async function calculateDiplomatInciteCost(
   const economicManager = game.turnManager.getEconomicManager();
   if (!economicManager) return Infinity;
   const ownerGold = await economicManager.getPlayerGold(city.playerId);
-  const parameters = rulesetLoader.loadGameRulesRuleset().game_parameters;
+  const rulesetName = game.config?.ruleset ?? 'civ2civ3';
+  const parameters = rulesetLoader.loadGameRulesRuleset(rulesetName).game_parameters;
+  const buildingTypes = rulesetBuildingsService.getBuildingTypes(rulesetName);
   const unitCost = game.unitManager
     .getUnitsAt(city.x, city.y)
     .reduce(
       (sum, unit) =>
-        sum + (getUnitType(unit.unitTypeId)?.cost ?? 0) * parameters.incite_unit_factor,
+        sum +
+        ((
+          game.unitManager.getUnitType?.(unit.unitTypeId) ??
+          rulesetUnitsService.getUnitType(unit.unitTypeId, rulesetName)
+        )?.cost ?? 0) *
+          parameters.incite_unit_factor,
       0
     );
   const improvementCost = city.buildings.reduce(
     (sum, building) =>
-      sum + (BUILDING_TYPES[building]?.cost ?? 0) * parameters.incite_improvement_factor,
+      sum + (buildingTypes[building]?.cost ?? 0) * parameters.incite_improvement_factor,
     0
   );
   let cost = ownerGold + parameters.base_incite_cost + unitCost + improvementCost;
@@ -63,8 +85,15 @@ export async function calculateDiplomatInciteCost(
     1,
     city.size + city.happiness.happy - city.happiness.unhappy - city.happiness.angry * 3
   );
-  return Math.max(
+  const costWithBaseFactors = Math.max(
     1,
     Math.floor((cost * effectiveSize * parameters.incite_total_factor) / ((distance + 3) * 100))
   );
+  const premium = new EffectsManager(rulesetName).calculateEffect(EffectType.INCITE_COST_PCT, {
+    playerId: city.playerId,
+    cityId: city.id,
+    cityBuildings: new Set(city.buildings),
+    maxUnitsOnTile: game.unitManager.getUnitsAt(city.x, city.y).length,
+  }).value;
+  return Math.max(1, Math.floor((costWithBaseFactors * (100 + premium)) / 100));
 }

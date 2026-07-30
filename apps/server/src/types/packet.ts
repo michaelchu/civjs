@@ -279,7 +279,7 @@ export const NationSelectReplySchema = z.object({
 });
 
 export const NationListReqSchema = z.object({
-  ruleset: z.string().optional().default('classic'),
+  ruleset: z.string().optional().default('civ2civ3'),
 });
 
 export const NationListReplySchema = z.object({

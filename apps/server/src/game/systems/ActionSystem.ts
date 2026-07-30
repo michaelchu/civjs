@@ -10,11 +10,12 @@ import {
 } from '@app-types/shared/actions';
 import { Unit, UnitOrder } from '@game/managers/UnitManager';
 import { SINGLE_MOVE } from '@game/constants/MovementConstants';
-import { getUnitType } from '@game/constants/UnitConstants';
+import { type UnitType, rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import type { MapManager } from '@game/managers/MapManager';
 import type { MapTile, TerrainType } from '@game/map/MapTypes';
 import { hasClassicIrrigationSource } from '@game/rules/ClassicIrrigationRules';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { getUniqueCityName } from '@game/constants/CityNames';
 
 // Action definitions based on freeciv classic ruleset
@@ -473,10 +474,18 @@ export class ActionSystem {
       getCityAt?: (x: number, y: number) => { id: string; playerId: string } | null;
       getCityNames?: () => string[];
     },
-    private readonly mapManager?: Pick<MapManager, 'getTile' | 'getTopology'>
+    private readonly mapManager?: Pick<MapManager, 'getTile' | 'getTopology'>,
+    private readonly rulesetName: string = DEFAULT_RULESET,
+    private readonly unitTypes: Record<string, UnitType> = rulesetUnitsService.getUnitTypes(
+      rulesetName
+    )
   ) {
     this.gameId = gameId;
     this.gameManagerCallback = gameManagerCallback;
+  }
+
+  private getTerrain(terrainType: TerrainType) {
+    return rulesetLoader.getTerrain(terrainType, this.rulesetName);
   }
 
   /**
@@ -581,7 +590,7 @@ export class ActionSystem {
    * Check if unit can fortify
    */
   private canFortify(unit: Unit): boolean {
-    const unitType = getUnitType(unit.unitTypeId);
+    const unitType = this.unitTypes[unit.unitTypeId];
     return Boolean(
       unitType?.rulesetUnitClassFlags.includes('CanFortify') &&
         !unitType.flags?.includes('Cant_Fortify') &&
@@ -660,7 +669,7 @@ export class ActionSystem {
    * Check if unit can found a city
    */
   private canFoundCity(unit: Unit): boolean {
-    const unitType = getUnitType(unit.unitTypeId);
+    const unitType = this.unitTypes[unit.unitTypeId];
 
     // Add debug logging for unit type lookup issues
     if (!unitType) {
@@ -690,7 +699,7 @@ export class ActionSystem {
    */
   private canBuildRoad(unit: Unit): boolean {
     const tile = this.mapManager?.getTile(unit.x, unit.y);
-    const terrain = tile && rulesetLoader.getTerrain(tile.terrain);
+    const terrain = tile && this.getTerrain(tile.terrain);
     return Boolean(
       this.canBuildImprovement(unit) &&
         unit.movementLeft > 0 &&
@@ -721,7 +730,7 @@ export class ActionSystem {
     }
 
     const tile = this.mapManager?.getTile(unit.x, unit.y);
-    const terrain = tile && rulesetLoader.getTerrain(tile.terrain);
+    const terrain = tile && this.getTerrain(tile.terrain);
     const cardinalNeighbors =
       this.mapManager
         ?.getTopology?.()
@@ -748,7 +757,7 @@ export class ActionSystem {
     }
 
     const tile = this.mapManager?.getTile(unit.x, unit.y);
-    const terrain = tile && rulesetLoader.getTerrain(tile.terrain);
+    const terrain = tile && this.getTerrain(tile.terrain);
     return Boolean(
       tile && terrain && terrain.miningTime > 0 && !tile.improvements.includes('mine')
     );
@@ -756,7 +765,7 @@ export class ActionSystem {
 
   private canCultivate(unit: Unit): boolean {
     const tile = this.mapManager?.getTile(unit.x, unit.y);
-    const terrain = tile && rulesetLoader.getTerrain(tile.terrain);
+    const terrain = tile && this.getTerrain(tile.terrain);
     return Boolean(
       this.canBuildImprovement(unit) &&
         unit.movementLeft > 0 &&
@@ -767,7 +776,7 @@ export class ActionSystem {
 
   private canPlant(unit: Unit): boolean {
     const tile = this.mapManager?.getTile(unit.x, unit.y);
-    const terrain = tile && rulesetLoader.getTerrain(tile.terrain);
+    const terrain = tile && this.getTerrain(tile.terrain);
     return Boolean(
       this.canBuildImprovement(unit) &&
         unit.movementLeft > 0 &&
@@ -778,7 +787,7 @@ export class ActionSystem {
 
   private canBuildBase(unit: Unit, extraName: 'Fortress' | 'Airbase'): boolean {
     const tile = this.mapManager?.getTile(unit.x, unit.y);
-    const unitType = getUnitType(unit.unitTypeId);
+    const unitType = this.unitTypes[unit.unitTypeId];
     if (
       !tile ||
       !unitType ||
@@ -829,7 +838,7 @@ export class ActionSystem {
     }
 
     const tile = this.mapManager?.getTile(unit.x, unit.y);
-    return Boolean(tile && rulesetLoader.getTerrain(tile.terrain).transformTo);
+    return Boolean(tile && this.getTerrain(tile.terrain).transformTo);
   }
 
   private canCleanPollution(unit: Unit): boolean {
@@ -852,7 +861,7 @@ export class ActionSystem {
    * Helper method to check if unit can build improvements
    */
   private canBuildImprovement(unit: Unit): boolean {
-    const unitType = getUnitType(unit.unitTypeId);
+    const unitType = this.unitTypes[unit.unitTypeId];
 
     if (!unitType) {
       logger.warn('Unit type not found during improvement check', {
@@ -1003,7 +1012,7 @@ export class ActionSystem {
 
       case 'unit_flag': {
         // Check unit capabilities from dynamic ruleset data
-        const unitType = getUnitType(unit.unitTypeId);
+        const unitType = this.unitTypes[unit.unitTypeId];
         if (!unitType) {
           logger.warn('Unit type not found during requirement check', {
             unitId: unit.id,
@@ -1090,7 +1099,7 @@ export class ActionSystem {
     );
 
     if (tilesTraversed === 0) {
-      const unitType = getUnitType(unit.unitTypeId);
+      const unitType = this.unitTypes[unit.unitTypeId];
       logger.warn('Unit cannot traverse any tiles', {
         unitId: unit.id,
         unitType: unit.unitTypeId,
@@ -1161,7 +1170,7 @@ export class ActionSystem {
     }
 
     // Validate that the unit can found cities using dynamic ruleset data
-    const unitType = getUnitType(unit.unitTypeId);
+    const unitType = this.unitTypes[unit.unitTypeId];
     if (!unitType || !unitType.canFoundCity) {
       return {
         success: false,
@@ -1489,7 +1498,7 @@ export class ActionSystem {
    */
   private getTransformationTarget(currentTerrain: string): string | null {
     try {
-      return rulesetLoader.getTerrain(currentTerrain as TerrainType).transformTo ?? null;
+      return this.getTerrain(currentTerrain as TerrainType).transformTo ?? null;
     } catch {
       return null;
     }

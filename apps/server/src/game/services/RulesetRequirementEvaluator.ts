@@ -109,6 +109,16 @@ export class RulesetRequirementEvaluator {
         return this.contains(facts.unitStates, name);
       case 'UnitTypeFlag':
         return this.contains(facts.unitTypeFlags, name);
+      // These requirement kinds are preserved for ruleset integrity but do
+      // not yet have facts supplied by every action/effect caller. Keep the
+      // evaluator fail-closed until their runtime contexts are implemented.
+      case 'DiplRelTileOther':
+      case 'ExtraFlag':
+      case 'Nation':
+      case 'UnitType':
+        return undefined;
+      default:
+        return undefined;
     }
   }
 

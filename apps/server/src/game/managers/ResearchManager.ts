@@ -25,14 +25,14 @@ export interface PlayerResearch {
 }
 
 /**
- * Build the playable technology catalogue from classic ruleset data.
- * @reference reference/freeciv/data/classic/techs.ruleset
+ * Build the playable technology catalogue from a selected ruleset.
  */
 export function loadRulesetTechnologies(
-  loader: Pick<typeof rulesetLoader, 'getTechs'> = rulesetLoader
+  loader: Pick<typeof rulesetLoader, 'getTechs'> = rulesetLoader,
+  rulesetName: string = 'classic'
 ): Record<string, Technology> {
   return Object.fromEntries(
-    Object.entries(loader.getTechs()).map(([id, tech]) => [
+    Object.entries(loader.getTechs(rulesetName)).map(([id, tech]) => [
       id,
       {
         id: tech.id,
@@ -61,7 +61,8 @@ export class ResearchManager {
     gameId: string,
     databaseProvider: DatabaseProvider,
     private readonly technologies: Record<string, Technology> = TECHNOLOGIES,
-    private readonly effectsManager: EffectsManager = new EffectsManager()
+    private readonly effectsManager: EffectsManager = new EffectsManager(),
+    private readonly rulesetName: string = 'classic'
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
@@ -86,7 +87,7 @@ export class ResearchManager {
     cityCount: number,
     playerBuildings: Set<string> = new Set()
   ): number {
-    const rules = rulesetLoader.loadGameRulesRuleset().research;
+    const rules = rulesetLoader.loadGameRulesRuleset(this.rulesetName).research;
     if (rules.tech_upkeep_style === 'None') return 0;
     const research = this.playerResearch.get(playerId);
     if (!research) return 0;
@@ -632,7 +633,7 @@ export class ResearchManager {
   }
 
   private createFutureTechnology(playerResearch: PlayerResearch): Technology {
-    const rules = rulesetLoader.loadGameRulesRuleset().research;
+    const rules = rulesetLoader.loadGameRulesRuleset(this.rulesetName).research;
     const researchedCount = Object.keys(this.technologies).length + playerResearch.futureTechs;
     const prerequisites = new Set(
       Object.values(this.technologies).flatMap(technology => technology.requirements)

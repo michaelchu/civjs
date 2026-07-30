@@ -1,0 +1,283 @@
+{
+  "source": "reference/freeciv/data/multiplayer/styles.ruleset",
+  "datafile": {
+    "description": "Nation theme data for Freeciv",
+    "options": "+Freeciv-ruleset-3.4-Devel-2025.Jan.17 web-compatible",
+    "format_version": 50
+  },
+  "nation_styles": {
+    "style_european": {
+      "name": "European"
+    },
+    "style_classical": {
+      "name": "Classical"
+    },
+    "style_tropical": {
+      "name": "Tropical"
+    },
+    "style_asian": {
+      "name": "Asian"
+    },
+    "style_babylonian": {
+      "name": "Babylonian"
+    },
+    "style_celtic": {
+      "name": "Celtic"
+    }
+  },
+  "city_styles": {
+    "citystyle_european": {
+      "name": "European",
+      "graphic": "city.european",
+      "graphic_alt": "-",
+      "citizens_graphic": "ancient",
+      "reqs": [
+        {
+          "type": "Style",
+          "name": "European",
+          "range": "Player"
+        }
+      ]
+    },
+    "citystyle_classical": {
+      "name": "Classical",
+      "graphic": "city.classical",
+      "graphic_alt": "-",
+      "citizens_graphic": "ancient",
+      "reqs": [
+        {
+          "type": "Style",
+          "name": "Classical",
+          "range": "Player"
+        }
+      ]
+    },
+    "citystyle_tropical": {
+      "name": "Tropical",
+      "graphic": "city.tropical",
+      "graphic_alt": "city.european",
+      "citizens_graphic": "ancient",
+      "reqs": [
+        {
+          "type": "Style",
+          "name": "Tropical",
+          "range": "Player"
+        }
+      ]
+    },
+    "citystyle_asian": {
+      "name": "Asian",
+      "graphic": "city.asian",
+      "graphic_alt": "city.classical",
+      "citizens_graphic": "ancient",
+      "reqs": [
+        {
+          "type": "Style",
+          "name": "Asian",
+          "range": "Player"
+        }
+      ]
+    },
+    "citystyle_babylonian": {
+      "name": "Babylonian",
+      "graphic": "city.babylonian",
+      "graphic_alt": "city.classical",
+      "citizens_graphic": "ancient",
+      "reqs": [
+        {
+          "type": "Style",
+          "name": "Babylonian",
+          "range": "Player"
+        }
+      ]
+    },
+    "citystyle_celtic": {
+      "name": "Celtic",
+      "graphic": "city.celtic",
+      "graphic_alt": "city.european",
+      "citizens_graphic": "ancient",
+      "reqs": [
+        {
+          "type": "Style",
+          "name": "Celtic",
+          "range": "Player"
+        }
+      ]
+    },
+    "citystyle_industrial": {
+      "name": "Industrial",
+      "graphic": "city.industrial",
+      "graphic_alt": "-",
+      "citizens_graphic": "industrial",
+      "reqs": [
+        {
+          "type": "tech",
+          "name": "Railroad",
+          "range": "Player"
+        }
+      ]
+    },
+    "citystyle_electric": {
+      "name": "ElectricAge",
+      "graphic": "city.electricage",
+      "graphic_alt": "city.modern",
+      "citizens_graphic": "electricage",
+      "reqs": [
+        {
+          "type": "tech",
+          "name": "Automobile",
+          "range": "Player"
+        }
+      ]
+    },
+    "citystyle_modern": {
+      "name": "Modern",
+      "graphic": "city.modern",
+      "graphic_alt": "-",
+      "citizens_graphic": "modern",
+      "reqs": [
+        {
+          "type": "tech",
+          "name": "Rocketry",
+          "range": "Player"
+        }
+      ]
+    },
+    "citystyle_postmodern": {
+      "name": "PostModern",
+      "graphic": "city.postmodern",
+      "graphic_alt": "-",
+      "citizens_graphic": "postmodern",
+      "reqs": [
+        {
+          "type": "tech",
+          "name": "Superconductors",
+          "range": "Player"
+        }
+      ]
+    }
+  },
+  "music_styles": {
+    "musicstyle_european": {
+      "music_peaceful": "music_european_peace",
+      "music_combat": "music_european_combat",
+      "reqs": [
+        {
+          "type": "Style",
+          "name": "European",
+          "range": "Player"
+        }
+      ]
+    },
+    "musicstyle_classical": {
+      "music_peaceful": "music_classical_peace",
+      "music_combat": "music_classical_combat",
+      "reqs": [
+        {
+          "type": "Style",
+          "name": "Classical",
+          "range": "Player"
+        }
+      ]
+    },
+    "musicstyle_tropical": {
+      "music_peaceful": "music_tropical_peace",
+      "music_combat": "music_tropical_combat",
+      "reqs": [
+        {
+          "type": "Style",
+          "name": "Tropical",
+          "range": "Player"
+        }
+      ]
+    },
+    "musicstyle_asian": {
+      "music_peaceful": "music_asian_peace",
+      "music_combat": "music_asian_combat",
+      "reqs": [
+        {
+          "type": "Style",
+          "name": "Asian",
+          "range": "Player"
+        }
+      ]
+    },
+    "musicstyle_babylonian": {
+      "music_peaceful": "music_babylonian_peace",
+      "music_combat": "music_babylonian_combat",
+      "reqs": [
+        {
+          "type": "Style",
+          "name": "Babylonian",
+          "range": "Player"
+        }
+      ]
+    },
+    "musicstyle_celtic": {
+      "music_peaceful": "music_celtic_peace",
+      "music_combat": "music_celtic_combat",
+      "reqs": [
+        {
+          "type": "Style",
+          "name": "Celtic",
+          "range": "Player"
+        }
+      ]
+    },
+    "musicstyle_renaissance": {
+      "music_peaceful": "music_renaissance_peace",
+      "music_combat": "music_renaissance_combat",
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "University",
+          "range": "Player"
+        }
+      ]
+    },
+    "musicstyle_industrial": {
+      "music_peaceful": "music_industrial_peace",
+      "music_combat": "music_industrial_combat",
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Railroad",
+          "range": "Player"
+        }
+      ]
+    },
+    "musicstyle_electricage": {
+      "music_peaceful": "music_electricage_peace",
+      "music_combat": "music_electricage_combat",
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Automobile",
+          "range": "Player"
+        }
+      ]
+    },
+    "musicstyle_modern": {
+      "music_peaceful": "music_modern_peace",
+      "music_combat": "music_modern_combat",
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Rocketry",
+          "range": "Player"
+        }
+      ]
+    },
+    "musicstyle_postmodern": {
+      "music_peaceful": "music_postmodern_peace",
+      "music_combat": "music_postmodern_combat",
+      "reqs": [
+        {
+          "type": "Tech",
+          "name": "Superconductors",
+          "range": "Player"
+        }
+      ]
+    }
+  }
+}

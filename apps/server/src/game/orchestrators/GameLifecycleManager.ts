@@ -24,7 +24,7 @@ import { UnitManager } from '@game/managers/UnitManager';
 import { VisibilityManager } from '@game/managers/VisibilityManager';
 import { CityManager } from '@game/managers/CityManager';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
-import { ResearchManager } from '@game/managers/ResearchManager';
+import { ResearchManager, loadRulesetTechnologies } from '@game/managers/ResearchManager';
 import { CultureManager } from '@game/managers/CultureManager';
 import { EconomicManager } from '@game/systems/Economic/EconomicManager';
 import {
@@ -37,7 +37,8 @@ import { BorderManager } from '@game/managers/BorderManager';
 import { GovernmentManager } from '@game/managers/GovernmentManager';
 import { BorderNetworkService } from '@game/services/BorderNetworkService';
 import { MapStartpos, type MapGenerationOptions } from '@game/map/MapTypes';
-import { UNIT_TYPES } from '@game/constants/UnitConstants';
+import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
+import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 import type { Server as SocketServer } from 'socket.io';
 import { PROTOCOL_VERSION } from '@app-types/packet';
 import type {
@@ -47,6 +48,7 @@ import type {
   TerrainSettings,
 } from '@game/managers/GameManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { assertAIState } from '@game/ai/AIStateStore';
 import { ScenarioUnavailableError } from '@game/map/ScenarioProvider';
 import {
@@ -146,7 +148,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   async createGame(gameConfig: GameConfig): Promise<string> {
     this.logger.info('Creating new game', { name: gameConfig.name, hostId: gameConfig.hostId });
     this.assertScenarioGamesEnabled(gameConfig.terrainSettings);
-    const rulesetName = gameConfig.ruleset || 'classic';
+    const rulesetName = gameConfig.ruleset || DEFAULT_RULESET;
 
     // Prepare game data for database
     const gameData = {
@@ -285,7 +287,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
     // Create managers in dependency order
     const mapManager = this.createMapManager(game, terrainSettings);
-    const effectsManager = new EffectsManager(); // Shared effects manager
+    const rulesetName = game.ruleset ?? 'civ2civ3';
+    const effectsManager = new EffectsManager(rulesetName); // Shared effects manager
     const governmentManager = new GovernmentManager(gameId, this.databaseProvider, effectsManager);
     for (const player of game.players) {
       await governmentManager.loadPlayerGovernment(
@@ -294,15 +297,15 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         player.revolutionTurns
       );
     }
-    const cityManager = this.createCityManager(gameId, effectsManager);
+    const cityManager = this.createCityManager(gameId, effectsManager, rulesetName);
     const borderManager = this.createBorderManager(
       mapManager,
       cityManager,
       effectsManager,
-      game.ruleset ?? 'classic'
+      rulesetName
     );
     this.borderNetworkService = this.createBorderNetworkService(borderManager);
-    const researchManager = this.createResearchManager(gameId);
+    const researchManager = this.createResearchManager(gameId, rulesetName, effectsManager);
     await this.initializePlayerResearch(researchManager, players);
     const unitManager = this.createUnitManager(
       gameId,
@@ -325,7 +328,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       [...unitManager.getAllUnits().values()]
         .filter(unit => unit.homeCityId === city.id)
         .map(unit => {
-          const unitType = UNIT_TYPES[unit.unitTypeId];
+          const unitType = unitManager.getUnitType(unit.unitTypeId);
           return {
             unitId: unit.id,
             unitType: unit.unitTypeId,
@@ -397,7 +400,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       game.players,
       governmentManager,
       effectsManager,
-      game.ruleset ?? 'classic'
+      game.ruleset ?? DEFAULT_RULESET
     );
     // @reference reference/freeciv/server/techtools.c:665-719
     // Research completion belongs to the active authoritative turn.
@@ -1076,7 +1079,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         wrapId: terrainSettings?.wrapId,
       },
       terrainSettings?.scenarioId,
-      generationOptions
+      generationOptions,
+      game.ruleset ?? DEFAULT_RULESET
     );
   }
 
@@ -1181,8 +1185,19 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     return tm;
   }
 
-  private createCityManager(gameId: string, effectsManager: EffectsManager): CityManager {
-    return new CityManager(gameId, this.databaseProvider, effectsManager, {});
+  private createCityManager(
+    gameId: string,
+    effectsManager: EffectsManager,
+    rulesetName: string
+  ): CityManager {
+    return new CityManager(
+      gameId,
+      this.databaseProvider,
+      effectsManager,
+      {},
+      rulesetUnitsService.getUnitTypes(rulesetName),
+      rulesetBuildingsService.getPlayableBuildingTypes(rulesetName)
+    );
   }
 
   private createBorderManager(
@@ -1257,7 +1272,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         broadcastMapChanged: (changedGameId, mapData) =>
           this.onBroadcastMapData?.(changedGameId, mapData),
       },
-      effectsManager
+      effectsManager,
+      undefined,
+      rulesetUnitsService.getUnitTypes(game.ruleset ?? 'civ2civ3')
     );
   }
 
@@ -1284,8 +1301,18 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     );
   }
 
-  private createResearchManager(gameId: string): ResearchManager {
-    return new ResearchManager(gameId, this.databaseProvider);
+  private createResearchManager(
+    gameId: string,
+    rulesetName: string,
+    effectsManager: EffectsManager
+  ): ResearchManager {
+    return new ResearchManager(
+      gameId,
+      this.databaseProvider,
+      loadRulesetTechnologies(rulesetLoader, rulesetName),
+      effectsManager,
+      rulesetName
+    );
   }
 
   private createCultureManager(rulesetName: string): CultureManager {

@@ -1138,7 +1138,7 @@ export class GameClient {
           maxPlayers: gameData.maxPlayers,
           mapWidth: dimensions.width,
           mapHeight: dimensions.height,
-          ruleset: 'classic',
+          ruleset: 'civ2civ3',
           selectedNation: gameData.selectedNation,
           aiLevel: gameData.aiLevel,
           victoryConditions: ['conquest'],

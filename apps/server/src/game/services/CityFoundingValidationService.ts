@@ -1,3 +1,4 @@
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 /**
  * City founding validation service based on Freeciv reference implementation
  * References and ports key validation logic from freeciv/common/city.c
@@ -59,7 +60,7 @@ export class CityFoundingValidationService {
   constructor(
     mapManager: MapManager,
     citymindist: number = GAME_DEFAULT_CITYMINDIST,
-    rulesetName: string = 'classic'
+    rulesetName: string = DEFAULT_RULESET
   ) {
     this.mapManager = mapManager;
     this.citymindist = Math.max(GAME_MIN_CITYMINDIST, Math.min(GAME_MAX_CITYMINDIST, citymindist));
