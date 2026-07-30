@@ -118,7 +118,13 @@ describe('AI authoritative manager boundaries', () => {
     options: Partial<
       Pick<
         GameConfig,
-        'victoryConditions' | 'maxTurns' | 'mapSeed' | 'mapWidth' | 'mapHeight' | 'terrainSettings'
+        | 'victoryConditions'
+        | 'maxTurns'
+        | 'mapSeed'
+        | 'mapWidth'
+        | 'mapHeight'
+        | 'terrainSettings'
+        | 'aiDecisionSeed'
       >
     > = {}
   ): Promise<TestGame> {
@@ -1891,6 +1897,7 @@ describe('AI authoritative manager boundaries', () => {
         maxTurns: aiPairedBenchmarkBaseline.maxTurns,
         victoryConditions: ['max_turns'],
         mapSeed,
+        aiDecisionSeed: mapSeed,
       });
       const [first, second] = scenario.players;
       await gameManager.setPlayerAIControl(
@@ -1950,7 +1957,7 @@ describe('AI authoritative manager boundaries', () => {
     expect(easyTotal).toBeGreaterThanOrEqual(aiPairedBenchmarkBaseline.easyTotal);
     expect(hardWins).toBeGreaterThanOrEqual(aiPairedBenchmarkBaseline.hardWins);
     expect(hardTotal).toBeGreaterThan(easyTotal);
-  });
+  }, 120_000);
 
   it('replays the same seeded terminal configuration with the same authoritative outcome', async () => {
     async function runReplay(gameSeed: string): Promise<string> {

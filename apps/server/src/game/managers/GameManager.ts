@@ -106,6 +106,8 @@ export interface GameConfig {
   terrainSettings?: TerrainSettings;
   /** Default difficulty assigned to AI players created for this game. */
   aiLevel?: SettableAILevel;
+  /** Optional stable seed used by deterministic AI benchmark/replay scenarios. */
+  aiDecisionSeed?: string;
 }
 
 export interface GameInstance {

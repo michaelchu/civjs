@@ -33,8 +33,9 @@ export function applyAIFuzziness(
 }
 
 /**
- * Stateless decision randomness keyed by native game identity and decision
- * identity. Adding an unrelated AI decision cannot shift later outcomes.
+ * Stateless decision randomness keyed by game identity and decision identity.
+ * Adding an unrelated AI decision cannot shift later outcomes. Deterministic
+ * benchmark/replay scenarios can provide an explicit stable decision seed.
  */
 export class FreecivAIDecisionSource {
   constructor(
@@ -58,8 +59,10 @@ export function createAIDecisionSource(
 ): FreecivAIDecisionSource {
   const player = game.players.get(playerId);
   const mapSeed = game.mapManager.getMapData?.()?.seed ?? game.id;
+  const decisionSeed = game.config.aiDecisionSeed ?? game.id;
+  const playerSeed = game.config.aiDecisionSeed ? (player?.playerNumber ?? playerId) : playerId;
   return new FreecivAIDecisionSource(
-    `${mapSeed}:${game.id}:${game.currentTurn}:${playerId}:${domain}`,
+    `${mapSeed}:${decisionSeed}:${game.currentTurn}:${playerSeed}:${domain}`,
     createAIProfile(player?.aiLevel, player?.aiTraits)
   );
 }
