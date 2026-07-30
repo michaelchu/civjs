@@ -122,13 +122,13 @@ export class RulesetUnitsService {
     return {
       id: unit.id,
       name: unit.name,
-      cost: this.firstValue(unit.cost, unit.build_cost, 10),
-      movement: this.firstValue(unit.movement, 1),
+      cost: this.firstNonZero(unit.cost, unit.build_cost, 10),
+      movement: this.firstNonZero(unit.movement, 1),
       combat: this.firstValue(unit.attack, unit.combat, 0), // Use attack as primary combat value
       attack: unit.attack,
       defense: unit.defense,
-      range: this.firstValue(unit.range, 1), // Melee units need range 1 for adjacent combat
-      sight: this.firstValue(unit.vision_radius_sq, unit.sight, 2),
+      range: this.firstNonZero(unit.range, 1), // Melee units need range 1 for adjacent combat
+      sight: this.firstNonZero(unit.vision_radius_sq, unit.sight, 2),
       vision_radius_sq: unit.vision_radius_sq,
       visionLayer: unit.vision_layer,
       canFoundCity: this.hasFoundCityRole(unit),
@@ -160,6 +160,10 @@ export class RulesetUnitsService {
   }
 
   private firstValue<T>(...values: Array<T | undefined | null>): T {
+    return values.find(value => value !== undefined && value !== null) as T;
+  }
+
+  private firstNonZero<T>(...values: Array<T | undefined | null>): T {
     return values.find(value => value !== undefined && value !== null && value !== 0) as T;
   }
 
