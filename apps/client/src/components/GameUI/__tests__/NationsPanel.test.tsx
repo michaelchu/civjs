@@ -36,7 +36,7 @@ const { mockGameClient, mockState } = vi.hoisted(() => ({
     },
     cities: {
       rome: { id: 'rome', name: 'Rome', playerId: 'player-1' },
-      athens: { id: 'athens', name: 'Athens', playerId: 'player-2' },
+      athens: { id: 'athens', name: 'Athens', playerId: 'player-2', x: 12, y: 8 },
     },
     diplomacy: {
       playerId: 'player-1',
@@ -157,6 +157,20 @@ describe('NationsPanel treaty builder', () => {
     expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' });
   });
 
+  it('centers on a known city without adding location data to diplomacy', () => {
+    render(<NationsPanel />);
+    const dispatchSpy = vi.spyOn(document, 'dispatchEvent');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Center on known city Athens' }));
+
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'center-map-on-tile',
+        detail: { x: 12, y: 8 },
+      })
+    );
+  });
+
   it('does not disclose or allow actions against an unknown nation', () => {
     mockState.diplomacy.nations[0] = {
       ...mockState.diplomacy.nations[0],
@@ -176,5 +190,6 @@ describe('NationsPanel treaty builder', () => {
     expect(screen.queryByText('Secret leader')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Propose treaty' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Declare war' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /center on known city/i })).not.toBeInTheDocument();
   });
 });

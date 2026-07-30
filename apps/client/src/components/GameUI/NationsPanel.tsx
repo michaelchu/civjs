@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { MapPin } from 'lucide-react';
 import { gameClient } from '../../services/GameClient';
 import { useGameStore } from '../../store/gameStore';
 import type {
@@ -88,6 +89,7 @@ const NationCard: React.FC<{
   const outgoing = proposal?.status === 'pending' && proposal.proposerId === currentPlayerId;
   const [draftClauses, setDraftClauses] = useState<TreatyClause[]>([]);
   const canMeet = nation.canMeet ?? nation.known;
+  const knownCity = Object.values(cities).find(city => city.playerId === nation.id);
 
   if (!nation.known) {
     return (
@@ -114,9 +116,29 @@ const NationCard: React.FC<{
             {nation.leaderName} · {nation.isAI ? 'AI adapter' : 'Human'}
           </p>
         </div>
-        <span className="rounded bg-gray-900 px-2 py-1 text-xs text-blue-200">
-          {stateLabels[nation.relation.state]}
-        </span>
+        <div className="flex items-center gap-2">
+          {knownCity && (
+            <Button
+              variant="outline"
+              className="gap-1 px-2 py-1 text-xs"
+              onClick={() =>
+                document.dispatchEvent(
+                  new CustomEvent('center-map-on-tile', {
+                    detail: { x: knownCity.x, y: knownCity.y },
+                  })
+                )
+              }
+              aria-label={`Center on known city ${knownCity.name}`}
+              title={`Center on known city ${knownCity.name}`}
+            >
+              <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+              {knownCity.name}
+            </Button>
+          )}
+          <span className="rounded bg-gray-900 px-2 py-1 text-xs text-blue-200">
+            {stateLabels[nation.relation.state]}
+          </span>
+        </div>
       </div>
 
       <div className="mt-3 flex gap-2 text-xs text-gray-300">
