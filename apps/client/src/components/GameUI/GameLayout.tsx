@@ -28,6 +28,7 @@ import { UnitReport } from './UnitReport';
 import { IntelligenceReport } from './IntelligenceReport';
 import { SpaceRaceReport } from './SpaceRaceReport';
 import { WarCalculator } from './WarCalculator';
+import { CivilopediaDialog } from './CivilopediaDialog';
 
 interface GameLayoutProps {
   rulesetName?: string;
@@ -45,6 +46,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
   const [intelligenceReportOpen, setIntelligenceReportOpen] = useState(false);
   const [spaceRaceReportOpen, setSpaceRaceReportOpen] = useState(false);
   const [warCalculatorOpen, setWarCalculatorOpen] = useState(false);
+  const [civilopediaOpen, setCivilopediaOpen] = useState(false);
   const [scoreHistory, setScoreHistory] = useState<ScoreSnapshot[]>([]);
 
   const activeTab = useGameStore(state => state.activeTab);
@@ -206,6 +208,11 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
         units={units}
         currentPlayerId={currentPlayerId}
       />
+      <CivilopediaDialog
+        open={civilopediaOpen}
+        onOpenChange={setCivilopediaOpen}
+        technologies={technologies}
+      />
       {/* Header with tabs and status */}
       <div className="flex items-center justify-between bg-gray-700 px-4 py-1 border-b border-gray-600">
         <GameTabs />
@@ -241,6 +248,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
                   onOpenIntelligence={() => setIntelligenceReportOpen(true)}
                   onOpenSpaceRace={() => setSpaceRaceReportOpen(true)}
                   onOpenWarCalculator={() => setWarCalculatorOpen(true)}
+                  onOpenCivilopedia={() => setCivilopediaOpen(true)}
                 />
               }
             />

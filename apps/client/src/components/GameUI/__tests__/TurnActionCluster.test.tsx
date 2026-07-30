@@ -132,4 +132,19 @@ describe('TurnActionCluster', () => {
 
     expect(onOpenWarCalculator).toHaveBeenCalledOnce();
   });
+
+  it('opens Civilopedia from the help menu', () => {
+    const onOpenCivilopedia = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <TurnActionCluster onOpenCivilopedia={onOpenCivilopedia} />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Help' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open Civilopedia' }));
+
+    expect(onOpenCivilopedia).toHaveBeenCalledOnce();
+  });
 });

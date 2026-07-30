@@ -99,13 +99,13 @@ const ReportsMenu: React.FC<{
         </button>
       </div>
       <div className="mt-2 border-t border-white/10 px-2 pt-2 text-[10px] text-slate-500">
-        Civilopedia and help surfaces are queued for the next report slice.
+          Help and Civilopedia are available from the Help menu.
       </div>
     </div>
   );
 };
 
-const HelpMenu: React.FC = () => (
+const HelpMenu: React.FC<{ onOpenCivilopedia?: () => void }> = ({ onOpenCivilopedia }) => (
   <div className="absolute bottom-full right-0 mb-2 w-64 rounded-xl border border-white/15 bg-slate-950/95 p-3 text-xs shadow-2xl backdrop-blur-md">
     <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
       <BookOpen className="h-4 w-4 text-cyan-300" aria-hidden="true" />
@@ -119,7 +119,9 @@ const HelpMenu: React.FC = () => (
       <div className="flex justify-between gap-3"><span>Diplomacy / Cities / Settings</span><kbd>F4–F6</kbd></div>
     </div>
     <div className="mt-3 border-t border-white/10 pt-2 text-[10px] text-slate-500">
-      Full Civilopedia help will be connected when the report surfaces are implemented.
+      <button type="button" onClick={onOpenCivilopedia} className="flex w-full items-center justify-between rounded px-1 py-1 text-left text-cyan-300 hover:bg-cyan-300/10 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
+        Open Civilopedia <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
     </div>
   </div>
 );
@@ -132,7 +134,8 @@ export const TurnActionCluster: React.FC<{
   onOpenIntelligence?: () => void;
   onOpenSpaceRace?: () => void;
   onOpenWarCalculator?: () => void;
-}> = ({ onOpenScores, onOpenDemographics, onOpenClimate, onOpenUnitReport, onOpenIntelligence, onOpenSpaceRace, onOpenWarCalculator }) => {
+  onOpenCivilopedia?: () => void;
+}> = ({ onOpenScores, onOpenDemographics, onOpenClimate, onOpenUnitReport, onOpenIntelligence, onOpenSpaceRace, onOpenWarCalculator, onOpenCivilopedia }) => {
   const [reportsOpen, setReportsOpen] = React.useState(false);
   const [helpOpen, setHelpOpen] = React.useState(false);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
@@ -225,7 +228,7 @@ export const TurnActionCluster: React.FC<{
           onOpenWarCalculator={onOpenWarCalculator}
         />
       )}
-      {helpOpen && <HelpMenu />}
+      {helpOpen && <HelpMenu onOpenCivilopedia={onOpenCivilopedia} />}
     </HudPanel>
   );
 };
