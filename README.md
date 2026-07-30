@@ -1,27 +1,24 @@
 # CivJS
 
-CivJS is an in-progress TypeScript port of the Freeciv classic ruleset and the
-freeciv-web 2D client experience. New games default to the `civ2civ3` ruleset.
-It is a monorepo with a React/Vite client and
-a Node.js/Socket.IO server backed by PostgreSQL and Redis.
+CivJS is a browser-based civilization strategy game inspired by Civilization
+III. Build an empire from a small settlement, manage cities and resources,
+research new technologies, command military and civilian units, and compete
+for control of the map.
 
-The project is playable locally, including creating, joining, resuming,
-advancing, and completing games. The defined roadmap is complete through
-Milestone 15 for the supported classic-ruleset scope. The classic ruleset
-remains the validated parity baseline; the other packaged rulesets are not yet
-covered by the same full-support claim. It is not a port of every Freeciv
-ruleset; the exact supported scope and intentional exclusions are tracked in the
-[port status](docs/PORT_STATUS.md).
-
-## Prerequisites
-
-- Node.js 20+
-- Docker and Docker Compose
-- Git
+The game combines the depth of classic 4X strategy with a modern web stack:
+games run in the browser, game state is managed by an authoritative server, and
+saved games can be resumed later.
 
 ## Quick start
 
-Clone the repository and install the root dependencies:
+### Prerequisites
+
+- Node.js 20 or newer
+- npm 10 or newer
+- Docker and Docker Compose
+- Git
+
+Clone the repository and install dependencies:
 
 ```bash
 git clone git@github.com:michaelchu/civjs.git
@@ -29,40 +26,31 @@ cd civjs
 npm install
 ```
 
-Start the complete development stack (client, server, PostgreSQL, Redis, and
-migrations):
+Start the full development stack:
 
 ```bash
 npm run docker:build
 ```
 
-Open <http://localhost:3000>. The server is available on port 3001.
-
-To stop the stack:
+Open [http://localhost:3000](http://localhost:3000). The server runs on port
+3001. Stop the stack with:
 
 ```bash
 npm run docker:down
 ```
 
-## Running the client and server locally
+## Local development
 
-`npm run dev` starts only the client and server processes. PostgreSQL and Redis
-must already be running, and the server must be configured to use them. Start
-the supporting services and migrations with Docker:
+To run the client and server directly, start PostgreSQL, Redis, and migrations
+first:
 
 ```bash
 docker compose up -d postgres redis migrations
-```
-
-Then create local environment files from the examples and set the server values
-to match the Docker services:
-
-```bash
 cp apps/server/.env.example apps/server/.env
 cp apps/client/.env.example apps/client/.env
 ```
 
-For the default Docker services, `apps/server/.env` needs these values:
+Use these values in `apps/server/.env` for the default Docker services:
 
 ```dotenv
 PORT=3001
@@ -77,97 +65,70 @@ Set `VITE_SERVER_URL=http://localhost:3001` in `apps/client/.env`, then run:
 npm run dev
 ```
 
-The client normally uses port 3000. If it reports that port 3000 is occupied,
-Vite selects another port; use the URL printed in its terminal output.
+The client normally uses port 3000. If that port is occupied, Vite prints the
+alternate URL in the terminal.
 
-## Development commands
+## Useful commands
 
 ```bash
-# Development
-npm run dev                 # Start client and server (services required)
+npm run dev                 # Start client and server
 npm run dev:client          # Start only the client
 npm run dev:server          # Start only the server
-
-# Build and quality checks
 npm run build               # Build both applications
-npm run lint                # Lint both applications
-npm run lint:fix            # Apply lint fixes
-npm run format:check        # Check formatting
-npm run format              # Apply formatting
-npm run typecheck           # Type-check both applications
-
-# Tests
-npm run test                # All unit tests (client and server)
-npm run test:unit           # Same as npm run test
-npm run test:integration    # Server integration tests (disposable Docker PostgreSQL)
-npm run test:all            # Unit and integration tests
-
-# Docker
-npm run docker:build        # Build and start the complete stack
-npm run docker:up           # Start the existing complete stack
-npm run docker:down         # Stop the complete stack
+npm run test                # Run unit tests
+npm run test:integration    # Run integration tests with disposable PostgreSQL
+npm run test:all            # Run unit and integration tests
+npm run lint                # Lint client and server
+npm run typecheck           # Type-check client and server
 ```
 
-Integration tests default to a disposable Docker PostgreSQL database. To run
-against an already isolated database, use
-`TEST_DATABASE_URL=... npm run test:integration:direct`.
+## How it works
 
-## Architecture
-
-```
+```text
 civjs/
-├── apps/
-│   ├── client/              # React, Vite, Canvas 2D, Zustand, Socket.IO client
-│   └── server/              # Node.js, Socket.IO, Drizzle, game logic
-├── docs/                    # Architecture, porting, and release documentation
-├── reference/               # Freeciv and freeciv-web source references
-└── docker-compose.yml       # Local development stack
+├── apps/client/   React/Vite browser client with Canvas 2D rendering
+├── apps/server/   Authoritative Node.js game server and real-time API
+├── docs/          Architecture and project documentation
+├── reference/     Freeciv and freeciv-web reference material
+└── docker-compose.yml
 ```
 
-The client renders the map with Canvas 2D and receives game state through
-Socket.IO. The server is authoritative for game rules and persists games,
-players, cities, units, and research in PostgreSQL; Redis supports connections
-and caching.
+The client renders the world map and maintains the player-facing experience.
+The server owns game rules, turn progression, and persistence. PostgreSQL
+stores games and gameplay entities; Redis supports real-time connections and
+caching.
 
-## Porting work
+## Documentation
 
-Before adding or changing game behavior, consult the source repositories in
-`reference/freeciv/` and `reference/freeciv-web/`. New ported behavior should
-record its source file and line range and include appropriate tests. The
-The primary documentation is:
+- [Client architecture](docs/CLIENT_ARCHITECTURE.md)
+- [Tileset architecture](docs/TILESET_ARCHITECTURE.md)
+- [Server architecture](docs/SERVER_CORE_ARCHITECTURE_ROADMAP.md)
+- [Gameplay gaps](docs/GAMEPLAY_GAPS.md)
+- [Project port status](docs/PORT_STATUS.md)
 
-- [Port status](docs/PORT_STATUS.md): supported player-visible scope and
-  intentional exclusions.
-- [Porting playbook](docs/PORTING_PLAYBOOK.md): contribution and verification
-  workflow.
-- [Porting inventory](docs/PORTING_INVENTORY.md): technical contracts and
-  evidence.
-- [Gameplay gaps](docs/GAMEPLAY_GAPS.md): confirmed behavioral differences and
-  follow-up work.
-- [AI inventory](docs/AI_PORTING_INVENTORY.md): classic/default-AI mappings and
-  validation evidence.
-- [Client architecture](docs/CLIENT_ARCHITECTURE.md): browser lifecycle and
-  state boundaries.
-- [Tileset architecture](docs/TILESET_ARCHITECTURE.md): presentation-provider
-  design and supported graphics boundary.
-- [Server architecture roadmap](docs/SERVER_CORE_ARCHITECTURE_ROADMAP.md):
-  forward-looking server reliability and scaling work.
+The porting inventories and playbook in `docs/` are useful for contributors
+working on ruleset parity, but they are implementation references rather than
+part of the player-facing product description.
 
 ## Technology
 
 - Client: React, TypeScript, Vite, Tailwind CSS, Zustand, Socket.IO Client
 - Server: Node.js, TypeScript, Express, Socket.IO, Drizzle ORM
 - Services: PostgreSQL 16 and Redis 7
-- Tooling: Docker Compose, ESLint, Prettier, Vitest, and Jest
+- Tooling: Docker Compose, ESLint, Prettier, Vitest, Jest, and Playwright
 
 ## Contributing
 
-1. Create a feature branch.
-2. Make a focused change with tests where practical.
-3. Run `npm run format:check`, `npm run lint`, `npm run test:unit`, and
-   `npm run typecheck`.
-4. Commit and open a pull request.
+Create a focused feature branch, include tests where practical, and run the
+relevant checks before opening a pull request:
+
+```bash
+npm run format:check
+npm run lint
+npm run test:unit
+npm run typecheck
+```
 
 ## License
 
-This project is licensed under the MIT License.
+CivJS is licensed under the MIT License.
