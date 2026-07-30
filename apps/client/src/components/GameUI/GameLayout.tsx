@@ -213,7 +213,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
         technologies={technologies}
       />
       {/* Header with tabs and status */}
-      <div className="flex items-center justify-between bg-gray-700 px-4 py-1 border-b border-gray-600">
+      <div className="flex items-center justify-between border-b border-white/10 bg-slate-950/45 px-4 py-1 backdrop-blur-md">
         <GameTabs />
       </div>
 

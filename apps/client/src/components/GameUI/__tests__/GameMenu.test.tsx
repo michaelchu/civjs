@@ -27,6 +27,7 @@ describe('GameMenu', () => {
     );
 
     expect(screen.queryByRole('button', { name: /Settings screen/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Map screen/ })).toHaveClass('bg-cyan-300/15');
 
     fireEvent.keyDown(screen.getByRole('button', { name: 'Game menu' }), {
       key: 'ArrowDown',
