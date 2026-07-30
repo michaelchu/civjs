@@ -6,6 +6,10 @@ Proposed implementation specification. This document defines the required
 behavior and architecture for the first CivJS AI-versus-AI simulation mode. It
 does not claim that the feature is currently implemented.
 
+The authoritative random-stream prerequisite described below is implemented.
+Simulation mode must reuse it rather than introduce a simulation-only random
+source or deterministic keyed-decision scheme.
+
 ## Objective
 
 Add a first-class **Simulation Game** mode in which every civilization is
@@ -74,6 +78,19 @@ parallel game engine:
   intent.
 - `recentDecisionTrace` already records native AI phase inputs, candidate
   scores, selected actions, economic deltas, errors, and action counts.
+- each game already owns a port of Freeciv's `fc_rand()` stream. Its complete
+  state and the Freeciv-style identity counter are persisted at authoritative
+  turn/phase boundaries and restored during recovery.
+- AI fuzziness and gameplay outcomes already consume that shared stream in
+  authoritative call order. Generated maps use their separate seeded generator
+  without consuming or replacing the gameplay stream.
+
+The existing paired AI regression gate runs three fixed seeds for 12 turns,
+swaps hard/easy starting positions, and currently expects exact aggregate
+results of `hardTotal = 110`, `easyTotal = 98`, and `hardWins = 2`. These are
+versioned regression expectations, not statistical minimums. Change them only
+after reviewing an intentional AI or gameplay change and its decision traces;
+do not loosen them to absorb nondeterministic execution.
 
 The current assumptions that must be changed are:
 
@@ -452,6 +469,7 @@ interface SimulationRunManifest {
   rulesetId: string;
   rulesetHash: string;
   mapSeed: string;
+  authoritativeRandomSeed: number;
   normalizedConfig: SimulationConfig;
   aiImplementationVersion: string;
   randomizationVersion: string;
@@ -462,6 +480,11 @@ interface SimulationRunManifest {
 the deployed commit/build identifier when available and an explicit
 `development-unknown` value otherwise. Hashes and version fields are diagnostic
 metadata, not security claims.
+
+`mapSeed` and `authoritativeRandomSeed` are intentionally separate. Map
+generation must remain isolated from authoritative gameplay randomness, as in
+Freeciv's temporary map-random state. `randomizationVersion` identifies the
+generator and stream-consumption contract, not merely the initial seed.
 
 Every durable diagnostic, AI summary, failure, and replay frame must be
 correlatable by `runId`, `gameId`, turn number, and—where applicable—player,
@@ -490,6 +513,10 @@ interface SimulationRuntime {
 The generation/token value invalidates callbacks scheduled before a pause,
 speed change, recovery replacement, cleanup, or end-game transition.
 
+The game's random generator and identity allocator are not transient scheduler
+state. They are authoritative state and must remain attached to the recovered
+`GameInstance`.
+
 ### Personality presets
 
 Use existing `AITraits` as the behavioral input. Add stable preset metadata so
@@ -504,9 +531,12 @@ Initial presets:
 - trader;
 - aggressive.
 
-Preset assignment must be deterministic from game identity/seed and player
-slot. Persist both the preset ID and resulting trait values. A replay or server
-restart must not reroll personalities.
+Preset assignment must be deterministic from the authoritative game seed and
+stable player-slot creation order. If assignment requires randomness, it must
+consume the game's shared authoritative stream; it must not derive ordering
+from random UUIDs or introduce a second AI-only generator. Persist both the
+preset ID and resulting trait values. A replay or server restart must not
+reroll personalities.
 
 The default native AI path must continue to use the existing difficulty and
 trait behavior.
@@ -619,6 +649,8 @@ both attempt to advance the same turn.
 After a simulation runtime is fully recovered:
 
 - validate and load `SimulationConfig`;
+- restore the persisted Freeciv random state and identity counter before any AI
+  or gameplay work can execute;
 - recreate the `SimulationRunner` entry;
 - leave paused simulations unscheduled;
 - schedule running simulations from a fresh full delay;
@@ -806,8 +838,10 @@ unauthenticated diagnostics endpoint.
 
 ### Strategy-provider seam
 
-Do not overload `AIDecisionSource`; it owns deterministic keyed fuzziness and
-random sampling, not strategic planning.
+Do not overload `AIDecisionSource`; it adapts the game's shared authoritative
+Freeciv random stream for fuzziness and random sampling, not strategic
+planning. Decision keys may remain diagnostic labels but must not select an
+independent random value.
 
 Add:
 
@@ -861,6 +895,8 @@ At minimum, a recoverable save includes:
 - game lifecycle state, current turn, year, and map;
 - players, cities, units, research, government, economy, and diplomacy;
 - per-player native AI state and personality metadata;
+- the authoritative random seed, complete Freeciv random state, and
+  Freeciv-style identity counter;
 - current accepted strategic plan;
 - simulation run state and speed;
 - immutable diagnostic run identity and schema version;
@@ -880,6 +916,8 @@ Continue treating completed `gameTurns` records as immutable replay frames:
 - statistics;
 - completed phase records;
 - ordered turn events.
+- the post-turn authoritative random state and identity counter needed to
+  reproduce the next turn.
 
 Only a turn with successful required phases and a non-null completion marker is
 replayable. Never expose an in-progress checkpoint as a completed replay turn.
@@ -1187,12 +1225,14 @@ Implement vertical slices in this order.
 
 ### Phase 1: Contracts and persistence
 
-1. Add mode/config/provider types and runtime schemas.
-2. Add immutable run identity and diagnostic schema versions.
-3. Add `ai_turn_summaries`, simulation run, and diagnostic schemas/migrations.
-4. Add reference score counters and the shared parity score service.
-5. Extend AI state validation for personality and accepted strategic plan.
-6. Add focused score, codec, and recovery validation tests.
+1. Reuse and validate the existing persisted authoritative random/identity
+   state; do not add a simulation-specific RNG.
+2. Add mode/config/provider types and runtime schemas.
+3. Add immutable run identity and diagnostic schema versions.
+4. Add `ai_turn_summaries`, simulation run, and diagnostic schemas/migrations.
+5. Add reference score counters and the shared parity score service.
+6. Extend AI state validation for personality and accepted strategic plan.
+7. Add focused score, codec, and recovery validation tests.
 
 ### Phase 2: AI-only creation
 
@@ -1258,6 +1298,8 @@ Implement vertical slices in this order.
   players.
 - Every AI has a unique nation/color, configured difficulty, deterministic
   personality, and valid initial AI state.
+- The run manifest records distinct map and authoritative gameplay seeds plus
+  the randomization version.
 - The creator is a spectator and receives a complete snapshot before the
   creation reply becomes ready.
 - Reloading `/simulation/:gameId` reconnects directly as observer without
@@ -1313,6 +1355,9 @@ Implement vertical slices in this order.
 - Paused simulations remain paused after restart.
 - Personality, AI state, accepted strategic plans, speed, and run state survive
   restart.
+- The exact random stream and identity counter survive restart, including
+  recovery from a completed durable phase, so resumed execution produces the
+  same next random value and entity ordering.
 - An incomplete turn is not exposed as a replay frame.
 - Recovery cannot create duplicate runner timers.
 - Run identity, failures, completed-turn diagnostics, and state hashes survive
@@ -1379,6 +1424,9 @@ Implement vertical slices in this order.
   wonders, unit counters, culture, arrived spaceship, team aggregation, and
   tie fixtures;
 - deterministic personality assignment;
+- Freeciv-compatible generator vectors, range reduction, state round-tripping,
+  and identity-counter ordering;
+- AI fuzziness consuming `fc_rand(1000)` from the shared stream;
 - exact-count AI creation;
 - runner pause/resume/step/speed state machine;
 - stale timer generation rejection;
@@ -1396,6 +1444,10 @@ Implement vertical slices in this order.
 - create simulation → create all AIs → start → observe snapshot;
 - process multiple autonomous turns;
 - pause/restart/recover/resume;
+- fixed-seed paired AI games producing exact, swapped-position benchmark
+  totals;
+- fixed-seed replay and restart runs producing the same authoritative random
+  state, next random value, and identity counter;
 - running restart recovery without duplicate turn processing;
 - end-game runner shutdown;
 - each selectable victory condition and turn-cap-only completion;
