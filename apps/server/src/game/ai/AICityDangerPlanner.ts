@@ -67,7 +67,13 @@ export function unitDefenseRating(unit: Unit, type: UnitType): number {
 }
 
 export function dangerAssessmentTurns(profile: AIProfile): number {
-  if (profile.level === 'hard' || profile.level === 'cheating') return 6;
+  if (
+    profile.level === 'hard' ||
+    profile.level === 'experimental' ||
+    profile.level === 'cheating'
+  ) {
+    return 6;
+  }
   return profile.handicaps.has('assess_danger_limited') ? 2 : 3;
 }
 

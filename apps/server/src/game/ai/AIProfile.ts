@@ -4,6 +4,7 @@ export const AI_LEVELS = [
   'easy',
   'normal',
   'hard',
+  'experimental',
   'cheating',
   'away',
 ] as const;
@@ -52,7 +53,8 @@ export type AIHandicap =
   | 'assess_danger_limited'
   | 'ceasefire'
   | 'no_bribe_war_footing'
-  | 'production_change_penalty';
+  | 'production_change_penalty'
+  | 'experimental';
 
 export interface AIProfile {
   level: AILevel;
@@ -115,6 +117,7 @@ const HANDICAPS = {
   ],
   normal: ['rates', 'targets', 'huts', 'diplomat', 'ceasefire', 'no_bribe_war_footing'],
   hard: ['rates'],
+  experimental: ['rates', 'experimental'],
   cheating: ['rates'],
   away: [
     'away',
@@ -138,6 +141,7 @@ const DIFFICULTY_PARAMETERS: Record<
   easy: { fuzzy: 300, expansion: 10, scienceCost: 100 },
   normal: { fuzzy: 0, expansion: 100, scienceCost: 100 },
   hard: { fuzzy: 0, expansion: 100, scienceCost: 100 },
+  experimental: { fuzzy: 0, expansion: 100, scienceCost: 100 },
   cheating: { fuzzy: 0, expansion: 100, scienceCost: 100 },
   away: { fuzzy: 0, expansion: 0, scienceCost: 100 },
 };

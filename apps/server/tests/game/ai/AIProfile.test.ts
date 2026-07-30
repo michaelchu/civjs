@@ -1,4 +1,4 @@
-import { createAIProfile, isAILevel } from '@game/ai/AIProfile';
+import { createAIProfile, isAILevel, isSettableAILevel } from '@game/ai/AIProfile';
 
 describe('Freeciv AI difficulty profiles', () => {
   it('matches the reference fuzzy, expansion, and science parameters', () => {
@@ -33,10 +33,13 @@ describe('Freeciv AI difficulty profiles', () => {
     expect(createAIProfile('easy').handicaps.has('no_planes')).toBe(true);
     expect(createAIProfile('normal').handicaps.has('no_planes')).toBe(false);
     expect(createAIProfile('hard').handicaps).toEqual(new Set(['rates']));
+    expect(createAIProfile('experimental').handicaps).toEqual(new Set(['rates', 'experimental']));
   });
 
   it('validates levels and clamps persisted trait input', () => {
     expect(isAILevel('cheating')).toBe(true);
+    expect(isAILevel('experimental')).toBe(true);
+    expect(isSettableAILevel('experimental')).toBe(false);
     expect(isAILevel('impossible')).toBe(false);
     expect(
       createAIProfile('normal', {
