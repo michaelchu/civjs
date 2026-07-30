@@ -47,7 +47,8 @@ const ReportsMenu: React.FC<{
   onOpenScores?: () => void;
   onOpenDemographics?: () => void;
   onOpenClimate?: () => void;
-}> = ({ onClose, onOpenScores, onOpenDemographics, onOpenClimate }) => {
+  onOpenUnitReport?: () => void;
+}> = ({ onClose, onOpenScores, onOpenDemographics, onOpenClimate, onOpenUnitReport }) => {
   const setActiveTab = useGameStore(state => state.setActiveTab);
   const openTab = (tab: Parameters<typeof setActiveTab>[0]) => {
     setActiveTab(tab);
@@ -69,6 +70,9 @@ const ReportsMenu: React.FC<{
         <button type="button" onClick={() => { onOpenClimate?.(); onClose(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
           <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" /> Climate
         </button>
+        <button type="button" onClick={() => { onOpenUnitReport?.(); onClose(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
+          <Swords className="h-3.5 w-3.5" aria-hidden="true" /> Units
+        </button>
         <button type="button" onClick={() => openTab('research')} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Research
         </button>
@@ -80,7 +84,7 @@ const ReportsMenu: React.FC<{
         </button>
       </div>
       <div className="mt-2 border-t border-white/10 px-2 pt-2 text-[10px] text-slate-500">
-        Climate and intelligence reports are queued for the next report slices.
+        Intelligence and war-calculator reports are queued for the next report slices.
       </div>
     </div>
   );
@@ -109,7 +113,8 @@ export const TurnActionCluster: React.FC<{
   onOpenScores?: () => void;
   onOpenDemographics?: () => void;
   onOpenClimate?: () => void;
-}> = ({ onOpenScores, onOpenDemographics, onOpenClimate }) => {
+  onOpenUnitReport?: () => void;
+}> = ({ onOpenScores, onOpenDemographics, onOpenClimate, onOpenUnitReport }) => {
   const [reportsOpen, setReportsOpen] = React.useState(false);
   const [helpOpen, setHelpOpen] = React.useState(false);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
@@ -196,6 +201,7 @@ export const TurnActionCluster: React.FC<{
           onOpenScores={onOpenScores}
           onOpenDemographics={onOpenDemographics}
           onOpenClimate={onOpenClimate}
+          onOpenUnitReport={onOpenUnitReport}
         />
       )}
       {helpOpen && <HelpMenu />}

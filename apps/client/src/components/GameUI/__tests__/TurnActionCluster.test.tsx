@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGameStore } from '../../../store/gameStore';
 import { TurnActionCluster } from '../TurnActionCluster';
 
@@ -71,5 +71,20 @@ describe('TurnActionCluster', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Help' }));
     expect(screen.getByText('Command help')).toBeInTheDocument();
     expect(useGameStore.getState().activeTab).toBe('map');
+  });
+
+  it('opens the unit report from the reports menu', () => {
+    const onOpenUnitReport = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <TurnActionCluster onOpenUnitReport={onOpenUnitReport} />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reports' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Units' }));
+
+    expect(onOpenUnitReport).toHaveBeenCalledOnce();
   });
 });

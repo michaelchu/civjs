@@ -24,6 +24,7 @@ import { TurnActionCluster } from './TurnActionCluster';
 import { ScoreReport, type ScoreSnapshot } from './ScoreReport';
 import { DemographicsReport } from './DemographicsReport';
 import { ClimateReport } from './ClimateReport';
+import { UnitReport } from './UnitReport';
 
 interface GameLayoutProps {
   rulesetName?: string;
@@ -37,6 +38,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
   const [scoreReportOpen, setScoreReportOpen] = useState(false);
   const [demographicsReportOpen, setDemographicsReportOpen] = useState(false);
   const [climateReportOpen, setClimateReportOpen] = useState(false);
+  const [unitReportOpen, setUnitReportOpen] = useState(false);
   const [scoreHistory, setScoreHistory] = useState<ScoreSnapshot[]>([]);
 
   const activeTab = useGameStore(state => state.activeTab);
@@ -166,6 +168,13 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
         mapWidth={mapWidth}
         mapHeight={mapHeight}
       />
+      <UnitReport
+        open={unitReportOpen}
+        onOpenChange={setUnitReportOpen}
+        units={units}
+        cities={cities}
+        currentPlayerId={currentPlayerId}
+      />
       {/* Header with tabs and status */}
       <div className="flex items-center justify-between bg-gray-700 px-4 py-1 border-b border-gray-600">
         <GameTabs />
@@ -197,6 +206,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
                   onOpenScores={() => setScoreReportOpen(true)}
                   onOpenDemographics={() => setDemographicsReportOpen(true)}
                   onOpenClimate={() => setClimateReportOpen(true)}
+                  onOpenUnitReport={() => setUnitReportOpen(true)}
                 />
               }
             />
