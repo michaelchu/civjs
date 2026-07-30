@@ -22,6 +22,7 @@ import { ObjectivesJournal } from './ObjectivesJournal';
 import { DiplomacyStrip } from './DiplomacyStrip';
 import { TurnActionCluster } from './TurnActionCluster';
 import { ScoreReport, type ScoreSnapshot } from './ScoreReport';
+import { DemographicsReport } from './DemographicsReport';
 
 interface GameLayoutProps {
   rulesetName?: string;
@@ -33,6 +34,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
     height: window.innerHeight,
   });
   const [scoreReportOpen, setScoreReportOpen] = useState(false);
+  const [demographicsReportOpen, setDemographicsReportOpen] = useState(false);
   const [scoreHistory, setScoreHistory] = useState<ScoreSnapshot[]>([]);
 
   const activeTab = useGameStore(state => state.activeTab);
@@ -41,6 +43,9 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
   const currentPlayer = useGameStore(state => state.players[state.currentPlayerId]);
   const players = useGameStore(state => state.players);
   const cities = useGameStore(state => state.cities);
+  const units = useGameStore(state => state.units);
+  const tiles = useGameStore(state => state.map.tiles);
+  const technologies = useGameStore(state => state.technologies);
   const turn = useGameStore(state => state.turn);
   const researchedTechs = useGameStore(state => state.research?.researchedTechs);
   const rulesetName = rulesetOverride ?? 'civ2civ3';
@@ -140,6 +145,16 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
           return counts;
         }, {})}
       />
+      <DemographicsReport
+        open={demographicsReportOpen}
+        onOpenChange={setDemographicsReportOpen}
+        players={players}
+        cities={cities}
+        units={units}
+        tiles={tiles}
+        technologies={technologies}
+        currentPlayerId={currentPlayerId}
+      />
       {/* Header with tabs and status */}
       <div className="flex items-center justify-between bg-gray-700 px-4 py-1 border-b border-gray-600">
         <GameTabs />
@@ -166,7 +181,12 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
               bottomLeft={<Minimap />}
               left={<ObjectivesJournal />}
               right={<DiplomacyStrip />}
-              bottomRight={<TurnActionCluster onOpenScores={() => setScoreReportOpen(true)} />}
+              bottomRight={
+                <TurnActionCluster
+                  onOpenScores={() => setScoreReportOpen(true)}
+                  onOpenDemographics={() => setDemographicsReportOpen(true)}
+                />
+              }
             />
           </div>
 

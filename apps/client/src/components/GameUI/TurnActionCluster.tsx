@@ -42,7 +42,11 @@ const ActionButton: React.FC<{
   </button>
 );
 
-const ReportsMenu: React.FC<{ onClose: () => void; onOpenScores?: () => void }> = ({ onClose, onOpenScores }) => {
+const ReportsMenu: React.FC<{
+  onClose: () => void;
+  onOpenScores?: () => void;
+  onOpenDemographics?: () => void;
+}> = ({ onClose, onOpenScores, onOpenDemographics }) => {
   const setActiveTab = useGameStore(state => state.setActiveTab);
   const openTab = (tab: Parameters<typeof setActiveTab>[0]) => {
     setActiveTab(tab);
@@ -58,8 +62,8 @@ const ReportsMenu: React.FC<{ onClose: () => void; onOpenScores?: () => void }> 
         <button type="button" onClick={() => { onOpenScores?.(); onClose(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
           <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" /> Scores
         </button>
-        <button type="button" onClick={() => openTab('cities')} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
-          <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" /> Empire
+        <button type="button" onClick={() => { onOpenDemographics?.(); onClose(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
+          <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" /> Demographics
         </button>
         <button type="button" onClick={() => openTab('research')} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Research
@@ -72,7 +76,7 @@ const ReportsMenu: React.FC<{ onClose: () => void; onOpenScores?: () => void }> 
         </button>
       </div>
       <div className="mt-2 border-t border-white/10 px-2 pt-2 text-[10px] text-slate-500">
-        Scores, demographics, climate, and intelligence reports are queued for the next report slice.
+        Climate and intelligence reports are queued for the next report slices.
       </div>
     </div>
   );
@@ -97,7 +101,10 @@ const HelpMenu: React.FC = () => (
   </div>
 );
 
-export const TurnActionCluster: React.FC<{ onOpenScores?: () => void }> = ({ onOpenScores }) => {
+export const TurnActionCluster: React.FC<{
+  onOpenScores?: () => void;
+  onOpenDemographics?: () => void;
+}> = ({ onOpenScores, onOpenDemographics }) => {
   const [reportsOpen, setReportsOpen] = React.useState(false);
   const [helpOpen, setHelpOpen] = React.useState(false);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
@@ -178,7 +185,13 @@ export const TurnActionCluster: React.FC<{ onOpenScores?: () => void }> = ({ onO
         <TurnDoneButton />
       </div>
 
-      {reportsOpen && <ReportsMenu onClose={() => setReportsOpen(false)} onOpenScores={onOpenScores} />}
+      {reportsOpen && (
+        <ReportsMenu
+          onClose={() => setReportsOpen(false)}
+          onOpenScores={onOpenScores}
+          onOpenDemographics={onOpenDemographics}
+        />
+      )}
       {helpOpen && <HelpMenu />}
     </HudPanel>
   );
