@@ -232,7 +232,7 @@ export const ScoreReport: React.FC<ScoreReportProps> = ({
                     <TableHead className="text-slate-300">Civilization</TableHead>
                     <TableHead className="text-right text-slate-300">Score</TableHead>
                     <TableHead className="text-right text-slate-300">Culture</TableHead>
-                    <TableHead className="text-right text-slate-300">Cities</TableHead>
+                    <TableHead className="text-right text-slate-300">Known cities</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -272,7 +272,8 @@ export const ScoreReport: React.FC<ScoreReportProps> = ({
                 </TableBody>
               </Table>
               <p className="mt-2 text-[10px] text-slate-500">
-                City counts will be added when the dedicated demographics report is connected.
+                Your city count is exact; other civilizations show only cities currently present in
+                your permitted map snapshot.
               </p>
             </section>
           </div>

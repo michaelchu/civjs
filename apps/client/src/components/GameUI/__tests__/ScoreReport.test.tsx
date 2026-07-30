@@ -55,6 +55,8 @@ describe('ScoreReport', () => {
     expect(screen.getByRole('img', { name: 'Historical score chart' })).toBeInTheDocument();
     expect(screen.getByText('Romans')).toBeInTheDocument();
     expect(screen.getByText('Greeks')).toBeInTheDocument();
+    expect(screen.getByText('Known cities')).toBeInTheDocument();
+    expect(screen.getByText(/your city count is exact/i)).toBeInTheDocument();
     expect(screen.getByText('2 turns captured')).toBeInTheDocument();
   });
 
