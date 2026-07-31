@@ -479,14 +479,16 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-016 — Marines cannot attack or conquer directly from transports
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Combat, transports, Marines, city capture
 - **Observed behavior:** Every transported attacker is rejected before combat,
   including `civ2civ3` Marines.
 - **Reproduction:** Load Marines on a transport beside a defended coastal city
   and attempt to attack from the transport.
-- **Current implementation:** `UnitManager.attackUnit()` rejects an attack
-  whenever either combatant has `transportedBy`.
+- **Current implementation:** `UnitManager.attackUnit()` permits a transported
+  attacker only when its unit type has the `Marines` flag. A surviving Marine
+  that occupies the defeated defender's tile is detached from its transport;
+  ordinary transported land units remain blocked.
 - **Reference behavior:** `civ2civ3` has dedicated Marine attack and city-conquer
   enablers that permit a Marine to attack from a non-native transport tile.
 - **CivJS references:**
@@ -498,8 +500,8 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/common/movement.c`
 - **Expected outcome:** Permit transport-origin attacks only when the action
   enabler and unit flags allow them, preserving ordinary cargo restrictions.
-- **Regression coverage:** Test Marines and ordinary land units attacking from
-  transports, with defended and empty coastal cities.
+- **Regression coverage:** UnitManager tests cover Marine transport-origin
+  victory/disembark and rejection of ordinary transported land attacks.
 
 ### GP-017 — Field units avoid war-unhappiness while stationed at home
 

@@ -1070,11 +1070,16 @@ export class UnitManager {
 
   // eslint-disable-next-line complexity
   private validateCombatRange(attacker: Unit, defender: Unit, attackerType: UnitType): void {
-    if (attacker.transportedBy || defender.transportedBy) {
+    if (
+      defender.transportedBy ||
+      (attacker.transportedBy && !this.canAttackFromTransport(attackerType))
+    ) {
       throw new Error('Transported units cannot directly participate in combat');
     }
     if ((attackerType.attack ?? 0) <= 0) throw new Error('Unit has no attack strength');
-    if (attacker.movementLeft <= 0) throw new Error('No movement points remaining');
+    if (attacker.movementLeft <= 0 && !attacker.transportedBy) {
+      throw new Error('No movement points remaining');
+    }
     if (
       this.calculateDistance(attacker.x, attacker.y, defender.x, defender.y) > attackerType.range
     ) {
@@ -1301,6 +1306,11 @@ export class UnitManager {
     attacker: Unit,
     defender: Unit
   ): Promise<void> {
+    if (attacker.transportedBy) {
+      const transport = this.units.get(attacker.transportedBy);
+      if (transport) await this.detachCargoFromTransport(attacker, transport);
+      attacker.transportedBy = undefined;
+    }
     attacker.x = defender.x;
     attacker.y = defender.y;
     await this.databaseProvider
@@ -1308,6 +1318,10 @@ export class UnitManager {
       .update(units)
       .set({ x: attacker.x, y: attacker.y })
       .where(eq(units.id, attackerId));
+  }
+
+  private canAttackFromTransport(attackerType: UnitType): boolean {
+    return attackerType.flags?.includes('Marines') === true;
   }
 
   private canUnitCaptureCity(unitType: UnitType): boolean {

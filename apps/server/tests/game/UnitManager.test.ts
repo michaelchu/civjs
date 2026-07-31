@@ -725,6 +725,47 @@ describe('UnitManager', () => {
       expect(missile.movementLeft).toBe(UNIT_TYPES.cruise_missile.movement);
     });
 
+    it('allows Marines to attack from a transport and disembark after victory', async () => {
+      terrain.set('10,10', 'ocean');
+      terrain.set('11,10', 'grassland');
+      const marineManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        mapManager,
+        undefined,
+        new EffectsManager('civ2civ3'),
+        () => 0.99,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      const transport = await marineManager.createUnit('player-123', 'trireme', 10, 10);
+      const marine = await marineManager.createUnit('player-123', 'marines', 10, 10);
+      await marineManager.loadUnitOntoTransport(transport.id, marine.id);
+      const defender = await marineManager.createUnit('player-456', 'warriors', 11, 10);
+      defender.health = 1;
+
+      const result = await marineManager.attackUnit(marine.id, defender.id);
+
+      expect(result.defenderDestroyed).toBe(true);
+      expect(marine.transportedBy).toBeUndefined();
+      expect(transport.cargoUnits).toEqual([]);
+      expect(marine).toMatchObject({ x: 11, y: 10 });
+    });
+
+    it('keeps ordinary transported land units from attacking directly', async () => {
+      terrain.set('10,10', 'ocean');
+      terrain.set('11,10', 'grassland');
+      const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const warrior = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      await unitManager.loadUnitOntoTransport(transport.id, warrior.id);
+      const defender = await unitManager.createUnit('player-456', 'warriors', 11, 10);
+
+      await expect(unitManager.attackUnit(warrior.id, defender.id)).rejects.toThrow(
+        'Transported units cannot directly participate in combat'
+      );
+    });
+
     it('captures an undefended enemy city through the authoritative callback', async () => {
       let cityOwner = 'player-456';
       const captureCity = jest.fn(async () => {
