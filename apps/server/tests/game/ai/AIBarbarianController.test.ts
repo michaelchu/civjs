@@ -108,8 +108,7 @@ describe('Freeciv barbarian AI', () => {
         getUnit: (id: string) => units.get(id),
         getUnitType: (id: string) =>
           id === 'leader' ? { roles: ['BarbarianLeader'] } : { roles: [] },
-        canUnitPerformAction: (_id: string, action: ActionType) =>
-          action === ActionType.GOTO,
+        canUnitPerformAction: (_id: string, action: ActionType) => action === ActionType.GOTO,
         executeUnitAction,
         attackUnit,
       },
@@ -159,7 +158,11 @@ describe('Freeciv barbarian AI', () => {
       currentTurn: 7,
       unitManager: {
         getPlayerUnits: () => [leader, warrior],
-        getAllUnits: () => new Map([[leader.id, leader], [warrior.id, warrior]]),
+        getAllUnits: () =>
+          new Map([
+            [leader.id, leader],
+            [warrior.id, warrior],
+          ]),
         getUnit: () => warrior,
         getUnitType: (id: string) =>
           id === 'leader' ? { roles: ['BarbarianLeader'] } : { roles: [] },
