@@ -156,6 +156,26 @@ player-only actions while the selected civilization is AI-controlled. A control
 transfer is not a spectator transition: the host remains a player if they still
 control another human civilization.
 
+### Turn action and handover menu
+
+In standard-game mode, render **Turn Done** as a split dropdown button: the
+primary button retains the existing turn-completion action, and an adjacent
+arrow button opens a popup containing the applicable control-transfer action
+for the civilization currently controlled by the user.
+
+The popup action text must be context-sensitive:
+
+- **Hand off to AI** when the selected civilization is human-controlled by the
+  current user;
+- **Regain control** when the selected civilization is AI-controlled but the
+  current user is its retained controller and the host authorizes the transfer.
+
+Selecting either action must send the authoritative handover command and wait
+for its correlated result before updating the control state. The menu must not
+offer handover for eliminated or conceded civilizations, civilizations owned by
+another human user, or simulation-mode civilizations. While a handover is in
+flight, disable the transfer action and prevent duplicate requests.
+
 #### Reconnect and recovery requirement
 
 Control ownership must be reconstructed from authoritative server state on every
@@ -1338,7 +1358,9 @@ Implement vertical slices in this order.
 ### Phase 1: Standard-game AI handover
 
 1. Add host-facing takeover and resume-human-control UI using the existing
-   `host:setPlayerAIControl` command.
+   `host:setPlayerAIControl` command. Render this through the standard-game
+   **Turn Done** split dropdown: the adjacent arrow popup shows **Hand off to
+   AI** or **Regain control** according to authoritative controller state.
 2. Refresh the authoritative player/session model after
    `player-control-changed`, including reconnect and recovery paths.
 3. Serialize control changes with `END_TURN`, timeout, and AI processing locks.
@@ -1461,6 +1483,11 @@ seam must not be allowed to obscure or delay those runtime guarantees.
   turn outcome.
 - Handing the last human civilization to AI does not leave the game waiting on
   a human turn completion.
+- Standard-game **Turn Done** is rendered as a split dropdown button whose
+  adjacent popup exposes the correct context-sensitive handover action.
+- Handover actions are disabled for eliminated/conceded or unavailable
+  civilizations, and duplicate requests are prevented while awaiting the
+  authoritative result.
 
 ### Phase 2: Simulation creation and authority
 
@@ -1651,6 +1678,9 @@ seam must not be allowed to obscure or delay those runtime guarantees.
 - player controls absent in simulation/replay;
 - simulation control request/acknowledgement handling;
 - handover request/acknowledgement and `player-control-changed` handling;
+- standard-game **Turn Done** split-button rendering, context-sensitive
+  **Hand off to AI**/**Regain control** labels, unavailable-target gating, and
+  duplicate-request prevention;
 - AI-controlled reconnects do not regain gameplay controls;
 - omniscient fog rendering;
 - observer focus;
