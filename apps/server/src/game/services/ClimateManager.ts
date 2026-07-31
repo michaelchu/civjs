@@ -3,12 +3,15 @@ import type { DatabaseProvider } from '@database';
 import { games } from '@database/schema';
 import type { MapManager } from '@game/managers/MapManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
 
 export interface ClimateState {
   warmingPressure: number;
   coolingPressure: number;
   warmingEvents: number;
   coolingEvents: number;
+  warmingLevel: number;
+  coolingLevel: number;
 }
 
 export interface ClimateTurnResult {
@@ -30,6 +33,8 @@ const DEFAULT_STATE: ClimateState = {
   coolingPressure: 0,
   warmingEvents: 0,
   coolingEvents: 0,
+  warmingLevel: 0,
+  coolingLevel: 0,
 };
 
 /**
@@ -52,7 +57,8 @@ export class ClimateManager {
       gameId: string,
       event: 'warming' | 'cooling',
       transformedTiles: number
-    ) => void
+    ) => void,
+    private readonly random: RandomSource = Math.random
   ) {}
 
   async processTurn(): Promise<ClimateTurnResult> {
@@ -65,32 +71,35 @@ export class ClimateManager {
       (tile.improvements ?? []).some(extra => extra.toLowerCase() === 'fallout')
     ).length;
     const state = await this.loadState();
-    state.warmingPressure += pollutionTiles;
-    state.coolingPressure += falloutTiles;
-    const warmingThreshold = Math.max(
-      1,
-      this.settings.warmingThreshold ?? ClimateManager.EVENT_THRESHOLD
-    );
-    const coolingThreshold = Math.max(
-      1,
-      this.settings.coolingThreshold ?? ClimateManager.EVENT_THRESHOLD
-    );
-
-    const warmingApplied =
-      this.settings.enabled !== false && state.warmingPressure >= warmingThreshold;
-    const coolingApplied =
-      this.settings.enabled !== false && state.coolingPressure >= coolingThreshold;
-    if (warmingApplied) {
-      state.warmingPressure -= warmingThreshold;
-      state.warmingEvents += 1;
-    }
-    if (coolingApplied) {
-      state.coolingPressure -= coolingThreshold;
-      state.coolingEvents += 1;
-    }
-
-    const transformedWarming = warmingApplied ? this.transformWorld('warming', tiles) : 0;
-    const transformedCooling = coolingApplied ? this.transformWorld('cooling', tiles) : 0;
+    const usesReferenceModel =
+      this.settings.warmingThreshold === undefined && this.settings.coolingThreshold === undefined;
+    const climateEnabled = this.settings.enabled !== false;
+    const warming = climateEnabled
+      ? usesReferenceModel
+        ? this.processReferenceUpset('warming', pollutionTiles, tiles, state)
+        : this.processThresholdUpset(
+            'warming',
+            pollutionTiles,
+            tiles,
+            state,
+            this.settings.warmingThreshold
+          )
+      : { applied: false, transformed: 0 };
+    const cooling = climateEnabled
+      ? usesReferenceModel
+        ? this.processReferenceUpset('cooling', falloutTiles, tiles, state)
+        : this.processThresholdUpset(
+            'cooling',
+            falloutTiles,
+            tiles,
+            state,
+            this.settings.coolingThreshold
+          )
+      : { applied: false, transformed: 0 };
+    const warmingApplied = warming.applied;
+    const coolingApplied = cooling.applied;
+    const transformedWarming = warming.transformed;
+    const transformedCooling = cooling.transformed;
     if (transformedWarming || transformedCooling) {
       this.onMapChanged?.(this.gameId, mapData);
     }
@@ -107,9 +116,65 @@ export class ClimateManager {
     };
   }
 
-  private transformWorld(direction: 'warming' | 'cooling', tiles: any[]): number {
+  private processReferenceUpset(
+    direction: 'warming' | 'cooling',
+    extraCount: number,
+    tiles: any[],
+    state: ClimateState
+  ): { applied: boolean; transformed: number } {
+    const pressureKey = direction === 'warming' ? 'warmingPressure' : 'coolingPressure';
+    const levelKey = direction === 'warming' ? 'warmingLevel' : 'coolingLevel';
+    const eventKey = direction === 'warming' ? 'warmingEvents' : 'coolingEvents';
+    const mapTileCount = Math.max(1, tiles.length);
+    if (state[levelKey] <= 0) {
+      state[levelKey] = Math.max(1, Math.ceil(mapTileCount / 500));
+    }
+    state[pressureKey] += extraCount;
+    if (state[pressureKey] < state[levelKey]) {
+      state[pressureKey] = 0;
+      return { applied: false, transformed: 0 };
+    }
+
+    state[pressureKey] -= state[levelKey];
+    const chanceBound = Math.max(1, Math.ceil(mapTileCount / 20));
+    if (randomInt(this.random, chanceBound) >= state[pressureKey]) {
+      return { applied: false, transformed: 0 };
+    }
+
+    const effect =
+      Math.floor((this.mapManager.getMapData()?.width ?? 0) / 10) +
+      Math.floor((this.mapManager.getMapData()?.height ?? 0) / 10) +
+      state[pressureKey] * 5;
+    const transformed = this.transformWorld(direction, tiles, effect);
+    state[pressureKey] = 0;
+    state[eventKey] += 1;
+    state[levelKey] += Math.max(1, Math.ceil(mapTileCount / 1000));
+    return { applied: true, transformed };
+  }
+
+  private processThresholdUpset(
+    direction: 'warming' | 'cooling',
+    extraCount: number,
+    tiles: any[],
+    state: ClimateState,
+    thresholdOverride?: number
+  ): { applied: boolean; transformed: number } {
+    const pressureKey = direction === 'warming' ? 'warmingPressure' : 'coolingPressure';
+    const eventKey = direction === 'warming' ? 'warmingEvents' : 'coolingEvents';
+    const threshold = Math.max(1, thresholdOverride ?? ClimateManager.EVENT_THRESHOLD);
+    state[pressureKey] += extraCount;
+    if (state[pressureKey] < threshold) return { applied: false, transformed: 0 };
+    state[pressureKey] -= threshold;
+    state[eventKey] += 1;
+    return { applied: true, transformed: this.transformWorld(direction, tiles, tiles.length) };
+  }
+
+  private transformWorld(direction: 'warming' | 'cooling', tiles: any[], effect: number): number {
     let transformed = 0;
-    for (const tile of tiles) {
+    const candidates = [...tiles];
+    while (effect > 0 && candidates.length > 0) {
+      const [tile] = candidates.splice(randomInt(this.random, candidates.length), 1);
+      if (!tile) continue;
       const terrain = rulesetLoader.getTerrain(tile.terrain, this.rulesetName) as any;
       const properties = terrain.properties ?? {};
       const wet = Number(properties.MG_WET ?? properties.wet ?? 0) > 0;
@@ -133,6 +198,7 @@ export class ClimateManager {
       this.mapManager.updateTileProperty(tile.x, tile.y, 'terrain', nextTerrain);
       this.mapManager.updateTileProperty(tile.x, tile.y, 'improvements', tile.improvements);
       transformed += 1;
+      effect -= 1;
     }
     return transformed;
   }
@@ -154,6 +220,8 @@ export class ClimateManager {
       coolingPressure: Number(stored?.coolingPressure ?? DEFAULT_STATE.coolingPressure),
       warmingEvents: Number(stored?.warmingEvents ?? DEFAULT_STATE.warmingEvents),
       coolingEvents: Number(stored?.coolingEvents ?? DEFAULT_STATE.coolingEvents),
+      warmingLevel: Number(stored?.warmingLevel ?? DEFAULT_STATE.warmingLevel),
+      coolingLevel: Number(stored?.coolingLevel ?? DEFAULT_STATE.coolingLevel),
     };
   }
 

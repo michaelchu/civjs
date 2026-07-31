@@ -987,8 +987,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Regression coverage:** `CityManager.test.ts` covers the authoritative
   conquest ownership callback, original-owner preservation, and separation of
   peaceful transfers. `UnitManager.test.ts` covers legal placement and the
-  no-legal-tile fallback. The lifecycle effect-eligibility/count decision and
-  player notifications still need a full game-instance integration fixture.
+  no-legal-tile fallback. `PartisanService.test.ts` covers the shared
+  eligibility gates and size roll used by both fresh-game and recovery
+  callbacks; player notification delivery remains a full game-instance
+  integration concern.
 
 ### GP-032 — Pollution never accumulates into global warming
 
@@ -1000,12 +1002,12 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Current implementation:** Runtime references to warming are limited to map
   generation terminology and ruleset help text; turn processing now includes a
   persistent `ClimateManager` that accumulates pollution/fallout pressure,
-  applies deterministic thresholded warming/cooling transformations from the
-  active terrain ruleset, clears transformed pollution/fallout, broadcasts the
-  changed map, and emits a climate event. `GameConfig.climate` now controls
-  whether processing is enabled and allows warming/cooling thresholds to be
-  configured; recovery persists those settings in game state. Finer reference
-  probability tuning and full turn/recovery integration remain open.
+  applies map-scaled, probability-based warming/cooling transformations from
+  the active terrain ruleset, escalates the reference event level, clears
+  transformed pollution/fallout, broadcasts the changed map, and emits a
+  climate event. `GameConfig.climate` can disable processing or provide an
+  explicit deterministic threshold; recovery persists those settings in game
+  state. Full turn/recovery integration remains open.
 - **Reference behavior:** Freeciv accumulates warming/cooling pressure from
   pollution/fallout and periodically applies ruleset terrain transformations,
   with global notifications and persistent risk state.
@@ -1021,7 +1023,8 @@ you declare war first.` Civilian/border-entry units may enter permitted
   checks, terrain transformations, map/city refresh, and notifications.
 - **Regression coverage:** `ClimateManager.test.ts` covers persisted pressure,
   warming/cooling thresholds, disabled climate, terrain eligibility, cleanup
-  of the triggering extra, and configured-threshold remainder handling.
+  of the triggering extra, configured-threshold remainder handling, and the
+  map-scaled probability/level escalation model.
   `TurnManager.test.ts` covers climate processing during a completed turn,
   map broadcasting, and visibility refresh; recovery-specific wiring remains
   open.

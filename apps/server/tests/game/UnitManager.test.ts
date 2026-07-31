@@ -481,7 +481,9 @@ describe('UnitManager', () => {
         mapHeight,
         mapManager,
         undefined,
-        new EffectsManager('civ2civ3')
+        new EffectsManager('civ2civ3'),
+        undefined,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
       );
       const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);
       tile.hasRoad = true;

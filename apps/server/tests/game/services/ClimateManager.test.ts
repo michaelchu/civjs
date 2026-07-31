@@ -101,4 +101,56 @@ describe('ClimateManager', () => {
     expect(result.warmingApplied).toBe(true);
     expect(result.state.warmingPressure).toBe(0);
   });
+
+  it('uses map-scaled probability and escalates the reference warming level', async () => {
+    const databaseProvider = createMockDatabaseProvider();
+    const tiles = Array.from({ length: 40 }, (_, index) => ({
+      x: index,
+      y: 0,
+      terrain: 'grassland',
+      improvements: index === 0 ? ['pollution'] : [],
+    }));
+    const mapData = { width: 40, height: 1, tiles: [tiles] };
+    const mapManager = {
+      getMapData: jest.fn(() => mapData),
+      updateTileProperty: jest.fn(),
+    };
+    const database = databaseProvider.getDatabase() as any;
+    database.query.games.findFirst.mockResolvedValue({
+      gameState: { climate: { warmingPressure: 1 } },
+    });
+    const noEvent = await new ClimateManager(
+      'game-1',
+      mapManager as any,
+      databaseProvider,
+      'civ2civ3',
+      {},
+      undefined,
+      undefined,
+      () => 0.999
+    ).processTurn();
+
+    expect(noEvent.warmingApplied).toBe(false);
+    expect(noEvent.state.warmingPressure).toBe(1);
+    expect(noEvent.state.warmingLevel).toBe(1);
+
+    database.query.games.findFirst.mockResolvedValue({
+      gameState: { climate: { warmingPressure: 1, warmingLevel: 1 } },
+    });
+    const event = await new ClimateManager(
+      'game-1',
+      mapManager as any,
+      databaseProvider,
+      'civ2civ3',
+      {},
+      undefined,
+      undefined,
+      () => 0
+    ).processTurn();
+
+    expect(event.warmingApplied).toBe(true);
+    expect(event.state.warmingPressure).toBe(0);
+    expect(event.state.warmingLevel).toBe(2);
+    expect(event.state.warmingEvents).toBe(1);
+  });
 });

@@ -60,12 +60,12 @@ import {
   FreecivRandom,
   generateFreecivGameSeed,
   isFreecivRandomState,
-  randomInt,
 } from '@game/random/FreecivRandom';
 import {
   FREECIV_IDENTITY_NUMBER_SKIP,
   FreecivIdentityAllocator,
 } from '@game/random/FreecivIdentityAllocator';
+import { calculatePartisanCount, shouldCreatePartisans } from '@game/services/PartisanService';
 
 export interface GameLifecycleService {
   createGame(gameConfig: GameConfig): Promise<string>;
@@ -581,11 +581,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       },
       onCityOwnershipChanged: async (city, oldPlayerId, newPlayerId, reason) => {
         await unitManager.reconcileCityOwnership(city, oldPlayerId, newPlayerId);
-        if (reason !== 'conquest' || city.originalOwnerId !== oldPlayerId) return;
         const loser = players.get(oldPlayerId);
-        if (!loser || loser.nation === 'barbarian' || loser.civilization.startsWith('barbarian')) {
-          return;
-        }
+        if (!loser) return;
         const playerTechs = new Set(researchManager.getResearchedTechs(oldPlayerId));
         const worldTechs = new Set<string>();
         for (const player of players.values()) {
@@ -599,8 +596,19 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
           playerTechs,
           worldTechs,
         });
-        if (inspire.value <= 0) return;
-        const count = randomInt(random, 2 + Math.floor((city.size + 1) / 2)) + 1;
+        if (
+          !shouldCreatePartisans({
+            reason,
+            oldPlayerId,
+            originalOwnerId: city.originalOwnerId,
+            loserNation: loser.nation,
+            loserCivilization: loser.civilization,
+            inspireEffect: inspire.value,
+          })
+        ) {
+          return;
+        }
+        const count = calculatePartisanCount(city.size, random);
         const partisans = await unitManager.createPartisans(
           oldPlayerId,
           city,
