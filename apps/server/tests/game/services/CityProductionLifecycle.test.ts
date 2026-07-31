@@ -9,6 +9,7 @@
 import { BUILDING_TYPES, type CityState } from '@game/managers/CityManager';
 import { EffectsManager } from '@game/managers/EffectsManager';
 import { CityProductionService } from '@game/services/CityProductionService';
+import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import {
   CityTurnProcessingService,
   type CityTurnProcessingDependencies,
@@ -47,13 +48,15 @@ function city(overrides: Partial<CityState> = {}): CityState {
 
 function turnService(
   cityState: CityState,
-  onComplete: jest.Mock = jest.fn()
+  onComplete: jest.Mock = jest.fn(),
+  unitTypes = rulesetUnitsService.getUnitTypes()
 ): CityTurnProcessingService {
   const dependencies: CityTurnProcessingDependencies = {
     gameId: 'game-1',
     cities: new Map([[cityState.id, cityState]]),
     callbacks: { onCityProductionComplete: onComplete },
     effectsManager: new EffectsManager(),
+    unitTypes,
     refreshCityWithGovernmentEffects: jest.fn(),
     calculateCityOutputs: jest.fn(),
     calculateHappiness: jest.fn(),
@@ -214,10 +217,41 @@ describe('city production lifecycle', () => {
     const onComplete = jest.fn();
     await turnService(blocked, onComplete).processCityTurn(blocked.id, 7);
     expect(blocked.population).toBe(1);
-    expect(blocked.currentProduction).toBeNull();
-    expect(blocked.productionType).toBeNull();
-    expect(blocked.productionStock).toBe(0);
+    expect(blocked.currentProduction).toBe('settlers');
+    expect(blocked.productionType).toBe('unit');
+    expect(blocked.productionStock).toBe(42);
     expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it('keeps a civ2civ3 settler ready until the city can pay its population cost', async () => {
+    const civ2civ3Units = rulesetUnitsService.getUnitTypes('civ2civ3');
+    const onComplete = jest.fn();
+    const blocked = city({
+      population: 2,
+      size: 2,
+      currentProduction: 'settlers',
+      productionType: 'unit',
+      productionStock: civ2civ3Units.settlers!.cost - 1,
+      productionPerTurn: 2,
+    });
+
+    await turnService(blocked, onComplete, civ2civ3Units).processCityTurn(blocked.id, 7);
+
+    expect(blocked.population).toBe(2);
+    expect(blocked.currentProduction).toBe('settlers');
+    expect(blocked.productionStock).toBe(civ2civ3Units.settlers!.cost + 1);
+    expect(onComplete).not.toHaveBeenCalled();
+
+    blocked.population = 3;
+    blocked.size = 3;
+    await turnService(blocked, onComplete, civ2civ3Units).processCityTurn(blocked.id, 8);
+
+    expect(blocked.population).toBe(1);
+    expect(blocked.currentProduction).toBeNull();
+    expect(onComplete).toHaveBeenCalledWith(
+      blocked,
+      expect.objectContaining({ kind: 'unit', value: 'settlers' })
+    );
   });
 
   it('uses Freeciv rush premiums and the authoritative production stock', () => {

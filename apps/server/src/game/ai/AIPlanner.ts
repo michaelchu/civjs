@@ -163,6 +163,14 @@ function rankUnitProduction(
   const choices: AIChoice<ProductionChoice>[] = [];
   for (const type of Object.values(context.unitTypes)) {
     if (!context.canBuild('unit', type.id)) continue;
+    // Freeciv's domestic advisor only wants a city founder when the city has
+    // enough food surplus to support its upkeep. Population cost is handled
+    // separately when the unit completes, so it must not be used as a queue
+    // legality check here.
+    // @reference reference/freeciv/ai/default/daidomestic.c:541-572
+    if (type.canFoundCity && (context.city.foodPerTurn ?? 0) < (type.uk_food ?? 0)) {
+      continue;
+    }
     if (context.excludedChoices?.has(`unit:${type.id}`)) continue;
     const { want, reasons } = scoreUnitProduction(context, metrics, type);
     if (want > 0) {

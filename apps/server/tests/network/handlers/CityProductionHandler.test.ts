@@ -422,7 +422,7 @@ describe('CityProductionHandler', () => {
       ).toBe(false);
     });
 
-    it('should prevent building settlers in size 1 city', () => {
+    it('allows queuing settlers in a size 1 city', () => {
       const city = mockCities.get('city-1');
       city.size = 1;
       const player = mockPlayers.get('player-1');
@@ -439,7 +439,7 @@ describe('CityProductionHandler', () => {
       };
 
       const result = (handler as any).canCityBuildUnit(city, unitType, player);
-      expect(result).toBe(false);
+      expect(result).toBe(true);
     });
 
     it('should check technology requirements', () => {

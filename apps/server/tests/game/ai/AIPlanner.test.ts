@@ -49,6 +49,70 @@ const unit = (id: string, unitTypeId: string, overrides: Record<string, unknown>
   }) as any;
 
 describe('Freeciv AI want planner', () => {
+  it('does not want a founder when the city cannot feed its upkeep', () => {
+    const ranked = rankCityProduction({
+      city: city({ population: 1, size: 1, foodPerTurn: 0 }),
+      cities: [city({ population: 1, size: 1, foodPerTurn: 0 })],
+      units: [],
+      unitTypes: {
+        settler: {
+          id: 'settler',
+          name: 'Settler',
+          cost: 30,
+          movement: 1,
+          combat: 0,
+          canFoundCity: true,
+          canBuildImprovements: true,
+          uk_food: 1,
+        } as any,
+      },
+      buildingTypes: {},
+      canBuild: () => true,
+      dangerAssessment: {
+        danger: 0,
+        urgency: 0,
+        graveDanger: 0,
+        defense: 0,
+        defenseDeficit: 0,
+      },
+    });
+
+    expect(ranked).toEqual([]);
+  });
+
+  it('can rank a founder for a food-positive small city', () => {
+    const ranked = rankCityProduction({
+      city: city({ population: 1, size: 1, foodPerTurn: 2 }),
+      cities: [city({ population: 1, size: 1, foodPerTurn: 2 })],
+      units: [],
+      unitTypes: {
+        settler: {
+          id: 'settler',
+          name: 'Settler',
+          cost: 30,
+          movement: 1,
+          combat: 0,
+          canFoundCity: true,
+          canBuildImprovements: true,
+          uk_food: 1,
+        } as any,
+      },
+      buildingTypes: {},
+      canBuild: () => true,
+      dangerAssessment: {
+        danger: 0,
+        urgency: 0,
+        graveDanger: 0,
+        defense: 0,
+        defenseDeficit: 0,
+      },
+    });
+
+    expect(ranked).toEqual(
+      expect.arrayContaining([expect.objectContaining({ value: { kind: 'unit', id: 'settler' } })])
+    );
+  });
+
   it('discounts delayed benefit using Freeciv MORT', () => {
     expect(amortize(100, 0)).toBe(100);
     expect(amortize(100, 10)).toBeLessThan(100);

@@ -293,14 +293,9 @@ export class CityProductionHandler {
    * Check if city can build a unit
    * @reference freeciv/common/city.c can_city_build_unit_now()
    */
-  private canCityBuildUnit(city: any, unitType: any, player: any): boolean {
+  private canCityBuildUnit(_city: any, unitType: any, player: any): boolean {
     // Check if player has required technology
     if (unitType.requiredTech && !this.hasPlayerResearched(player, unitType.requiredTech)) {
-      return false;
-    }
-
-    // Check city size requirements for settlers (need at least size 2)
-    if (['settlers'].includes(unitType.id) && city.size < 2) {
       return false;
     }
 

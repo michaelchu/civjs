@@ -1144,9 +1144,12 @@ export class CityManager {
       if (!unit || unit.flags?.includes('NoBuild') || unit.flags?.includes('BarbarianOnly')) {
         return false;
       }
-      if ((unit.pop_cost ?? 0) > 0 && city.population <= (unit.pop_cost ?? 0)) {
-        return false;
-      }
+      // Population cost is checked when the unit actually completes, not when
+      // production is selected. Freeciv permits a small city to queue a
+      // settler and keeps the accumulated shields until the city grows enough
+      // to pay the population cost.
+      // @reference reference/freeciv/common/city.c:903-944
+      // @reference reference/freeciv/server/cityturn.c:2976-2997
       return !unit.requiredTech || this.playerTechsProvider(city.playerId).has(unit.requiredTech);
     }
 
