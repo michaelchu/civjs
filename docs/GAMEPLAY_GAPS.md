@@ -31,7 +31,7 @@ Suggested status values:
 
 ### GP-001 — Foreign border and city movement reports a generic path error
 
-- **Status:** Resolved
+- **Status:** Confirmed gap
 - **Area:** Movement, borders, diplomacy, pathfinding, client feedback
 - **Observed behavior:** Selecting a unit's goto action toward a foreign city or
   foreign occupied tile can result in `No valid path found`. The player is not
@@ -333,7 +333,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-011 — Enemy troops do not block a city from working occupied tiles
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Cities, citizen management, tile occupation, war, unit-class flags
 - **Observed behavior:** A city can continue working and collecting output from
   a tile occupied by a hostile military unit.
