@@ -618,6 +618,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
       identities,
       game.gameState && typeof game.gameState === 'object'
         ? (game.gameState as { barbarianRate?: number }).barbarianRate
+        : undefined,
+      game.gameState && typeof game.gameState === 'object'
+        ? (game.gameState as { climateSettings?: Record<string, unknown> }).climateSettings
         : undefined
     );
 

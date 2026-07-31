@@ -1007,7 +1007,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
   transformed pollution/fallout, broadcasts the changed map, and emits a
   climate event. `GameConfig.climate` can disable processing or provide an
   explicit deterministic threshold; recovery persists those settings in game
-  state. Full turn/recovery integration remains open.
+  state, and recovered games now pass the persisted settings back into
+  `TurnManager`. A full restart-and-transform integration scenario remains
+  open.
 - **Reference behavior:** Freeciv accumulates warming/cooling pressure from
   pollution/fallout and periodically applies ruleset terrain transformations,
   with global notifications and persistent risk state.
@@ -1026,8 +1028,8 @@ you declare war first.` Civilian/border-entry units may enter permitted
   of the triggering extra, configured-threshold remainder handling, and the
   map-scaled probability/level escalation model.
   `TurnManager.test.ts` covers climate processing during a completed turn,
-  map broadcasting, and visibility refresh; recovery-specific wiring remains
-  open.
+  map broadcasting, and visibility refresh. Recovery unit coverage verifies
+  map restoration, while the full restart-and-transform scenario remains open.
 
 ### GP-033 — Roads on desert and tundra tiles provide no trade
 
