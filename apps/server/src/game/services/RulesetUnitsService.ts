@@ -4,7 +4,7 @@
  */
 
 import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
-import type { UnitClass, UnitTypeRuleset } from '@shared/data/rulesets/schemas';
+import type { RulesetRequirement, UnitClass, UnitTypeRuleset } from '@shared/data/rulesets/schemas';
 
 export type UnitMovementType = 'land' | 'sea' | 'air';
 
@@ -52,6 +52,7 @@ export interface UnitType {
   obsolete_by?: string;
   pop_cost?: number;
   veteran_levels?: number;
+  buildRequirements?: RulesetRequirement[];
 }
 
 export class RulesetUnitsService {
@@ -156,6 +157,13 @@ export class RulesetUnitsService {
       obsolete_by: unit.obsolete_by,
       pop_cost: unit.pop_cost,
       veteran_levels: unit.veteran_levels,
+      buildRequirements: (
+        (unit as UnitTypeRuleset & { reqs?: RulesetRequirement[] }).reqs ?? []
+      ).map(requirement => ({
+        ...requirement,
+        name: String(requirement.name),
+        present: requirement.present ?? true,
+      })),
     };
   }
 

@@ -12,6 +12,7 @@ import {
   type ProductionItem,
 } from '@game/managers/CityManager';
 import { RequirementsManager } from '@game/managers/RequirementsManager';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 /**
  * Handles city management packets: founding cities, production changes
@@ -78,7 +79,11 @@ export class CityManagementHandler extends BaseSocketHandler {
         game.players,
         game.researchManager,
         game.cityManager.setCityProduction.bind(game.cityManager),
-        game.turnManager ? new RequirementsManager(game.turnManager.getCultureManager()) : undefined
+        game.turnManager
+          ? new RequirementsManager(game.turnManager.getCultureManager())
+          : undefined,
+        game.cityManager.canCityBuildUnit?.bind(game.cityManager),
+        game.config?.ruleset ?? DEFAULT_RULESET
       );
 
       const player = Array.from(game.players.values()).find(
@@ -119,7 +124,11 @@ export class CityManagementHandler extends BaseSocketHandler {
         game.players,
         game.researchManager,
         game.cityManager.setCityProduction.bind(game.cityManager),
-        game.turnManager ? new RequirementsManager(game.turnManager.getCultureManager()) : undefined
+        game.turnManager
+          ? new RequirementsManager(game.turnManager.getCultureManager())
+          : undefined,
+        game.cityManager.canCityBuildUnit?.bind(game.cityManager),
+        game.config?.ruleset ?? DEFAULT_RULESET
       );
 
       const player = Array.from(game.players.values()).find(
@@ -476,7 +485,9 @@ export class CityManagementHandler extends BaseSocketHandler {
       context.game.cityManager.setCityProduction.bind(context.game.cityManager),
       context.game.turnManager
         ? new RequirementsManager(context.game.turnManager.getCultureManager())
-        : undefined
+        : undefined,
+      context.game.cityManager.canCityBuildUnit?.bind(context.game.cityManager),
+      context.game.config?.ruleset ?? DEFAULT_RULESET
     );
     for (const cityId of cityIds) {
       try {
@@ -680,7 +691,9 @@ export class CityManagementHandler extends BaseSocketHandler {
       context.game.cityManager.setCityProduction.bind(context.game.cityManager),
       context.game.turnManager
         ? new RequirementsManager(context.game.turnManager.getCultureManager())
-        : undefined
+        : undefined,
+      context.game.cityManager.canCityBuildUnit?.bind(context.game.cityManager),
+      context.game.config?.ruleset ?? DEFAULT_RULESET
     );
     const available = await this.canQueueWorklist(
       context,
@@ -862,7 +875,11 @@ export class CityManagementHandler extends BaseSocketHandler {
         game.players,
         game.researchManager,
         game.cityManager.setCityProduction.bind(game.cityManager),
-        game.turnManager ? new RequirementsManager(game.turnManager.getCultureManager()) : undefined
+        game.turnManager
+          ? new RequirementsManager(game.turnManager.getCultureManager())
+          : undefined,
+        game.cityManager.canCityBuildUnit?.bind(game.cityManager),
+        game.config?.ruleset ?? DEFAULT_RULESET
       );
       const result = await productionHandler.applyProductionChange({
         cityId: data.cityId,

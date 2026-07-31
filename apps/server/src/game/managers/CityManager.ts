@@ -28,6 +28,10 @@ import type { TaxRates } from '@game/systems/Economic/types/EconomicTypes';
 import { DEFAULT_TAX_RATES } from '@game/systems/Economic/constants/EconomicConstants';
 import { UnitSupportManager, type UnitSupportData } from '@game/managers/UnitSupportManager';
 import { ActionType, type ActionResult } from '@app-types/shared/actions';
+import {
+  UnitProductionValidationService,
+  type UnitProductionFacts,
+} from '@game/services/UnitProductionValidationService';
 
 // Import the specialized services
 import { CityManagementService } from '@game/services/CityManagementService';
@@ -378,6 +382,7 @@ export class CityManager {
   private unitSupportProvider: (city: CityState) => UnitSupportData[] = () => [];
   private mapChangedCallback?: (gameId: string, mapData: unknown) => void;
   private readonly unitSupportManager: UnitSupportManager;
+  private readonly unitProductionValidation: UnitProductionValidationService;
   private optimizationService?: CityOptimizationService;
   private readonly nuclearPopulationLossPct: number;
 
@@ -386,8 +391,13 @@ export class CityManager {
     databaseProvider: DatabaseProvider,
     effectsManager: EffectsManager,
     callbacks: CityManagerCallbacks = {},
-    private readonly unitTypes: Record<string, UnitType> = rulesetUnitsService.getUnitTypes(),
-    private readonly buildingTypes: Record<string, BuildingType> = BUILDING_TYPES,
+    private readonly unitTypes: Record<string, UnitType> = rulesetUnitsService.getUnitTypes(
+      DEFAULT_RULESET
+    ),
+    private readonly buildingTypes: Record<
+      string,
+      BuildingType
+    > = rulesetBuildingsService.getPlayableBuildingTypes(DEFAULT_RULESET),
     private readonly random: RandomSource = Math.random,
     private readonly identities: FreecivIdentityAllocator = new FreecivIdentityAllocator()
   ) {
@@ -395,8 +405,11 @@ export class CityManager {
     this.databaseProvider = databaseProvider;
     this.callbacks = callbacks;
     this.effectsManager = effectsManager;
-    this.nuclearPopulationLossPct = rulesetLoader.getCombatRules().nuke_pop_loss_pct;
+    this.nuclearPopulationLossPct = rulesetLoader.getCombatRules(
+      this.effectsManager.getRulesetName()
+    ).nuke_pop_loss_pct;
     this.unitSupportManager = new UnitSupportManager(gameId, effectsManager);
+    this.unitProductionValidation = new UnitProductionValidationService(this.unitTypes);
 
     // Every city service evaluates requirements against the same game-owned
     // ruleset instance so effects cannot diverge between subsystems.
@@ -943,7 +956,9 @@ export class CityManager {
    * @reference reference/freeciv/server/citytools.c:1435-1479 city_build_free_buildings()
    */
   private buildFreeBuildings(city: CityState): void {
-    for (const buildingId of rulesetLoader.getGlobalInitBuildings()) {
+    for (const buildingId of rulesetLoader.getGlobalInitBuildings(
+      this.effectsManager.getRulesetName()
+    )) {
       if (city.buildings.includes(buildingId)) {
         continue;
       }
@@ -1152,19 +1167,83 @@ export class CityManager {
       return true;
     } else if (kind === 'unit') {
       const unit = this.unitTypes[value];
-      if (!unit || unit.flags?.includes('NoBuild') || unit.flags?.includes('BarbarianOnly')) {
-        return false;
-      }
+      if (!unit) return false;
       // Population cost is checked when the unit actually completes, not when
       // production is selected. Freeciv permits a small city to queue a
       // settler and keeps the accumulated shields until the city grows enough
       // to pay the population cost.
       // @reference reference/freeciv/common/city.c:903-944
       // @reference reference/freeciv/server/cityturn.c:2976-2997
-      return !unit.requiredTech || this.playerTechsProvider(city.playerId).has(unit.requiredTech);
+      return this.canCityBuildUnit(city, value);
     }
 
     return false;
+  }
+
+  /**
+   * Check all ruleset and map prerequisites for a unit in a city.
+   *
+   * This is shared by direct production changes and worklist processing so
+   * every authoritative production path follows Freeciv's city rules.
+   */
+  public canCityBuildUnit(city: CityState | string, unitId?: string): boolean {
+    const cityState = typeof city === 'string' ? this.cities.get(city) : city;
+    const productionId = unitId ?? (typeof city === 'string' ? undefined : city.currentProduction);
+    if (!cityState || !productionId) return false;
+    const unit = this.unitTypes[productionId];
+    if (!unit) return false;
+    return this.unitProductionValidation.canBuildUnit(unit, this.getUnitProductionFacts(cityState));
+  }
+
+  public getUnitProductionFacts(city: CityState): UnitProductionFacts {
+    const center = this.mapManager?.getTile(city.x, city.y);
+    const adjacentTerrains =
+      typeof this.mapManager?.getNeighbors === 'function'
+        ? this.mapManager.getNeighbors(city.x, city.y).map(tile => tile.terrain)
+        : undefined;
+    const playerCities = this.getCitiesByPlayer(city.playerId);
+    const playerBuildings = new Set(playerCities.flatMap(candidate => candidate.buildings ?? []));
+    const worldBuildings = new Set(
+      [...this.cities.values()].flatMap(candidate => candidate.buildings ?? [])
+    );
+    const nativeUnitClassesByTerrain = new Map<string, ReadonlySet<string>>(
+      Object.entries(rulesetLoader.getTerrains(this.effectsManager.getRulesetName())).map(
+        ([terrainId, terrain]) => [
+          terrainId,
+          new Set((terrain as typeof terrain & { native_to?: string[] }).native_to ?? []),
+        ]
+      )
+    );
+    const playerGoods = new Set<string>();
+    for (const tile of this.mapManager?.getMapData()?.tiles.flat() ?? []) {
+      if (tile.owner === city.playerId && tile.resource) playerGoods.add(tile.resource);
+    }
+    const cityGoods = new Set<string>(
+      [
+        center?.resource,
+        ...(city.workableTiles ?? []).map(tile => tile.resource),
+        ...(city.tradeRoutes ?? []).map(route => route.goods),
+      ].filter((resource): resource is string => Boolean(resource))
+    );
+
+    return {
+      playerTechnologies: this.playerTechsProvider(city.playerId),
+      government: this.playerGovernmentProvider?.(city.playerId),
+      playerBuildings,
+      cityBuildings: new Set(city.buildings ?? []),
+      worldBuildings,
+      nukeEnabled:
+        this.effectsManager.calculateEffect(EffectType.ENABLE_NUKE, {
+          playerId: city.playerId,
+          playerBuildings,
+          worldBuildings,
+        }).value > 0,
+      playerGoods,
+      cityGoods,
+      localTerrain: center?.terrain,
+      adjacentTerrains,
+      nativeUnitClassesByTerrain,
+    };
   }
 
   canCityContinueProduction(cityId: string, kind: 'unit' | 'building', value: string): boolean {
@@ -2438,7 +2517,10 @@ export class CityManager {
     if (!city) return null;
     const candidates = city.buildings.filter(buildingId => {
       try {
-        return rulesetLoader.getBuilding(buildingId).genus === 'Improvement';
+        return (
+          rulesetLoader.getBuilding(buildingId, this.effectsManager.getRulesetName()).genus ===
+          'Improvement'
+        );
       } catch {
         return false;
       }

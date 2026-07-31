@@ -28,7 +28,7 @@ describe('CityManager', () => {
 
   beforeEach(async () => {
     mockDbProvider = createMockDatabaseProvider();
-    effectsManager = new EffectsManager();
+    effectsManager = new EffectsManager('civ2civ3');
 
     // Create a mock MapManager with required methods
     mockMapManager = {
@@ -58,6 +58,7 @@ describe('CityManager', () => {
         units: [],
         isVisible: true,
       }),
+      getNeighbors: jest.fn().mockReturnValue([]),
       getTile: jest.fn().mockReturnValue({
         x: 10,
         y: 10,
@@ -616,6 +617,45 @@ describe('CityManager', () => {
       ).rejects.toThrow('Unit is not currently available: diplomat');
     });
 
+    it('allows Civ2Civ3 sea units only when the city is native-adjacent', async () => {
+      cityManager.setPlayerTechsProvider(() => new Set(['engineering']));
+
+      await expect(
+        cityManager.setCityProduction(city.id, 'unit', 'transport', 'player-123')
+      ).rejects.toThrow('Unit is not currently available: transport');
+
+      (mockMapManager.getNeighbors as jest.Mock).mockReturnValue([{ terrain: 'ocean' }]);
+      await expect(
+        cityManager.setCityProduction(city.id, 'unit', 'transport', 'player-123')
+      ).resolves.toBe(true);
+    });
+
+    it('enforces Civ2Civ3 Fanatics government requirements', async () => {
+      cityManager.setPlayerTechsProvider(() => new Set(['guerilla_warfare']));
+
+      await expect(
+        cityManager.setCityProduction(city.id, 'unit', 'fanatics', 'player-123')
+      ).rejects.toThrow('Unit is not currently available: fanatics');
+
+      cityManager.setPlayerGovernmentProvider(() => 'fundamentalism');
+      await expect(
+        cityManager.setCityProduction(city.id, 'unit', 'fanatics', 'player-123')
+      ).resolves.toBe(true);
+    });
+
+    it('enforces the Civ2Civ3 Manhattan Project gate for Nuclear production', async () => {
+      cityManager.setPlayerTechsProvider(() => new Set(['nuclear_fission']));
+
+      await expect(
+        cityManager.setCityProduction(city.id, 'unit', 'nuclear', 'player-123')
+      ).rejects.toThrow('Unit is not currently available: nuclear');
+
+      city.buildings.push('manhattan_project');
+      await expect(
+        cityManager.setCityProduction(city.id, 'unit', 'nuclear', 'player-123')
+      ).resolves.toBe(true);
+    });
+
     it('stores rally points and consumes non-persistent orders once', async () => {
       await cityManager.setCityRallyPoint(city.id, 'player-123', {
         x: 12,
@@ -667,12 +707,13 @@ describe('CityManager', () => {
           }
         },
       });
-      city.buildings.push('apollo_program', 'factory');
+      city.buildings.push('apollo_program', 'factory', 'library', 'university', 'research_lab');
+      const structuralCost = cityManager.getBuildingTypes().space_structural.cost;
 
       for (let completed = 0; completed < 2; completed++) {
         await cityManager.setCityProduction(city.id, 'building', 'space_structural', 'player-123');
-        city.productionStock = BUILDING_TYPES.space_structural.cost;
-        city.shieldStock = BUILDING_TYPES.space_structural.cost;
+        city.productionStock = structuralCost;
+        city.shieldStock = structuralCost;
         await cityManager.processCityTurn(city.id, completed + 1);
       }
 

@@ -2,30 +2,31 @@ import type { RulesetRequirement, RulesetRequirementRange } from '@shared/data/r
 
 export interface RulesetRequirementFacts {
   activity?: string;
-  buildings?: Set<string>;
+  buildings?: ReadonlySet<string>;
   buildingGenus?: string;
-  cityTiles?: Set<string>;
-  diplomaticRelations?: Set<string>;
-  extras?: Set<string>;
-  extraFlags?: Set<string>;
+  cityTiles?: ReadonlySet<string>;
+  diplomaticRelations?: ReadonlySet<string>;
+  extras?: ReadonlySet<string>;
+  extraFlags?: ReadonlySet<string>;
   government?: string;
+  goods?: ReadonlySet<string>;
   hitPoints?: number;
   latitude?: number;
   moves?: number;
-  nationGroups?: Set<string>;
-  playerStates?: Set<string>;
+  nationGroups?: ReadonlySet<string>;
+  playerStates?: ReadonlySet<string>;
   size?: number;
   style?: string;
-  technologies?: Set<string>;
+  technologies?: ReadonlySet<string>;
   terrain?: string;
-  terrainAlterations?: Set<string>;
-  terrainClass?: string | Set<string>;
-  terrainFlags?: Set<string>;
+  terrainAlterations?: ReadonlySet<string>;
+  terrainClass?: string | ReadonlySet<string>;
+  terrainFlags?: ReadonlySet<string>;
   unitClass?: string;
-  unitClassFlags?: Set<string>;
+  unitClassFlags?: ReadonlySet<string>;
   unitsOnTile?: number;
-  unitStates?: Set<string>;
-  unitTypeFlags?: Set<string>;
+  unitStates?: ReadonlySet<string>;
+  unitTypeFlags?: ReadonlySet<string>;
 }
 
 export type RulesetRequirementContext = Partial<
@@ -56,7 +57,7 @@ export class RulesetRequirementEvaluator {
     facts: RulesetRequirementFacts
   ): boolean | undefined {
     const name = requirement.name;
-    const equalFacts: Record<string, string | Set<string> | undefined> = {
+    const equalFacts: Record<string, string | ReadonlySet<string> | undefined> = {
       Activity: facts.activity,
       BuildingGenus: facts.buildingGenus,
       Gov: facts.government,
@@ -65,7 +66,7 @@ export class RulesetRequirementEvaluator {
       TerrainClass: facts.terrainClass,
       UnitClass: facts.unitClass,
     };
-    const containedFacts: Record<string, Set<string> | undefined> = {
+    const containedFacts: Record<string, ReadonlySet<string> | undefined> = {
       Building: facts.buildings,
       CityTile: facts.cityTiles,
       DiplRel: facts.diplomaticRelations,
@@ -80,6 +81,8 @@ export class RulesetRequirementEvaluator {
       UnitClassFlag: facts.unitClassFlags,
       UnitState: facts.unitStates,
       UnitTypeFlag: facts.unitTypeFlags,
+      Good: facts.goods,
+      Resource: facts.goods,
     };
     if (Object.prototype.hasOwnProperty.call(equalFacts, requirement.type)) {
       return this.equal(equalFacts[requirement.type], name);
@@ -104,14 +107,17 @@ export class RulesetRequirementEvaluator {
     return value.toLowerCase().replace(/[^a-z0-9]/g, '');
   }
 
-  private equal(actual: string | Set<string> | undefined, expected: string): boolean | undefined {
+  private equal(
+    actual: string | ReadonlySet<string> | undefined,
+    expected: string
+  ): boolean | undefined {
     if (actual === undefined) return undefined;
     return typeof actual === 'string'
       ? this.normalize(actual) === this.normalize(expected)
       : [...actual].some(value => this.normalize(value) === this.normalize(expected));
   }
 
-  private contains(values: Set<string> | undefined, expected: string): boolean | undefined {
+  private contains(values: ReadonlySet<string> | undefined, expected: string): boolean | undefined {
     return values === undefined
       ? undefined
       : [...values].some(value => this.normalize(value) === this.normalize(expected));

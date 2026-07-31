@@ -85,6 +85,7 @@ export enum EffectType {
   UNIT_BRIBE_COST_PCT = 'Unit_Bribe_Cost_Pct',
   INCITE_COST_PCT = 'Incite_Cost_Pct',
   INSPIRE_PARTISANS = 'Inspire_Partisans',
+  ENABLE_NUKE = 'Enable_Nuke',
 
   // Culture system effects (freeciv culture.c and effects_enums.def)
   PERFORMANCE = 'Performance', // EFT_PERFORMANCE (123) - Immediate culture boost
@@ -155,6 +156,7 @@ export interface EffectContext {
   playerTechs?: Set<string>; // Player's researched technologies
   worldTechs?: Set<string>; // Technologies known by at least one player
   playerBuildings?: Set<string>; // Buildings owned anywhere by the player
+  worldBuildings?: Set<string>; // Buildings owned anywhere in the world
   cityBuildings?: Set<string>; // Buildings in the city
   cityPopulation?: number;
 }
@@ -616,7 +618,12 @@ export class EffectsManager {
 
     // Building requirement handler
     this.requirementHandlers['Building'] = (req, context) => {
-      const buildings = req.range === 'Player' ? context.playerBuildings : context.cityBuildings;
+      const buildings =
+        req.range === 'World'
+          ? context.worldBuildings
+          : req.range === 'Player'
+            ? context.playerBuildings
+            : context.cityBuildings;
       return this.requirementResult('Building', req, this.cityHasBuilding(buildings, req.name));
     };
     this.requirementHandlers['BuildingFlag'] = (req, context) => {

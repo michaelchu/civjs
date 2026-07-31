@@ -136,7 +136,9 @@ describe('CityProductionHandler', () => {
     });
 
     it('offers repeatable spaceship parts after Apollo until the national cap', async () => {
-      mockCities.get('city-1').buildings.push('apollo_program', 'factory');
+      mockCities
+        .get('city-1')
+        .buildings.push('apollo_program', 'factory', 'library', 'university', 'research_lab');
       mockPlayers.get('player-1').spaceshipState = {
         structurals: 1,
         components: 0,

@@ -1,8 +1,14 @@
 import { logger } from '@utils/logger';
 import { Socket } from 'socket.io';
-import { UNIT_TYPES } from '@game/constants/UnitConstants';
-import { BUILDING_TYPES } from '@game/managers/CityManager';
 import type { RequirementsManager } from '@game/managers/RequirementsManager';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { rulesetUnitsService, type UnitType } from '@game/services/RulesetUnitsService';
+import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
+import {
+  UnitProductionValidationService,
+  type UnitProductionFacts,
+} from '@game/services/UnitProductionValidationService';
 import {
   countSpaceshipPartCommitments,
   isSpaceshipPart,
@@ -31,6 +37,10 @@ interface ProductionOption {
  * - Managing production queue (worklist)
  */
 export class CityProductionHandler {
+  private readonly unitTypes: Record<string, UnitType>;
+  private readonly buildingTypes: Record<string, any>;
+  private readonly unitProductionValidation: UnitProductionValidationService;
+
   constructor(
     private cities: Map<string, any>,
     private players: Map<string, any>,
@@ -41,8 +51,17 @@ export class CityProductionHandler {
       productionId: string,
       playerId: string
     ) => Promise<boolean>,
-    private requirementsManager?: Pick<RequirementsManager, 'evaluateRulesetCultureRequirements'>
-  ) {}
+    private requirementsManager?: Pick<RequirementsManager, 'evaluateRulesetCultureRequirements'>,
+    private readonly unitBuildValidator?: (cityId: string, unitId: string) => boolean,
+    private readonly rulesetName: string = DEFAULT_RULESET,
+    unitTypes?: Record<string, UnitType>,
+    buildingTypes?: Record<string, any>
+  ) {
+    this.unitTypes = unitTypes ?? rulesetUnitsService.getUnitTypes(rulesetName);
+    this.buildingTypes =
+      buildingTypes ?? rulesetBuildingsService.getPlayableBuildingTypes(rulesetName);
+    this.unitProductionValidation = new UnitProductionValidationService(this.unitTypes);
+  }
 
   /**
    * Get available production options for a city
@@ -73,7 +92,7 @@ export class CityProductionHandler {
       const availableProductions: ProductionOption[] = [];
 
       // Add available units based on technology
-      for (const [unitId, unitType] of Object.entries(UNIT_TYPES)) {
+      for (const [unitId, unitType] of Object.entries(this.unitTypes)) {
         const isAvailable = this.canCityBuildUnit(city, unitType, player);
         availableProductions.push({
           id: unitId,
@@ -81,17 +100,17 @@ export class CityProductionHandler {
           type: 'unit',
           cost: unitType.cost,
           description: this.getUnitDescription(unitType),
-          requirements: unitType.requiredTech ? [unitType.requiredTech] : [],
+          requirements: this.getUnitRequirements(unitType),
           available: isAvailable,
         });
       }
 
       availableProductions.push(...(await this.getBuildingProductionOptions(city, player)));
       /* Add available buildings based on technology and existing buildings
-      for (const [buildingId, buildingType] of Object.entries(BUILDING_TYPES)) {
+      for (const [buildingId, buildingType] of Object.entries(this.buildingTypes)) {
         const isAvailable = await this.canCityBuildBuilding(city, buildingType, player);
         const cultureRequirements = (buildingType.cultureRequirements ?? []).map(
-          requirement =>
+          (requirement: any) =>
             `${requirement.range} ${requirement.present ? 'minimum' : 'below'} ${requirement.value} culture`
         );
         availableProductions.push({
@@ -137,10 +156,10 @@ export class CityProductionHandler {
 
   private async getBuildingProductionOptions(city: any, player: any): Promise<ProductionOption[]> {
     const options: ProductionOption[] = [];
-    for (const [buildingId, buildingType] of Object.entries(BUILDING_TYPES)) {
+    for (const [buildingId, buildingType] of Object.entries(this.buildingTypes)) {
       const isAvailable = await this.canCityBuildBuilding(city, buildingType, player);
       const cultureRequirements = (buildingType.cultureRequirements ?? []).map(
-        requirement =>
+        (requirement: any) =>
           `${requirement.range} ${requirement.present ? 'minimum' : 'below'} ${requirement.value} culture`
       );
       options.push({
@@ -232,7 +251,7 @@ export class CityProductionHandler {
       cost: productionDetails.cost,
       turnsToComplete: this.calculateTurnsToComplete(city, productionDetails),
       conversion:
-        productionType === 'building' && BUILDING_TYPES[productionId]?.genus === 'Convert',
+        productionType === 'building' && this.buildingTypes[productionId]?.genus === 'Convert',
     };
 
     const result = {
@@ -293,23 +312,12 @@ export class CityProductionHandler {
    * Check if city can build a unit
    * @reference freeciv/common/city.c can_city_build_unit_now()
    */
-  private canCityBuildUnit(_city: any, unitType: any, player: any): boolean {
-    // Check if player has required technology
-    if (unitType.requiredTech && !this.hasPlayerResearched(player, unitType.requiredTech)) {
-      return false;
-    }
-
-    if (unitType.flags?.includes('NoBuild') || unitType.flags?.includes('BarbarianOnly')) {
-      return false;
-    }
-
-    // A unit is obsolete as soon as the player can build any replacement in
-    // its obsolete_by chain.
-    if (this.isUnitObsolete(unitType, player)) {
-      return false;
-    }
-
-    return true;
+  private canCityBuildUnit(city: any, unitType: UnitType, player: any): boolean {
+    if (this.unitBuildValidator) return this.unitBuildValidator(city.id, unitType.id);
+    return this.unitProductionValidation.canBuildUnit(
+      unitType,
+      this.getUnitProductionFacts(city, player)
+    );
   }
 
   /**
@@ -401,13 +409,13 @@ export class CityProductionHandler {
     player: any
   ): Promise<boolean> {
     if (productionType === 'unit') {
-      const unitType = UNIT_TYPES[productionId];
+      const unitType = this.unitTypes[productionId];
       return unitType ? this.canCityBuildUnit(city, unitType, player) : false;
     } else if (productionType === 'building') {
-      const buildingType = BUILDING_TYPES[productionId];
+      const buildingType = this.buildingTypes[productionId];
       return buildingType ? this.canCityBuildBuilding(city, buildingType, player) : false;
     } else if (productionType === 'wonder') {
-      const buildingType = BUILDING_TYPES[productionId];
+      const buildingType = this.buildingTypes[productionId];
       return buildingType?.genus === 'GreatWonder'
         ? this.canCityBuildBuilding(city, buildingType, player)
         : false;
@@ -450,7 +458,7 @@ export class CityProductionHandler {
     if (!productionId || !productionType) return undefined;
     if (productionType === 'unit') return 'unit';
     if (productionType === 'wonder') return 'wonder';
-    const building = BUILDING_TYPES[productionId];
+    const building = this.buildingTypes[productionId];
     return building?.genus === 'GreatWonder' || building?.genus === 'SmallWonder'
       ? 'wonder'
       : 'improvement';
@@ -479,9 +487,9 @@ export class CityProductionHandler {
     productionType: 'unit' | 'building' | 'wonder'
   ) {
     if (productionType === 'unit') {
-      return UNIT_TYPES[productionId];
+      return this.unitTypes[productionId];
     } else if (productionType === 'building') {
-      return BUILDING_TYPES[productionId];
+      return this.buildingTypes[productionId];
     }
     // Wonder handling would go here
     return { name: 'Unknown', cost: 0 };
@@ -497,6 +505,73 @@ export class CityProductionHandler {
     if (unitType.canFoundCity) parts.push('Can found cities');
     if (unitType.canBuildImprovements) parts.push('Can build improvements');
     return parts.join(', ') || 'Basic unit';
+  }
+
+  private getUnitRequirements(unitType: UnitType): string[] {
+    const requirements = new Set<string>();
+    if (unitType.requiredTech) requirements.add(unitType.requiredTech);
+    for (const requirement of unitType.buildRequirements ?? []) {
+      requirements.add(
+        requirement.type === 'Tech' && requirement.range === 'Player'
+          ? requirement.name
+          : `${requirement.range}: ${requirement.type} ${requirement.name}`
+      );
+    }
+    return [...requirements];
+  }
+
+  private getUnitProductionFacts(city: any, player: any): UnitProductionFacts {
+    const researched = this.researchManager?.getResearchedTechs?.(player.id);
+    const playerTechnologies = new Set<string>(Array.isArray(researched) ? researched : []);
+    if (!researched) {
+      for (const unit of Object.values(this.unitTypes)) {
+        for (const requirement of unit.buildRequirements ?? []) {
+          if (requirement.type !== 'Tech') continue;
+          if (this.hasPlayerResearched(player, requirement.name)) {
+            playerTechnologies.add(requirement.name);
+          }
+        }
+      }
+    }
+    const playerCities = [...this.cities.values()].filter(
+      candidate => candidate.playerId === player.id
+    );
+    const playerBuildings = new Set(playerCities.flatMap(candidate => candidate.buildings ?? []));
+    const worldBuildings = new Set(
+      [...this.cities.values()].flatMap(candidate => candidate.buildings ?? [])
+    );
+    const playerGoods = new Set<string>(
+      playerCities.flatMap(candidate =>
+        (candidate.workableTiles ?? [])
+          .map((tile: { resource?: string }) => tile.resource)
+          .filter((resource: string | undefined): resource is string => Boolean(resource))
+      )
+    );
+    const cityGoods = new Set<string>(
+      [
+        ...(city.workableTiles ?? []).map((tile: { resource?: string }) => tile.resource),
+        ...(city.tradeRoutes ?? []).map((route: { goods?: string }) => route.goods),
+      ].filter((resource): resource is string => Boolean(resource))
+    );
+    const nativeUnitClassesByTerrain = new Map<string, ReadonlySet<string>>(
+      Object.entries(rulesetLoader.getTerrains(this.rulesetName)).map(([terrainId, terrain]) => [
+        terrainId,
+        new Set((terrain as typeof terrain & { native_to?: string[] }).native_to ?? []),
+      ])
+    );
+    return {
+      playerTechnologies,
+      government: player.government ?? player.currentGovernment,
+      playerBuildings,
+      playerGoods,
+      cityBuildings: new Set(city.buildings ?? []),
+      cityGoods,
+      worldBuildings,
+      nukeEnabled: worldBuildings.has('manhattan_project'),
+      localTerrain: city.terrain,
+      adjacentTerrains: city.adjacentTerrains,
+      nativeUnitClassesByTerrain,
+    };
   }
 
   /**
@@ -542,28 +617,6 @@ export class CityProductionHandler {
     }
 
     // A missing research authority must not make a gated product available.
-    return false;
-  }
-
-  /**
-   * Check if unit is obsolete
-   */
-  private isUnitObsolete(unitType: any, player: any): boolean {
-    const visited = new Set<string>();
-    let replacementId = unitType.obsolete_by;
-    while (replacementId && !visited.has(replacementId)) {
-      visited.add(replacementId);
-      const replacement = UNIT_TYPES[replacementId];
-      if (!replacement) return false;
-      if (
-        (!replacement.requiredTech || this.hasPlayerResearched(player, replacement.requiredTech)) &&
-        !replacement.flags?.includes('NoBuild') &&
-        !replacement.flags?.includes('BarbarianOnly')
-      ) {
-        return true;
-      }
-      replacementId = replacement.obsolete_by;
-    }
     return false;
   }
 
