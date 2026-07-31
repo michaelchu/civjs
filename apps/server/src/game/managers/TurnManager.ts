@@ -185,27 +185,31 @@ export class TurnManager {
       turn: this.currentTurn,
     }));
     this.broadcastManager = broadcastManager;
+    const mapManager =
+      typeof (unitManager as any).getMapManager === 'function'
+        ? (unitManager as any).getMapManager()
+        : {
+            getMapData: () => null,
+            getTile: () => null,
+            getNeighbors: () => [],
+            getDistance: (x1: number, y1: number, x2: number, y2: number) =>
+              Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2)),
+          };
     const disasterManager = new DisasterManager(
       gameId,
       DisasterManager.createRulesetConfig(rulesetName),
       cityManager,
       databaseProvider,
       economicManager,
-      random
+      random,
+      mapManager,
+      rulesetName
     );
     const {
       rate: barbarianRate,
       onsetTurn: onsetBarbarian,
       allowHutBarbarians,
     } = getBarbarianRulesetConfig(rulesetName, barbarianRateOverride);
-    const mapManager =
-      typeof (unitManager as any).getMapManager === 'function'
-        ? (unitManager as any).getMapManager()
-        : {
-            getMapData: () => null,
-            getDistance: (x1: number, y1: number, x2: number, y2: number) =>
-              Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2)),
-          };
     if (
       typeof mapManager?.getMapData === 'function' &&
       typeof mapManager?.updateTileProperty === 'function'

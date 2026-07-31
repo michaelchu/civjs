@@ -10,6 +10,8 @@ import type { DatabaseProvider } from '@database/DatabaseProvider';
 import { disasters } from '@database/schema';
 import type { CityManager, CityState } from './CityManager';
 import type { EconomicManager } from '@game/systems/Economic/EconomicManager';
+import type { MapTile } from '@game/map/MapTypes';
+import type { MapManager } from '@game/managers/MapManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
 import { logger } from '@utils/logger';
@@ -67,13 +69,17 @@ export interface DisasterConfig {
 }
 
 export class DisasterManager {
+  private readonly warnedUnsupportedRequirements = new Set<string>();
+
   constructor(
     private readonly gameId: string,
     private config: DisasterConfig,
     private readonly cityManager: CityManager,
     private readonly databaseProvider: DatabaseProvider,
     private readonly economicManager?: EconomicManager,
-    private readonly random: RandomSource = Math.random
+    private readonly random: RandomSource = Math.random,
+    private readonly mapManager?: Pick<MapManager, 'getTile' | 'getNeighbors'>,
+    private readonly rulesetName: string = DEFAULT_RULESET
   ) {}
 
   static createRulesetConfig(
@@ -122,25 +128,93 @@ export class DisasterManager {
 
   private requirementsMet(city: CityState, requirements: RulesetRequirement[]): boolean {
     return requirements.every(requirement => {
-      let active = false;
-      if (requirement.type === 'Building' && requirement.range === 'City') {
-        const buildingId = this.resolveBuildingId(requirement.name);
-        active = buildingId !== undefined && city.buildings.includes(buildingId);
-      } else {
-        logger.warn('Unsupported disaster requirement fails closed', {
-          gameId: this.gameId,
-          type: requirement.type,
-          range: requirement.range,
-        });
+      const active = this.evaluateRequirement(city, requirement);
+      if (active === undefined) {
+        const key = `${requirement.type}:${requirement.range}:${requirement.name}`;
+        if (!this.warnedUnsupportedRequirements.has(key)) {
+          this.warnedUnsupportedRequirements.add(key);
+          logger.warn('Unsupported disaster requirement fails closed', {
+            gameId: this.gameId,
+            type: requirement.type,
+            range: requirement.range,
+          });
+        }
         return false;
       }
       return requirement.present === false ? !active : active;
     });
   }
 
+  /**
+   * Evaluate the subset of the universal Freeciv requirement model that is
+   * legal for disasters. The reference evaluates disaster requirements with
+   * the owning player, city, and city-center tile as context; adjacent ranges
+   * then inspect the map neighbors of that center tile.
+   */
+  private evaluateRequirement(
+    city: CityState,
+    requirement: RulesetRequirement
+  ): boolean | undefined {
+    if (requirement.type === 'Building' && requirement.range === 'City') {
+      const buildingId = this.resolveBuildingId(requirement.name);
+      return buildingId === undefined ? false : city.buildings.includes(buildingId);
+    }
+
+    if (requirement.type === 'MinSize' && requirement.range === 'City') {
+      const minimum = Number(requirement.name);
+      return Number.isFinite(minimum) ? city.size >= minimum : undefined;
+    }
+
+    if (
+      (requirement.type === 'Terrain' || requirement.type === 'Extra') &&
+      (requirement.range === 'Tile' || requirement.range === 'Adjacent')
+    ) {
+      const center = this.mapManager?.getTile(city.x, city.y);
+      if (!center) return undefined;
+      const candidates =
+        requirement.range === 'Tile'
+          ? [center]
+          : [center, ...(this.mapManager?.getNeighbors(city.x, city.y) ?? [])];
+      return candidates.some(tile =>
+        requirement.type === 'Terrain'
+          ? this.matchesTerrain(tile, requirement.name)
+          : this.matchesExtra(tile, requirement.name)
+      );
+    }
+
+    return undefined;
+  }
+
+  private matchesTerrain(tile: MapTile, name: string): boolean {
+    const normalized = this.normalizeRuleName(name);
+    const terrain = rulesetLoader.getTerrains(this.rulesetName)[tile.terrain];
+    return (
+      this.normalizeRuleName(tile.terrain) === normalized ||
+      (terrain !== undefined && this.normalizeRuleName(terrain.name) === normalized)
+    );
+  }
+
+  private matchesExtra(tile: MapTile, name: string): boolean {
+    const normalized = this.normalizeRuleName(name);
+    const river = normalized === 'river' && tile.riverMask !== 0;
+    if (river) return true;
+
+    return tile.improvements.some(improvement => {
+      const extra = rulesetLoader.getExtras(this.rulesetName)[improvement];
+      return (
+        this.normalizeRuleName(improvement) === normalized ||
+        (extra !== undefined && this.normalizeRuleName(extra.name) === normalized)
+      );
+    });
+  }
+
+  private normalizeRuleName(value: string): string {
+    return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
   private resolveBuildingId(name: string): string | undefined {
     const normalized = name.toLowerCase();
-    return Object.entries(rulesetLoader.getBuildings()).find(
+    return Object.entries(rulesetLoader.getBuildings(this.rulesetName)).find(
       ([id, building]) =>
         id.toLowerCase() === normalized || building.name.toLowerCase() === normalized
     )?.[0];

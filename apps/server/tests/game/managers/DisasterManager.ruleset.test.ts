@@ -121,4 +121,102 @@ describe('DisasterManager classic ruleset execution', () => {
       { cityId: 'city-1' }
     );
   });
+
+  it('evaluates terrain, adjacent extras, and minimum city size requirements', async () => {
+    const city = {
+      id: 'city-1',
+      name: 'Rome',
+      playerId: 'player-1',
+      x: 2,
+      y: 2,
+      size: 9,
+      buildings: [],
+    } as any;
+    const center = { x: 2, y: 2, terrain: 'grassland', riverMask: 0, improvements: [] };
+    const adjacent = { x: 3, y: 2, terrain: 'plains', riverMask: 1, improvements: [] };
+    const cityManager = {
+      getPlayerCities: jest.fn(() => [city]),
+      emptyStock: jest.fn(),
+    } as any;
+    const mapManager = {
+      getTile: jest.fn(() => center),
+      getNeighbors: jest.fn(() => [adjacent]),
+    } as any;
+    const manager = new DisasterManager(
+      'game-1',
+      {
+        enabled: true,
+        frequency: 10,
+        definitions: [
+          {
+            id: 'earthquake',
+            name: 'Earthquake',
+            frequency: 10,
+            requirements: [{ type: 'Terrain', name: 'Grassland', range: 'Tile' }],
+            effects: [],
+          },
+          {
+            id: 'flood',
+            name: 'Flood',
+            frequency: 10,
+            requirements: [{ type: 'Extra', name: 'River', range: 'Adjacent' }],
+            effects: [],
+          },
+          {
+            id: 'fire',
+            name: 'Fire',
+            frequency: 10,
+            requirements: [{ type: 'MinSize', name: '9', range: 'City' }],
+            effects: [],
+          },
+        ],
+      },
+      cityManager,
+      createMockDatabaseProvider(),
+      undefined,
+      () => 0,
+      mapManager,
+      'civ2civ3'
+    );
+
+    const disasters = await manager.checkPlayerDisasters('player-1');
+
+    expect(disasters.map(disaster => disaster.type)).toEqual(['earthquake', 'flood', 'fire']);
+    expect(mapManager.getTile).toHaveBeenCalledWith(2, 2);
+    expect(mapManager.getNeighbors).toHaveBeenCalledWith(2, 2);
+  });
+
+  it('fails closed when a map-backed requirement has no map context', async () => {
+    const city = {
+      id: 'city-1',
+      name: 'Rome',
+      playerId: 'player-1',
+      x: 2,
+      y: 2,
+      size: 9,
+      buildings: [],
+    } as any;
+    const manager = new DisasterManager(
+      'game-1',
+      {
+        enabled: true,
+        frequency: 10,
+        definitions: [
+          {
+            id: 'earthquake',
+            name: 'Earthquake',
+            frequency: 10,
+            requirements: [{ type: 'Terrain', name: 'Grassland', range: 'Tile' }],
+            effects: [],
+          },
+        ],
+      },
+      { getPlayerCities: () => [city] } as any,
+      createMockDatabaseProvider(),
+      undefined,
+      () => 0
+    );
+
+    await expect(manager.checkPlayerDisasters('player-1')).resolves.toEqual([]);
+  });
 });
