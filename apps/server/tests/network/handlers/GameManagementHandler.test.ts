@@ -177,6 +177,41 @@ describe('GameManagementHandler', () => {
         })
       );
     });
+
+    it('includes live wonders, unit counters, and arrived spaceship state in the score', () => {
+      const snapshotPlayer = (handler as any).formatSnapshotPlayer(
+        {
+          id: mockPlayerId,
+          civilization: 'Romans',
+          color: { r: 180, g: 40, b: 40 },
+          history: 99,
+          unitsBuilt: 19,
+          unitsKilled: 8,
+          spaceshipState: { arrivalTurn: 20, population: 100, successRate: 75 },
+        },
+        {
+          currentTurn: 20,
+          cityManager: {
+            getCitiesByPlayer: () => [
+              { population: 6, buildings: ['great_library'] },
+              { population: 4, buildings: ['granary'] },
+            ],
+            getBuildingTypes: () => ({
+              great_library: { genus: 'GreatWonder' },
+              granary: { genus: 'Improvement' },
+            }),
+          },
+          unitManager: { getAllUnits: () => new Map() },
+          researchManager: {
+            getPlayerResearch: () => ({ researchedTechs: new Set(['pottery', 'future_tech_1']) }),
+          },
+        }
+      );
+
+      // 10 citizens + 6 technology points + 5 wonder points +
+      // 75 spaceship points + 1 built + 2 killed + 1 history.
+      expect(snapshotPlayer.score).toBe(100);
+    });
   });
 
   describe('advisor recommendations event', () => {

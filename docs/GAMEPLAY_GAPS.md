@@ -853,7 +853,6 @@ you declare war first.` Civilian/border-entry units may enter permitted
   use the same availability result to drive the context menu.
 
   Deferred implementation plan:
-
   1. Define a server-side action-availability service that accepts the acting
      unit plus authoritative owner research, unit state, current tile/extra
      state, and (where applicable) an explicit target. It should return the
@@ -1047,13 +1046,15 @@ you declare war first.` Civilian/border-entry units may enter permitted
   individual totals for maximum-turn winners. Live `PLAYER_INFO` packets also
   reported the approximation rather than the final-score formula.
 - **Current implementation:** `PlayerScoreService.calculatePlayerScore()` is
-  now shared by live player packets and end-game standings. It counts citizens,
-  adjusted future technologies, great wonders, arrived-spaceship score, units
-  built/killed, and culture with reference integer truncation. Unit creation and
-  combat persist cumulative built/killed/lost counters, spaceship state carries
-  arrival population and success rate, and maximum-turn ranking sums living
-  members by team before applying ties. Report category fields remain
-  diagnostics and do not change the parity total.
+  now shared by live player packets and end-game standings. Its breakdown
+  counts citizens (including specialist citizens), adjusted future
+  technologies, great wonders, arrived-spaceship score, units built/killed,
+  and culture with reference integer truncation. Live snapshots now supply
+  wonders, lifecycle counters, spaceship state, and the current turn; end-game
+  report categories use the same breakdown and sum to the parity total. Unit
+  creation and combat persist cumulative built/killed/lost counters, spaceship
+  state carries arrival population and success rate, and maximum-turn ranking
+  sums living members by team before applying ties.
 - **Reference behavior:** `calc_civ_score()` derives score categories from
   authoritative player/city/research/unit/wonder/spaceship state.
   `get_civ_score()` totals citizens, twice the adjusted technology count, five
@@ -1083,11 +1084,14 @@ you declare war first.` Civilian/border-entry units may enter permitted
   and broadcast the calculated total instead of zero. Additional report-only
   metrics may remain visible but must not alter the parity total.
 - **Regression coverage:** `PlayerScoreService.test.ts` covers citizen and
-  future-tech weighting, wonder/unit/culture truncation, and arrived spaceship
-  scoring. `EndGameService.test.ts` covers persisted standings, launch state,
-  and team winner behavior. Turn snapshots now carry the player counters and
-  spaceship/team state needed to recompute score during replay; the remaining
-  coverage is specialist/wonder transfer fixtures and final-report consistency.
+  specialist handling, future-tech weighting, wonder/unit/culture truncation,
+  arrived spaceship scoring, and the complete contribution breakdown.
+  `GameManagementHandler.test.ts` covers live snapshot scoring with wonders,
+  lifecycle counters, and an arrived spaceship. `EndGameService.test.ts`
+  covers persisted standings, launch state, and team winner behavior. Turn
+  snapshots carry the player counters and spaceship/team state needed to
+  recompute score during replay; city-capture fixtures cover preservation of
+  specialist and great-wonder state.
 
 ## Scope-dependent Freeciv behaviors to triage
 

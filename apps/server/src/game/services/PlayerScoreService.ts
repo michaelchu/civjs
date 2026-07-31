@@ -19,11 +19,22 @@ export interface PlayerScoreInputs {
   currentTurn?: number;
 }
 
+export interface PlayerScoreBreakdown {
+  population: number;
+  technologies: number;
+  wonders: number;
+  spaceship: number;
+  unitsBuilt: number;
+  unitsKilled: number;
+  culture: number;
+  total: number;
+}
+
 /**
  * Keep the HUD score and end-game score inputs consistent until score is
  * persisted as part of turn processing.
  */
-export function calculatePlayerScore({
+export function calculatePlayerScoreBreakdown({
   cities = [],
   units: _units = [],
   researchedTechs = [],
@@ -33,7 +44,7 @@ export function calculatePlayerScore({
   unitsKilled = 0,
   spaceship,
   currentTurn = 0,
-}: PlayerScoreInputs): number {
+}: PlayerScoreInputs): PlayerScoreBreakdown {
   const citizens = cities.reduce((total, city) => total + (city.population ?? city.size ?? 0), 0);
   const futureTechs = researchedTechs.filter(technology =>
     String(technology).toLowerCase().includes('future')
@@ -45,15 +56,20 @@ export function calculatePlayerScore({
       ? Math.floor(((spaceship.population ?? 0) * (spaceship.successRate ?? 100)) / 100)
       : 0;
 
-  return (
-    citizens +
-    adjustedTechs * 2 +
-    greatWonders * 5 +
-    spaceshipScore +
-    Math.floor(Math.max(0, unitsBuilt) / 10) +
-    Math.floor(Math.max(0, unitsKilled) / 3) +
-    Math.floor(Math.max(0, history) / 50)
-  );
+  const breakdown = {
+    population: citizens,
+    technologies: adjustedTechs * 2,
+    wonders: greatWonders * 5,
+    spaceship: spaceshipScore,
+    unitsBuilt: Math.floor(Math.max(0, unitsBuilt) / 10),
+    unitsKilled: Math.floor(Math.max(0, unitsKilled) / 3),
+    culture: Math.floor(Math.max(0, history) / 50),
+  };
+  return { ...breakdown, total: Object.values(breakdown).reduce((sum, value) => sum + value, 0) };
+}
+
+export function calculatePlayerScore(inputs: PlayerScoreInputs): number {
+  return calculatePlayerScoreBreakdown(inputs).total;
 }
 
 export function resolvePlayerScore(persistedScore: unknown, inputs?: PlayerScoreInputs): number {

@@ -767,11 +767,25 @@ export class GameManagementHandler extends BaseSocketHandler {
     if (!gameInstance) return undefined;
 
     const cities = gameInstance.cityManager?.getCitiesByPlayer?.(player.id) ?? [];
+    const buildingTypes = gameInstance.cityManager?.getBuildingTypes?.() ?? {};
+    const greatWonders = cities.reduce(
+      (total: number, city: any) =>
+        total +
+        (city.buildings ?? []).filter(
+          (buildingId: string) => buildingTypes[buildingId]?.genus === 'GreatWonder'
+        ).length,
+      0
+    );
     return {
       cities,
       units: this.getSnapshotPlayerUnits(player, gameInstance),
       researchedTechs: this.getSnapshotPlayerResearch(player, gameInstance),
       history: player.history ?? 0,
+      greatWonders,
+      unitsBuilt: player.unitsBuilt ?? 0,
+      unitsKilled: player.unitsKilled ?? 0,
+      spaceship: player.spaceshipState,
+      currentTurn: gameInstance.turnManager?.getCurrentTurn?.() ?? gameInstance.currentTurn ?? 0,
     };
   }
 

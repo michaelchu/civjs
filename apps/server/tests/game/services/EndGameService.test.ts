@@ -75,6 +75,15 @@ describe('EndGameService', () => {
         population: 8,
         units: 1,
         technologies: 2,
+        categoryScores: {
+          population: 8,
+          cities: 0,
+          units: 0,
+          unitsKilled: 0,
+          technologies: 4,
+          culture: 0,
+          spaceship: 0,
+        },
       })
     );
     expect(emit).toHaveBeenCalledWith('packet', {

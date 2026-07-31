@@ -16,7 +16,10 @@ import {
   type SpaceshipState,
 } from '@game/services/SpaceshipService';
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
-import { calculatePlayerScore } from '@game/services/PlayerScoreService';
+import {
+  calculatePlayerScoreBreakdown,
+  calculatePlayerScore,
+} from '@game/services/PlayerScoreService';
 
 export interface EndGameStanding {
   playerId: string;
@@ -33,8 +36,10 @@ export interface EndGameStanding {
     population: number;
     cities: number;
     units: number;
+    unitsKilled: number;
     technologies: number;
     culture: number;
+    spaceship: number;
   };
   spaceship?: SpaceshipState;
 }
@@ -204,7 +209,7 @@ export class EndGameService {
       player?.isAI === true,
       population
     );
-    const score = calculatePlayerScore({
+    const scoreInputs = {
       cities,
       researchedTechs: context.researchManager.getResearchedTechs(playerId),
       history,
@@ -213,7 +218,9 @@ export class EndGameService {
       unitsKilled: player?.unitsKilled ?? 0,
       spaceship,
       currentTurn: context.turn,
-    });
+    };
+    const scoreBreakdown = calculatePlayerScoreBreakdown(scoreInputs);
+    const score = calculatePlayerScore(scoreInputs);
     return {
       playerId,
       civilization: player?.civilization ?? playerId,
@@ -226,11 +233,13 @@ export class EndGameService {
       alive,
       teamId: player?.teamId ?? undefined,
       categoryScores: {
-        population,
-        cities: greatWonders * 5,
-        units: Math.floor(Math.max(0, player?.unitsBuilt ?? 0) / 10),
-        technologies: technologies * 2,
-        culture: Math.floor(Math.max(0, history) / 50),
+        population: scoreBreakdown.population,
+        cities: scoreBreakdown.wonders,
+        units: scoreBreakdown.unitsBuilt,
+        unitsKilled: scoreBreakdown.unitsKilled,
+        technologies: scoreBreakdown.technologies,
+        culture: scoreBreakdown.culture,
+        spaceship: scoreBreakdown.spaceship,
       },
       spaceship,
     };

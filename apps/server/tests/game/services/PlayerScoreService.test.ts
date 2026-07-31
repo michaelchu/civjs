@@ -1,4 +1,8 @@
-import { calculatePlayerScore, resolvePlayerScore } from '@game/services/PlayerScoreService';
+import {
+  calculatePlayerScore,
+  calculatePlayerScoreBreakdown,
+  resolvePlayerScore,
+} from '@game/services/PlayerScoreService';
 
 describe('calculatePlayerScore', () => {
   it('uses reference category weights and integer truncation', () => {
@@ -22,6 +26,30 @@ describe('calculatePlayerScore', () => {
 
   it('does not count future technologies as full technologies', () => {
     expect(calculatePlayerScore({ researchedTechs: ['future_tech_1'] })).toBe(4);
+  });
+
+  it('keeps specialists inside citizen count and exposes every score contribution', () => {
+    const breakdown = calculatePlayerScoreBreakdown({
+      cities: [{ population: 5, specialists: { scientist: 2 }, buildings: ['wonder'] }],
+      researchedTechs: ['pottery', 'future_tech_1'],
+      greatWonders: 1,
+      unitsBuilt: 19,
+      unitsKilled: 8,
+      history: 99,
+      spaceship: { arrivalTurn: 10, population: 20, successRate: 50 },
+      currentTurn: 10,
+    });
+
+    expect(breakdown).toEqual({
+      population: 5,
+      technologies: 6,
+      wonders: 5,
+      spaceship: 10,
+      unitsBuilt: 1,
+      unitsKilled: 2,
+      culture: 1,
+      total: 30,
+    });
   });
 
   it('uses persisted score only when a live snapshot is unavailable', () => {
