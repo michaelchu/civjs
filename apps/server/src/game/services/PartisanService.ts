@@ -1,4 +1,5 @@
 import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
+import type { Server as SocketServer } from 'socket.io';
 
 export interface PartisanCaptureContext {
   reason: 'conquest' | 'transfer';
@@ -21,4 +22,15 @@ export function shouldCreatePartisans(context: PartisanCaptureContext): boolean 
 /** Match Freeciv's size-based partisan roll and eight-unit cap. */
 export function calculatePartisanCount(citySize: number, random: RandomSource): number {
   return Math.min(8, randomInt(random, 2 + Math.floor((citySize + 1) / 2)) + 1);
+}
+
+export function notifyPartisanLoss(
+  io: Pick<SocketServer, 'to'>,
+  oldPlayerId: string,
+  newPlayerId: string,
+  cityName: string
+): void {
+  const message = `The loss of ${cityName} has inspired partisans!`;
+  io.to(`player:${oldPlayerId}`).emit('diplomacy_event', { message });
+  io.to(`player:${newPlayerId}`).emit('diplomacy_event', { message });
 }

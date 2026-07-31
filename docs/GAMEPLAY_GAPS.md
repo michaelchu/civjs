@@ -989,8 +989,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
   peaceful transfers. `UnitManager.test.ts` covers legal placement and the
   no-legal-tile fallback. `PartisanService.test.ts` covers the shared
   eligibility gates and size roll used by both fresh-game and recovery
-  callbacks; player notification delivery remains a full game-instance
-  integration concern.
+  callbacks, plus notification delivery to both players.
 
 ### GP-032 — Pollution never accumulates into global warming
 

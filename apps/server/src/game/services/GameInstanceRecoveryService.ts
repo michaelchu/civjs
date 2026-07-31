@@ -36,7 +36,11 @@ import {
   isSpaceshipPart,
   normalizeSpaceshipState,
 } from '@game/services/SpaceshipService';
-import { calculatePartisanCount, shouldCreatePartisans } from '@game/services/PartisanService';
+import {
+  calculatePartisanCount,
+  notifyPartisanLoss,
+  shouldCreatePartisans,
+} from '@game/services/PartisanService';
 import {
   FreecivRandom,
   generateFreecivGameSeed,
@@ -501,9 +505,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
           city.cityRadius
         );
         if (partisans.length > 0) {
-          const message = `The loss of ${city.name} has inspired partisans!`;
-          this.io.to(`player:${oldPlayerId}`).emit('diplomacy_event', { message });
-          this.io.to(`player:${newPlayerId}`).emit('diplomacy_event', { message });
+          notifyPartisanLoss(this.io, oldPlayerId, newPlayerId, city.name);
         }
       },
     });

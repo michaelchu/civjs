@@ -65,7 +65,11 @@ import {
   FREECIV_IDENTITY_NUMBER_SKIP,
   FreecivIdentityAllocator,
 } from '@game/random/FreecivIdentityAllocator';
-import { calculatePartisanCount, shouldCreatePartisans } from '@game/services/PartisanService';
+import {
+  calculatePartisanCount,
+  notifyPartisanLoss,
+  shouldCreatePartisans,
+} from '@game/services/PartisanService';
 
 export interface GameLifecycleService {
   createGame(gameConfig: GameConfig): Promise<string>;
@@ -616,9 +620,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
           city.cityRadius
         );
         if (partisans.length > 0) {
-          const message = `The loss of ${city.name} has inspired partisans!`;
-          this.io.to(`player:${oldPlayerId}`).emit('diplomacy_event', { message });
-          this.io.to(`player:${newPlayerId}`).emit('diplomacy_event', { message });
+          notifyPartisanLoss(this.io, oldPlayerId, newPlayerId, city.name);
         }
       },
       onCityGrowth: (city, oldSize) => {
