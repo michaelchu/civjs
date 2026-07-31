@@ -75,17 +75,17 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-002 — Barbarians never spawn during active games
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Random events, barbarians, combat, map exploration
 - **Observed behavior:** Games configured with barbarian activity never produce
   barbarian tribes or units during turn processing.
 - **Reproduction:** Start a `civ2civ3` game with barbarians enabled and advance
   past the configured barbarian onset turn. No barbarian spawn is observed.
-- **Current implementation:** `TurnManager` constructs `TurnPhaseService` with
-  `randomEventsManager` set to `undefined`, so the random-events manager is not
-  invoked. Independently, `BarbarianManager.attemptBarbarianSpawn()` hardcodes
-  the spawn location to `null`, and `getOrCreateBarbarianPlayer()` always
-  returns `null`.
+- **Current implementation:** `TurnManager` constructs and injects
+  `RandomEventsManager` into `TurnPhaseService`. `BarbarianManager` selects an
+  unoccupied wilderness tile in the configured city-distance band, reuses or
+  creates a barbarian player, creates land/sea groups using ruleset roles, and
+  persists the spawn record and units.
 - **Reference behavior:** Freeciv's random-events phase calls
   `summon_barbarians()`, which selects a valid wilderness location, creates or
   reuses a barbarian player, and creates barbarian units.
@@ -101,9 +101,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
   processing and implement valid spawn-location selection, barbarian-player
   creation/reuse, unit creation, diplomacy defaults, visibility updates, and
   player-visible notifications.
-- **Regression coverage:** Add a turn-phase integration test that enables
-  barbarians and verifies a successful spawn, persisted barbarian units, and
-  hostile relations with regular players.
+- **Regression coverage:** `BarbarianManager.test.ts` covers wilderness land
+  spawning, onset gating, leader creation, and embarked sea groups;
+  `RandomEventsManager.test.ts` covers the random-events phase integration.
 
 ### GP-003 — City rally points cannot be set or applied
 

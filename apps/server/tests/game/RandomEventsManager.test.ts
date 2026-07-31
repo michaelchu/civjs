@@ -1,6 +1,47 @@
 import { RandomEventsManager } from '@game/managers/RandomEventsManager';
 
 describe('RandomEventsManager', () => {
+  it('invokes barbarian spawning after the configured onset', async () => {
+    const barbarianManager = {
+      spawnBarbarians: jest.fn().mockResolvedValue({
+        successfulSpawns: 1,
+        totalSpawns: 1,
+        spawns: [{ success: true, unitsCreated: 2, barbarianPlayerId: 'barbarians' }],
+      }),
+    };
+    const manager = new RandomEventsManager(
+      'game-1',
+      {
+        barbarianRate: 1,
+        onsetBarbarian: 10,
+        disastersEnabled: false,
+        disasterFrequency: 0,
+        randomMovementsEnabled: false,
+        resourceChangesEnabled: false,
+        resourceChangeFrequency: 0,
+        goodyHutsEnabled: false,
+        barbarianHutChance: 0,
+      },
+      barbarianManager as any,
+      { checkPlayerDisasters: jest.fn() } as any,
+      {} as any,
+      {} as any,
+      {} as any
+    );
+
+    const result = await manager.processRandomEvents(10, -3900, ['player-1']);
+
+    expect(barbarianManager.spawnBarbarians).toHaveBeenCalledWith(10);
+    expect(result.barbarianEvents).toBe(1);
+    expect(result.results).toEqual([
+      expect.objectContaining({
+        eventType: 'barbarian_uprising',
+        success: true,
+        details: expect.objectContaining({ unitsSpawned: 2 }),
+      }),
+    ]);
+  });
+
   it('processes random-movement units during the random-events phase', async () => {
     const unit = { id: 'storm-1', unitTypeId: 'storm' };
     const unitManager = {
