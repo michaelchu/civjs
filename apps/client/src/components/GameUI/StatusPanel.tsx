@@ -139,6 +139,7 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({
             {currentPlayer.luxuryRate ?? '—'}%
           </span>
         </div>
+        <div className="hidden h-7 w-px bg-white/10 sm:block" aria-hidden="true" />
         <EconomyButton player={currentPlayer} onOpen={() => setActiveTab('options')} />
       </div>
 
