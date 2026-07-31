@@ -611,10 +611,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         : undefined;
       const willDeclareWar = Boolean(
         targetCity &&
-          targetCity.playerId !== currentPlayerId &&
-          targetRelation !== 'war' &&
-          targetRelation !== 'alliance' &&
-          targetRelation !== 'team'
+        targetCity.playerId !== currentPlayerId &&
+        targetRelation !== 'war' &&
+        targetRelation !== 'alliance' &&
+        targetRelation !== 'team'
       );
 
       if (willDeclareWar) {
