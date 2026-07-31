@@ -2550,6 +2550,75 @@ describe('UnitManager', () => {
         manager.getPlayerUnits('player-123').some(unit => unit.unitTypeId === 'settlers')
       ).toBe(true);
     });
+
+    it('covers every deterministic hut roll outcome', async () => {
+      const grantHutTechnology = jest.fn().mockResolvedValue('writing');
+      const revealHutMap = jest.fn().mockReturnValue(['10,10', '11,10']);
+      const spawnHutBarbarians = jest.fn().mockResolvedValue(true);
+      const foundCity = jest.fn().mockResolvedValue(undefined);
+      const broadcastHutEvent = jest.fn();
+      const rolls = Array.from({ length: 14 }, (_, value) => (value + 0.1) / 14);
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity,
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          grantHutTechnology,
+          revealHutMap,
+          spawnHutBarbarians,
+          broadcastHutEvent,
+        },
+        undefined,
+        () => rolls.shift() ?? 0
+      );
+      const explorer = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      for (let roll = 0; roll < 14; roll++) {
+        await (manager as any).resolveHutReward(explorer);
+      }
+
+      expect(grantHutTechnology).toHaveBeenCalledTimes(3);
+      expect(spawnHutBarbarians).toHaveBeenCalledTimes(1);
+      expect(foundCity).toHaveBeenCalledWith(gameId, 'player-123', 'Hut Settlement', 10, 10);
+      expect(revealHutMap).toHaveBeenCalledTimes(2);
+      // Successful city founding is the one outcome that has no separate
+      // hut-result notification; the city lifecycle announces it instead.
+      expect(broadcastHutEvent).toHaveBeenCalledTimes(13);
+    });
+
+    it('falls back to gold when no legal mercenary is available', async () => {
+      const broadcastHutEvent = jest.fn();
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          broadcastHutEvent,
+        },
+        undefined,
+        () => 8 / 14
+      );
+      const explorer = await manager.createUnit('player-123', 'warriors', 10, 10);
+      (manager as any).unitTypes = { warriors: (manager as any).unitTypes.warriors };
+
+      await (manager as any).resolveHutReward(explorer);
+
+      expect(broadcastHutEvent).toHaveBeenCalledWith(
+        gameId,
+        'player-123',
+        'No mercenary was available; your unit found 25 gold instead.'
+      );
+    });
   });
 
   describe('unit queries', () => {

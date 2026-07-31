@@ -938,10 +938,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
   remaining gap is seeded full-roll coverage plus exact reference probability
   and disabled-barbarian/mercenary settings.
 - **Regression coverage:** `UnitManager.test.ts` covers the horde delegation,
-  protected explorer survival, nomad fallback, and player-facing hut
-  notification. Full fourteen-roll seeded
-  coverage, unavailable mercenaries, and integration visibility/notification
-  behavior remain to be covered.
+  protected explorer survival, nomad fallback, player-facing hut notification,
+  every deterministic roll outcome, and the unavailable-mercenary gold
+  fallback. Integration visibility/notification behavior, exact reference
+  probability/settings, and disabled-barbarian rules remain to be covered.
 
 ### GP-031 — Eligible city captures never create partisans
 
