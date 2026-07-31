@@ -696,8 +696,7 @@ export class GameManager {
     const targetOwnerId = city.playerId;
     await this.diplomacyManager.establishContact(gameId, playerId, targetOwnerId);
     const relation = await this.getDiplomaticState(gameId, playerId, targetOwnerId);
-    const theftCount =
-      game.cityManager.getEspionageTheftCount?.(city.id, playerId) ?? 0;
+    const theftCount = game.cityManager.getEspionageTheftCount?.(city.id, playerId) ?? 0;
 
     let result: ActionResult;
     let actorSurvives = unitFlags.includes('Spy');
@@ -750,10 +749,7 @@ export class GameManager {
         .getResearchedTechs(city.playerId)
         .filter(tech => !known.has(tech))
         .sort();
-      if (
-        requestedTechnologyId !== undefined &&
-        !availableTechs.includes(requestedTechnologyId)
-      ) {
+      if (requestedTechnologyId !== undefined && !availableTechs.includes(requestedTechnologyId)) {
         return { success: false, message: 'That technology is not available to steal' };
       }
       const stolenTech =
@@ -773,10 +769,7 @@ export class GameManager {
       }
       const failure = await attemptMission();
       if (failure) return failure;
-      if (
-        requestedBuildingId !== undefined &&
-        !city.buildings.includes(requestedBuildingId)
-      ) {
+      if (requestedBuildingId !== undefined && !city.buildings.includes(requestedBuildingId)) {
         return { success: false, message: 'That improvement is not present in the target city' };
       }
       const building = await game.cityManager.sabotageCityBuilding(
@@ -882,6 +875,65 @@ export class GameManager {
     }
     await this.refreshSharedVision(gameId);
     return result;
+  }
+
+  /**
+   * Return the authoritative selectable targets for a city espionage action.
+   * The client uses this to present the same target list that execution will
+   * validate; no mission state is changed by this query.
+   */
+  public getDiplomatActionOptions(
+    gameId: string,
+    playerId: string,
+    unitId: string,
+    actionType: ActionType,
+    targetX: number,
+    targetY: number
+  ): { success: boolean; options?: Array<{ id: string; label: string }>; message?: string } {
+    const game = this.games.get(gameId);
+    if (!game) return { success: false, message: 'Game not found' };
+    if (actionType !== ActionType.STEAL_TECH && actionType !== ActionType.SABOTAGE_CITY) {
+      return { success: false, message: 'This action has no selectable targets' };
+    }
+    const unit = game.unitManager.getUnit(unitId);
+    const unitType = unit ? this.getGameUnitType(game, unit.unitTypeId) : undefined;
+    if (!unit || unit.playerId !== playerId || !unitType?.flags?.includes('Diplomat')) {
+      return { success: false, message: 'A diplomat or spy owned by the player is required' };
+    }
+    if (unit.movementLeft < 1) {
+      return { success: false, message: 'The diplomat has no movement remaining' };
+    }
+    const topology = (game.mapManager as Partial<MapManager>).getTopology?.();
+    const targetDistance =
+      topology?.realDistance(unit.x, unit.y, targetX, targetY) ??
+      Math.max(Math.abs(unit.x - targetX), Math.abs(unit.y - targetY));
+    if (targetDistance > 1) return { success: false, message: 'Target must be adjacent' };
+
+    const city = game.cityManager.getCityAt(targetX, targetY);
+    if (!city || city.playerId === playerId) {
+      return { success: false, message: 'An adjacent foreign city is required' };
+    }
+    if (actionType === ActionType.STEAL_TECH) {
+      const theftCount = game.cityManager.getEspionageTheftCount?.(city.id, playerId) ?? 0;
+      if (!unitType.flags.includes('Spy') && theftCount > 0) {
+        return { success: false, message: 'This city has already been targeted by this diplomat' };
+      }
+      const known = new Set(game.researchManager.getResearchedTechs(playerId));
+      const options = game.researchManager
+        .getResearchedTechs(city.playerId)
+        .filter(technologyId => !known.has(technologyId))
+        .map(technologyId => ({ id: technologyId, label: technologyId }));
+      return { success: true, options };
+    }
+    if (!unitType.flags?.includes('Spy')) {
+      return { success: false, message: 'Only spies can sabotage a city' };
+    }
+    return {
+      success: true,
+      options: city.buildings
+        .filter(buildingId => buildingId.toLowerCase() !== 'palace')
+        .map(buildingId => ({ id: buildingId, label: buildingId })),
+    };
   }
 
   private async executeDiplomatUnitAction(

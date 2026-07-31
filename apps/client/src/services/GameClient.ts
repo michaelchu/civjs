@@ -968,6 +968,36 @@ export class GameClient {
     });
   }
 
+  async getUnitActionOptions(
+    unitId: string,
+    actionType: string,
+    targetX: number,
+    targetY: number
+  ): Promise<{ id: string; label: string }[]> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Socket not connected'));
+        return;
+      }
+      this.socket.emit(
+        'unit_action_options',
+        { unitId, actionType, targetX, targetY },
+        (response: any) => {
+          if (!response?.success) {
+            reject(new Error(response?.error || 'Failed to load action options'));
+            return;
+          }
+          const result = response.result;
+          if (!result?.success) {
+            reject(new Error(result?.message || 'No action options available'));
+            return;
+          }
+          resolve(Array.isArray(result.options) ? result.options : []);
+        }
+      );
+    });
+  }
+
   foundCity(name: string, x: number, y: number): Promise<string> {
     return new Promise((resolve, reject) => {
       if (!this.socket) {

@@ -60,6 +60,31 @@ describe('GameClient unit action feedback', () => {
     );
   });
 
+  it('loads authoritative selectable unit-action targets', async () => {
+    mockSocket.emit.mockImplementation(
+      (event: string, request: unknown, callback: (response: unknown) => void) => {
+        expect(event).toBe('unit_action_options');
+        expect(request).toEqual({
+          unitId: 'spy-1',
+          actionType: ActionType.STEAL_TECH,
+          targetX: 5,
+          targetY: 6,
+        });
+        callback({
+          success: true,
+          result: {
+            success: true,
+            options: [{ id: 'bronze_working', label: 'bronze_working' }],
+          },
+        });
+      }
+    );
+
+    await expect(
+      gameClient.getUnitActionOptions('spy-1', ActionType.STEAL_TECH, 5, 6)
+    ).resolves.toEqual([{ id: 'bronze_working', label: 'bronze_working' }]);
+  });
+
   it('applies the canonical incremental unit packet shape', () => {
     (gameClient as unknown as { handlePacket: (packet: Packet) => void }).handlePacket({
       type: PacketType.UNIT_INFO,

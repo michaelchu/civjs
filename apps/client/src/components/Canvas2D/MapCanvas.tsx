@@ -104,6 +104,13 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     unit: Unit;
     action: ActionType;
   } | null>(null);
+  const [targetActionOptions, setTargetActionOptions] = useState<{
+    unit: Unit;
+    action: ActionType;
+    targetX: number;
+    targetY: number;
+    options: Array<{ id: string; label: string }>;
+  } | null>(null);
 
   const viewport = useGameStore(state => state.viewport);
   const map = useGameStore(state => state.map);
@@ -597,10 +604,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         : undefined;
       const willDeclareWar = Boolean(
         targetCity &&
-          targetCity.playerId !== currentPlayerId &&
-          targetRelation !== 'war' &&
-          targetRelation !== 'alliance' &&
-          targetRelation !== 'team'
+        targetCity.playerId !== currentPlayerId &&
+        targetRelation !== 'war' &&
+        targetRelation !== 'alliance' &&
+        targetRelation !== 'team'
       );
 
       if (willDeclareWar) {
@@ -645,6 +652,36 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const executeTargetAction = useCallback(
     async (targetX: number, targetY: number) => {
       if (!targetActionMode) return;
+      const selectableAction =
+        targetActionMode.action === ActionType.STEAL_TECH ||
+        targetActionMode.action === ActionType.SABOTAGE_CITY;
+      if (selectableAction) {
+        try {
+          const options = await gameClient.getUnitActionOptions(
+            targetActionMode.unit.id,
+            targetActionMode.action,
+            targetX,
+            targetY
+          );
+          if (options.length === 0) throw new Error('No selectable targets are available');
+          setTargetActionOptions({
+            unit: targetActionMode.unit,
+            action: targetActionMode.action,
+            targetX,
+            targetY,
+            options,
+          });
+          setTargetActionMode(null);
+          setActionFeedback({ success: true, message: 'Choose a target for the mission' });
+        } catch (error) {
+          setActionFeedback({
+            success: false,
+            message: error instanceof Error ? error.message : 'Could not load mission targets',
+          });
+          setTargetActionMode(null);
+        }
+        return;
+      }
       try {
         const result = await gameClient.executeUnitAction(
           targetActionMode.unit.id,
@@ -666,6 +703,37 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       }
     },
     [targetActionMode]
+  );
+
+  const executeSelectedTargetOption = useCallback(
+    async (optionId: string) => {
+      if (!targetActionOptions) return;
+      try {
+        const result = await gameClient.executeUnitAction(
+          targetActionOptions.unit.id,
+          targetActionOptions.action,
+          targetActionOptions.targetX,
+          targetActionOptions.targetY,
+          false,
+          targetActionOptions.action === ActionType.STEAL_TECH ? optionId : undefined,
+          targetActionOptions.action === ActionType.SABOTAGE_CITY ? optionId : undefined
+        );
+        setActionFeedback({
+          success: true,
+          message: result.message || `${targetActionOptions.action.replaceAll('_', ' ')} completed`,
+        });
+      } catch (error) {
+        setActionFeedback({
+          success: false,
+          message: error instanceof Error ? error.message : 'Targeted action failed',
+        });
+      } finally {
+        setTargetActionOptions(null);
+        selectUnit(null);
+        setSelectedUnit(null);
+      }
+    },
+    [selectUnit, targetActionOptions]
   );
 
   // City overlay handlers - placed early to avoid dependency issues
@@ -1449,19 +1517,20 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   // Global keyboard handler for ESC key to exit goto mode
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && (gotoMode.active || targetActionMode)) {
+      if (event.key === 'Escape' && (gotoMode.active || targetActionMode || targetActionOptions)) {
         if (gotoMode.active) deactivateGotoMode();
         setTargetActionMode(null);
+        setTargetActionOptions(null);
         event.preventDefault();
         event.stopPropagation();
       }
     };
 
-    if (gotoMode.active || targetActionMode) {
+    if (gotoMode.active || targetActionMode || targetActionOptions) {
       document.addEventListener('keydown', handleKeyDown);
       return () => document.removeEventListener('keydown', handleKeyDown);
     }
-  }, [gotoMode.active, targetActionMode, deactivateGotoMode]);
+  }, [gotoMode.active, targetActionMode, targetActionOptions, deactivateGotoMode]);
 
   // Global mouse up handler to catch mouse up events outside the canvas
   useEffect(() => {
@@ -1509,6 +1578,34 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       {targetActionMode && (
         <div className="absolute right-3 top-3 z-[1100] rounded bg-amber-700 px-3 py-2 text-sm text-white shadow">
           Select a target · Esc to cancel
+        </div>
+      )}
+      {targetActionOptions && (
+        <div className="absolute right-3 top-3 z-[1101] w-72 rounded bg-slate-900 p-3 text-sm text-white shadow-xl">
+          <div className="mb-2 font-semibold">
+            {targetActionOptions.action === ActionType.STEAL_TECH
+              ? 'Choose technology to steal'
+              : 'Choose improvement to sabotage'}
+          </div>
+          <div className="max-h-64 space-y-1 overflow-y-auto">
+            {targetActionOptions.options.map(option => (
+              <button
+                key={option.id}
+                type="button"
+                className="block w-full rounded bg-slate-700 px-2 py-1 text-left hover:bg-slate-600"
+                onClick={() => void executeSelectedTargetOption(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="mt-2 w-full rounded bg-slate-800 px-2 py-1 text-slate-300 hover:bg-slate-700"
+            onClick={() => setTargetActionOptions(null)}
+          >
+            Cancel
+          </button>
         </div>
       )}
       <canvas

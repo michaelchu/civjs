@@ -89,6 +89,38 @@ export class UnitActionHandler extends BaseSocketHandler {
       await this.handleUnitActionEvent(socket, data, callback, io);
     });
 
+    socket.on('unit_action_options', async (data, callback) => {
+      try {
+        const connection = this.getConnection(socket, this.activeConnections);
+        if (!this.isAuthenticated(connection) || !this.isInGame(connection)) {
+          callback({ success: false, error: 'Not authenticated or not in a game' });
+          return;
+        }
+        const game = await this.resolveActiveGame(connection);
+        const player = game ? this.resolvePlayerFromGame(connection, game) : undefined;
+        if (!game || !player) {
+          callback({ success: false, error: 'Game or player not found' });
+          return;
+        }
+        callback({
+          success: true,
+          result: this.gameManager.getDiplomatActionOptions(
+            connection.gameId!,
+            player.id,
+            data.unitId,
+            data.actionType,
+            data.targetX,
+            data.targetY
+          ),
+        });
+      } catch (error) {
+        callback({
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to load action options',
+        });
+      }
+    });
+
     // Handle path_request event
     socket.on('path_request', async (data, callback) => {
       await this.handlePathRequestEvent(socket, data, callback);

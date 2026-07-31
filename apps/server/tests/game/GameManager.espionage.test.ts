@@ -392,11 +392,55 @@ describe('GameManager classic espionage actions', () => {
         'marketplace'
       )
     ).resolves.toMatchObject({ success: true, message: expect.stringContaining('marketplace') });
-    expect(sabotageCityBuilding).toHaveBeenCalledWith(
-      city.id,
-      actorPlayerId,
-      'marketplace'
-    );
+    expect(sabotageCityBuilding).toHaveBeenCalledWith(city.id, actorPlayerId, 'marketplace');
+  });
+
+  it('returns authoritative selectable technology and improvement targets', () => {
+    const city = {
+      id: 'city-1',
+      name: 'Target',
+      playerId: targetPlayerId,
+      x: 5,
+      y: 5,
+      size: 3,
+      buildings: ['palace', 'library', 'marketplace'],
+    };
+    installGame('spy', {
+      cityManager: {
+        getCityAt: jest.fn().mockReturnValue(city),
+        getPlayerCities: jest.fn().mockReturnValue([]),
+        sabotageCityBuilding: jest.fn(),
+        transferCity: jest.fn(),
+      },
+      researchManager: {
+        getResearchedTechs: jest.fn((playerId: string) =>
+          playerId === targetPlayerId ? ['alphabet', 'bronze_working'] : ['alphabet']
+        ),
+      },
+    });
+
+    expect(
+      manager.getDiplomatActionOptions(gameId, actorPlayerId, 'actor', ActionType.STEAL_TECH, 5, 5)
+    ).toEqual({
+      success: true,
+      options: [{ id: 'bronze_working', label: 'bronze_working' }],
+    });
+    expect(
+      manager.getDiplomatActionOptions(
+        gameId,
+        actorPlayerId,
+        'actor',
+        ActionType.SABOTAGE_CITY,
+        5,
+        5
+      )
+    ).toEqual({
+      success: true,
+      options: [
+        { id: 'library', label: 'library' },
+        { id: 'marketplace', label: 'marketplace' },
+      ],
+    });
   });
 
   it('sabotages a lone unit for half its remaining health', async () => {
