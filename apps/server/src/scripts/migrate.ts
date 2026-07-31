@@ -20,10 +20,10 @@ async function runMigrations() {
     throw new Error('DATABASE_URL environment variable is required');
   }
 
-  // Create postgres client with SSL settings for production (Supabase)
+  // Create the postgres client with optional production SSL settings.
   const client = postgres(finalDbUrl, {
     max: 1,
-    // SSL configuration for Supabase and other hosted databases
+    // SSL configuration for explicitly configured remote databases
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
   });
 

@@ -4,16 +4,16 @@ import * as schema from './schema';
 import logger from '../utils/logger';
 import { DatabaseProvider, ProductionDatabaseProvider } from './DatabaseProvider';
 
-// Database connection string - use POSTGRES_URL from Supabase
+// Database connection string. POSTGRES_URL is retained as an optional override.
 const connectionString =
   process.env.POSTGRES_URL ||
   process.env.DATABASE_URL ||
   'postgresql://civjs:civjs_dev@localhost:5432/civjs_dev';
 
 // Create postgres connection
-// Disable prefetch for "Transaction" pool mode (Supabase recommendation)
+// Disable prefetch for transaction-pooling-compatible connections.
 const queryClient = postgres(connectionString, {
-  prepare: false, // Required for Supabase transaction pooling
+  prepare: false, // Keep prepared statements disabled for broad connection compatibility.
   max: 10,
   idle_timeout: 20,
   connect_timeout: 10,

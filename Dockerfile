@@ -1,4 +1,4 @@
-# Simple single-stage build for Railway deployment
+# Simple single-stage build for local container execution
 FROM node:20-slim
 
 WORKDIR /app
@@ -25,7 +25,7 @@ RUN npm ci --omit=dev --workspace=apps/server --ignore-scripts
 # Copy client build to be served by server
 RUN mkdir -p apps/server/public && cp -r apps/client/dist/* apps/server/public/
 
-# Railway handles user security, skip user creation for simplicity
+# Run as the image's default user for local container execution.
 
 # Expose port
 EXPOSE 3001

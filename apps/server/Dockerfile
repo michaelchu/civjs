@@ -44,5 +44,5 @@ USER nodejs
 # Expose port
 EXPOSE 3001
 
-# Migrate before serving even when the platform does not apply railway.toml.
+# Run database migrations before serving.
 CMD ["npm", "run", "start:prod"]

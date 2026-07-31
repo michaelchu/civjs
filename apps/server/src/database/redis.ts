@@ -5,7 +5,7 @@ const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
 // Create Redis client
 export const redis = new Redis(redisUrl, {
-  family: 0, // Enable IPv4 and IPv6 (fixes Railway private network resolution)
+  family: 0, // Enable IPv4 and IPv6 for local and configured Redis endpoints.
   maxRetriesPerRequest: 3,
   retryStrategy: times => {
     if (times > 3) {
@@ -14,7 +14,7 @@ export const redis = new Redis(redisUrl, {
     }
     return Math.min(times * 200, 2000);
   },
-  // Enable TLS for Upstash Redis in production
+  // Enable TLS when a rediss:// endpoint is configured.
   tls: redisUrl.startsWith('rediss://') ? {} : undefined,
 });
 
