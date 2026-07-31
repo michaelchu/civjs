@@ -12,7 +12,10 @@ export const installRulesetRoutes = async (page: Page): Promise<void> => {
   const extras = JSON.parse(readFileSync(rulesetPath('extras.json'), 'utf8'));
   const nations = JSON.parse(readFileSync(rulesetPath('nations.json'), 'utf8'));
 
-  await page.route('http://localhost:3001/api/rulesets/classic/presentation', route =>
+  // Match the configured API origin rather than assuming the development
+  // default. Local .env files may point VITE_SERVER_URL at another origin,
+  // but these fixture tests should always provide their own ruleset data.
+  await page.route('**/api/rulesets/classic/presentation', route =>
     route.fulfill({
       json: {
         nation_styles: styles.nation_styles,
@@ -43,7 +46,7 @@ export const installRulesetRoutes = async (page: Page): Promise<void> => {
       },
     })
   );
-  await page.route('http://localhost:3001/api/nations?ruleset=classic', route =>
+  await page.route(/\/api\/nations\?ruleset=classic$/, route =>
     route.fulfill({
       json: {
         success: true,
