@@ -540,7 +540,10 @@ export class GameInstanceRecoveryService extends BaseGameService {
       effectsManager,
       game.ruleset ?? 'civ2civ3',
       random,
-      identities
+      identities,
+      game.gameState && typeof game.gameState === 'object'
+        ? (game.gameState as { barbarianRate?: number }).barbarianRate
+        : undefined
     );
 
     const playerIds = Array.from(players.keys());

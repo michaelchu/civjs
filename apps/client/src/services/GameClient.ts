@@ -1197,6 +1197,7 @@ export class GameClient {
     mapSize: string;
     selectedNation: string;
     aiLevel?: 'restricted' | 'novice' | 'easy' | 'normal' | 'hard' | 'cheating';
+    barbarianRate?: number;
     terrainSettings?: {
       generator: string;
       landmass: string;
@@ -1237,6 +1238,7 @@ export class GameClient {
           ruleset: 'civ2civ3',
           selectedNation: gameData.selectedNation,
           aiLevel: gameData.aiLevel,
+          barbarianRate: gameData.barbarianRate,
           victoryConditions: ['conquest'],
           turnTimeLimit: 120,
           terrainSettings: gameData.terrainSettings || {

@@ -110,6 +110,8 @@ export interface GameConfig {
   aiLevel?: SettableAILevel;
   /** Freeciv-compatible seed for the authoritative gameplay random stream. */
   randomSeed?: number;
+  /** Optional barbarian frequency override for presets such as Quick Start. */
+  barbarianRate?: number;
 }
 
 export interface GameInstance {

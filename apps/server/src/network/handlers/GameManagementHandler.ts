@@ -267,6 +267,7 @@ export class GameManagementHandler extends BaseSocketHandler {
         mapHeight: data.mapHeight,
         ruleset: data.ruleset,
         turnTimeLimit: data.turnTimeLimit,
+        barbarianRate: data.barbarianRate,
         victoryConditions: data.victoryConditions,
         terrainSettings: data.terrainSettings,
         aiLevel: data.aiLevel,

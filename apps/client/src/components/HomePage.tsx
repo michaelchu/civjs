@@ -39,6 +39,7 @@ export const HomePage: React.FC = () => {
         maxPlayers: 4,
         mapSize: 'small',
         selectedNation: 'random',
+        barbarianRate: 1,
         terrainSettings: {
           generator: 'random',
           landmass: 'normal',

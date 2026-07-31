@@ -234,6 +234,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         randomSeed,
         randomState,
         identityNumber: FREECIV_IDENTITY_NUMBER_SKIP,
+        barbarianRate: gameConfig.barbarianRate,
         terrainSettings: gameConfig.terrainSettings || {
           generator: 'random',
           landmass: 'normal',
@@ -454,7 +455,10 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       effectsManager,
       game.ruleset ?? DEFAULT_RULESET,
       random,
-      identities
+      identities,
+      game.gameState && typeof game.gameState === 'object'
+        ? (game.gameState as { barbarianRate?: number }).barbarianRate
+        : undefined
     );
     // @reference reference/freeciv/server/techtools.c:665-719
     // Research completion belongs to the active authoritative turn.
@@ -1230,7 +1234,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     effectsManager: EffectsManager,
     rulesetName: string,
     random: FreecivRandom,
-    identities: FreecivIdentityAllocator
+    identities: FreecivIdentityAllocator,
+    barbarianRate?: number
   ): Promise<TurnManager> {
     // Create a simple broadcast manager for the TurnManager
     // TODO: Proper dependency injection should be implemented
@@ -1285,7 +1290,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       effectsManager,
       rulesetName,
       random,
-      identities
+      identities,
+      barbarianRate
     );
     const playerIds = Array.from(players.keys());
     await tm.initializeTurn(playerIds);

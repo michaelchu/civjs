@@ -348,7 +348,9 @@ export class CityRenderer extends BaseRenderer {
     this.ctx.font = `${fontSize}px system-ui, sans-serif`;
 
     const productionLabel = city.production
-      ? `${city.production.target === 'capitalization' ? 'Wealth' : `${city.production.target.charAt(0).toUpperCase()}${city.production.target.slice(1)}`} · ${city.production.turnsToComplete}`
+      ? city.production.target === 'capitalization'
+        ? 'Wealth'
+        : `${city.production.target.charAt(0).toUpperCase()}${city.production.target.slice(1)} · ${city.production.turnsToComplete}`
       : 'Idle';
     const productionFontSize = Math.max(8, fontSize - 1);
 

@@ -145,6 +145,55 @@ describe('CityRenderer presentation state', () => {
     expect(context.fillText).toHaveBeenCalledWith('7', expect.any(Number), expect.any(Number));
   });
 
+  it('renders Wealth without a completion countdown', () => {
+    const context = {
+      canvas: { width: 800, height: 600 },
+      fillRect: vi.fn(),
+      strokeRect: vi.fn(),
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      closePath: vi.fn(),
+      fill: vi.fn(),
+      stroke: vi.fn(),
+      fillText: vi.fn(),
+      measureText: vi.fn().mockReturnValue({ width: 32 }),
+    } as unknown as CanvasRenderingContext2D;
+    const renderer = new CityRenderer(context, { getSprite: () => undefined } as never, 96, 48);
+    const city = {
+      id: 'known',
+      name: 'Alpha',
+      playerId: 'self',
+      x: 0,
+      y: 0,
+      size: 3,
+      buildings: [],
+      granaryTurns: 4,
+      disorder: false,
+      production: {
+        target: 'capitalization',
+        type: 'building',
+        progress: 0,
+        cost: 999,
+        turnsToComplete: 999,
+      },
+    } as unknown as City;
+
+    renderer.renderCities({
+      viewport: { x: 0, y: 0, width: 800, height: 600 },
+      map: { tiles: { '0,0': { x: 0, y: 0, terrain: 'plains', known: true, visible: true } } },
+      cities: { known: city },
+      players: { self: { color: '#22d3ee' } },
+    } as unknown as RenderState);
+
+    expect(context.fillText).toHaveBeenCalledWith('Wealth', expect.any(Number), expect.any(Number));
+    expect(context.fillText).not.toHaveBeenCalledWith(
+      'Wealth · 999',
+      expect.any(Number),
+      expect.any(Number)
+    );
+  });
+
   it('renders the selected city workable-area tiles', () => {
     const context = {
       canvas: { width: 800, height: 600 },

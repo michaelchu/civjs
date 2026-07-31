@@ -584,6 +584,7 @@ export const GameCreateSchema = z.object({
   selectedNation: z.string().min(1).optional(),
   aiLevel: z.enum(['restricted', 'novice', 'easy', 'normal', 'hard', 'cheating']).optional(),
   turnTimeLimit: z.number().int().min(0).max(86_400).optional(),
+  barbarianRate: z.number().int().min(0).max(4).optional(),
   victoryConditions: z.array(z.string()).optional(),
   terrainSettings: z
     .object({

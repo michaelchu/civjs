@@ -51,10 +51,10 @@ export interface TurnInitializationOptions {
   broadcastTurnStart?: boolean;
 }
 
-function getBarbarianRulesetConfig(rulesetName: string): {
-  rate: number;
-  onsetTurn: number;
-} {
+function getBarbarianRulesetConfig(
+  rulesetName: string,
+  barbarianRateOverride?: number
+): { rate: number; onsetTurn: number } {
   const settings = (
     rulesetLoader.loadGameRulesRuleset(rulesetName).settings.set as
       | Array<{ name: string; value: unknown }>
@@ -76,7 +76,13 @@ function getBarbarianRulesetConfig(rulesetName: string): {
       ? Math.max(0, Math.min(4, Math.floor(configuredRate)))
       : (namedRates[String(configuredRate ?? 'NORMAL').toUpperCase()] ?? 2);
   const onsetTurn = typeof settings?.onsetbarbs === 'number' ? settings.onsetbarbs : 60;
-  return { rate, onsetTurn };
+  return {
+    rate:
+      barbarianRateOverride === undefined
+        ? rate
+        : Math.max(0, Math.min(4, Math.floor(barbarianRateOverride))),
+    onsetTurn,
+  };
 }
 
 export class TurnManager {
@@ -131,7 +137,8 @@ export class TurnManager {
     effectsManager: EffectsManager = new EffectsManager(),
     rulesetName: string = DEFAULT_RULESET,
     private readonly random: FreecivRandom = new FreecivRandom(generateFreecivGameSeed()),
-    private readonly identities: FreecivIdentityAllocator = new FreecivIdentityAllocator()
+    private readonly identities: FreecivIdentityAllocator = new FreecivIdentityAllocator(),
+    barbarianRateOverride?: number
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
@@ -180,8 +187,10 @@ export class TurnManager {
       economicManager,
       random
     );
-    const { rate: barbarianRate, onsetTurn: onsetBarbarian } =
-      getBarbarianRulesetConfig(rulesetName);
+    const { rate: barbarianRate, onsetTurn: onsetBarbarian } = getBarbarianRulesetConfig(
+      rulesetName,
+      barbarianRateOverride
+    );
     const mapManager =
       typeof (unitManager as any).getMapManager === 'function'
         ? (unitManager as any).getMapManager()
