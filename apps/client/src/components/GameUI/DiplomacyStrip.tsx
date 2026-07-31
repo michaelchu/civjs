@@ -5,7 +5,6 @@ import { useGameStore } from '../../store/gameStore';
 import { openReport } from './reportEvents';
 import type { DiplomacyNation, DiplomaticState } from '../../types';
 import { HudIconButton } from './HudIconButton';
-import { HudPanel } from './HudPanel';
 import { NationInsignia } from './NationInsignia';
 
 const formatNationName = (nation: string): string => {
@@ -84,7 +83,7 @@ const NationButton: React.FC<{
       <HudIconButton
         label={label}
         hideTitle
-        className="relative h-9 w-9 rounded-lg p-0"
+        className="relative h-9 w-9 rounded-full p-0"
         onClick={() => {
           openReport('diplomacy');
           if (known) {
@@ -95,7 +94,12 @@ const NationButton: React.FC<{
         }}
       >
         {known ? (
-          <NationInsignia color={color ?? '#0e7490'} name={nation.civilization} size="md" />
+          <NationInsignia
+            color={color ?? '#0e7490'}
+            name={nation.civilization}
+            size="lg"
+            className="rounded-full"
+          />
         ) : (
           <Shield className="h-4 w-4 text-slate-500" aria-hidden="true" />
         )}
@@ -108,7 +112,12 @@ const NationButton: React.FC<{
         {known ? (
           <div className="space-y-3">
             <div className="flex items-start gap-2">
-              <NationInsignia color={color ?? '#0e7490'} name={nation.civilization} size="md" />
+              <NationInsignia
+                color={color ?? '#0e7490'}
+                name={nation.civilization}
+                size="lg"
+                className="rounded-full"
+              />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-xs font-semibold text-slate-100">
                   {nation.leaderName}
@@ -162,10 +171,10 @@ const CurrentPlayerButton: React.FC<{
     <HudIconButton
       label={`Open ${nationName} government`}
       title={`${nationName} · ${player.name}`}
-      className="relative h-9 w-9 rounded-lg p-0"
+      className="relative h-9 w-9 rounded-full p-0"
       onClick={() => openReport('government')}
     >
-      <NationInsignia color={player.color} name={nationName} size="md" />
+      <NationInsignia color={player.color} name={nationName} size="lg" className="rounded-full" />
     </HudIconButton>
   );
 };
@@ -185,12 +194,12 @@ export const DiplomacyStrip: React.FC = () => {
   );
 
   return (
-    <HudPanel className="flex w-11 flex-col items-center gap-1.5 overflow-visible p-1.5">
+    <div className="flex flex-col items-center gap-1.5 overflow-visible">
       {currentPlayer && <CurrentPlayerButton player={currentPlayer} />}
       {diplomacy &&
         knownNations.map(nation => (
           <LeaderRow key={nation.id} nation={nation} color={players[nation.id]?.color} />
         ))}
-    </HudPanel>
+    </div>
   );
 };
