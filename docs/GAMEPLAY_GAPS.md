@@ -1140,9 +1140,9 @@ corresponding server setting or broader ruleset compatibility:
 
 Use this template for additional discoveries:
 
-### GP-XXX — Short player-visible description
+### GP-XXX — Short player-visible description (template)
 
-- **Status:** Observed
+- **Status:** Template — not a tracked gap
 - **Area:**
 - **Observed behavior:**
 - **Reproduction:**
