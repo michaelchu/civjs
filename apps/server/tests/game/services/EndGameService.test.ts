@@ -28,6 +28,29 @@ describe('EndGameService', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  const prepareDatabase = (persistedPlayers: unknown[]) => {
+    const databaseProvider = createMockDatabaseProvider();
+    const database = databaseProvider.getDatabase() as any;
+    database.query.players.findMany.mockResolvedValue(persistedPlayers);
+    return { databaseProvider, database };
+  };
+
+  const evaluate = (
+    databaseProvider: ReturnType<typeof createMockDatabaseProvider>,
+    overrides: any = {}
+  ) =>
+    new EndGameService(databaseProvider, io).evaluate({
+      gameId: 'game-1',
+      turn: 30,
+      year: -2800,
+      victoryConditions: ['conquest'],
+      playerIds: ['winner', 'defeated'],
+      cityManager,
+      unitManager,
+      researchManager,
+      ...overrides,
+    });
+
   it('persists deterministic standings and broadcasts a conquest report', async () => {
     const databaseProvider = createMockDatabaseProvider();
     const database = databaseProvider.getDatabase() as any;
@@ -440,5 +463,257 @@ describe('EndGameService', () => {
     delete citiesByPlayer['red-a'];
     delete citiesByPlayer['red-b'];
     delete citiesByPlayer.blue;
+  });
+
+  it('awards a scenario victory and gives it precedence over other criteria', async () => {
+    const { databaseProvider } = prepareDatabase([
+      {
+        id: 'winner',
+        civilization: 'Roman',
+        isAlive: true,
+        isWinner: true,
+        spaceshipState: {
+          structurals: 16,
+          components: 8,
+          modules: 3,
+          launchedTurn: 10,
+          arrivalTurn: 20,
+        },
+      },
+      { id: 'defeated', civilization: 'Greek', isAlive: true },
+    ]);
+    unitsByPlayer.defeated = [{ id: 'unit-2' }];
+
+    const result = await evaluate(databaseProvider, {
+      victoryConditions: ['scenario', 'science'],
+    });
+
+    expect(result.report).toEqual(
+      expect.objectContaining({ reason: 'scenario', winnerPlayerIds: ['winner'] })
+    );
+    unitsByPlayer.defeated = [];
+  });
+
+  it('does not treat a scenario winner as a victory when scenario mode is disabled', async () => {
+    const { databaseProvider } = prepareDatabase([
+      { id: 'winner', civilization: 'Roman', isAlive: true, isWinner: true },
+      { id: 'defeated', civilization: 'Greek', isAlive: true },
+    ]);
+    unitsByPlayer.defeated = [{ id: 'unit-2' }];
+
+    await expect(evaluate(databaseProvider)).resolves.toEqual({ ended: false });
+    unitsByPlayer.defeated = [];
+  });
+
+  it('awards allied victory only when every living pair is allied', async () => {
+    const { databaseProvider } = prepareDatabase([
+      { id: 'winner', civilization: 'Roman', isAlive: true },
+      { id: 'defeated', civilization: 'Greek', isAlive: true },
+    ]);
+    unitsByPlayer.defeated = [{ id: 'unit-2' }];
+    const diplomacyManager = {
+      getSnapshot: jest.fn(async (_gameId: string, playerId: string) => ({
+        playerId,
+        nations: [
+          {
+            id: playerId === 'winner' ? 'defeated' : 'winner',
+            relation: {
+              state: 'alliance',
+              sinceTurn: 4,
+              embassy: true,
+              sharedVision: true,
+            },
+          },
+        ],
+      })),
+    } as any;
+
+    const result = await evaluate(databaseProvider, {
+      victoryConditions: ['allied_victory'],
+      diplomacyManager,
+    });
+
+    expect(result.report).toEqual(
+      expect.objectContaining({ reason: 'allied', winnerPlayerIds: ['winner', 'defeated'] })
+    );
+    unitsByPlayer.defeated = [];
+  });
+
+  it('does not award allied victory for one-sided or non-allied relations', async () => {
+    const { databaseProvider } = prepareDatabase([
+      { id: 'winner', civilization: 'Roman', isAlive: true },
+      { id: 'defeated', civilization: 'Greek', isAlive: true },
+    ]);
+    unitsByPlayer.defeated = [{ id: 'unit-2' }];
+    const diplomacyManager = {
+      getSnapshot: jest.fn(async (_gameId: string, playerId: string) => ({
+        playerId,
+        nations:
+          playerId === 'winner'
+            ? [
+                {
+                  id: 'defeated',
+                  relation: {
+                    state: 'alliance',
+                    sinceTurn: 4,
+                    embassy: true,
+                    sharedVision: true,
+                  },
+                },
+              ]
+            : [
+                {
+                  id: 'winner',
+                  relation: {
+                    state: 'peace',
+                    sinceTurn: 4,
+                    embassy: true,
+                    sharedVision: false,
+                  },
+                },
+              ],
+      })),
+    } as any;
+
+    await expect(
+      evaluate(databaseProvider, { victoryConditions: ['allied'], diplomacyManager })
+    ).resolves.toEqual({ ended: false });
+    unitsByPlayer.defeated = [];
+  });
+
+  it.each([
+    ['below the minimum', 999, 0],
+    ['without the required lead', 3000, 1000],
+  ])('does not award culture victory %s', async (_label, winnerCulture, opponentCulture) => {
+    const { databaseProvider } = prepareDatabase([
+      { id: 'winner', civilization: 'Roman', isAlive: true },
+      { id: 'defeated', civilization: 'Greek', isAlive: true },
+    ]);
+    unitsByPlayer.defeated = [{ id: 'unit-2' }];
+    const cultureManager = {
+      getPlayerCultureInfo: jest.fn(async (playerId: string) => ({
+        totalCulture: playerId === 'winner' ? winnerCulture : opponentCulture,
+      })),
+    } as any;
+
+    await expect(
+      evaluate(databaseProvider, { victoryConditions: ['culture'], cultureManager })
+    ).resolves.toEqual({ ended: false });
+    unitsByPlayer.defeated = [];
+  });
+
+  it.each([
+    ['before the required duration', 'peace', 11],
+    ['while at war', 'war', 0],
+    ['without contact', 'no_contact', 0],
+  ])('does not award world peace %s', async (_label, state, sinceTurn) => {
+    const { databaseProvider } = prepareDatabase([
+      { id: 'winner', civilization: 'Roman', isAlive: true },
+      { id: 'defeated', civilization: 'Greek', isAlive: true },
+    ]);
+    unitsByPlayer.defeated = [{ id: 'unit-2' }];
+    const diplomacyManager = {
+      getSnapshot: jest.fn(async (_gameId: string, playerId: string) => ({
+        playerId,
+        nations: [
+          {
+            id: playerId === 'winner' ? 'defeated' : 'winner',
+            relation: { state, sinceTurn, embassy: false, sharedVision: false },
+          },
+        ],
+      })),
+    } as any;
+
+    await expect(
+      evaluate(databaseProvider, { victoryConditions: ['worldpeace'], diplomacyManager })
+    ).resolves.toEqual({ ended: false });
+    unitsByPlayer.defeated = [];
+  });
+
+  it('waits until spaceship arrival and awards only the earliest arrival', async () => {
+    const { databaseProvider } = prepareDatabase([
+      {
+        id: 'winner',
+        civilization: 'Roman',
+        isAlive: true,
+        spaceshipState: {
+          structurals: 16,
+          components: 8,
+          modules: 3,
+          launchedTurn: 10,
+          arrivalTurn: 31,
+        },
+      },
+      {
+        id: 'defeated',
+        civilization: 'Greek',
+        isAlive: true,
+        spaceshipState: {
+          structurals: 16,
+          components: 8,
+          modules: 3,
+          launchedTurn: 10,
+          arrivalTurn: 30,
+        },
+      },
+    ]);
+    unitsByPlayer.defeated = [{ id: 'unit-2' }];
+
+    await expect(
+      evaluate(databaseProvider, { victoryConditions: ['spaceship'], turn: 29 })
+    ).resolves.toEqual({ ended: false });
+
+    const result = await evaluate(databaseProvider, { victoryConditions: ['science'] });
+    expect(result.report).toEqual(
+      expect.objectContaining({ reason: 'science', winnerPlayerIds: ['defeated'] })
+    );
+    unitsByPlayer.defeated = [];
+  });
+
+  it('ends conquest when the opposing civilization concedes despite retaining assets', async () => {
+    const { databaseProvider } = prepareDatabase([
+      { id: 'winner', civilization: 'Roman', isAlive: true },
+      { id: 'defeated', civilization: 'Greek', isAlive: true, hasConceded: true },
+    ]);
+    unitsByPlayer.defeated = [{ id: 'unit-2' }];
+
+    const result = await evaluate(databaseProvider);
+
+    expect(result.report).toEqual(
+      expect.objectContaining({ reason: 'conquest', winnerPlayerIds: ['winner'] })
+    );
+    unitsByPlayer.defeated = [];
+  });
+
+  it('does not end before the maximum turn or when there are no living players', async () => {
+    const { databaseProvider } = prepareDatabase([
+      { id: 'winner', civilization: 'Roman', isAlive: true },
+      { id: 'defeated', civilization: 'Greek', isAlive: true },
+    ]);
+    unitsByPlayer.defeated = [{ id: 'unit-2' }];
+
+    await expect(
+      evaluate(databaseProvider, { victoryConditions: [], maxTurns: 31 })
+    ).resolves.toEqual({ ended: false });
+
+    unitsByPlayer.winner = [];
+    unitsByPlayer.defeated = [];
+    citiesByPlayer.winner = [];
+    await expect(
+      evaluate(databaseProvider, { victoryConditions: [], maxTurns: 30 })
+    ).resolves.toEqual({ ended: false });
+    citiesByPlayer.winner = [{ size: 5 }, { size: 3 }];
+  });
+
+  it('does not evaluate or end a game with fewer than two players', async () => {
+    const { databaseProvider, database } = prepareDatabase([
+      { id: 'winner', civilization: 'Roman', isAlive: true },
+    ]);
+
+    await expect(
+      evaluate(databaseProvider, { playerIds: ['winner'], victoryConditions: ['conquest'] })
+    ).resolves.toEqual({ ended: false });
+    expect(database.query.players.findMany).not.toHaveBeenCalled();
+    expect(emit).not.toHaveBeenCalled();
   });
 });

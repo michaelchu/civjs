@@ -14,12 +14,30 @@ export const EndGamePanel: React.FC = () => {
   const winnerIds = report.winnerPlayerIds ?? [report.winnerPlayerId];
   const won = currentPlayerId !== null && winnerIds.includes(currentPlayerId);
   const winners = report.standings.filter(standing => winnerIds.includes(standing.playerId));
-  const victoryDescription =
-    report.reason === 'world_peace'
-      ? `${winners.map(winner => winner.civilization).join(', ')} achieved world peace`
-      : report.reason === 'culture'
-        ? `${winners[0]?.civilization ?? 'The winning civilization'} achieved cultural domination`
-        : `${winners[0]?.civilization ?? 'The winning civilization'} achieved conquest`;
+  const winningCivilizations =
+    winners.map(winner => winner.civilization).join(', ') || 'The winning civilization';
+  const leadingCivilization = winners[0]?.civilization ?? 'The winning civilization';
+  const victoryDescription = (() => {
+    switch (report.reason) {
+      case 'team':
+        return `${winningCivilizations} achieved a team conquest victory`;
+      case 'allied':
+        return `${winningCivilizations} achieved an allied victory`;
+      case 'culture':
+        return `${leadingCivilization} achieved cultural domination`;
+      case 'world_peace':
+        return `${winningCivilizations} achieved world peace`;
+      case 'science':
+        return `${leadingCivilization} completed the space race`;
+      case 'scenario':
+        return `${winningCivilizations} completed the scenario objective`;
+      case 'max_turns':
+        return `${winningCivilizations} finished with the highest score at the turn limit`;
+      case 'conquest':
+      default:
+        return `${leadingCivilization} achieved conquest`;
+    }
+  })();
 
   return (
     <div

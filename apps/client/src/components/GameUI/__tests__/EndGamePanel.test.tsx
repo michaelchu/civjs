@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { EndGamePanel } from '../EndGamePanel';
 import { useGameStore } from '../../../store/gameStore';
+import type { EndGameReportData } from '../../../types/packets';
 
 describe('EndGamePanel', () => {
   beforeEach(() => {
@@ -40,4 +41,29 @@ describe('EndGamePanel', () => {
     expect(screen.getByRole('table', { name: 'Final civilization standings' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Return to game list' })).toHaveAttribute('href', '/');
   });
+
+  it.each([
+    ['conquest', 'Roman achieved conquest'],
+    ['team', 'Roman achieved a team conquest victory'],
+    ['allied', 'Roman achieved an allied victory'],
+    ['culture', 'Roman achieved cultural domination'],
+    ['world_peace', 'Roman achieved world peace'],
+    ['science', 'Roman completed the space race'],
+    ['scenario', 'Roman completed the scenario objective'],
+    ['max_turns', 'Roman finished with the highest score at the turn limit'],
+  ] as Array<[EndGameReportData['reason'], string]>)(
+    'describes %s endings accurately',
+    (reason, description) => {
+      useGameStore.setState({
+        endGameReport: {
+          ...useGameStore.getState().endGameReport!,
+          reason,
+        },
+      });
+
+      render(<EndGamePanel />);
+
+      expect(screen.getByText(new RegExp(`${description} on turn 42`))).toBeInTheDocument();
+    }
+  );
 });

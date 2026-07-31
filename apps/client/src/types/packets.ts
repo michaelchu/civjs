@@ -239,7 +239,15 @@ export interface EndGameReportData {
   gameId: string;
   turn: number;
   year: number;
-  reason: 'conquest' | 'culture' | 'world_peace';
+  reason:
+    | 'conquest'
+    | 'team'
+    | 'allied'
+    | 'culture'
+    | 'world_peace'
+    | 'science'
+    | 'scenario'
+    | 'max_turns';
   winnerPlayerId: string;
   winnerPlayerIds: string[];
   endedAt: string;
