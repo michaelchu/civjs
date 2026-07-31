@@ -110,6 +110,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const units = useGameStore(state => state.units);
   const cities = useGameStore(state => state.cities);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
+  const currentGameId = useGameStore(state => state.currentGameId);
   const focusedUnits = useGameStore(state => state.focusedUnits);
   const selectedUnitId = useGameStore(state => state.selectedUnitId);
   const mapData = useGameStore(state => state.mapData);
@@ -280,12 +281,29 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     const handlePreferencesChanged = (event: Event) => {
       const preferences = (event as CustomEvent<UserPreferences>).detail;
       setFogOfWarEnabled(!preferences.disableFogOfWar);
+      if (import.meta.env.DEV) {
+        void gameClient.setDebugVisibility(preferences.disableFogOfWar).catch(() => {
+          // The settings panel reports debug visibility errors when it is open.
+        });
+      }
     };
 
     document.addEventListener(USER_PREFERENCES_CHANGED_EVENT, handlePreferencesChanged);
     return () =>
       document.removeEventListener(USER_PREFERENCES_CHANGED_EVENT, handlePreferencesChanged);
   }, []);
+
+  // Restore the saved debug visibility preference during normal game startup.
+  // Previously this only ran when the Settings dialog mounted, which made a
+  // reload show the fogged server snapshot until the dialog was opened.
+  useEffect(() => {
+    if (!import.meta.env.DEV || !currentGameId || !hasReceivedUnitSnapshot) return;
+
+    const preferences = loadUserPreferences();
+    void gameClient.setDebugVisibility(preferences.disableFogOfWar).catch(() => {
+      // Debug visibility is optional and should not interrupt map rendering.
+    });
+  }, [currentGameId, hasReceivedUnitSnapshot]);
 
   useEffect(() => {
     const handleCenterMap = (event: Event) => {
