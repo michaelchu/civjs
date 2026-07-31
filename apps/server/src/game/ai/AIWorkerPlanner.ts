@@ -245,9 +245,9 @@ function canWorkerUseCandidate(
 function isSameTask(task: AIUnitTask | undefined, candidate: WorkerAssignment): boolean {
   return Boolean(
     task?.role === 'worker' &&
-      task.action === candidate.action &&
-      task.targetX === candidate.tile.x &&
-      task.targetY === candidate.tile.y
+    task.action === candidate.action &&
+    task.targetX === candidate.tile.x &&
+    task.targetY === candidate.tile.y
   );
 }
 

@@ -193,7 +193,7 @@ export class FreecivAISpecialUnitController {
       isStackProtected: tile =>
         Boolean(
           game.cityManager.getCityAt(tile.x, tile.y) ||
-            tile.improvements.some(extra => ['fortress', 'airbase'].includes(extra.toLowerCase()))
+          tile.improvements.some(extra => ['fortress', 'airbase'].includes(extra.toLowerCase()))
         ),
       canAttack: (attacker, defender) => game.unitManager.canUnitTargetUnit(attacker, defender),
       defenderRating: (attacker, defender) =>

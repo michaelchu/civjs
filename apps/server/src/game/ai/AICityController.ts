@@ -522,7 +522,7 @@ export class FreecivAICityController {
         const tile = game.mapManager.getTile(x, y);
         return Boolean(
           game.cityManager.getCityAt(x, y) ||
-            tile?.improvements?.some((extra: string) => ['fortress', 'airbase'].includes(extra))
+          tile?.improvements?.some((extra: string) => ['fortress', 'airbase'].includes(extra))
         );
       },
       rateAttack: unit => game.unitManager.calculateUnitAttackRating(unit),

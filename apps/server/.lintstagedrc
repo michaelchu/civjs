@@ -1,13 +1,13 @@
 {
   "*.{ts,tsx}": [
     "./node_modules/.bin/eslint --fix",
-    "./node_modules/.bin/prettier --write"
+    "../../node_modules/.bin/prettier --write"
   ],
   "*.{js,jsx}": [
     "./node_modules/.bin/eslint --fix",
-    "./node_modules/.bin/prettier --write"
+    "../../node_modules/.bin/prettier --write"
   ],
   "*.{json,md,yml,yaml}": [
-    "./node_modules/.bin/prettier --write"
+    "../../node_modules/.bin/prettier --write"
   ]
 }

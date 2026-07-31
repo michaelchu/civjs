@@ -1,8 +1,5 @@
 export type ClassicActionDisposition =
-  | 'implemented'
-  | 'engine_resolved'
-  | 'scheduled'
-  | 'inapplicable';
+  'implemented' | 'engine_resolved' | 'scheduled' | 'inapplicable';
 
 export interface ClassicActionCoverage {
   disposition: ClassicActionDisposition;

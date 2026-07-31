@@ -1,6 +1,5 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
-import prettier from 'eslint-plugin-prettier';
 
 export default tseslint.config(
   {
@@ -10,18 +9,7 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   {
     files: ['**/*.ts', '**/*.tsx'],
-    plugins: {
-      prettier: prettier,
-    },
     rules: {
-      // Prettier integration
-      'prettier/prettier': [
-        'error',
-        {
-          endOfLine: 'auto',
-        },
-      ],
-
       // TypeScript specific
       '@typescript-eslint/no-unused-vars': [
         'error',

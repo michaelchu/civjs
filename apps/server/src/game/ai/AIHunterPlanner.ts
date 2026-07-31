@@ -51,17 +51,17 @@ function attackPower(unit: Unit, type: UnitType): number {
 function isHunter(unit: Unit, type: UnitType | undefined): type is UnitType {
   return Boolean(
     type &&
-      !unit.transportedBy &&
-      (type.roles?.some(role => role.toLowerCase() === 'hunter') ||
-        type.flags?.some(flag => flag.toLowerCase() === 'hunter'))
+    !unit.transportedBy &&
+    (type.roles?.some(role => role.toLowerCase() === 'hunter') ||
+      type.flags?.some(flag => flag.toLowerCase() === 'hunter'))
   );
 }
 
 function isValuableTarget(type: UnitType): boolean {
   return Boolean(
     (type.attack ?? type.combat ?? 0) > 0 ||
-      (type.transport_capacity ?? 0) > 0 ||
-      type.flags?.some(flag => flag.toLowerCase() === 'gameloss')
+    (type.transport_capacity ?? 0) > 0 ||
+    type.flags?.some(flag => flag.toLowerCase() === 'gameloss')
   );
 }
 
@@ -78,9 +78,9 @@ function canHunterReachTarget(
   const oldTask = context.existingTasks[hunter.id];
   return Boolean(
     oldTask?.targetId === target.id &&
-      oldTask.targetX !== undefined &&
-      oldTask.targetY !== undefined &&
-      distance < context.distance(hunter.x, hunter.y, oldTask.targetX, oldTask.targetY)
+    oldTask.targetX !== undefined &&
+    oldTask.targetY !== undefined &&
+    distance < context.distance(hunter.x, hunter.y, oldTask.targetX, oldTask.targetY)
   );
 }
 

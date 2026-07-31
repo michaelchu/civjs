@@ -58,8 +58,7 @@ function getBarbarianRulesetConfig(
 ): { rate: number; onsetTurn: number } {
   const settings = (
     rulesetLoader.loadGameRulesRuleset(rulesetName).settings.set as
-      | Array<{ name: string; value: unknown }>
-      | undefined
+      Array<{ name: string; value: unknown }> | undefined
   )?.reduce<Record<string, unknown>>((values, entry) => {
     values[entry.name] = entry.value;
     return values;

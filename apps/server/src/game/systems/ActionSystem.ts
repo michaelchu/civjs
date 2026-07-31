@@ -568,9 +568,9 @@ export class ActionSystem {
       (unit, targetX, targetY) =>
         Boolean(
           unit.homeCityId &&
-            targetX !== undefined &&
-            targetY !== undefined &&
-            this.gameManagerCallback?.establishTradeRoute
+          targetX !== undefined &&
+          targetY !== undefined &&
+          this.gameManagerCallback?.establishTradeRoute
         ),
     ],
     [ActionType.DISBAND_UNIT, unit => this.canDisbandUnit(unit)],
@@ -597,9 +597,9 @@ export class ActionSystem {
     const unitType = this.unitTypes[unit.unitTypeId];
     return Boolean(
       unitType?.rulesetUnitClassFlags.includes('CanFortify') &&
-        !unitType.flags?.includes('Cant_Fortify') &&
-        !unit.fortified &&
-        unit.movementLeft > 0
+      !unitType.flags?.includes('Cant_Fortify') &&
+      !unit.fortified &&
+      unit.movementLeft > 0
     );
   }
 
@@ -697,11 +697,11 @@ export class ActionSystem {
     const terrain = tile && this.getTerrain(tile.terrain);
     return Boolean(
       this.canBuildImprovement(unit) &&
-        unit.movementLeft > 0 &&
-        tile &&
-        terrain &&
-        terrain.roadTime > 0 &&
-        !tile.hasRoad
+      unit.movementLeft > 0 &&
+      tile &&
+      terrain &&
+      terrain.roadTime > 0 &&
+      !tile.hasRoad
     );
   }
 
@@ -729,10 +729,10 @@ export class ActionSystem {
     const cardinalNeighbors = this.getCardinalNeighborTiles(unit);
     return Boolean(
       tile &&
-        terrain &&
-        terrain.irrigationTime > 0 &&
-        !tile.improvements.includes('irrigation') &&
-        hasClassicIrrigationSource(cardinalNeighbors)
+      terrain &&
+      terrain.irrigationTime > 0 &&
+      !tile.improvements.includes('irrigation') &&
+      hasClassicIrrigationSource(cardinalNeighbors)
     );
   }
 
@@ -766,9 +766,9 @@ export class ActionSystem {
     const terrain = tile && this.getTerrain(tile.terrain);
     return Boolean(
       this.canBuildImprovement(unit) &&
-        unit.movementLeft > 0 &&
-        terrain?.cultivateTo &&
-        terrain.cultivateTime > 0
+      unit.movementLeft > 0 &&
+      terrain?.cultivateTo &&
+      terrain.cultivateTime > 0
     );
   }
 
@@ -777,9 +777,9 @@ export class ActionSystem {
     const terrain = tile && this.getTerrain(tile.terrain);
     return Boolean(
       this.canBuildImprovement(unit) &&
-        unit.movementLeft > 0 &&
-        terrain?.plantTo &&
-        terrain.plantTime > 0
+      unit.movementLeft > 0 &&
+      terrain?.plantTo &&
+      terrain.plantTime > 0
     );
   }
 

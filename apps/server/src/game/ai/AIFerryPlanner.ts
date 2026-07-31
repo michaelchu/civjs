@@ -32,7 +32,7 @@ function canCarry(ferryType: UnitType, passengerType: UnitType): boolean {
     (ferryType.transport_capacity ?? 0) > 0 &&
     Boolean(
       passengerType.rulesetUnitClass &&
-        ferryType.cargoClasses.includes(passengerType.rulesetUnitClass)
+      ferryType.cargoClasses.includes(passengerType.rulesetUnitClass)
     )
   );
 }
@@ -40,11 +40,11 @@ function canCarry(ferryType: UnitType, passengerType: UnitType): boolean {
 function hasOverseasMission(task: AIUnitTask | undefined): task is AIUnitTask {
   return Boolean(
     task &&
-      task.role !== 'ferry' &&
-      task.targetX !== undefined &&
-      task.targetY !== undefined &&
-      (['settle', 'attack', 'guard', 'diplomat'].includes(task.role) ||
-        (['worker', 'caravan'].includes(task.role) && task.transportRequired === true))
+    task.role !== 'ferry' &&
+    task.targetX !== undefined &&
+    task.targetY !== undefined &&
+    (['settle', 'attack', 'guard', 'diplomat'].includes(task.role) ||
+      (['worker', 'caravan'].includes(task.role) && task.transportRequired === true))
   );
 }
 

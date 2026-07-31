@@ -5,13 +5,7 @@ import { EffectsManager, EffectType, type EffectContext } from '@game/managers/E
 import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 export type DiplomaticState =
-  | 'no_contact'
-  | 'war'
-  | 'ceasefire'
-  | 'armistice'
-  | 'peace'
-  | 'alliance'
-  | 'team';
+  'no_contact' | 'war' | 'ceasefire' | 'armistice' | 'peace' | 'alliance' | 'team';
 
 export type TreatyClauseType =
   | 'ceasefire'

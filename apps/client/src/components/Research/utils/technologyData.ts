@@ -11,47 +11,43 @@ export function createTechnologyGraph(technologies: Record<string, Technology>):
   nodes: Node<TechnologyNodeData>[];
   edges: Edge[];
 } {
-  const nodes = Object.values(technologies).map(
-    (tech): Node<TechnologyNodeData> => ({
+  const nodes = Object.values(technologies).map((tech): Node<TechnologyNodeData> => ({
+    id: tech.id,
+    type: 'technologyNode',
+    position: { x: 0, y: 0 },
+    data: {
       id: tech.id,
-      type: 'technologyNode',
-      position: { x: 0, y: 0 },
-      data: {
-        id: tech.id,
-        name: tech.name,
-        cost: tech.cost,
-        description: tech.description,
-        requirements: tech.requirements,
-        flags: tech.flags ?? [],
-        isResearched: tech.discovered,
-        isCurrent: false,
-        isGoal: false,
-        isAvailable: false,
-        progress: 0,
-      },
-    })
-  );
+      name: tech.name,
+      cost: tech.cost,
+      description: tech.description,
+      requirements: tech.requirements,
+      flags: tech.flags ?? [],
+      isResearched: tech.discovered,
+      isCurrent: false,
+      isGoal: false,
+      isAvailable: false,
+      progress: 0,
+    },
+  }));
 
   const edges = Object.values(technologies).flatMap(tech =>
     tech.requirements
       .filter(requirement => technologies[requirement])
-      .map(
-        (requirement): Edge => ({
-          id: `${requirement}-${tech.id}`,
-          source: requirement,
-          target: tech.id,
-          type: 'smoothstep',
-          animated: false,
-          style: {
-            stroke: '#6b7280',
-            strokeWidth: 2,
-          },
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-            color: '#6b7280',
-          },
-        })
-      )
+      .map((requirement): Edge => ({
+        id: `${requirement}-${tech.id}`,
+        source: requirement,
+        target: tech.id,
+        type: 'smoothstep',
+        animated: false,
+        style: {
+          stroke: '#6b7280',
+          strokeWidth: 2,
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: '#6b7280',
+        },
+      }))
   );
 
   return { nodes, edges };

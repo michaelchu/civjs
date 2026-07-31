@@ -513,8 +513,7 @@ describe('Game Integration Flow', () => {
         endReason: 'max_turns',
       });
       const report = persistedGame?.endGameReport as
-        | { winnerPlayerIds?: string[]; standings?: Array<{ playerId: string }> }
-        | undefined;
+        { winnerPlayerIds?: string[]; standings?: Array<{ playerId: string }> } | undefined;
       expect(report?.winnerPlayerIds?.some(playerId => aiPlayerIds.includes(playerId))).toBe(true);
       expect(report?.standings).toHaveLength(2);
     }, 120_000);

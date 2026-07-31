@@ -40,11 +40,11 @@ interface GuardAssignmentState {
 function isGuardCandidate(unit: Unit, type: UnitType | undefined): type is UnitType {
   return Boolean(
     type &&
-      !unit.transportedBy &&
-      !type.canFoundCity &&
-      !type.canBuildImprovements &&
-      !type.flags?.includes('NonMil') &&
-      (type.defense ?? type.combat ?? 0) > 0
+    !unit.transportedBy &&
+    !type.canFoundCity &&
+    !type.canBuildImprovements &&
+    !type.flags?.includes('NonMil') &&
+    (type.defense ?? type.combat ?? 0) > 0
   );
 }
 
@@ -180,10 +180,10 @@ function canPreserveEscort(
   const chargeType = context.getType(charge.unitTypeId);
   return Boolean(
     guardType &&
-      chargeType &&
-      !guardedUnits.has(charge.id) &&
-      chargeNeedsGuard(charge, context, chargeType) &&
-      canGuardUnit(guardType, chargeType)
+    chargeType &&
+    !guardedUnits.has(charge.id) &&
+    chargeNeedsGuard(charge, context, chargeType) &&
+    canGuardUnit(guardType, chargeType)
   );
 }
 

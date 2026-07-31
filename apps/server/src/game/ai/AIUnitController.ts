@@ -465,8 +465,8 @@ export class FreecivAIUnitController {
       const type = game.unitManager.getUnitType(unit.unitTypeId);
       return Boolean(
         type?.canBuildImprovements &&
-          state.unitTasks[unit.id]?.role !== 'settle' &&
-          state.unitTasks[unit.id]?.role !== 'ferry'
+        state.unitTasks[unit.id]?.role !== 'settle' &&
+        state.unitTasks[unit.id]?.role !== 'ferry'
       );
     });
     const profile = createAIProfile(
@@ -666,7 +666,7 @@ export class FreecivAIUnitController {
         const tile = game.mapManager.getTile(x, y);
         return Boolean(
           game.cityManager.getCityAt(x, y) ||
-            tile?.improvements?.some((extra: string) => ['fortress', 'airbase'].includes(extra))
+          tile?.improvements?.some((extra: string) => ['fortress', 'airbase'].includes(extra))
         );
       },
       acceptObjective: (attacker, target) =>
@@ -698,7 +698,7 @@ export class FreecivAIUnitController {
         const currentCity = game.cityManager.getCityAt(attacker.x, attacker.y);
         return Boolean(
           currentCity?.id === attacker.homeCityId &&
-            game.cityManager.getCityMilitaryUnhappiness(attacker.homeCityId) > 0
+          game.cityManager.getCityMilitaryUnhappiness(attacker.homeCityId) > 0
         );
       },
     });

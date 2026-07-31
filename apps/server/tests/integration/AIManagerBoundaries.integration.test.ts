@@ -642,9 +642,9 @@ describe('AI authoritative manager boundaries', () => {
       Boolean(foundedCity) ||
         Boolean(
           delivered &&
-            !delivered.transportedBy &&
-            recovered!.mapManager.getTile(delivered.x, delivered.y)?.continentId ===
-              route.destination.continentId
+          !delivered.transportedBy &&
+          recovered!.mapManager.getTile(delivered.x, delivered.y)?.continentId ===
+            route.destination.continentId
         )
     ).toBe(true);
   });

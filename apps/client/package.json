@@ -10,8 +10,8 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format": "../../node_modules/.bin/prettier --write .",
+    "format:check": "../../node_modules/.bin/prettier --check .",
     "type-check": "tsc -b --noEmit",
     "preview": "vite preview"
   },
@@ -79,10 +79,10 @@
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
       "eslint --fix",
-      "prettier --write"
+      "../../node_modules/.bin/prettier --write"
     ],
     "*.{json,css,md}": [
-      "prettier --write"
+      "../../node_modules/.bin/prettier --write"
     ]
   }
 }

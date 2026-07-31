@@ -124,13 +124,7 @@ export enum ActionMovesActor {
 
 export interface ActionRequirement {
   type:
-    | 'unit_type'
-    | 'unit_flag'
-    | 'terrain'
-    | 'tech'
-    | 'building'
-    | 'government'
-    | 'diplomatic_state';
+    'unit_type' | 'unit_flag' | 'terrain' | 'tech' | 'building' | 'government' | 'diplomatic_state';
   value: string | string[];
   present: boolean; // true if requirement must be present, false if must be absent
   range?: 'local' | 'tile' | 'adjacent' | 'city' | 'continent' | 'player' | 'world';

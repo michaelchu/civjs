@@ -50,22 +50,20 @@ export async function rankVirtualMilitaryProduction(
         !(type.fuel && type.fuel > 0) &&
         context.canBuild(context.city.id, type.id)
     )
-    .map(
-      (type): Unit => ({
-        id: `virtual:${context.city.id}:${type.id}`,
-        gameId: context.gameId,
-        playerId: context.playerId,
-        unitTypeId: type.id,
-        x: context.city.x,
-        y: context.city.y,
-        movementLeft: type.movement,
-        health: type.hitpoints ?? 100,
-        veteranLevel: 0,
-        experience: 0,
-        fortified: false,
-        homeCityId: context.city.id,
-      })
-    );
+    .map((type): Unit => ({
+      id: `virtual:${context.city.id}:${type.id}`,
+      gameId: context.gameId,
+      playerId: context.playerId,
+      unitTypeId: type.id,
+      x: context.city.x,
+      y: context.city.y,
+      movementLeft: type.movement,
+      health: type.hitpoints ?? 100,
+      veteranLevel: 0,
+      experience: 0,
+      fortified: false,
+      homeCityId: context.city.id,
+    }));
   const travelTimes = await buildMilitaryTravelTimes({
     attackers: virtualAttackers,
     targets: [
