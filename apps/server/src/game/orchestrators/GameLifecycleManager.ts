@@ -1491,6 +1491,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         },
         captureCity: async (cityId, playerId, unitId) =>
           (await cityManager.captureCity(cityId, playerId, unitId)).success,
+        broadcastHutEvent: (changedGameId, playerId, message) =>
+          this.io.to(`player:${playerId}`).emit('hut_event', { gameId: changedGameId, message }),
         broadcastMapChanged: (changedGameId, mapData) =>
           this.onBroadcastMapData?.(changedGameId, mapData),
       },

@@ -2375,6 +2375,7 @@ describe('UnitManager', () => {
 
     it('resolves and persists a hut reward when movement enters the tile', async () => {
       const map = makeMap(true);
+      const broadcastHutEvent = jest.fn();
       const manager = new UnitManager(
         gameId,
         mockDbProvider,
@@ -2386,6 +2387,7 @@ describe('UnitManager', () => {
           requestPath: jest.fn(),
           broadcastUnitMoved: jest.fn(),
           broadcastMapChanged: jest.fn(),
+          broadcastHutEvent,
         },
         undefined,
         () => 0
@@ -2397,6 +2399,11 @@ describe('UnitManager', () => {
       expect(map.tiles.get('11,10').improvements).not.toContain('Hut');
       expect(map.manager.getMapData).toHaveBeenCalled();
       expect((mockDbProvider.getDatabase() as any).update).toHaveBeenCalled();
+      expect(broadcastHutEvent).toHaveBeenCalledWith(
+        gameId,
+        'player-123',
+        'Your unit found 25 gold in a goody hut.'
+      );
     });
 
     it('delegates the barbarian hut roll without killing a protected explorer', async () => {

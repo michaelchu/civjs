@@ -246,6 +246,7 @@ export class UnitManager {
     grantHutTechnology?: (playerId: string) => Promise<string | null>;
     revealHutMap?: (playerId: string, x: number, y: number) => string[];
     spawnHutBarbarians?: (playerId: string, x: number, y: number) => Promise<boolean>;
+    broadcastHutEvent?: (gameId: string, playerId: string, message: string) => void;
     broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
   };
   private playerTechsProvider: (playerId: string) => Set<string> = () => new Set();
@@ -336,6 +337,7 @@ export class UnitManager {
       grantHutTechnology?: (playerId: string) => Promise<string | null>;
       revealHutMap?: (playerId: string, x: number, y: number) => string[];
       spawnHutBarbarians?: (playerId: string, x: number, y: number) => Promise<boolean>;
+      broadcastHutEvent?: (gameId: string, playerId: string, message: string) => void;
       broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
     },
     effectsManager?: EffectsManager,
@@ -854,11 +856,29 @@ export class UnitManager {
   private async resolveHutGold(unit: Unit, chance: number): Promise<void> {
     const gold = chance === 0 ? 25 : chance <= 3 ? 50 : 100;
     await this.changePlayerGold(unit.playerId, gold);
+    this.gameManagerCallback?.broadcastHutEvent?.(
+      this.gameId,
+      unit.playerId,
+      `Your unit found ${gold} gold in a goody hut.`
+    );
   }
 
   private async resolveHutTechnology(unit: Unit): Promise<void> {
     const technology = await this.gameManagerCallback?.grantHutTechnology?.(unit.playerId);
-    if (!technology) await this.changePlayerGold(unit.playerId, 25);
+    if (technology) {
+      this.gameManagerCallback?.broadcastHutEvent?.(
+        this.gameId,
+        unit.playerId,
+        `Your unit discovered the technology ${technology} in a goody hut.`
+      );
+    } else {
+      await this.changePlayerGold(unit.playerId, 25);
+      this.gameManagerCallback?.broadcastHutEvent?.(
+        this.gameId,
+        unit.playerId,
+        'The goody hut had no new technology; your unit found 25 gold instead.'
+      );
+    }
   }
 
   private async resolveHutMercenary(unit: Unit): Promise<void> {
@@ -875,9 +895,19 @@ export class UnitManager {
       Object.values(this.unitTypes).find(type => type.roles?.includes('Hut') && canExist(type));
     if (mercenary) {
       await this.createUnit(unit.playerId, mercenary.id, unit.x, unit.y, unit.homeCityId);
+      this.gameManagerCallback?.broadcastHutEvent?.(
+        this.gameId,
+        unit.playerId,
+        `Your unit found a ${mercenary.name ?? mercenary.id} in a goody hut.`
+      );
       return;
     }
     await this.changePlayerGold(unit.playerId, 25);
+    this.gameManagerCallback?.broadcastHutEvent?.(
+      this.gameId,
+      unit.playerId,
+      'No mercenary was available; your unit found 25 gold instead.'
+    );
   }
 
   private async resolveHutBarbarians(unit: Unit): Promise<void> {
@@ -890,8 +920,24 @@ export class UnitManager {
     );
     if (alive === undefined) {
       await this.changePlayerGold(unit.playerId, 25);
+      this.gameManagerCallback?.broadcastHutEvent?.(
+        this.gameId,
+        unit.playerId,
+        'The goody hut was quiet; your unit found 25 gold instead.'
+      );
     } else if (!alive && this.units.has(unit.id)) {
       await this.destroyUnit(unit.id);
+      this.gameManagerCallback?.broadcastHutEvent?.(
+        this.gameId,
+        unit.playerId,
+        'Barbarians emerged from the goody hut and destroyed your unit.'
+      );
+    } else {
+      this.gameManagerCallback?.broadcastHutEvent?.(
+        this.gameId,
+        unit.playerId,
+        'Barbarians emerged from the goody hut.'
+      );
     }
   }
 
@@ -912,8 +958,18 @@ export class UnitManager {
       );
       if (settlers) {
         await this.createUnit(unit.playerId, settlers.id, unit.x, unit.y, unit.homeCityId);
+        this.gameManagerCallback?.broadcastHutEvent?.(
+          this.gameId,
+          unit.playerId,
+          'Your unit found nomad settlers in a goody hut.'
+        );
       } else {
         await this.changePlayerGold(unit.playerId, 25);
+        this.gameManagerCallback?.broadcastHutEvent?.(
+          this.gameId,
+          unit.playerId,
+          'The goody hut could not provide settlers; your unit found 25 gold instead.'
+        );
       }
     }
   }
@@ -922,6 +978,11 @@ export class UnitManager {
     const exploredTiles = this.gameManagerCallback?.revealHutMap?.(unit.playerId, unit.x, unit.y);
     if (!exploredTiles) {
       await this.changePlayerGold(unit.playerId, 25);
+      this.gameManagerCallback?.broadcastHutEvent?.(
+        this.gameId,
+        unit.playerId,
+        'The goody hut revealed nothing; your unit found 25 gold instead.'
+      );
       return;
     }
     await this.databaseProvider
@@ -929,6 +990,11 @@ export class UnitManager {
       .update(players)
       .set({ exploredTiles })
       .where(and(eq(players.id, unit.playerId), eq(players.gameId, this.gameId)));
+    this.gameManagerCallback?.broadcastHutEvent?.(
+      this.gameId,
+      unit.playerId,
+      'Your unit discovered a map in a goody hut.'
+    );
   }
 
   private async changePlayerGold(playerId: string, amount: number): Promise<void> {

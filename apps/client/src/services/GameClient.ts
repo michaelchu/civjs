@@ -303,6 +303,11 @@ export class GameClient {
       }
       this.requestDiplomacy();
     });
+    this.socket.on('hut_event', data => {
+      if (typeof data?.message === 'string') {
+        useGameStore.getState().addNotification({ message: data.message, tone: 'info' });
+      }
+    });
 
     // Handle production completion events
     this.socket.on('production:completed', data => {

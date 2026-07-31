@@ -913,7 +913,8 @@ you declare war first.` Civilian/border-entry units may enter permitted
   fourteen-way roll, uses the ruleset `HutTech` then `Hut` role fallback for
   mercenaries, creates nomad settlers when a city roll cannot found a city, and
   delegates the barbarian roll to `BarbarianManager` with protected-tile and
-  GameLoss checks.
+  GameLoss checks. Hut outcomes now emit player-scoped notifications for gold,
+  technology, mercenaries, settlers, map discovery, and barbarian results.
 - **Reference behavior:** `civ2civ3` inherits Freeciv's default hut script,
   which unleashes barbarians unless protected by nearby-city/GameLoss/
   disabled-barbarian rules, creates a city or settlers based on terrain, and
@@ -925,9 +926,12 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/data/default/default.lua`
   - `reference/freeciv/server/unittools.c` (`unit_enter_hut`)
 - **Expected outcome:** Implement each scripted outcome and its eligibility,
-  fallback, barbarian creation, visibility, and notification behavior.
+  fallback, barbarian creation, visibility, and notification behavior. The
+  remaining gap is seeded full-roll coverage plus exact reference probability
+  and disabled-barbarian/mercenary settings.
 - **Regression coverage:** `UnitManager.test.ts` covers the horde delegation,
-  protected explorer survival, and nomad fallback. Full fourteen-roll seeded
+  protected explorer survival, nomad fallback, and player-facing hut
+  notification. Full fourteen-roll seeded
   coverage, unavailable mercenaries, and integration visibility/notification
   behavior remain to be covered.
 
