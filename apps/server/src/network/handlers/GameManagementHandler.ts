@@ -690,26 +690,11 @@ export class GameManagementHandler extends BaseSocketHandler {
 
   private formatSnapshotPlayer(player: any, gameInstance?: any): any {
     const value = (field: string, fallback: any) => player[field] ?? fallback;
-    const cities = gameInstance?.cityManager?.getCitiesByPlayer?.(player.id) ?? [];
-    const units = gameInstance?.unitManager?.getAllUnits?.()
-      ? Array.from(gameInstance.unitManager.getAllUnits().values()).filter(
-          (unit: any) => unit.playerId === player.id
-        )
-      : [];
-    const research = gameInstance?.researchManager?.getPlayerResearch?.(player.id);
-    const scoreInputs = gameInstance
-      ? {
-          cities,
-          units,
-          researchedTechs: research?.researchedTechs ? Array.from(research.researchedTechs) : [],
-          history: value('history', 0),
-        }
-      : undefined;
     return {
       id: player.id,
       name: value('leaderName', player.civilization),
       nation: value('nation', player.civilization),
-      score: resolvePlayerScore(player.score, scoreInputs),
+      score: resolvePlayerScore(player.score, this.getSnapshotScoreInputs(player, gameInstance)),
       gold: value('gold', 0),
       goldPerTurn: value('goldPerTurn', 0),
       science: value('science', 0),
@@ -725,6 +710,29 @@ export class GameManagementHandler extends BaseSocketHandler {
       isAI: value('isAI', false),
       color: player.color,
     };
+  }
+
+  private getSnapshotScoreInputs(player: any, gameInstance?: any): any {
+    if (!gameInstance) return undefined;
+
+    const cities = gameInstance.cityManager?.getCitiesByPlayer?.(player.id) ?? [];
+    return {
+      cities,
+      units: this.getSnapshotPlayerUnits(player, gameInstance),
+      researchedTechs: this.getSnapshotPlayerResearch(player, gameInstance),
+      history: player.history ?? 0,
+    };
+  }
+
+  private getSnapshotPlayerUnits(player: any, gameInstance: any): any[] {
+    const allUnits = gameInstance.unitManager?.getAllUnits?.();
+    if (!allUnits) return [];
+    return Array.from(allUnits.values()).filter((unit: any) => unit.playerId === player.id);
+  }
+
+  private getSnapshotPlayerResearch(player: any, gameInstance: any): any[] {
+    const research = gameInstance.researchManager?.getPlayerResearch?.(player.id);
+    return research?.researchedTechs ? Array.from(research.researchedTechs) : [];
   }
 
   private buildSnapshotTiles(

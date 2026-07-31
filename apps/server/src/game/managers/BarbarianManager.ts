@@ -531,20 +531,15 @@ export class BarbarianManager {
     const unitIds: string[] = [];
     const boatType = this.findBarbarianRoleUnit('BarbarianBoat', ['trireme']);
     const boatDefinition = boatType ? this.unitManager.getUnitType(boatType) : undefined;
-    if (
-      !boatType ||
-      !boatDefinition ||
-      (boatDefinition.transport_capacity ?? 0) <= 0 ||
-      !canUnitEnterTerrain(location.terrain, boatType)
-    ) {
+    if (!this.canSeaBarbariansUseBoat(boatType, boatDefinition, location)) {
       return unitIds;
     }
 
-    const boatId = await this.spawnBarbarianUnit(barbarianPlayerId, location, boatType);
+    const boatId = await this.spawnBarbarianUnit(barbarianPlayerId, location, boatType!);
     if (!boatId) return unitIds;
     unitIds.push(boatId);
 
-    const capacity = boatDefinition.transport_capacity ?? 0;
+    const capacity = boatDefinition!.transport_capacity ?? 0;
     const unitCount =
       randomInt(this.random, this.config.unitsPerSpawn.max - this.config.unitsPerSpawn.min + 1) +
       this.config.unitsPerSpawn.min;
@@ -556,33 +551,87 @@ export class BarbarianManager {
     let remainingCapacity = capacity;
 
     // Reserve one berth for the leader, as Freeciv does for sea raiders.
-    if (seaUnitType) {
-      for (let i = 0; i < Math.min(unitCount, Math.max(0, remainingCapacity - 1)); i++) {
-        const unitId = await this.spawnBarbarianUnit(
-          barbarianPlayerId,
-          location,
-          seaUnitType,
-          boatId
-        );
-        if (unitId) {
-          unitIds.push(unitId);
-          remainingCapacity--;
-        }
-      }
-    }
+    remainingCapacity = await this.spawnEmbarkedSeaUnits(
+      unitIds,
+      barbarianPlayerId,
+      location,
+      boatId,
+      seaUnitType,
+      unitCount,
+      remainingCapacity
+    );
 
     const shouldSpawnLeader = randomInt(this.random, 100) < this.config.leaderChance;
-    if (shouldSpawnLeader && remainingCapacity > 0) {
-      const leaderId = await this.spawnBarbarianUnit(
-        barbarianPlayerId,
-        location,
-        'barbarian_leader',
-        boatId
-      );
-      if (leaderId) unitIds.push(leaderId);
-    }
+    await this.spawnEmbarkedLeader(
+      unitIds,
+      barbarianPlayerId,
+      location,
+      boatId,
+      shouldSpawnLeader,
+      remainingCapacity
+    );
 
     return unitIds;
+  }
+
+  private canSeaBarbariansUseBoat(
+    boatType: string | undefined,
+    boatDefinition: { transport_capacity?: number } | undefined,
+    location: BarbarianSpawnLocation
+  ): boolean {
+    return Boolean(
+      boatType &&
+        boatDefinition &&
+        (boatDefinition.transport_capacity ?? 0) > 0 &&
+        canUnitEnterTerrain(location.terrain, boatType)
+    );
+  }
+
+  private async spawnEmbarkedSeaUnits(
+    unitIds: string[],
+    barbarianPlayerId: string,
+    location: BarbarianSpawnLocation,
+    boatId: string,
+    seaUnitType: string | undefined,
+    unitCount: number,
+    capacity: number
+  ): Promise<number> {
+    if (!seaUnitType) return capacity;
+
+    const count = Math.min(unitCount, Math.max(0, capacity - 1));
+    let remainingCapacity = capacity;
+    for (let i = 0; i < count; i++) {
+      const unitId = await this.spawnBarbarianUnit(
+        barbarianPlayerId,
+        location,
+        seaUnitType,
+        boatId
+      );
+      if (unitId) {
+        unitIds.push(unitId);
+        remainingCapacity--;
+      }
+    }
+    return remainingCapacity;
+  }
+
+  private async spawnEmbarkedLeader(
+    unitIds: string[],
+    barbarianPlayerId: string,
+    location: BarbarianSpawnLocation,
+    boatId: string,
+    shouldSpawnLeader: boolean,
+    capacity: number
+  ): Promise<void> {
+    if (!shouldSpawnLeader || capacity <= 0) return;
+
+    const leaderId = await this.spawnBarbarianUnit(
+      barbarianPlayerId,
+      location,
+      'barbarian_leader',
+      boatId
+    );
+    if (leaderId) unitIds.push(leaderId);
   }
 
   private findBarbarianRoleUnit(role: string, fallbacks: string[]): string | undefined {

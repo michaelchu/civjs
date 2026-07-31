@@ -475,15 +475,7 @@ export class UnitManager {
       throw new Error(`Invalid position: ${x}, ${y}`);
     }
 
-    const transport = transportedBy ? this.units.get(transportedBy) : undefined;
-    if (transportedBy) {
-      if (!transport || this.getTransportCapacityRemaining(transportedBy) <= 0) {
-        throw new Error(`Transport ${transportedBy} cannot carry unit ${unitTypeId}`);
-      }
-      if (!this.isValidTransportCombination(transport.unitTypeId, unitTypeId)) {
-        throw new Error(`Transport ${transport.unitTypeId} cannot carry unit ${unitTypeId}`);
-      }
-    }
+    const transport = this.resolveTransportForCreation(transportedBy, unitTypeId);
 
     const creation = this.getUnitCreationValues(playerId, unitTypeId, unitType, x, y);
     const { veteranLevel, createdTurn, movementPoints } = creation;
@@ -552,6 +544,22 @@ export class UnitManager {
     logger.info(`Created unit ${unit.id} at (${x}, ${y})`);
 
     return unit;
+  }
+
+  private resolveTransportForCreation(
+    transportedBy: string | undefined,
+    unitTypeId: string
+  ): Unit | undefined {
+    if (!transportedBy) return undefined;
+
+    const transport = this.units.get(transportedBy);
+    if (!transport || this.getTransportCapacityRemaining(transportedBy) <= 0) {
+      throw new Error(`Transport ${transportedBy} cannot carry unit ${unitTypeId}`);
+    }
+    if (!this.isValidTransportCombination(transport.unitTypeId, unitTypeId)) {
+      throw new Error(`Transport ${transport.unitTypeId} cannot carry unit ${unitTypeId}`);
+    }
+    return transport;
   }
 
   private getUnitCreationValues(

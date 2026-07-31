@@ -791,9 +791,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       gotoMode.unit,
       gotoMode.targetTile,
       requestGotoPath,
-      gotoMode.currentPath,
       scheduleDragRender,
-      map.tiles,
     ]
   );
 
