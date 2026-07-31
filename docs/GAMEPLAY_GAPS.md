@@ -635,14 +635,15 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-022 — Losing a capital neither relocates the Palace nor cancels its spaceship
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Capital loss, wonders, spaceship, city destruction and capture
 - **Observed behavior:** When a capital is captured or destroyed, the player
   can be left without a Palace while a launched or assembling spaceship
   remains unaffected.
-- **Current implementation:** `CityManager` explicitly notes that
-  `SaveSmallWonder`/`savepalace` are not modeled. No capital-loss path resets
-  spaceship state.
+- **Current implementation:** Capital loss runs one authoritative hook for
+  capture and destruction. It relocates the Palace to the owner's remaining
+  city when available and invokes the game lifecycle callback that clears and
+  persists the owner's spaceship state before victory evaluation.
 - **Reference behavior:** The `civ2civ3` Palace is a `SaveSmallWonder`; with the
   default `savepalace` setting it is rebuilt for free in another city.
   Capital loss also destroys the player's started or launched spaceship.
@@ -656,8 +657,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/server/citytools.c`
 - **Expected outcome:** Add a single capital-loss hook that relocates saved
   small wonders and resets spaceship state before victory evaluation.
-- **Regression coverage:** Test capture and destruction with one/no remaining
-  city, savepalace enabled/disabled, and assembled/launched spaceships.
+- **Regression coverage:** `CityManager.test.ts` covers Palace relocation and
+  the capital-loss callback during destruction; lifecycle callbacks persist the
+  spaceship reset for live and recovered games.
 
 ### GP-023 — City selling and rush-buy limits can be bypassed
 

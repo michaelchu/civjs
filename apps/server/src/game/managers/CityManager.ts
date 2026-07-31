@@ -183,6 +183,7 @@ export interface CityState {
   size: number; // City size level (1-40)
   cityRadius: number; // Workable tile radius
   founded: number; // Turn founded
+  isCapital?: boolean;
 
   // Production
   currentProduction?: string | null;
@@ -298,6 +299,7 @@ export interface CityManagerCallbacks {
   onCityDestroyed?: (city: CityState) => void;
   onCityCaptured?: (city: CityState, oldPlayerId: string) => void;
   onCityTurnProcessed?: (city: CityState) => void;
+  onCapitalLost?: (playerId: string) => void | Promise<void>;
 }
 
 /**
@@ -774,6 +776,7 @@ export class CityManager {
       size: 1,
       cityRadius: CITY_MAP_DEFAULT_RADIUS,
       founded: currentTurn,
+      isCapital: false,
       currentProduction: 'warriors', // Default production following Freeciv
       productionType: 'unit' as const,
       turnsToComplete: 10, // Warriors cost, will be recalculated
@@ -812,6 +815,7 @@ export class CityManager {
     const isFirstCity = !this.playersWithFirstCity.has(playerId);
     if (isFirstCity) {
       this.buildFreeBuildings(city);
+      city.isCapital = true;
       this.playersWithFirstCity.add(playerId);
     }
 
@@ -1309,6 +1313,7 @@ export class CityManager {
           worklist: (record.productionQueue as ProductionItem[]) || [],
           defenseStrength: record.defenseStrength || 1,
           airliftUsedTurn: record.airliftUsedTurn ?? undefined,
+          isCapital: record.isCapital,
           didSellTurn: record.didSellTurn ?? undefined,
           didBuyTurn: record.didBuyTurn ?? undefined,
         };
@@ -1378,7 +1383,7 @@ export class CityManager {
         didBuyTurn: city.didBuyTurn ?? null,
         // Default values for other required fields
         health: 100,
-        isCapital: false,
+        isCapital: city.isCapital ?? city.buildings.includes('palace'),
         isPuppet: false,
         isOccupied: false,
         wallsLevel: 0,
@@ -2073,6 +2078,7 @@ export class CityManager {
       };
     const cityBeforeCapture = this.cities.get(cityId);
     const oldPlayerId = cityBeforeCapture?.playerId ?? '';
+    const lostCapital = cityBeforeCapture?.buildings.includes('palace') ?? false;
     const result = await this.captureService.captureCity(
       cityId,
       conquerorPlayerId,
@@ -2085,6 +2091,9 @@ export class CityManager {
 
     const city = this.cities.get(cityId);
     if (result.success && city) {
+      if (lostCapital && !result.cityDestroyed) {
+        await this.handleCapitalLoss(oldPlayerId, cityId);
+      }
       city.rallyPoint = undefined;
       this.calculateCityOutputs(cityId);
       this.applyCityHappiness(cityId);
@@ -2173,6 +2182,10 @@ export class CityManager {
     const city = this.cities.get(cityId);
     if (!city) return false;
 
+    if (city.buildings.includes('palace')) {
+      await this.handleCapitalLoss(city.playerId, cityId);
+    }
+
     if (this.tradeRouteService) {
       await this.tradeRouteService.updateTradeRoutesOnCityDestruction(cityId);
     }
@@ -2200,6 +2213,16 @@ export class CityManager {
     }
 
     return true;
+  }
+
+  private async handleCapitalLoss(playerId: string, lostCityId: string): Promise<void> {
+    const replacement = this.getCitiesByPlayer(playerId).find(city => city.id !== lostCityId);
+    if (replacement && !replacement.buildings.includes('palace')) {
+      replacement.buildings.push('palace');
+      replacement.isCapital = true;
+      await this.saveCityToDatabase(replacement);
+    }
+    await this.callbacks.onCapitalLost?.(playerId);
   }
 
   async disbandCity(

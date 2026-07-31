@@ -447,6 +447,16 @@ export class GameInstanceRecoveryService extends BaseGameService {
           await researchManager.grantAvailableTechnologies(city.playerId, immediateTechs);
         }
       },
+      onCapitalLost: async playerId => {
+        const player = players.get(playerId);
+        if (!player) return;
+        player.spaceshipState = normalizeSpaceshipState(undefined);
+        await this.databaseProvider
+          .getDatabase()
+          .update(playerRecords)
+          .set({ spaceshipState: player.spaceshipState })
+          .where(eq(playerRecords.id, playerId));
+      },
     });
     cityManager.setUnitSupportProvider(city => this.getUnitSupport(city, unitManager, cityManager));
 

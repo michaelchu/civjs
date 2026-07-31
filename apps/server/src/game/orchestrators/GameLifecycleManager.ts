@@ -543,6 +543,16 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
           }
         }
       },
+      onCapitalLost: async playerId => {
+        const player = players.get(playerId);
+        if (!player) return;
+        player.spaceshipState = normalizeSpaceshipState(undefined);
+        await this.databaseProvider
+          .getDatabase()
+          .update(playerRecords)
+          .set({ spaceshipState: player.spaceshipState })
+          .where(eq(playerRecords.id, playerId));
+      },
       onCityFounded: city => {
         borderManager.addCityBorderSource(city);
 

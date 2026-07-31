@@ -348,6 +348,18 @@ describe('CityManager', () => {
       });
     });
 
+    it('relocates the Palace and notifies the owner when a capital is destroyed', async () => {
+      const capitalLoss = jest.fn();
+      cityManager.setCallbacks({ onCapitalLost: capitalLoss });
+      const capital = await cityManager.foundCity(10, 10, 'Capital', 'player-123');
+      const replacement = await cityManager.foundCity(20, 20, 'Second', 'player-123');
+
+      await expect(cityManager.destroyCity(capital.id)).resolves.toBe(true);
+
+      expect(replacement.buildings).toContain('palace');
+      expect(capitalLoss).toHaveBeenCalledWith('player-123');
+    });
+
     it('sells improvements for the classic shield cost and credits the treasury', async () => {
       const city = await cityManager.foundCity(10, 10, 'Capital', 'player-123');
       city.buildings.push('granary');
