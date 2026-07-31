@@ -396,6 +396,24 @@ describe('UnitManager', () => {
       unitManager.setPlayerTechsProvider(() => new Set(['construction']));
       expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_FORTRESS)).toBe(true);
     });
+
+    it('evaluates civ2civ3 extra requirements before exposing railroad work', async () => {
+      unitManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        mapManager,
+        undefined,
+        new EffectsManager('civ2civ3')
+      );
+      const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);
+      tile.hasRoad = true;
+      unitManager.setPlayerTechsProvider(() => new Set());
+      expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_RAILROAD)).toBe(false);
+      unitManager.setPlayerTechsProvider(() => new Set(['railroad']));
+      expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_RAILROAD)).toBe(true);
+    });
   });
 
   describe('Milestone 14 city actions', () => {

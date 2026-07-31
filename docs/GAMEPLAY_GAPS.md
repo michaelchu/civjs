@@ -878,8 +878,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
   absent from the server projection. Add civ2civ3 evaluator/service fixtures
   for each worker action before and after its technology, legal/illegal terrain,
   adjacency, duplicate/conflicting extras, unit flags, movement, and
-  research-name normalization, plus packet tests for availability changes after
-  research and tile changes.
+  research-name normalization; the UnitManager civ2civ3 fixture now verifies
+  technology-gated railroad availability. Packet tests for availability changes
+  after research and tile changes remain open.
 
 ### GP-029 — Multiple workers cannot cooperate on the same activity
 
