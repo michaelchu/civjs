@@ -20,6 +20,7 @@ import { and, eq } from 'drizzle-orm';
 import { createAIState } from '@game/ai/AIStateStore';
 import { ActionType } from '@app-types/shared/actions';
 import type { MapTile } from '@game/map/MapTypes';
+import { canUnitEnterTerrain } from '@game/constants/MovementConstants';
 
 export interface BarbarianSpawnLocation {
   x: number;
@@ -460,6 +461,10 @@ export class BarbarianManager {
     location: BarbarianSpawnLocation,
     type: BarbarianType
   ): Promise<string[]> {
+    if (type === BarbarianType.SEA_BARBARIAN) {
+      return this.spawnSeaBarbarianUnits(barbarianPlayerId, location);
+    }
+
     const unitIds: string[] = [];
 
     try {
@@ -516,20 +521,102 @@ export class BarbarianManager {
   }
 
   /**
+   * Sea uprisings use a transport and keep all land units embarked.
+   * @reference reference/freeciv/server/barbarian.c:643-698
+   */
+  private async spawnSeaBarbarianUnits(
+    barbarianPlayerId: string,
+    location: BarbarianSpawnLocation
+  ): Promise<string[]> {
+    const unitIds: string[] = [];
+    const boatType = this.findBarbarianRoleUnit('BarbarianBoat', ['trireme']);
+    const boatDefinition = boatType ? this.unitManager.getUnitType(boatType) : undefined;
+    if (
+      !boatType ||
+      !boatDefinition ||
+      (boatDefinition.transport_capacity ?? 0) <= 0 ||
+      !canUnitEnterTerrain(location.terrain, boatType)
+    ) {
+      return unitIds;
+    }
+
+    const boatId = await this.spawnBarbarianUnit(barbarianPlayerId, location, boatType);
+    if (!boatId) return unitIds;
+    unitIds.push(boatId);
+
+    const capacity = boatDefinition.transport_capacity ?? 0;
+    const unitCount =
+      randomInt(this.random, this.config.unitsPerSpawn.max - this.config.unitsPerSpawn.min + 1) +
+      this.config.unitsPerSpawn.min;
+    const seaUnitType = this.findBarbarianRoleUnit('BarbarianSea', [
+      'warriors',
+      'archers',
+      'horsemen',
+    ]);
+    let remainingCapacity = capacity;
+
+    // Reserve one berth for the leader, as Freeciv does for sea raiders.
+    if (seaUnitType) {
+      for (let i = 0; i < Math.min(unitCount, Math.max(0, remainingCapacity - 1)); i++) {
+        const unitId = await this.spawnBarbarianUnit(
+          barbarianPlayerId,
+          location,
+          seaUnitType,
+          boatId
+        );
+        if (unitId) {
+          unitIds.push(unitId);
+          remainingCapacity--;
+        }
+      }
+    }
+
+    const shouldSpawnLeader = randomInt(this.random, 100) < this.config.leaderChance;
+    if (shouldSpawnLeader && remainingCapacity > 0) {
+      const leaderId = await this.spawnBarbarianUnit(
+        barbarianPlayerId,
+        location,
+        'barbarian_leader',
+        boatId
+      );
+      if (leaderId) unitIds.push(leaderId);
+    }
+
+    return unitIds;
+  }
+
+  private findBarbarianRoleUnit(role: string, fallbacks: string[]): string | undefined {
+    const getUnitTypes = (
+      this.unitManager as UnitManager & {
+        getUnitTypes?: () => Readonly<Record<string, { id: string; roles?: string[] }>>;
+      }
+    ).getUnitTypes;
+    const roleUnit = getUnitTypes?.call(this.unitManager);
+    const matchingUnit = roleUnit
+      ? Object.values(roleUnit).find(unit => unit.roles?.includes(role))
+      : undefined;
+    if (matchingUnit) return matchingUnit.id;
+    return fallbacks.find(unitType => Boolean(this.unitManager.getUnitType(unitType)));
+  }
+
+  /**
    * Get appropriate unit types for barbarian spawning
    */
   private async getBarbarianUnitTypes(type: BarbarianType): Promise<string[]> {
     const landUnits = ['warriors', 'archers', 'horsemen'];
-    const seaUnits = ['trireme'];
 
     switch (type) {
       case BarbarianType.SEA_BARBARIAN:
-        return seaUnits;
+        return [this.findBarbarianRoleUnit('BarbarianSea', landUnits)].filter(
+          (unitType): unitType is string => Boolean(unitType)
+        );
       case BarbarianType.LAND_AND_SEA_BARBARIAN:
-        return [...landUnits, ...seaUnits];
+        return landUnits;
       case BarbarianType.LAND_BARBARIAN:
       default:
-        return landUnits;
+        return [this.findBarbarianRoleUnit('Barbarian', landUnits)].filter(
+          (unitType): unitType is string => Boolean(unitType)
+        );
     }
     return [];
   }
@@ -540,16 +627,21 @@ export class BarbarianManager {
   private async spawnBarbarianUnit(
     barbarianPlayerId: string,
     location: BarbarianSpawnLocation,
-    unitType: string
+    unitType: string,
+    transportedBy?: string
   ): Promise<string | null> {
     try {
       if (!this.unitManager.getUnitType(unitType)) return null;
-      const unit = await this.unitManager.createUnit(
-        barbarianPlayerId,
-        unitType,
-        location.x,
-        location.y
-      );
+      const unit = transportedBy
+        ? await this.unitManager.createUnit(
+            barbarianPlayerId,
+            unitType,
+            location.x,
+            location.y,
+            undefined,
+            transportedBy
+          )
+        : await this.unitManager.createUnit(barbarianPlayerId, unitType, location.x, location.y);
       return unit.id;
     } catch (error) {
       logger.error('Error spawning barbarian unit', {

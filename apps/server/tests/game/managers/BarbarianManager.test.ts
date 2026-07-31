@@ -15,13 +15,13 @@ const config: BarbarianSpawnConfig = {
   leaderChance: 100,
 };
 
-function scenario() {
+function scenario(sea = false) {
   const tiles = Array.from({ length: 10 }, (_, x) =>
     Array.from({ length: 10 }, (_, y) => ({
       x,
       y,
-      terrain: 'grassland',
-      continentId: 1,
+      terrain: sea ? 'ocean' : 'grassland',
+      continentId: sea ? 0 : 1,
       cityId: x === 0 && y === 0 ? 'capital' : undefined,
       unitIds: [],
     }))
@@ -43,7 +43,9 @@ function scenario() {
     {
       getAllUnits: () => new Map(),
       getUnitType: (id: string) =>
-        ['warriors', 'archers', 'horsemen', 'barbarian_leader'].includes(id) ? { id } : undefined,
+        ['warriors', 'archers', 'horsemen', 'barbarian_leader', 'trireme'].includes(id)
+          ? { id, transport_capacity: id === 'trireme' ? 2 : undefined }
+          : undefined,
       createUnit,
     } as any,
     {
@@ -95,5 +97,35 @@ describe('BarbarianManager', () => {
       successfulSpawns: 0,
     });
     expect(createUnit).not.toHaveBeenCalled();
+  });
+
+  it('keeps sea barbarian land units embarked on their boat', async () => {
+    const { createUnit, manager } = scenario(true);
+
+    const result = await manager.spawnBarbarians(60);
+    const spawn = result.spawns[0]!;
+    const { x, y } = spawn.location;
+
+    expect(spawn).toMatchObject({
+      spawnType: BarbarianType.SEA_BARBARIAN,
+      unitsCreated: 3,
+    });
+    expect(createUnit).toHaveBeenCalledWith('barbarian-sea', 'trireme', x, y);
+    expect(createUnit).toHaveBeenCalledWith(
+      'barbarian-sea',
+      'warriors',
+      x,
+      y,
+      undefined,
+      expect.any(String)
+    );
+    expect(createUnit).toHaveBeenCalledWith(
+      'barbarian-sea',
+      'barbarian_leader',
+      x,
+      y,
+      undefined,
+      expect.any(String)
+    );
   });
 });

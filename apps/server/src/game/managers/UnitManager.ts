@@ -462,7 +462,8 @@ export class UnitManager {
     unitTypeId: string,
     x: number,
     y: number,
-    homeCityId?: string
+    homeCityId?: string,
+    transportedBy?: string
   ): Promise<Unit> {
     const unitType = this.unitTypes[unitTypeId];
     if (!unitType) {
@@ -474,8 +475,19 @@ export class UnitManager {
       throw new Error(`Invalid position: ${x}, ${y}`);
     }
 
+    const transport = transportedBy ? this.units.get(transportedBy) : undefined;
+    if (transportedBy) {
+      if (!transport || this.getTransportCapacityRemaining(transportedBy) <= 0) {
+        throw new Error(`Transport ${transportedBy} cannot carry unit ${unitTypeId}`);
+      }
+      if (!this.isValidTransportCombination(transport.unitTypeId, unitTypeId)) {
+        throw new Error(`Transport ${transport.unitTypeId} cannot carry unit ${unitTypeId}`);
+      }
+    }
+
     const creation = this.getUnitCreationValues(playerId, unitTypeId, unitType, x, y);
     const { veteranLevel, createdTurn, movementPoints } = creation;
+    const initialMovementPoints = transportedBy ? 0 : movementPoints;
     const unitId = this.identities.nextUuid();
     // Save to database and get the generated ID
     const [dbUnit] = await this.databaseProvider
@@ -493,11 +505,12 @@ export class UnitManager {
         attackStrength: unitType.combat,
         defenseStrength: unitType.combat,
         rangedStrength: unitType.range > 1 ? unitType.combat : 0,
-        movementPoints: movementPoints.toString(),
+        movementPoints: initialMovementPoints.toString(),
         maxMovementPoints: movementPoints.toString(),
         fuel: unitType.fuel ?? 0,
         veteranLevel,
         homeCityId,
+        transportedBy,
         isAutomated: false,
         // @reference reference/freeciv/server/unittools.c:1215-1280
         createdTurn,
@@ -511,7 +524,7 @@ export class UnitManager {
       unitTypeId,
       x,
       y,
-      movementLeft: movementPoints,
+      movementLeft: initialMovementPoints,
       fuel: unitType.fuel ?? 0,
       health: 100,
       veteranLevel,
@@ -521,7 +534,18 @@ export class UnitManager {
       createdTurn,
       lastActionTurn: undefined,
       automation: undefined,
+      transportedBy,
     };
+
+    if (transport) {
+      transport.cargoUnits ??= [];
+      transport.cargoUnits.push(unit.id);
+      await this.databaseProvider
+        .getDatabase()
+        .update(units)
+        .set({ cargoUnits: transport.cargoUnits })
+        .where(eq(units.id, transport.id));
+    }
 
     this.units.set(unit.id, unit);
     this.notifyUnitLifecycle({ type: 'created', unit });
