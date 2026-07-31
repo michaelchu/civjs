@@ -572,8 +572,15 @@ export const ExtraRulesetSchema = z
   })
   .passthrough();
 
+export const ResourceRulesetSchema = z
+  .object({
+    extra: z.string().optional(),
+    reveal_tech: z.string().min(1).optional(),
+  })
+  .passthrough();
+
 export const ExtrasRulesetFileSchema = RulesetMetadataSchema.extend({
-  resources: z.record(z.string(), z.record(z.string(), z.unknown())),
+  resources: z.record(z.string(), ResourceRulesetSchema),
   extras: z.record(z.string(), ExtraRulesetSchema),
   bases: z.record(z.string(), z.record(z.string(), z.unknown())),
   roads: z.record(z.string(), z.record(z.string(), z.unknown())),
@@ -974,6 +981,7 @@ export type RulesetRequirementRange = z.infer<typeof RulesetRequirementRangeSche
 export type ActionEnabler = z.infer<typeof ActionEnablerSchema>;
 export type ActionsRulesetFile = z.infer<typeof ActionsRulesetFileSchema>;
 export type ExtraRuleset = z.infer<typeof ExtraRulesetSchema>;
+export type ResourceRuleset = z.infer<typeof ResourceRulesetSchema>;
 export type ExtrasRulesetFile = z.infer<typeof ExtrasRulesetFileSchema>;
 export type NationStyle = z.infer<typeof NationStyleSchema>;
 export type RulesetCityStyle = z.infer<typeof RulesetCityStyleSchema>;

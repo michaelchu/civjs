@@ -14,6 +14,7 @@ import { resolveCityPresentations } from '@game/services/CityPresentationService
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import { calculatePlayerScore } from '@game/services/PlayerScoreService';
+import { visibleResourceForPlayer } from '@game/services/ResourceVisibilityService';
 
 const LOBBY_EVENTS = new Set(['player-joined', 'player-connection-changed']);
 
@@ -321,7 +322,9 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         mapData,
         visibleTilesSet,
         exploredTilesSet,
-        rememberedTiles
+        rememberedTiles,
+        gameInstance.config.ruleset ?? 'classic',
+        new Set(gameInstance.researchManager.getResearchedTechs(playerId))
       );
 
       // Get units visible to this player (delegate to UnitManager)
@@ -542,7 +545,9 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       mapData,
       visibleTiles,
       exploredTiles,
-      rememberedTiles
+      rememberedTiles,
+      gameInstance.config.ruleset ?? 'classic',
+      new Set(gameInstance.researchManager.getResearchedTechs(playerId))
     );
     this.sendTileDataInBatches(gameInstance, playerId, tiles);
 
@@ -649,7 +654,9 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     mapData: any,
     currentlyVisibleTiles: Set<string>,
     exploredTiles: Set<string>,
-    rememberedTiles: Map<string, any>
+    rememberedTiles: Map<string, any>,
+    rulesetName: string,
+    researchedTechs: ReadonlySet<string>
   ): any[] {
     const clientTiles = [];
     for (let y = 0; y < mapData.height; y++) {
@@ -661,7 +668,9 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
           y,
           currentlyVisibleTiles.has(tileKey),
           exploredTiles.has(tileKey),
-          rememberedTiles.get(tileKey)
+          rememberedTiles.get(tileKey),
+          rulesetName,
+          researchedTechs
         );
         if (tileInfo) {
           clientTiles.push(tileInfo);
@@ -680,7 +689,9 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     y: number,
     isVisible: boolean,
     isExplored: boolean,
-    rememberedTile?: any
+    rememberedTile?: any,
+    rulesetName: string = 'classic',
+    researchedTechs: ReadonlySet<string> = new Set()
   ): any | null {
     const index = x + y * mapData.width;
     // Handle column-based tile array structure: mapData.tiles[x][y]
@@ -690,7 +701,12 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       return null;
     }
     const knownTile = isVisible ? serverTile : rememberedTile;
-    const explored = this.getExploredTileValues(knownTile, isExplored);
+    const explored = this.getExploredTileValues(
+      knownTile,
+      isExplored,
+      rulesetName,
+      researchedTechs
+    );
 
     // Format tile in exact freeciv-web format
     return {
@@ -715,7 +731,12 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     };
   }
 
-  private getExploredTileValues(tile: any, isExplored: boolean): any {
+  private getExploredTileValues(
+    tile: any,
+    isExplored: boolean,
+    rulesetName: string,
+    researchedTechs: ReadonlySet<string>
+  ): any {
     if (!isExplored) {
       return {
         terrain: 'unknown',
@@ -732,7 +753,11 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     }
     return {
       terrain: this.tileValue(tile, 'terrain', 'unknown'),
-      resource: this.tileValue(tile, 'resource'),
+      resource: visibleResourceForPlayer(
+        this.tileValue(tile, 'resource'),
+        researchedTechs,
+        rulesetName
+      ),
       elevation: this.tileValue(tile, 'elevation', 0),
       riverMask: this.tileValue(tile, 'riverMask', 0),
       hasRoad: this.tileValue(tile, 'hasRoad'),

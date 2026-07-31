@@ -360,6 +360,9 @@ export class TurnManager {
 
         // Broadcast updated city data to all players with current production rates
         this.broadcastManager.broadcastCityData(this.gameId);
+        // Research may reveal previously hidden strategic resources. Refresh
+        // each player's map packet after the research phase completes.
+        this.broadcastManager.broadcastVisibilityState?.(this.gameId);
       } else {
         logger.error('Turn processing failed', {
           gameId: this.gameId,

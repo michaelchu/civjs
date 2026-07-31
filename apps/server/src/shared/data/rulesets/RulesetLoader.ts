@@ -51,6 +51,7 @@ import {
   ExtrasRulesetFileSchema,
   type ExtrasRulesetFile,
   type ExtraRuleset,
+  type ResourceRuleset,
   StylesRulesetFileSchema,
   type StylesRulesetFile,
   type RulesetCityStyle,
@@ -803,11 +804,11 @@ export class RulesetLoader {
     );
   }
 
-  getResources(rulesetName: string = 'classic'): Record<string, Record<string, unknown>> {
+  getResources(rulesetName: string = 'classic'): Record<string, ResourceRuleset> {
     return this.loadExtrasRuleset(rulesetName).resources;
   }
 
-  getResource(resourceIdOrName: string, rulesetName: string = 'classic'): Record<string, unknown> {
+  getResource(resourceIdOrName: string, rulesetName: string = 'classic'): ResourceRuleset {
     const normalized = this.normalizeRuleName(resourceIdOrName);
     const match = Object.entries(this.getResources(rulesetName)).find(
       ([id, resource]) =>
@@ -1039,6 +1040,14 @@ export class RulesetLoader {
     }
     for (const [extraId, extra] of Object.entries(extrasRuleset.extras)) {
       validateRequirements(`Extra '${extraId}'`, extra.reqs ?? []);
+    }
+    for (const [resourceId, resource] of Object.entries(extrasRuleset.resources)) {
+      this.validateReference(
+        errors,
+        `Resource '${resourceId}' reveal technology`,
+        resource.reveal_tech,
+        techNames
+      );
     }
     for (const [styleId, style] of Object.entries(styles.city_styles)) {
       validateRequirements(`City style '${styleId}'`, style.reqs);

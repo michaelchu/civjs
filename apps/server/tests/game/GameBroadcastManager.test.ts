@@ -33,6 +33,7 @@ describe('GameBroadcastManager visibility sync', () => {
       [playerTwo, new Set(['1,0'])],
     ]);
     const game = {
+      config: { ruleset: 'civ2civ3' },
       players: new Map([
         [
           playerOne,
@@ -120,6 +121,9 @@ describe('GameBroadcastManager visibility sync', () => {
       },
       cityManager: { getAllCities: () => [] },
       borderManager: { getAllTileOwnership: () => [] },
+      researchManager: {
+        getResearchedTechs: (playerId: string) => (playerId === playerOne ? ['iron_working'] : []),
+      },
     };
     manager.setGamesReference(new Map([[gameId, game as any]]));
   });
@@ -368,7 +372,7 @@ describe('GameBroadcastManager visibility sync', () => {
           x: 1,
           y: 0,
           terrain: 'hills',
-          resource: 'iron',
+          resource: undefined,
           hasRoad: true,
           hasRailroad: true,
           improvements: ['mine', 'pollution'],
