@@ -63,6 +63,22 @@ export class UnitRenderer extends BaseRenderer {
     });
   }
 
+  /** Render the selected unit again above map overlays. */
+  renderSelectedUnit(state: RenderState): void {
+    const selectedUnitId = state.selectedUnitId ?? state.focusedUnits?.[0];
+    if (!selectedUnitId) return;
+
+    const selectedUnit = state.units[selectedUnitId];
+    if (!selectedUnit || !this.isInViewport(selectedUnit.x, selectedUnit.y, state.viewport)) {
+      return;
+    }
+
+    const stackSize = Object.values(state.units).filter(
+      unit => unit.x === selectedUnit.x && unit.y === selectedUnit.y
+    ).length;
+    this.renderUnit(selectedUnit, state.viewport, stackSize, state);
+  }
+
   /**
    * Render unit selection outline.
    */

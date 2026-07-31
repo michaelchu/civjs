@@ -64,4 +64,32 @@ describe('PathRenderer', () => {
     expect(context.moveTo).toHaveBeenCalledWith(48, 0);
     expect(context.fillText).toHaveBeenCalledWith('1', 96, 48);
   });
+
+  it('does not render a marker for tiles with no movement remaining', () => {
+    const context = {
+      canvas: { width: 800, height: 600 },
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      closePath: vi.fn(),
+      arc: vi.fn(),
+      fill: vi.fn(),
+      stroke: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      fillText: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+    const renderer = new PathRenderer(context, {} as never, 96, 48);
+
+    renderer.renderPaths({
+      viewport: { x: 0, y: 0, width: 800, height: 600 },
+      movementRange: [
+        { x: 0, y: 0, remainingMovement: 3 },
+        { x: 1, y: 0, remainingMovement: 0 },
+      ],
+      movementRangeOrigin: { x: 0, y: 0 },
+    } as never);
+
+    expect(context.fillText).not.toHaveBeenCalledWith('0', expect.any(Number), expect.any(Number));
+  });
 });

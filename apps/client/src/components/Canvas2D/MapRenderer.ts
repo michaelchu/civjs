@@ -247,9 +247,6 @@ export class MapRenderer {
     // LAYER_SPECIAL2: Empty layer in our implementation (handled by specific renderers)
     // In freeciv-web this handles airbase, buoy, etc. but not resources
 
-    // Render selection outline before units for proper layering
-    this.unitRenderer.renderUnitSelection(state);
-
     // LAYER_UNIT: Render units layer ON TOP of cities
     this.unitRenderer.renderUnits(state);
 
@@ -261,6 +258,12 @@ export class MapRenderer {
 
     // Render paths and overlays on top of everything
     this.pathRenderer.renderPaths(state);
+
+    // Keep the selected-unit highlight above movement and path overlays.
+    this.unitRenderer.renderUnitSelection(state);
+
+    // Keep the selected unit and its annotation above the selection highlight.
+    this.unitRenderer.renderSelectedUnit?.(state);
 
     if (this.unitRenderer.hasActiveMovementAnimations() && this.movementAnimationFrameId === null) {
       this.movementAnimationFrameId = requestAnimationFrame(() => {

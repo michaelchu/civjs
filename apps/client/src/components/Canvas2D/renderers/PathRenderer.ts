@@ -56,6 +56,9 @@ export class PathRenderer extends BaseRenderer {
       this.ctx.stroke();
 
       if (!isOrigin) {
+        const remainingMovement = Math.ceil(Math.max(0, tile.remainingMovement) / 3);
+        if (remainingMovement === 0) continue;
+
         this.ctx.fillStyle = 'rgba(8, 47, 73, 0.86)';
         this.ctx.beginPath();
         this.ctx.arc(centerX, centerY, 8, 0, 2 * Math.PI);
@@ -64,11 +67,7 @@ export class PathRenderer extends BaseRenderer {
         this.ctx.font = '600 9px system-ui, sans-serif';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
-        this.ctx.fillText(
-          String(Math.ceil(Math.max(0, tile.remainingMovement) / 3)),
-          centerX,
-          centerY
-        );
+        this.ctx.fillText(String(remainingMovement), centerX, centerY);
       }
     }
 
