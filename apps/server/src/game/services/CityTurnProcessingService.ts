@@ -507,6 +507,18 @@ export class CityTurnProcessingService extends BaseGameService {
   }
 
   private ensureProductionTarget(city: CityState): boolean {
+    if (city.currentProduction && !city.productionType) {
+      if (city.currentProduction === 'capitalization') return true;
+      if (this.unitTypes[city.currentProduction]) {
+        city.productionType = 'unit';
+      } else if (this.buildingTypes[city.currentProduction]) {
+        city.productionType = 'building';
+      } else {
+        this.clearProduction(city);
+        return false;
+      }
+    }
+
     while (!city.currentProduction && city.worklist.length > 0) {
       const next = city.worklist.shift() as ProductionItem;
       const nextType = next.kind === 'wonder' ? 'building' : next.kind;

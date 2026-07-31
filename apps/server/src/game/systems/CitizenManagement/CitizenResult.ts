@@ -19,6 +19,18 @@ export interface CitizenResult {
   /** Whether the optimization was aborted (timeout/complexity) */
   aborted: boolean;
 
+  /** Whether the bounded search hit its iteration/time limit. */
+  timed_out: boolean;
+
+  /** Whether the accepted result came from the greedy fallback. */
+  fallback_used: boolean;
+
+  /** Whether the fallback assigned every citizen, even if constraints failed. */
+  assignment_complete: boolean;
+
+  /** Why no valid result was returned, when applicable. */
+  failure_reason?: 'timeout' | 'constraints' | 'error';
+
   /** Whether the city is in disorder */
   disorder: boolean;
 
@@ -43,6 +55,9 @@ export interface CitizenResult {
   /** Total number of specialist citizens */
   specialists_count: number;
 
+  /** Number of citizens intentionally left idle. */
+  idle_count: number;
+
   /** Overall fitness score of this solution */
   fitness: number;
 }
@@ -62,6 +77,9 @@ export class CitizenResultFactory {
     return {
       found_valid: false,
       aborted: false,
+      timed_out: false,
+      fallback_used: false,
+      assignment_complete: false,
       disorder: false,
       happy: false,
       surplus: {
@@ -84,6 +102,7 @@ export class CitizenResultFactory {
       },
       workers_count: 0,
       specialists_count: 0,
+      idle_count: 0,
       fitness: 0,
     };
   }
@@ -94,7 +113,7 @@ export class CitizenResultFactory {
   static createFailed(cityRadiusSq: number): CitizenResult {
     const result = this.create(cityRadiusSq);
     result.found_valid = false;
-    result.aborted = true;
+    result.failure_reason = 'error';
     return result;
   }
 }
@@ -107,7 +126,7 @@ export class CitizenResultUtils {
    * Calculate total number of citizens in the result
    */
   static getTotalCitizens(result: CitizenResult): number {
-    return result.workers_count + result.specialists_count;
+    return result.workers_count + result.specialists_count + result.idle_count;
   }
 
   /**

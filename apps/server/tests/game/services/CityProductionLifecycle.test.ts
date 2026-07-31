@@ -157,6 +157,20 @@ describe('city production lifecycle', () => {
     expect(cityState.turnsToComplete).toBe(0);
   });
 
+  it('reconstructs a missing production type for a persisted active target', async () => {
+    const cityState = city({
+      currentProduction: 'warriors',
+      productionType: null,
+      productionStock: 0,
+      productionPerTurn: 1,
+    });
+
+    await turnService(cityState).processCityTurn(cityState.id, 7);
+
+    expect(cityState.productionType).toBe('unit');
+    expect(cityState.currentProduction).toBe('warriors');
+  });
+
   it('advances to and removes the next authoritative worklist item', async () => {
     const cityState = city({
       currentProduction: 'warriors',

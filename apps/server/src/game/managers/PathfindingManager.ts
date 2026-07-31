@@ -294,7 +294,7 @@ export class PathfindingManager {
     }
 
     // No path found
-    logger.warn('A* pathfinding failed to find path', {
+    logger.debug('A* pathfinding found no traversable route', {
       unitId: unit.id,
       from: start,
       to: goal,

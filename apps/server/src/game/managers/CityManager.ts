@@ -356,6 +356,9 @@ export class CityManager {
   private calculationService: CityCalculationService;
   private happinessService: CityHappinessService;
   private playerGovernmentProvider?: (playerId: string) => string;
+  private playerAIProvider: (playerId: string) => { isAI: boolean; aiLevel?: string } = () => ({
+    isAI: false,
+  });
   private playerTechsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
   private playerBuildingsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
   private playerSpaceshipProvider: (playerId: string) => SpaceshipState = () =>
@@ -430,6 +433,13 @@ export class CityManager {
 
   public setPlayerSpaceshipProvider(provider: (playerId: string) => SpaceshipState): void {
     this.playerSpaceshipProvider = provider;
+  }
+
+  public setPlayerAIProvider(
+    provider: (playerId: string) => { isAI: boolean; aiLevel?: string }
+  ): void {
+    this.playerAIProvider = provider;
+    this.tileManagementService?.setPlayerAIProvider(provider);
   }
 
   public setPlayerTaxRatesProvider(provider: (playerId: string) => TaxRates): void {
@@ -622,6 +632,7 @@ export class CityManager {
     if (this.playerGovernmentProvider) {
       this.tileManagementService.setPlayerGovernmentProvider(this.playerGovernmentProvider);
     }
+    this.tileManagementService.setPlayerAIProvider(this.playerAIProvider);
 
     // Update optimization service with tile management service
     if (this.optimizationService) {
@@ -1273,6 +1284,18 @@ export class CityManager {
     return { x, y, persistent: Boolean(point.persistent) };
   }
 
+  /**
+   * Production type is not persisted separately in the city table. Rebuild it
+   * from the persisted production id when loading a game so turn processing
+   * does not mistake a valid queued item for an invalid null-typed target.
+   */
+  private inferProductionType(productionId: string | null): 'unit' | 'building' | null {
+    if (!productionId || productionId === 'capitalization') return null;
+    if (this.unitTypes[productionId]) return 'unit';
+    if (this.buildingTypes[productionId]) return 'building';
+    return null;
+  }
+
   async loadCities(): Promise<void> {
     try {
       const db = this.databaseProvider.getDatabase();
@@ -1293,7 +1316,7 @@ export class CityManager {
           cityRadius: CITY_MAP_DEFAULT_RADIUS,
           founded: record.foundedTurn || 1,
           currentProduction: record.currentProduction,
-          productionType: null, // Will be derived from currentProduction if needed
+          productionType: this.inferProductionType(record.currentProduction),
           turnsToComplete: 0, // Will be calculated
           foodStock: record.food || 0,
           foodPerTurn: record.foodPerTurn || 0,
@@ -1627,12 +1650,15 @@ export class CityManager {
       shield: support.upkeepCosts.shield,
       gold: support.upkeepCosts.gold,
     };
+    const playerAI = this.playerAIProvider(city.playerId);
     const outputs = this.calculationService.calculateCityOutputs(
       city,
       tileOutputs,
       this.tileManagementService,
       {
         government: this.getPlayerGovernment(city.playerId),
+        playerIsAI: playerAI.isAI,
+        aiLevel: playerAI.aiLevel,
         playerTechs: this.playerTechsProvider(city.playerId),
         playerBuildings: this.playerBuildingsProvider(city.playerId),
         playerCities: this.getPlayerCities(city.playerId),

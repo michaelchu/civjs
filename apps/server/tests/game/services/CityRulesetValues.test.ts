@@ -5,6 +5,7 @@
  */
 import { CityDataService } from '@game/services/CityDataService';
 import { CityTileManagementService } from '@game/services/CityTileManagementService';
+import { OutputType } from '@game/managers/EffectsManager';
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { CityState } from '@game/managers/CityManager';
@@ -146,6 +147,54 @@ describe('ruleset-backed city values', () => {
       shields: 2,
       trade: 1,
     });
+  });
+
+  it('preserves string-form terrain flags for tile requirements', () => {
+    const cityState = city({ population: 1 });
+    const cities = new Map([[cityState.id, cityState]]);
+    const map = mapFor('grassland');
+    const effects = {
+      getRulesetName: () => 'classic',
+      calculateEffect: jest.fn(
+        (_type: unknown, context: { outputType?: OutputType; tileTerrainFlags?: Set<string> }) => ({
+          value:
+            context.outputType === OutputType.FOOD && context.tileTerrainFlags?.has('CanHaveRiver')
+              ? 1
+              : 0,
+        })
+      ),
+    } as any;
+    const service = new CityTileManagementService(
+      cities,
+      map,
+      5,
+      {
+        getTerrain: () => ({
+          name: 'grassland',
+          graphic: 'grassland',
+          properties: {},
+          flags: 'CanHaveRiver',
+          moveCost: 1,
+          defense: 10,
+          food: 2,
+          shields: 0,
+          trade: 0,
+          roadTime: 2,
+          irrigationFoodIncr: 0,
+          irrigationTime: 5,
+          miningShieldIncr: 0,
+          miningTime: 0,
+          cultivateTime: 0,
+          plantTime: 0,
+        }),
+        getCivstyle: () => rulesetLoader.getCivstyle(),
+      },
+      effects
+    );
+
+    service.initializeWorkableTiles(cityState);
+
+    expect(service.calculateCityOutputs(cityState.id).food).toBe(3);
   });
 
   it('applies road, river, and railroad output bonuses', () => {

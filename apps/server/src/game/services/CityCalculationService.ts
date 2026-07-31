@@ -110,6 +110,8 @@ export interface CityOutputs {
  */
 export interface CityPlayerContext {
   government: string;
+  playerIsAI?: boolean;
+  aiLevel?: string;
   playerTechs: ReadonlySet<string>;
   playerBuildings: ReadonlySet<string>;
   playerCities: readonly CityState[];
@@ -329,6 +331,8 @@ export class CityCalculationService extends BaseGameService {
       mapWidth: playerContext.mapWidth,
       mapHeight: playerContext.mapHeight,
       government: playerContext.government,
+      playerIsAI: playerContext.playerIsAI,
+      aiLevel: playerContext.aiLevel,
       cityBuildings: new Set(city.buildings),
       playerTechs: new Set(playerContext.playerTechs),
       playerBuildings: new Set(playerContext.playerBuildings),

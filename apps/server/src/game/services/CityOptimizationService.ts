@@ -223,7 +223,17 @@ export class CityOptimizationService extends BaseGameService {
         { taxRates: this.getTaxRates(city.playerId) }
       );
 
-      if (result.found_valid)
+      const canApplyCompleteFallback = result.fallback_used && result.assignment_complete;
+      if (canApplyCompleteFallback && !result.found_valid) {
+        logger.warn(`Applying degraded citizen fallback for city ${city.name}`, {
+          cityId,
+          failureReason: result.failure_reason ?? 'constraints',
+          timedOut: result.timed_out,
+          population: city.population,
+          surplus: result.surplus,
+        });
+      }
+      if (result.found_valid || canApplyCompleteFallback)
         return this.buildSuccessfulOptimization(
           city,
           cityId,
@@ -234,8 +244,16 @@ export class CityOptimizationService extends BaseGameService {
       logger.warn(`Citizen optimization failed for city ${city.name}`, {
         cityId,
         aborted: result.aborted,
+        timedOut: result.timed_out,
+        fallbackUsed: result.fallback_used,
+        failureReason: result.failure_reason ?? 'constraints',
+        population: city.population,
+        assignedCitizens:
+          result.workers_count + result.specialists_count + (result.idle_count ?? 0),
+        surplus: result.surplus,
       });
-      return this.failedOptimization(cityId, `Optimization aborted: ${result.aborted}`);
+      const reason = result.failure_reason ?? 'constraints';
+      return this.failedOptimization(cityId, `No valid citizen assignment (${reason})`);
     } catch (error) {
       logger.error(`Error optimizing citizens for city ${city.name}`, {
         cityId,

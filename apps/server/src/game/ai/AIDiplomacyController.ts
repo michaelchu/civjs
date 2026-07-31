@@ -477,7 +477,9 @@ export class FreecivAIDiplomacyController {
     if (currentState === 'war' && (love >= -50 || handicaps.has('ceasefire'))) {
       return [{ type: 'ceasefire' }];
     }
-    if ((currentState === 'ceasefire' || currentState === 'armistice') && love >= 10) {
+    // Armistice is the manager's internal transition state after a peace
+    // proposal; proposing peace again is invalid until it settles.
+    if (currentState === 'ceasefire' && love >= 10) {
       return [{ type: 'peace' }];
     }
     if (

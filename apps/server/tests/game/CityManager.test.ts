@@ -107,6 +107,15 @@ describe('CityManager', () => {
     });
   });
 
+  it('reconstructs persisted production type from the production id', () => {
+    const inferProductionType = (cityManager as any).inferProductionType.bind(cityManager);
+
+    expect(inferProductionType('warriors')).toBe('unit');
+    expect(inferProductionType('granary')).toBe('building');
+    expect(inferProductionType('capitalization')).toBeNull();
+    expect(inferProductionType(null)).toBeNull();
+  });
+
   describe('Milestone 14 unit-to-city outcomes', () => {
     it('joins population and recovers full unit shields into production', async () => {
       const city = await cityManager.foundCity(10, 10, 'Target', 'player-123');

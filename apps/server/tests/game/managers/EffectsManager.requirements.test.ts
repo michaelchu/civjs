@@ -7,7 +7,7 @@ import {
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 jest.mock('@shared/data/rulesets/RulesetLoader', () => ({
-  rulesetLoader: { getEffects: jest.fn() },
+  rulesetLoader: { getEffects: jest.fn(), getBuildings: jest.fn() },
 }));
 
 const mockedRulesetLoader = jest.mocked(rulesetLoader);
@@ -143,6 +143,33 @@ describe('EffectsManager classic requirement evaluation', () => {
     ).toBe(1);
   });
 
+  it('evaluates building flags from the ruleset, including string-form flags', () => {
+    mockedRulesetLoader.getBuildings.mockReturnValue({
+      barracks: {
+        id: 'barracks',
+        name: 'Barracks',
+        genus: 'Improvement',
+        cost: 30,
+        upkeep: 1,
+        playable: true,
+        flags: 'Barracks',
+        effects: {},
+      },
+    } as never);
+    const effects = new EffectsManager();
+
+    expect(
+      effects.evaluateRequirements([{ type: 'BuildingFlag', name: 'Barracks', range: 'City' }], {
+        cityBuildings: new Set(['barracks']),
+      }).satisfied
+    ).toBe(true);
+    expect(
+      effects.evaluateRequirements([{ type: 'BuildingFlag', name: 'Barracks', range: 'City' }], {
+        cityBuildings: new Set(['granary']),
+      }).satisfied
+    ).toBe(false);
+  });
+
   it('accepts the lowercase technology requirement spelling used by governments', () => {
     const effects = new EffectsManager();
     expect(
@@ -175,6 +202,37 @@ describe('EffectsManager classic requirement evaluation', () => {
     });
 
     expect(effects.calculateEffect(EffectType.GOV_CENTER, {}).value).toBe(0);
+  });
+
+  it('evaluates terrain flags and known AI-level requirements', () => {
+    mockedRulesetLoader.getEffects.mockReturnValueOnce({
+      sea_bonus: {
+        id: 'sea_bonus',
+        type: 'Output_Add_Tile',
+        value: 1,
+        reqs: [{ type: 'TerrainFlag', name: 'Sea', range: 'Tile' }],
+      },
+      ai_bonus: {
+        id: 'ai_bonus',
+        type: 'Output_Bonus',
+        value: 10,
+        reqs: [{ type: 'AI', name: 'Cheating', range: 'Player' }],
+      },
+    });
+    const effects = new EffectsManager();
+
+    expect(
+      effects.calculateEffect(EffectType.OUTPUT_ADD_TILE, {
+        tileTerrainFlags: new Set(['Sea']),
+      }).value
+    ).toBe(1);
+    expect(
+      effects.calculateEffect(EffectType.OUTPUT_BONUS, {
+        playerIsAI: true,
+        aiLevel: 'Cheating',
+      }).value
+    ).toBe(10);
+    expect(effects.calculateEffect(EffectType.OUTPUT_BONUS, {}).value).toBe(0);
   });
 
   it('does not activate a negative requirement when its context is absent', () => {

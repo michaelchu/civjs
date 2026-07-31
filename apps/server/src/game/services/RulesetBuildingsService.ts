@@ -1,5 +1,8 @@
 import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
-import type { BuildingCultureRequirement } from '@shared/data/rulesets/schemas';
+import type {
+  BuildingCultureRequirement,
+  BuildingTypeRuleset,
+} from '@shared/data/rulesets/schemas';
 
 export interface RulesetBuildingType {
   id: string;
@@ -11,6 +14,7 @@ export interface RulesetBuildingType {
   requiredTech?: string;
   requires?: string[];
   cultureRequirements?: BuildingCultureRequirement[];
+  flags: string[];
   playable: boolean;
   effects: {
     defenseBonus?: number;
@@ -44,25 +48,34 @@ export class RulesetBuildingsService {
     if (cached) return cached;
 
     const buildings = Object.fromEntries(
-      Object.entries(this.loader.getBuildings(rulesetName)).map(([id, building]) => [
-        id,
-        {
-          id: building.id,
-          name: building.name,
-          genus: building.genus,
-          cost: building.cost,
-          upkeep: building.upkeep,
-          sabotage: building.sabotage,
-          requiredTech: building.requiredTech,
-          requires: building.requires,
-          cultureRequirements: building.cultureRequirements,
-          playable: building.playable,
-          effects: {
-            ...building.effects,
-            happinessEffect: building.effects.happinessBonus,
+      Object.entries(this.loader.getBuildings(rulesetName)).map(([id, building]) => {
+        const rawFlags = (building as BuildingTypeRuleset & { flags?: unknown }).flags;
+        const flags = Array.isArray(rawFlags)
+          ? rawFlags.filter((flag): flag is string => typeof flag === 'string')
+          : typeof rawFlags === 'string'
+            ? [rawFlags]
+            : [];
+        return [
+          id,
+          {
+            id: building.id,
+            name: building.name,
+            genus: building.genus,
+            cost: building.cost,
+            upkeep: building.upkeep,
+            sabotage: building.sabotage,
+            requiredTech: building.requiredTech,
+            requires: building.requires,
+            cultureRequirements: building.cultureRequirements,
+            flags,
+            playable: building.playable,
+            effects: {
+              ...building.effects,
+              happinessEffect: building.effects.happinessBonus,
+            },
           },
-        },
-      ])
+        ];
+      })
     );
     this.cache.set(rulesetName, buildings);
     return buildings;

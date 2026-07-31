@@ -16,6 +16,9 @@ import { EffectsManager, EffectType, OutputType } from '@game/managers/EffectsMa
  */
 export class CityTileManagementService extends BaseGameService {
   private playerGovernmentProvider: (playerId: string) => string = () => 'despotism';
+  private playerAIProvider: (playerId: string) => { isAI: boolean; aiLevel?: string } = () => ({
+    isAI: false,
+  });
   private tileOccupancyProvider: (city: CityState, tile: WorkableTile) => boolean = () => false;
 
   constructor(
@@ -39,6 +42,10 @@ export class CityTileManagementService extends BaseGameService {
 
   setPlayerGovernmentProvider(provider: (playerId: string) => string): void {
     this.playerGovernmentProvider = provider;
+  }
+
+  setPlayerAIProvider(provider: (playerId: string) => { isAI: boolean; aiLevel?: string }): void {
+    this.playerAIProvider = provider;
   }
 
   setTileOccupancyProvider(provider: (city: CityState, tile: WorkableTile) => boolean): void {
@@ -116,6 +123,7 @@ export class CityTileManagementService extends BaseGameService {
         y: tileY,
         isWorked: false,
         isCenter: tileX === city.x && tileY === city.y,
+        isBlocked: false,
         outputs: {
           food: this.calculateTileFood(mapTile),
           shields: this.calculateTileShields(mapTile),
@@ -277,16 +285,20 @@ export class CityTileManagementService extends BaseGameService {
     output: 'food' | 'shield' | 'trade'
   ): number {
     if (!resource) return 0;
-    try {
-      const value = (this.ruleset.getResource ?? rulesetLoader.getResource.bind(rulesetLoader))(
-        resource,
-        this.rulesetName
-      )[output];
-      return typeof value === 'number' ? value : 0;
-    } catch {
-      logger.warn('Ignoring unknown map resource', { resource });
-      return 0;
+    const resolvers = [
+      this.ruleset.getResource?.bind(this.ruleset),
+      rulesetLoader.getResource.bind(rulesetLoader),
+    ].filter((resolver): resolver is NonNullable<typeof resolver> => resolver !== undefined);
+    for (const resolve of resolvers) {
+      try {
+        const value = resolve(resource, this.rulesetName)[output];
+        return typeof value === 'number' ? value : 0;
+      } catch {
+        // Fall through to the canonical loader before reporting an unknown resource.
+      }
     }
+    logger.warn('Ignoring unknown map resource', { resource });
+    return 0;
   }
 
   /**
@@ -549,6 +561,15 @@ export class CityTileManagementService extends BaseGameService {
       city.happiness.happy >= Math.ceil(city.population / 2);
     const adjusted = { ...outputs };
     const terrainRules = this.ruleset.getTerrain(terrain as TerrainType, this.rulesetName);
+    const rawTerrainFlags = (terrainRules as { flags?: unknown }).flags;
+    const terrainFlags = new Set<string>(
+      Array.isArray(rawTerrainFlags)
+        ? rawTerrainFlags.filter((flag): flag is string => typeof flag === 'string')
+        : typeof rawTerrainFlags === 'string'
+          ? [rawTerrainFlags]
+          : []
+    );
+    const playerAI = this.playerAIProvider(city.playerId);
     const terrainClass = terrainRules.properties?.MG_OCEAN_DEPTH !== undefined ? 'Oceanic' : 'Land';
     const outputTypes = {
       food: OutputType.FOOD,
@@ -563,9 +584,12 @@ export class CityTileManagementService extends BaseGameService {
         tileX: tile.x,
         tileY: tile.y,
         government: this.playerGovernmentProvider(city.playerId),
+        playerIsAI: playerAI.isAI,
+        aiLevel: playerAI.aiLevel,
         outputType: outputTypes[output],
         tileTerrain: terrain,
         tileTerrainClass: terrainClass,
+        tileTerrainFlags: terrainFlags,
         tileIsCityCenter: tile.isCenter,
         cityCelebrating: celebrating,
         cityBuildings: new Set(city.buildings),

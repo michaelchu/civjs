@@ -66,7 +66,8 @@ describe('CitizenResult', () => {
       const result = CitizenResultFactory.createFailed(cityRadius);
 
       expect(result.found_valid).toBe(false);
-      expect(result.aborted).toBe(true);
+      expect(result.aborted).toBe(false);
+      expect(result.failure_reason).toBe('error');
       expect(result.city_radius_sq).toBe(cityRadius);
 
       // Failed result should have same structure as normal result

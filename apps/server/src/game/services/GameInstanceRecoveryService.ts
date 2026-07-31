@@ -350,6 +350,10 @@ export class GameInstanceRecoveryService extends BaseGameService {
     cityManager.setPlayerSpaceshipProvider(playerId =>
       normalizeSpaceshipState(players.get(playerId)?.spaceshipState)
     );
+    cityManager.setPlayerAIProvider(playerId => ({
+      isAI: players.get(playerId)?.isAI === true,
+      aiLevel: players.get(playerId)?.aiLevel,
+    }));
     cityManager.setPlayerGovernmentProvider(playerId => {
       const government = governmentManager.getPlayerGovernment(playerId)?.currentGovernment;
       if (!government) {

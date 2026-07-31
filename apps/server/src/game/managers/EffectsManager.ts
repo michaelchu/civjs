@@ -120,6 +120,8 @@ export enum OutputType {
 // Context for effect evaluation - matches freeciv req_context
 export interface EffectContext {
   playerId?: string;
+  playerIsAI?: boolean;
+  aiLevel?: string;
   cityId?: string;
   unitId?: string;
   tileX?: number;
@@ -140,7 +142,9 @@ export interface EffectContext {
   unitHasHomeCity?: boolean;
   tileTerrain?: string;
   tileTerrainClass?: string;
+  tileTerrainFlags?: Set<string>;
   adjacentTerrainClasses?: Set<string>;
+  adjacentTerrainFlags?: Set<string>;
   tileExtras?: Set<string>;
   tileIsCityCenter?: boolean;
   maxUnitsOnTile?: number;
@@ -615,6 +619,14 @@ export class EffectsManager {
       const buildings = req.range === 'Player' ? context.playerBuildings : context.cityBuildings;
       return this.requirementResult('Building', req, this.cityHasBuilding(buildings, req.name));
     };
+    this.requirementHandlers['BuildingFlag'] = (req, context) => {
+      const buildings = req.range === 'Player' ? context.playerBuildings : context.cityBuildings;
+      return this.requirementResult(
+        'BuildingFlag',
+        req,
+        this.cityHasBuildingFlag(buildings, req.name)
+      );
+    };
     this.requirementHandlers['BuildingGenus'] = (req, context) =>
       this.requirementResult('BuildingGenus', req, this.matches(context.buildingGenus, req.name));
 
@@ -662,6 +674,20 @@ export class EffectsManager {
         req.range === 'Adjacent'
           ? this.setContains(context.adjacentTerrainClasses, req.name)
           : this.matches(context.tileTerrainClass, req.name)
+      );
+    this.requirementHandlers['TerrainFlag'] = (req, context) =>
+      this.requirementResult(
+        'TerrainFlag',
+        req,
+        req.range === 'Adjacent'
+          ? this.setContains(context.adjacentTerrainFlags, req.name)
+          : this.setContains(context.tileTerrainFlags, req.name)
+      );
+    this.requirementHandlers['AI'] = (req, context) =>
+      this.requirementResult(
+        'AI',
+        req,
+        context.playerIsAI === true && this.matches(context.aiLevel, req.name)
       );
     this.requirementHandlers['Extra'] = (req, context) =>
       this.requirementResult('Extra', req, this.setContains(context.tileExtras, req.name));
@@ -758,6 +784,22 @@ export class EffectsManager {
     return [...buildings].some(buildingId => {
       const building = rulesetBuildings[buildingId];
       return building !== undefined && this.matches(building.name, expected) === true;
+    });
+  }
+
+  private cityHasBuildingFlag(
+    buildings: Set<string> | undefined,
+    expected: string
+  ): boolean | undefined {
+    if (buildings === undefined) return undefined;
+    if (buildings.size === 0) return false;
+
+    const rulesetBuildings = rulesetBuildingsService.getBuildingTypes(this.rulesetName);
+    return [...buildings].some(buildingId => {
+      const building =
+        rulesetBuildings[buildingId] ??
+        Object.values(rulesetBuildings).find(candidate => this.matches(candidate.name, buildingId));
+      return building?.flags.some(flag => this.matches(flag, expected)) ?? false;
     });
   }
 

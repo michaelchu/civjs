@@ -318,7 +318,11 @@ describe('CitizenManagementService', () => {
       // Should either find a valid solution or gracefully fail
       expect(typeof result.found_valid).toBe('boolean');
       if (!result.found_valid) {
-        expect(result.aborted).toBe(true);
+        expect(result.aborted).toBe(false);
+        expect(result.timed_out).toBe(false);
+        expect(result.failure_reason).toBe('constraints');
+        expect(result.fallback_used).toBe(true);
+        expect(result.assignment_complete).toBe(true);
       }
     });
   });

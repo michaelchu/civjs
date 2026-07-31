@@ -343,6 +343,7 @@ export class CitizenManagementService {
     let bestResult = CitizenResultFactory.create(this.getCityRadiusSq(city));
     let bestFitness = -Infinity;
     let aborted = false;
+    let fallbackUsed = false;
     const assignments = new Map<string, number>();
 
     const evaluate = (): void => {
@@ -401,19 +402,32 @@ export class CitizenManagementService {
         output =>
           allowNegative || fallback.surplus[output] >= (parameters.minimal_surplus[output] ?? 0)
       );
+      fallback.found_valid = false;
       if (
-        fallback.workers_count + fallback.specialists_count === city.population &&
+        CitizenResultUtils.getTotalCitizens(fallback) === city.population &&
         fallbackMeetsMinimum &&
         this.checkHappinessConstraints(happinessState, parameters)
       ) {
         fallback.found_valid = true;
+      }
+      fallback.assignment_complete =
+        CitizenResultUtils.getTotalCitizens(fallback) === city.population;
+      if (fallback.assignment_complete) {
         bestResult = fallback;
         bestFitness = fallback.fitness;
+        fallbackUsed = true;
       }
     }
 
     const elapsedMs = Date.now() - startTime;
-    bestResult.aborted = !bestResult.found_valid;
+    bestResult.aborted = aborted;
+    bestResult.timed_out = aborted;
+    bestResult.fallback_used = fallbackUsed;
+    bestResult.failure_reason = bestResult.found_valid
+      ? undefined
+      : aborted
+        ? 'timeout'
+        : 'constraints';
     if (aborted) this.performanceStats.timeouts++;
     this.performanceStats.totalIterations += iterations;
 
@@ -466,7 +480,7 @@ export class CitizenManagementService {
     // Calculate surplus and fitness
     this.calculateResultOutputs(result, assignments, tileTypes, parameters, city, context);
 
-    result.found_valid = result.workers_count + result.specialists_count === city.population;
+    result.found_valid = CitizenResultUtils.getTotalCitizens(result) === city.population;
     result.aborted = false;
 
     return result;
@@ -482,6 +496,7 @@ export class CitizenManagementService {
   ): void {
     let workersCount = 0;
     let specialistsCount = 0;
+    let idleCount = 0;
 
     // Reset specialists
     Object.keys(result.specialists).forEach(key => {
@@ -491,6 +506,11 @@ export class CitizenManagementService {
     for (const [tileTypeId, count] of assignments) {
       const tileType = tileTypes.find(t => t.id === tileTypeId);
       if (!tileType || count === 0) continue;
+
+      if (tileType.id === 'idle') {
+        idleCount += count;
+        continue;
+      }
 
       if (tileType.is_specialist) {
         if (tileType.specialist_type !== undefined) {
@@ -507,6 +527,7 @@ export class CitizenManagementService {
 
     result.workers_count = workersCount;
     result.specialists_count = specialistsCount;
+    result.idle_count = idleCount;
 
     CitizenResultUtils.updateCounts(result);
   }
@@ -546,7 +567,7 @@ export class CitizenManagementService {
 
     // Subtract consumption (food for population)
     result.surplus[OutputType.FOOD] -=
-      (result.workers_count + result.specialists_count) * rulesetLoader.getCivstyle().food_cost;
+      CitizenResultUtils.getTotalCitizens(result) * rulesetLoader.getCivstyle().food_cost;
 
     // Calculate fitness
     result.fitness = Object.entries(result.surplus).reduce((sum, [type, amount]) => {
@@ -649,7 +670,7 @@ export class CitizenManagementService {
     unhappyCitizens: number;
     angryCitizens: number;
   } {
-    const totalCitizens = result.workers_count + result.specialists_count;
+    const totalCitizens = CitizenResultUtils.getTotalCitizens(result);
 
     let happyCitizens = Math.min(totalCitizens, city.happiness.happy);
     let unhappyCitizens = Math.min(totalCitizens - happyCitizens, city.happiness.unhappy);

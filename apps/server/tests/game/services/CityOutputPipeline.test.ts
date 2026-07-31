@@ -39,6 +39,28 @@ const context = (
 });
 
 describe('city output pipeline', () => {
+  it('passes AI identity and difficulty into city effect evaluation', () => {
+    const calculateEffect = jest.fn().mockReturnValue({ value: 0 });
+    const effects = {
+      calculateEffect,
+      calculateCityCorruption: jest.fn().mockReturnValue({ corruption: 0 }),
+      getRulesetName: jest.fn().mockReturnValue('classic'),
+    } as unknown as EffectsManager;
+    const subject = city();
+
+    new CityCalculationService(effects).calculateCityOutputs(
+      subject,
+      { food: 2, shields: 1, trade: 0 },
+      undefined,
+      context(subject, { playerIsAI: true, aiLevel: 'hard' })
+    );
+
+    expect(calculateEffect).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ playerIsAI: true, aiLevel: 'hard' })
+    );
+  });
+
   it('deducts food consumption after gross tile output and allows starvation', () => {
     const subject = city();
     const result = new CityCalculationService(new EffectsManager()).calculateCityOutputs(
