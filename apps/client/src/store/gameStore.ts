@@ -343,8 +343,14 @@ export const useGameStore = create<GameStore>()(
 
     advanceUnitFocus: (sameType: boolean = false) => {
       const state = get();
+      const pendingUnits = Object.fromEntries(
+        Object.entries(state.units).filter(
+          ([, unit]) =>
+            unit.playerId === state.currentPlayerId && unit.movesLeft > 0 && !unit.doneMoving
+        )
+      );
       const candidate = findBestFocusCandidate(
-        state.units,
+        pendingUnits,
         state.currentPlayerId,
         false,
         sameType,

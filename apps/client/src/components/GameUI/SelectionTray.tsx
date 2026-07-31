@@ -5,7 +5,6 @@ import {
   ChevronRight,
   Coins,
   CircleDot,
-  Crosshair,
   Ellipsis,
   Flag,
   Hammer,
@@ -14,7 +13,6 @@ import {
   Shield,
   Sparkles,
   Swords,
-  Users,
   Wheat,
   X,
   Zap,
@@ -93,6 +91,7 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
   const clientState = useGameStore(state => state.clientState);
   const phase = useGameStore(state => state.phase);
   const addNotification = useGameStore(state => state.addNotification);
+  const advanceUnitFocus = useGameStore(state => state.advanceUnitFocus);
   const isOwned = unit.playerId === currentPlayerId;
   const canAct = isOwned && clientState === 'running' && phase === 'movement';
   const unitLabel = formatName(unit.unitTypeId);
@@ -231,6 +230,13 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
           showLabel={false}
           tooltip="More unit actions"
         />
+        <ActionButton
+          label="Focus next unit"
+          icon={ArrowRight}
+          onClick={() => advanceUnitFocus()}
+          showLabel={false}
+          tooltip="Focus next unit"
+        />
       </div>
     </HudPanel>
   );
@@ -318,9 +324,6 @@ export const SelectionTray: React.FC = () => {
   const focusedUnits = useGameStore(state => state.focusedUnits);
   const units = useGameStore(state => state.units);
   const cities = useGameStore(state => state.cities);
-  const urgentFocusQueue = useGameStore(state => state.urgentFocusQueue);
-  const currentPlayerId = useGameStore(state => state.currentPlayerId);
-  const advanceUnitFocus = useGameStore(state => state.advanceUnitFocus);
 
   const selectedUnit = selectedUnitId
     ? units[selectedUnitId]
@@ -337,32 +340,5 @@ export const SelectionTray: React.FC = () => {
     return <CityTray city={selectedCity} />;
   }
 
-  const pendingUnits = Object.values(units).filter(
-    unit => unit.playerId === currentPlayerId && unit.movesLeft > 0 && !unit.doneMoving
-  ).length;
-
-  return (
-    <HudPanel className="flex max-w-[min(34rem,calc(100vw-1.5rem))] items-center gap-3 overflow-x-auto px-3 py-2 sm:px-4">
-      <div className="flex items-center gap-2 text-xs text-slate-300">
-        <Crosshair className="h-4 w-4 text-cyan-300" aria-hidden="true" />
-        <span className="hidden sm:inline">Select a unit or city</span>
-        <span className="sm:hidden">Select an object</span>
-      </div>
-      <TrayDivider />
-      <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.1em] text-slate-400">
-        <span>{pendingUnits} pending</span>
-        {urgentFocusQueue.length > 0 && (
-          <span className="text-amber-300">{urgentFocusQueue.length} urgent</span>
-        )}
-      </div>
-      {pendingUnits > 0 && (
-        <ActionButton
-          label="Focus next unit"
-          icon={ArrowRight}
-          onClick={() => advanceUnitFocus()}
-        />
-      )}
-      <Users className="hidden h-4 w-4 text-slate-500 sm:block" aria-hidden="true" />
-    </HudPanel>
-  );
+  return null;
 };

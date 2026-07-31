@@ -84,12 +84,11 @@ describe('SelectionTray', () => {
     });
   });
 
-  it('shows pending-unit guidance when nothing is selected', () => {
+  it('renders nothing when no unit or city is selected', () => {
     render(<SelectionTray />);
 
-    expect(screen.getByText('Select a unit or city')).toBeInTheDocument();
-    expect(screen.getByText('1 pending')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Focus next unit' })).toBeInTheDocument();
+    expect(screen.queryByText('1 pending')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Focus next unit' })).not.toBeInTheDocument();
   });
 
   it('shows unit context without cargo text for non-transport units', () => {
