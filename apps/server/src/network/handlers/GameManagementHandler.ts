@@ -541,6 +541,23 @@ export class GameManagementHandler extends BaseSocketHandler {
       playerId,
       mapData
     );
+
+    // The player snapshot can arrive before the normal turn broadcast during a
+    // refresh/reconnect. Send the calendar with the snapshot so the HUD never
+    // renders a player/turn pair without its corresponding year.
+    const snapshotTurn =
+      gameInstance.turnManager?.getCurrentTurn?.() ?? gameInstance.currentTurn ?? 0;
+    const snapshotYear = gameInstance.turnManager?.getCurrentYear?.();
+    socket.emit('packet', {
+      version: PROTOCOL_VERSION,
+      type: PacketType.NEW_YEAR,
+      data: {
+        turn: snapshotTurn,
+        year: snapshotYear,
+        fragments: 0,
+      },
+      timestamp: Date.now(),
+    });
     this.emitSnapshotPlayers(gameInstance, socket);
 
     socket.emit('packet', {

@@ -1390,7 +1390,8 @@ export class GameClient {
 
   private applyJoinedPlayer(response: any, playerName: string, selectedNation: string): void {
     if (!response.playerId) return;
-    const existingPlayers = useGameStore.getState().players ?? {};
+    const currentState = useGameStore.getState();
+    const existingPlayers = currentState.players ?? {};
     const existingPlayer = existingPlayers[response.playerId];
     const finalNation =
       response.assignedNation && response.assignedNation !== 'random'
@@ -1426,7 +1427,9 @@ export class GameClient {
       },
       governments: getMockGovernments(),
       phase: 'movement',
-      turn: 1,
+      // A reconnect snapshot may have already supplied the authoritative
+      // turn. Keep it instead of reverting the HUD to the initial turn.
+      turn: currentState.turn || 1,
     });
   }
 
