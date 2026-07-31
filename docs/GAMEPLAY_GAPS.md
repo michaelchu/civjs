@@ -31,14 +31,14 @@ Suggested status values:
 
 ### GP-001 — Foreign border and city movement reports a generic path error
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Movement, borders, diplomacy, pathfinding, client feedback
 - **Observed behavior:** Selecting a unit's goto action toward a foreign city or
   foreign occupied tile can result in `No valid path found`. The player is not
   told whether the problem is terrain, a peaceful border, a foreign city, or an
   enemy unit. A military Go To aimed directly at a foreign city is now allowed
   to preview the route and returns a declare-war warning at execution time;
-  foreign-unit and broader border cases remain unresolved.
+  foreign-unit and broader border cases now return reason-specific feedback.
 - **Current implementation:** `UnitManager.getPathStepCost()` allows a
   city-capable military unit to use a foreign city as the final path tile, and
   `MapCanvas` now asks for confirmation before sending an explicit declare-war
@@ -52,7 +52,7 @@ Suggested status values:
   establishes contact with nearby foreign units and cities. Military units are
   now blocked from peaceful foreign territory while civilian units may enter;
   allied and wartime territory remains enterable. Browser-level feedback
-  coverage remains unresolved.
+  coverage now exercises a rejected Go To request.
 - **Reference behavior:** Freeciv distinguishes peaceful-border movement from
   foreign-city attacks. Military units attempting to enter peaceful foreign
   territory receive `Cannot invade unless you break peace with %s first.`;
