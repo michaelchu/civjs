@@ -390,6 +390,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     const unitManager = this.createUnitManager(
       gameId,
       game,
+      players,
       mapManager,
       cityManager,
       effectsManager,
@@ -1457,6 +1458,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   private createUnitManager(
     gameId: string,
     game: any,
+    players: Map<string, PlayerState>,
     mapManager: MapManager,
     cityManager: CityManager,
     effectsManager: EffectsManager,
@@ -1522,7 +1524,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         broadcastHutEvent: (changedGameId, playerId, message) =>
           this.io.to(`player:${playerId}`).emit('hut_event', { gameId: changedGameId, message }),
         updatePlayerStatistic: (playerId, statistic) => {
-          const player = game.players.get(playerId);
+          const player = players.get(playerId);
           if (player) player[statistic] = (player[statistic] ?? 0) + 1;
         },
         broadcastMapChanged: (changedGameId, mapData) =>

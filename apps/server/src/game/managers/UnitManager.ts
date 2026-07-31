@@ -1402,10 +1402,16 @@ export class UnitManager {
     statistic: 'unitsBuilt' | 'unitsKilled' | 'unitsLost'
   ): Promise<void> {
     const column = players[statistic];
+    if (!column) {
+      throw new Error(`Unknown player statistic: ${statistic}`);
+    }
+
     await this.databaseProvider
       .getDatabase()
       .update(players)
-      .set({ [column.name]: sql`${column} + 1` } as any)
+      // Drizzle update keys use the schema property name (e.g. unitsLost),
+      // while the SQL expression references the underlying column object.
+      .set({ [statistic]: sql`${column} + 1` } as any)
       .where(eq(players.id, playerId));
     this.gameManagerCallback?.updatePlayerStatistic?.(playerId, statistic);
   }
