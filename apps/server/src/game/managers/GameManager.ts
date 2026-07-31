@@ -2262,6 +2262,9 @@ export class GameManager {
       // Handle the case where pathResult might have unexpected structure
       const tiles = Array.isArray(pathResult.path) ? pathResult.path : [];
       const isValid = pathResult.valid && tiles.length > 0;
+      const error = isValid
+        ? undefined
+        : await this.getPathFailureReason(gameInstance, unit, targetX, targetY);
 
       return {
         success: isValid,
@@ -2276,7 +2279,7 @@ export class GameManager {
               valid: isValid,
             }
           : undefined,
-        error: isValid ? undefined : 'No valid path found',
+        error,
       };
     } catch (error) {
       logger.error('Error processing pathfinding request', {
@@ -2289,6 +2292,32 @@ export class GameManager {
 
       return { success: false, error: 'Internal server error' };
     }
+  }
+
+  private async getPathFailureReason(
+    game: GameInstance,
+    unit: Unit,
+    targetX: number,
+    targetY: number
+  ): Promise<string> {
+    const unitType = this.getGameUnitType(game, unit.unitTypeId);
+    const isMilitary = !unitType?.flags?.includes('NonMil') && (unitType?.attack ?? 0) > 0;
+    if (!isMilitary) return 'No valid path found';
+
+    const city = game.cityManager.getCityAt(targetX, targetY);
+    const targetUnit = game.unitManager
+      .getUnitsAt(targetX, targetY)
+      .find(candidate => candidate.playerId !== unit.playerId);
+    const targetOwner = city?.playerId ?? targetUnit?.playerId;
+    if (!targetOwner || targetOwner === unit.playerId) return 'No valid path found';
+
+    const relation = await this.getDiplomaticState(game.id, unit.playerId, targetOwner);
+    if (relation === 'war' || relation === 'alliance' || relation === 'team') {
+      return 'No valid path found';
+    }
+    return city
+      ? 'Cannot attack unless you declare war first.'
+      : `Cannot invade unless you break peace with ${targetOwner} first.`;
   }
 
   /** Return the authoritative movement range for a player's unit. */

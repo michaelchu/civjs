@@ -44,7 +44,10 @@ Suggested status values:
   `MapCanvas` now asks for confirmation before sending an explicit declare-war
   intent with the Go To action. The server declares war before resolving that
   capture, while cancelling the confirmation leaves the order untouched.
-  Foreign-unit and broader border cases remain unresolved.
+  Failed path responses now retain reason-specific server errors for peaceful
+  foreign-unit territory and foreign-city attacks, and the client displays
+  those messages. Civilian/allied border-entry rules and first-contact
+  behavior remain unresolved.
 - **Reference behavior:** Freeciv distinguishes peaceful-border movement from
   foreign-city attacks. Military units attempting to enter peaceful foreign
   territory receive `Cannot invade unless you break peace with %s first.`;
@@ -67,9 +70,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
   retrying the move. Distinguish the remaining peaceful military border entry,
   foreign-unit occupancy, and ordinary terrain/path failures. Apply the
   reference's civilian, allied, war, and border-entry rules.
-- **Regression coverage:** Add server path/movement tests and a browser test
-  asserting the player-visible message for peaceful territory and foreign-city
-  attempts.
+- **Regression coverage:** `UnitManager.test.ts` covers foreign-city preview
+  and war-gated capture; `MapCanvas`/path-service integration still needs a
+  browser test asserting the player-visible peaceful-territory and
+  foreign-city messages.
 
 ## Additional open gaps
 

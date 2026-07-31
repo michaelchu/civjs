@@ -941,24 +941,21 @@ export class GameClient {
         return;
       }
 
-      this.socket.emit(
-        'unit_action',
-        {
-          unitId,
-          actionType,
-          targetX,
-          targetY,
-          declareWarIfNeeded,
-        },
-        (response: any) => {
-          console.log('GameClient.executeUnitAction response:', response);
-          if (response.success) {
-            resolve(response.result ?? { success: true });
-          } else {
-            reject(new Error(response.error || 'Action failed'));
-          }
+      const actionPayload = {
+        unitId,
+        actionType,
+        targetX,
+        targetY,
+        ...(declareWarIfNeeded ? { declareWarIfNeeded: true } : {}),
+      };
+      this.socket.emit('unit_action', actionPayload, (response: any) => {
+        console.log('GameClient.executeUnitAction response:', response);
+        if (response.success) {
+          resolve(response.result ?? { success: true });
+        } else {
+          reject(new Error(response.error || 'Action failed'));
         }
-      );
+      });
     });
   }
 

@@ -30,6 +30,11 @@ export interface PathResponse {
   error?: string;
 }
 
+export interface PathRequestResult {
+  path: GotoPath | null;
+  error?: string;
+}
+
 export interface AccessibleTile {
   x: number;
   y: number;
@@ -57,7 +62,7 @@ export class PathfindingService {
   private pathCache = new Map<string, GotoPath>();
   private pendingRequests = new Map<
     string,
-    { resolve: (path: GotoPath | null) => void; timeoutId: NodeJS.Timeout }
+    { resolve: (result: PathRequestResult) => void; timeoutId: NodeJS.Timeout }
   >();
   private eventListenerSetup = false;
 
@@ -84,24 +89,32 @@ export class PathfindingService {
    * Similar to freeciv-web's request_goto_path function
    */
   async requestPath(unitId: string, targetX: number, targetY: number): Promise<GotoPath | null> {
+    return (await this.requestPathResult(unitId, targetX, targetY)).path;
+  }
+
+  async requestPathResult(
+    unitId: string,
+    targetX: number,
+    targetY: number
+  ): Promise<PathRequestResult> {
     const requestKey = this.generateRequestKey(unitId, targetX, targetY);
 
     // Check if we already have this path cached
     if (this.pathCache.has(requestKey)) {
-      return this.pathCache.get(requestKey)!;
+      return { path: this.pathCache.get(requestKey)! };
     }
 
     // Check if we're already requesting this path
     if (this.pendingRequests.has(requestKey)) {
       // Wait for the pending request to complete
-      return new Promise(resolve => {
+      return new Promise<PathRequestResult>(resolve => {
         const checkForResult = () => {
           if (this.pathCache.has(requestKey)) {
-            resolve(this.pathCache.get(requestKey)!);
+            resolve({ path: this.pathCache.get(requestKey)! });
           } else if (this.pendingRequests.has(requestKey)) {
             setTimeout(checkForResult, 100); // Check again in 100ms
           } else {
-            resolve(null); // Request failed or was cancelled
+            resolve({ path: null, error: 'Path request was cancelled' });
           }
         };
         checkForResult(); // Start checking immediately, not after delay
@@ -115,13 +128,13 @@ export class PathfindingService {
 
     try {
       // Send path request to server via GameClient socket
-      const path = await this.sendPathRequest({ unitId, targetX, targetY });
+      const result = await this.sendPathRequest({ unitId, targetX, targetY });
 
-      if (path) {
+      if (result.path) {
         // Cache the result
-        this.pathCache.set(requestKey, path);
-        return path;
+        this.pathCache.set(requestKey, result.path);
       }
+      return result;
     } catch (error) {
       console.error('Error requesting path:', error);
     } finally {
@@ -129,7 +142,7 @@ export class PathfindingService {
       this.pendingRequests.delete(requestKey);
     }
 
-    return null;
+    return { path: null, error: 'No valid path found' };
   }
 
   /** Request the authoritative tiles reachable with the unit's current movement. */
@@ -165,7 +178,7 @@ export class PathfindingService {
     // Clear all pending requests and their timeouts
     for (const [, pendingRequest] of this.pendingRequests) {
       clearTimeout(pendingRequest.timeoutId);
-      pendingRequest.resolve(null);
+      pendingRequest.resolve({ path: null, error: 'Path request was cancelled' });
     }
     this.pendingRequests.clear();
   }
@@ -211,10 +224,10 @@ export class PathfindingService {
           }
           // Cache the result
           this.pathCache.set(requestKey, response.path as GotoPath);
-          pendingRequest.resolve(response.path as GotoPath);
+          pendingRequest.resolve({ path: response.path as GotoPath });
         } else {
           console.warn('Path request failed:', response.error);
-          pendingRequest.resolve(null);
+          pendingRequest.resolve({ path: null, error: response.error });
         }
       } else if (import.meta.env.DEV) {
         console.log('Received path_response for unknown request:', requestKey);
@@ -227,12 +240,12 @@ export class PathfindingService {
   /**
    * Send path request to server and wait for response
    */
-  private async sendPathRequest(request: PathRequest): Promise<GotoPath | null> {
-    return new Promise(resolve => {
+  private async sendPathRequest(request: PathRequest): Promise<PathRequestResult> {
+    return new Promise<PathRequestResult>(resolve => {
       const socket = gameClient.getSocket();
       if (!socket) {
         console.error('No socket connection available for path request');
-        resolve(null);
+        resolve({ path: null, error: 'No socket connection available for path request' });
         return;
       }
 
@@ -244,7 +257,7 @@ export class PathfindingService {
           console.warn('Path request timeout after 5s for:', request);
         }
         this.pendingRequests.delete(requestKey);
-        resolve(null);
+        resolve({ path: null, error: 'Path request timed out' });
       }, 5000);
 
       // Store the request

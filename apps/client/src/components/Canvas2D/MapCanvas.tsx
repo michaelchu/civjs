@@ -553,7 +553,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       console.log(`Requesting path for unit ${gotoMode.unit.id} to (${targetX}, ${targetY})`);
 
       try {
-        const path = await pathfindingService.requestPath(gotoMode.unit.id, targetX, targetY);
+        const pathResult = await pathfindingService.requestPathResult(
+          gotoMode.unit.id,
+          targetX,
+          targetY
+        );
+        const path = pathResult.path;
 
         if (path) {
           setGotoMode(prev => ({
@@ -563,7 +568,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           }));
           console.log('Path received:', path);
         } else {
-          console.warn('No valid path found');
+          const message = pathResult.error ?? 'No valid path found';
+          console.warn(message);
+          setActionFeedback({ success: false, message });
           setGotoMode(prev => ({
             ...prev,
             targetTile: { x: targetX, y: targetY },
