@@ -11,7 +11,6 @@ import { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 import { GameLifecycleManager } from '@game/orchestrators/GameLifecycleManager';
 import { GameStateManager } from '@game/orchestrators/GameStateManager';
 import { PlayerConnectionManager } from '@game/orchestrators/PlayerConnectionManager';
-import { ServiceRegistry } from '@game/services/ServiceRegistry';
 import { UnitManagementService } from '@game/services/UnitManagementService';
 import { CityManagementService } from '@game/services/CityManagementService';
 import { ResearchManagementService } from '@game/services/ResearchManagementService';
@@ -198,7 +197,6 @@ export class GameManager {
   private treatyPlayerLocks = new Map<string, Promise<unknown>>();
 
   // Extracted service components
-  private serviceRegistry!: ServiceRegistry;
   private gameStateManager!: GameStateManager;
   private playerConnectionManager!: PlayerConnectionManager;
   private gameLifecycleManager!: GameLifecycleManager;
@@ -233,9 +231,6 @@ export class GameManager {
    * Initialize extracted service components following dependency injection pattern
    */
   private initializeServices(): void {
-    // Create service registry
-    this.serviceRegistry = new ServiceRegistry();
-
     // Initialize extracted managers with proper dependencies
     this.gameStateManager = new GameStateManager(logger, this.databaseProvider);
     this.gameBroadcastManager = new GameBroadcastManager(this.io);
@@ -312,17 +307,6 @@ export class GameManager {
       this.broadcastToGame.bind(this),
       this.gameBroadcastManager
     );
-
-    // Register services
-    this.serviceRegistry.register('GameStateManager', this.gameStateManager);
-    this.serviceRegistry.register('PlayerConnectionManager', this.playerConnectionManager);
-    this.serviceRegistry.register('GameLifecycleManager', this.gameLifecycleManager);
-    this.serviceRegistry.register('GameBroadcastManager', this.gameBroadcastManager);
-    this.serviceRegistry.register('UnitManagementService', this.unitManagementService);
-    this.serviceRegistry.register('CityManagementService', this.cityManagementService);
-    this.serviceRegistry.register('ResearchManagementService', this.researchManagementService);
-    this.serviceRegistry.register('VisibilityMapService', this.visibilityMapService);
-    this.serviceRegistry.register('GameInstanceRecoveryService', this.gameInstanceRecoveryService);
 
     // Set cross-references
     this.gameBroadcastManager.setGamesReference(this.games);

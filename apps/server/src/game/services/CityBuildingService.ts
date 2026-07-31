@@ -214,9 +214,6 @@ export class CityBuildingService extends BaseGameService {
     return true;
   }
 
-  // Note: This method is not used in the current implementation
-  // It would be called by the main CityManager during turn processing
-
   /**
    * Sell a building for gold
    * @reference Original CityManager.sellBuilding()

@@ -106,29 +106,6 @@ export class CityProductionHandler {
       }
 
       availableProductions.push(...(await this.getBuildingProductionOptions(city, player)));
-      /* Add available buildings based on technology and existing buildings
-      for (const [buildingId, buildingType] of Object.entries(this.buildingTypes)) {
-        const isAvailable = await this.canCityBuildBuilding(city, buildingType, player);
-        const cultureRequirements = (buildingType.cultureRequirements ?? []).map(
-          (requirement: any) =>
-            `${requirement.range} ${requirement.present ? 'minimum' : 'below'} ${requirement.value} culture`
-        );
-        availableProductions.push({
-          id: buildingId,
-          name: buildingType.name,
-          type: 'building',
-          cost: buildingType.cost,
-          description: this.getBuildingDescription(buildingType),
-          conversion: buildingType.genus === 'Convert',
-          requirements: [
-            ...(buildingType.requiredTech ? [buildingType.requiredTech] : []),
-            ...cultureRequirements,
-          ],
-          available: isAvailable,
-        });
-      }
-      */
-
       // Add available wonders (basic implementation)
       const wonders = this.getAvailableWonders(city, player);
       availableProductions.push(...wonders);
