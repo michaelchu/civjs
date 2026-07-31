@@ -29,7 +29,7 @@ import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { FreecivRandom, generateFreecivGameSeed } from '@game/random/FreecivRandom';
 import { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAllocator';
-import { ClimateManager } from '@game/services/ClimateManager';
+import { ClimateManager, type ClimateSettings } from '@game/services/ClimateManager';
 
 export interface TurnEvent {
   type: 'unit_move' | 'city_production' | 'research_complete' | 'diplomacy' | 'combat';
@@ -140,7 +140,8 @@ export class TurnManager {
     rulesetName: string = DEFAULT_RULESET,
     private readonly random: FreecivRandom = new FreecivRandom(generateFreecivGameSeed()),
     private readonly identities: FreecivIdentityAllocator = new FreecivIdentityAllocator(),
-    barbarianRateOverride?: number
+    barbarianRateOverride?: number,
+    climateSettings: ClimateSettings = {}
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
@@ -210,6 +211,7 @@ export class TurnManager {
         mapManager,
         databaseProvider,
         rulesetName,
+        climateSettings,
         (changedGameId, mapData) => this.broadcastManager.broadcastMapData(changedGameId, mapData),
         (changedGameId, event, transformedTiles) =>
           this.io.to(`game:${changedGameId}`).emit('climate_event', {

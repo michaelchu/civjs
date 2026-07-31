@@ -236,6 +236,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         randomState,
         identityNumber: FREECIV_IDENTITY_NUMBER_SKIP,
         barbarianRate: gameConfig.barbarianRate,
+        climateSettings: gameConfig.climate ?? { enabled: true },
         terrainSettings: gameConfig.terrainSettings || {
           generator: 'random',
           landmass: 'normal',
@@ -458,7 +459,10 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       random,
       identities,
       game.gameState && typeof game.gameState === 'object'
-        ? (game.gameState as { barbarianRate?: number }).barbarianRate
+      ? (game.gameState as { barbarianRate?: number }).barbarianRate
+        : undefined,
+      game.gameState && typeof game.gameState === 'object'
+        ? (game.gameState as { climateSettings?: Record<string, unknown> }).climateSettings
         : undefined
     );
     unitManager.setGameLossHandler(async playerId => {
@@ -1297,7 +1301,12 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     rulesetName: string,
     random: FreecivRandom,
     identities: FreecivIdentityAllocator,
-    barbarianRate?: number
+    barbarianRate?: number,
+    climateSettings?: {
+      enabled?: boolean;
+      warmingThreshold?: number;
+      coolingThreshold?: number;
+    }
   ): Promise<TurnManager> {
     // Create a simple broadcast manager for the TurnManager
     // TODO: Proper dependency injection should be implemented
@@ -1356,7 +1365,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       rulesetName,
       random,
       identities,
-      barbarianRate
+      barbarianRate,
+      climateSettings
     );
     const playerIds = Array.from(players.keys());
     await tm.initializeTurn(playerIds);

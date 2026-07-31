@@ -52,4 +52,52 @@ describe('ClimateManager', () => {
     expect(tile.terrain).toBe('tundra');
     expect(tile.improvements).not.toContain('fallout');
   });
+
+  it('honors disabled climate settings without transforming the map', async () => {
+    const databaseProvider = createMockDatabaseProvider();
+    const tile = { x: 1, y: 1, terrain: 'grassland', improvements: ['pollution'] };
+    const mapData = { width: 1, height: 1, tiles: [[tile]] };
+    const mapManager = {
+      getMapData: jest.fn(() => mapData),
+      updateTileProperty: jest.fn(),
+    };
+    const database = databaseProvider.getDatabase() as any;
+    database.query.games.findFirst.mockResolvedValue({
+      gameState: { climate: { warmingPressure: ClimateManager.EVENT_THRESHOLD - 1 } },
+    });
+
+    const result = await new ClimateManager(
+      'game-1',
+      mapManager as any,
+      databaseProvider,
+      'civ2civ3',
+      { enabled: false }
+    ).processTurn();
+
+    expect(result.warmingApplied).toBe(false);
+    expect(tile.terrain).toBe('grassland');
+    expect(mapManager.updateTileProperty).not.toHaveBeenCalled();
+  });
+
+  it('uses configured pressure thresholds', async () => {
+    const databaseProvider = createMockDatabaseProvider();
+    const tile = { x: 1, y: 1, terrain: 'grassland', improvements: ['pollution'] };
+    const mapData = { width: 1, height: 1, tiles: [[tile]] };
+    const mapManager = {
+      getMapData: jest.fn(() => mapData),
+      updateTileProperty: jest.fn(),
+    };
+    const database = databaseProvider.getDatabase() as any;
+    database.query.games.findFirst.mockResolvedValue({ gameState: { climate: {} } });
+
+    const result = await new ClimateManager(
+      'game-1',
+      mapManager as any,
+      databaseProvider,
+      'civ2civ3',
+      { warmingThreshold: 1 }
+    ).processTurn();
+
+    expect(result.warmingApplied).toBe(true);
+  });
 });

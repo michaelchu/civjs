@@ -112,6 +112,12 @@ export interface GameConfig {
   randomSeed?: number;
   /** Optional barbarian frequency override for presets such as Quick Start. */
   barbarianRate?: number;
+  /** Optional global warming/nuclear-winter settings. */
+  climate?: {
+    enabled?: boolean;
+    warmingThreshold?: number;
+    coolingThreshold?: number;
+  };
 }
 
 export interface GameInstance {

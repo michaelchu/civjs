@@ -19,6 +19,12 @@ export interface ClimateTurnResult {
   state: ClimateState;
 }
 
+export interface ClimateSettings {
+  enabled?: boolean;
+  warmingThreshold?: number;
+  coolingThreshold?: number;
+}
+
 const DEFAULT_STATE: ClimateState = {
   warmingPressure: 0,
   coolingPressure: 0,
@@ -40,6 +46,7 @@ export class ClimateManager {
     private readonly mapManager: Pick<MapManager, 'getMapData' | 'updateTileProperty'>,
     private readonly databaseProvider: DatabaseProvider,
     private readonly rulesetName: string = 'civ2civ3',
+    private readonly settings: ClimateSettings = {},
     private readonly onMapChanged?: (gameId: string, mapData: unknown) => void,
     private readonly onClimateEvent?: (
       gameId: string,
@@ -61,8 +68,14 @@ export class ClimateManager {
     state.warmingPressure += pollutionTiles;
     state.coolingPressure += falloutTiles;
 
-    const warmingApplied = state.warmingPressure >= ClimateManager.EVENT_THRESHOLD;
-    const coolingApplied = state.coolingPressure >= ClimateManager.EVENT_THRESHOLD;
+    const warmingApplied =
+      this.settings.enabled !== false &&
+      state.warmingPressure >=
+        Math.max(1, this.settings.warmingThreshold ?? ClimateManager.EVENT_THRESHOLD);
+    const coolingApplied =
+      this.settings.enabled !== false &&
+      state.coolingPressure >=
+        Math.max(1, this.settings.coolingThreshold ?? ClimateManager.EVENT_THRESHOLD);
     if (warmingApplied) {
       state.warmingPressure -= ClimateManager.EVENT_THRESHOLD;
       state.warmingEvents += 1;
