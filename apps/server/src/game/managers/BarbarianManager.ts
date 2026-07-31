@@ -618,9 +618,9 @@ export class BarbarianManager {
   ): boolean {
     return Boolean(
       boatType &&
-      boatDefinition &&
-      (boatDefinition.transport_capacity ?? 0) > 0 &&
-      canUnitEnterTerrain(location.terrain, boatType)
+        boatDefinition &&
+        (boatDefinition.transport_capacity ?? 0) > 0 &&
+        canUnitEnterTerrain(location.terrain, boatType)
     );
   }
 

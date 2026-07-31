@@ -47,7 +47,9 @@ export function normalizeSpaceshipState(value: unknown): SpaceshipState {
     modules: Math.max(0, Math.floor(state.modules ?? 0)),
     ...(state.launchedTurn === undefined ? {} : { launchedTurn: state.launchedTurn }),
     ...(state.arrivalTurn === undefined ? {} : { arrivalTurn: state.arrivalTurn }),
-    ...(state.population === undefined ? {} : { population: Math.max(0, Math.floor(state.population)) }),
+    ...(state.population === undefined
+      ? {}
+      : { population: Math.max(0, Math.floor(state.population)) }),
     ...(state.successRate === undefined
       ? {}
       : { successRate: Math.max(0, Math.min(100, Math.floor(state.successRate))) }),

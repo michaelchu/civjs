@@ -1721,7 +1721,7 @@ describe('UnitManager', () => {
           superSpyAttacker,
           ActionType.SABOTAGE_CITY,
           diplomat
-      ).successChance
+        ).successChance
       ).toBe(1);
     });
 

@@ -459,7 +459,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       random,
       identities,
       game.gameState && typeof game.gameState === 'object'
-      ? (game.gameState as { barbarianRate?: number }).barbarianRate
+        ? (game.gameState as { barbarianRate?: number }).barbarianRate
         : undefined,
       game.gameState && typeof game.gameState === 'object'
         ? (game.gameState as { climateSettings?: Record<string, unknown> }).climateSettings

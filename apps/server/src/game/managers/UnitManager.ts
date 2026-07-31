@@ -2696,8 +2696,11 @@ export class UnitManager {
     toY: number,
     isDestination: boolean
   ): number {
-    if (this.hasHostileUnitAt(unit, toX, toY) &&
-      !(isDestination && this.canUnitAttackForeignUnit(unit))) return -1;
+    if (
+      this.hasHostileUnitAt(unit, toX, toY) &&
+      !(isDestination && this.canUnitAttackForeignUnit(unit))
+    )
+      return -1;
     // A military Go To may end on a foreign city. The actual move still
     // performs the diplomatic/war validation, but the path preview must be
     // able to reach the city and let the player see why it is blocked.
@@ -4441,8 +4444,7 @@ export class UnitManager {
           this.rulesetRequirements.evaluateAll(enabler.target_reqs, facts)
       );
     return (
-      actionAllowed &&
-      (!extra?.reqs || this.rulesetRequirements.evaluateAll(extra.reqs, facts))
+      actionAllowed && (!extra?.reqs || this.rulesetRequirements.evaluateAll(extra.reqs, facts))
     );
   }
 
