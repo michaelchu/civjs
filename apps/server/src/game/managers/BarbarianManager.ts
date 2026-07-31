@@ -41,6 +41,7 @@ export interface BarbarianSpawnConfig {
   maxDistanceFromCity: number; // Maximum distance from cities to spawn
   unitsPerSpawn: { min: number; max: number }; // Range of units to spawn
   leaderChance: number; // 0-100, chance to spawn a leader unit
+  allowHutBarbarians?: boolean;
 }
 
 export enum BarbarianType {
@@ -183,7 +184,7 @@ export class BarbarianManager {
    * @reference reference/freeciv/data/default/default.lua:103-130
    */
   async unleashBarbariansAt(x: number, y: number): Promise<boolean> {
-    if (this.config.rate === 0) return true;
+    if (this.config.allowHutBarbarians === false) return true;
     const map = this.mapManager.getMapData();
     if (!map) return true;
     const tile = map?.tiles.flat().find(candidate => candidate.x === x && candidate.y === y);

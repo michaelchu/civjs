@@ -66,8 +66,7 @@ export class RandomEventsManager {
   private barbarianManager: BarbarianManager;
   private disasterManager: DisasterManager;
   private unitManager: UnitManager;
-  // private mapManager: MapManager; // Placeholder for future use
-  // private broadcastManager: GameBroadcastManager; // Placeholder for future use
+  private broadcastManager: Pick<GameBroadcastManager, 'broadcastToGame'>;
 
   constructor(
     gameId: string,
@@ -76,15 +75,14 @@ export class RandomEventsManager {
     disasterManager: DisasterManager,
     unitManager: UnitManager,
     _mapManager: MapManager,
-    _broadcastManager: GameBroadcastManager
+    broadcastManager: GameBroadcastManager
   ) {
     this.gameId = gameId;
     this.config = config;
     this.barbarianManager = barbarianManager;
     this.disasterManager = disasterManager;
     this.unitManager = unitManager;
-    // this.mapManager = mapManager; // Placeholder for future use
-    // this.broadcastManager = broadcastManager; // Placeholder for future use
+    this.broadcastManager = broadcastManager;
   }
 
   /**
@@ -252,12 +250,12 @@ export class RandomEventsManager {
         });
 
         if (spawn.success) {
-          // Broadcast barbarian uprising to all players (placeholder)
-          // this.broadcastManager.sendPacketToGame(this.gameId, {
-          //   type: 'barbarian_uprising',
-          //   location: spawn.location,
-          //   message: 'Barbarian uprising in the wilderness!',
-          // });
+          this.broadcastManager.broadcastToGame(this.gameId, 'barbarian_uprising', {
+            location: spawn.location,
+            unitsSpawned: spawn.unitsCreated,
+            spawnType: spawn.spawnType,
+            message: 'A barbarian uprising has been reported in the wilderness.',
+          });
         }
       }
 

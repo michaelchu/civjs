@@ -35,9 +35,9 @@ The release target is the `civ2civ3` default configuration, with conquest
 victory, standard 80×50 maps, and up to eight participants. The classic
 ruleset remains the validated parity baseline; the other packaged profiles
 are available as data but do not yet carry the same full-support claim.
-Reference-compatible civilization scoring and score-at-turn-cap ranking are not
-part of the current supported parity claim; the confirmed implementation gap is
-tracked as `GP-035` in [`GAMEPLAY_GAPS.md`](GAMEPLAY_GAPS.md).
+Reference-compatible civilization scoring and score-at-turn-cap ranking are
+implemented for the supported baseline and tracked as resolved in `GP-035` in
+[`GAMEPLAY_GAPS.md`](GAMEPLAY_GAPS.md).
 
 ## Ruleset and action authority
 

@@ -55,7 +55,7 @@ export interface TurnInitializationOptions {
 function getBarbarianRulesetConfig(
   rulesetName: string,
   barbarianRateOverride?: number
-): { rate: number; onsetTurn: number } {
+): { rate: number; onsetTurn: number; allowHutBarbarians: boolean } {
   const settings = (
     rulesetLoader.loadGameRulesRuleset(rulesetName).settings.set as
       Array<{ name: string; value: unknown }> | undefined
@@ -64,6 +64,7 @@ function getBarbarianRulesetConfig(
     return values;
   }, {});
   const configuredRate = settings?.barbarians;
+  const configuredMode = String(configuredRate ?? 'NORMAL').toUpperCase();
   const namedRates: Record<string, number> = {
     DISABLED: 0,
     HUTS_ONLY: 0,
@@ -74,7 +75,7 @@ function getBarbarianRulesetConfig(
   const rate =
     typeof configuredRate === 'number'
       ? Math.max(0, Math.min(4, Math.floor(configuredRate)))
-      : (namedRates[String(configuredRate ?? 'NORMAL').toUpperCase()] ?? 2);
+      : (namedRates[configuredMode] ?? 2);
   const onsetTurn = typeof settings?.onsetbarbs === 'number' ? settings.onsetbarbs : 60;
   return {
     rate:
@@ -82,6 +83,7 @@ function getBarbarianRulesetConfig(
         ? rate
         : Math.max(0, Math.min(4, Math.floor(barbarianRateOverride))),
     onsetTurn,
+    allowHutBarbarians: configuredMode !== 'DISABLED',
   };
 }
 
@@ -191,10 +193,11 @@ export class TurnManager {
       economicManager,
       random
     );
-    const { rate: barbarianRate, onsetTurn: onsetBarbarian } = getBarbarianRulesetConfig(
-      rulesetName,
-      barbarianRateOverride
-    );
+    const {
+      rate: barbarianRate,
+      onsetTurn: onsetBarbarian,
+      allowHutBarbarians,
+    } = getBarbarianRulesetConfig(rulesetName, barbarianRateOverride);
     const mapManager =
       typeof (unitManager as any).getMapManager === 'function'
         ? (unitManager as any).getMapManager()
@@ -233,6 +236,7 @@ export class TurnManager {
         maxDistanceFromCity: 8,
         unitsPerSpawn: { min: 2, max: 4 },
         leaderChance: 100,
+        allowHutBarbarians,
       },
       unitManager,
       mapManager,
