@@ -30,6 +30,7 @@ export const ButtonGroup: React.FC<ButtonGroupProps> = ({
             key={option.value}
             type="button"
             onClick={() => onChange(option.value)}
+            aria-pressed={value === option.value}
             className={`flex-1 px-4 py-2 text-sm font-medium border border-border focus:z-10 focus:ring-2 focus:ring-ring focus:outline-none transition-colors ${
               index === 0
                 ? 'rounded-l-md'

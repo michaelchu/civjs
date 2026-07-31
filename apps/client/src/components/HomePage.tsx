@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { SERVER_URL } from '../config';
 import { PageBackground } from './shared/PageBackground';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './ui/card';
+import { Button } from './ui/button';
 import { gameClient } from '../services/GameClient';
 
 export const HomePage: React.FC = () => {
@@ -73,9 +74,9 @@ export const HomePage: React.FC = () => {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          <button
+          <Button
             onClick={handleStartNewGame}
-            className="w-full py-4 px-6 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-lg"
+            className="w-full h-auto rounded-lg py-4 px-6 text-base font-semibold shadow-lg"
           >
             <div className="flex items-center justify-center">
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -88,12 +89,12 @@ export const HomePage: React.FC = () => {
               </svg>
               Start New Game
             </div>
-          </button>
+          </Button>
 
-          <button
+          <Button
             onClick={handleQuickStart}
             disabled={isQuickStarting}
-            className="w-full py-4 px-6 bg-warning hover:bg-warning/90 disabled:bg-warning/50 text-warning-foreground font-semibold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-lg"
+            className="w-full h-auto rounded-lg bg-warning py-4 px-6 text-base font-semibold text-warning-foreground shadow-lg hover:bg-warning/90"
           >
             <div className="flex items-center justify-center">
               {isQuickStarting ? (
@@ -120,7 +121,7 @@ export const HomePage: React.FC = () => {
                 </>
               )}
             </div>
-          </button>
+          </Button>
 
           {quickStartError && (
             <div className="p-3 bg-red-50 border border-red-300 rounded-md text-red-800 text-sm">
@@ -128,9 +129,10 @@ export const HomePage: React.FC = () => {
             </div>
           )}
 
-          <button
+          <Button
             onClick={handleBrowseGames}
-            className="w-full py-4 px-6 bg-secondary hover:bg-secondary/80 text-secondary-foreground font-semibold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-lg"
+            variant="secondary"
+            className="w-full h-auto rounded-lg py-4 px-6 text-base font-semibold shadow-lg"
           >
             <div className="flex items-center justify-center">
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -143,7 +145,7 @@ export const HomePage: React.FC = () => {
               </svg>
               Browse Games
             </div>
-          </button>
+          </Button>
         </CardContent>
 
         <CardFooter className="border-t border-border justify-center">

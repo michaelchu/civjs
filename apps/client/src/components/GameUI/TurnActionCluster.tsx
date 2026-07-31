@@ -44,6 +44,20 @@ const ReportsMenu: React.FC<{
   onOpenSpaceRace,
   onOpenWarCalculator,
 }) => {
+  const reportItems = [
+    { label: 'Scores', icon: BarChart3, action: onOpenScores },
+    { label: 'Demographics', icon: BarChart3, action: onOpenDemographics },
+    { label: 'Climate', icon: BarChart3, action: onOpenClimate },
+    { label: 'Units', icon: Swords, action: onOpenUnitReport },
+    { label: 'Empire', icon: Building2, action: () => openReport('empire') },
+    { label: 'Intelligence', icon: Radar, action: onOpenIntelligence },
+    { label: 'Space race', icon: Rocket, action: onOpenSpaceRace },
+    { label: 'War calculator', icon: Crosshair, action: onOpenWarCalculator },
+    { label: 'Research', icon: Sparkles, action: () => openReport('research') },
+    { label: 'Diplomacy', icon: Flag, action: () => openReport('diplomacy') },
+    { label: 'Government', icon: ShieldAlert, action: () => openReport('government') },
+  ];
+
   return (
     <div
       id="turn-reports-menu"
@@ -55,116 +69,19 @@ const ReportsMenu: React.FC<{
         Reports and management
       </div>
       <div className="mt-1 grid grid-cols-2 gap-1">
-        <button
-          type="button"
-          onClick={() => {
-            onOpenScores?.();
-            onClose();
-          }}
-          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
-        >
-          <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" /> Scores
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            onOpenDemographics?.();
-            onClose();
-          }}
-          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
-        >
-          <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" /> Demographics
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            onOpenClimate?.();
-            onClose();
-          }}
-          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
-        >
-          <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" /> Climate
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            onOpenUnitReport?.();
-            onClose();
-          }}
-          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
-        >
-          <Swords className="h-3.5 w-3.5" aria-hidden="true" /> Units
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            onClose();
-            openReport('empire');
-          }}
-          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
-        >
-          <Building2 className="h-3.5 w-3.5" aria-hidden="true" /> Empire
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            onOpenIntelligence?.();
-            onClose();
-          }}
-          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
-        >
-          <Radar className="h-3.5 w-3.5" aria-hidden="true" /> Intelligence
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            onOpenSpaceRace?.();
-            onClose();
-          }}
-          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
-        >
-          <Rocket className="h-3.5 w-3.5" aria-hidden="true" /> Space race
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            onOpenWarCalculator?.();
-            onClose();
-          }}
-          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
-        >
-          <Crosshair className="h-3.5 w-3.5" aria-hidden="true" /> War calculator
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            onClose();
-            openReport('research');
-          }}
-          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
-        >
-          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Research
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            onClose();
-            openReport('diplomacy');
-          }}
-          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
-        >
-          <Flag className="h-3.5 w-3.5" aria-hidden="true" /> Diplomacy
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            onClose();
-            openReport('government');
-          }}
-          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
-        >
-          <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" /> Government
-        </button>
+        {reportItems.map(({ label, icon: Icon, action }) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => {
+              action?.();
+              onClose();
+            }}
+            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-left text-[10px] text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+          >
+            <Icon className="h-3.5 w-3.5" aria-hidden="true" /> {label}
+          </button>
+        ))}
       </div>
       <div className="mt-2 border-t border-white/10 px-2 pt-2 text-[10px] text-slate-500">
         Help and Civilopedia are available from the Help menu.

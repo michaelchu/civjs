@@ -5,6 +5,9 @@ import { gameClient } from '../services/GameClient';
 import { ConnectionDialog } from './ConnectionDialog';
 import { GameLayout } from './GameUI/GameLayout';
 import { getStoredUsername, storeUsername } from '../utils/gameSession';
+import { PageBackground } from './shared/PageBackground';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Button } from './ui/button';
 
 export const GameRoute: React.FC = () => {
   const { gameId } = useParams<{ gameId: string }>();
@@ -112,38 +115,26 @@ export const GameRoute: React.FC = () => {
   }
 
   return (
-    <>
-      <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-800 flex items-center justify-center">
-        <div className="text-center text-white">
-          {error ? (
-            <div className="bg-red-900 border border-red-700 rounded-lg p-6 max-w-md mx-auto">
-              <h2 className="text-xl font-bold mb-2">Failed to Load Game</h2>
-              <p className="text-red-200 mb-4">{error}</p>
-              <button
-                onClick={loadGame}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
-              >
-                Retry
-              </button>
-              <div className="mt-4">
-                <a href="/" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">
-                  ← Back to Home
-                </a>
-              </div>
-            </div>
-          ) : isJoining ? (
-            <div>
-              <div className="animate-spin w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full mx-auto mb-4"></div>
-              <p>Joining game...</p>
-            </div>
-          ) : (
-            <div>
-              <div className="animate-spin w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full mx-auto mb-4"></div>
-              <p>Loading game...</p>
-            </div>
-          )}
+    <PageBackground className="min-h-screen flex items-center justify-center p-4">
+      {error ? (
+        <Card className="w-full max-w-md shadow-2xl">
+          <CardHeader>
+            <CardTitle>Failed to Load Game</CardTitle>
+            <CardDescription className="text-destructive">{error}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between gap-3">
+            <Button onClick={() => void loadGame()}>Retry</Button>
+            <a href="/" className="text-sm text-primary hover:underline">
+              ← Back to Home
+            </a>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="text-center text-foreground">
+          <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p>{isJoining ? 'Joining game...' : 'Loading game...'}</p>
         </div>
-      </div>
-    </>
+      )}
+    </PageBackground>
   );
 };

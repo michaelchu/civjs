@@ -5,7 +5,7 @@ import { PageBackground } from './shared/PageBackground';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './ui/card';
 import { Combobox } from './ui/combobox';
 import { Slider } from './ui/slider';
-import { Button } from './ui/button';
+import { ButtonGroup } from './shared/ButtonGroup';
 import { useGameCreationStore } from '../store/gameCreationStore';
 
 export const TerrainSettingsDialog: React.FC = () => {
@@ -227,110 +227,58 @@ export const TerrainSettingsDialog: React.FC = () => {
               {/* Sliders in responsive grid layout */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Temperature
-                  </label>
-                  <div className="inline-flex w-full -space-x-px rounded-md shadow-xs rtl:space-x-reverse">
-                    <Button
-                      type="button"
-                      variant={terrainSettings.temperature === 35 ? 'default' : 'outline'}
-                      className="flex-1 rounded-none rounded-s-md shadow-none focus-visible:z-10"
-                      onClick={() => updateTerrainSettings({ temperature: 35 })}
-                    >
-                      Cold
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={terrainSettings.temperature === 50 ? 'default' : 'outline'}
-                      className="flex-1 rounded-none shadow-none focus-visible:z-10"
-                      onClick={() => updateTerrainSettings({ temperature: 50 })}
-                    >
-                      Temperate
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={terrainSettings.temperature === 75 ? 'default' : 'outline'}
-                      className="flex-1 rounded-none rounded-e-md shadow-none focus-visible:z-10"
-                      onClick={() => updateTerrainSettings({ temperature: 75 })}
-                    >
-                      Tropical
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1 min-h-[16px]">
-                    {terrainSettings.temperature === 35 && 'More tundra and cold regions'}
-                    {terrainSettings.temperature === 50 && 'Balanced climate with varied terrains'}
-                    {terrainSettings.temperature === 75 && 'More jungles and tropical regions'}
-                  </p>
+                  <ButtonGroup
+                    label="Temperature"
+                    value={terrainSettings.temperature}
+                    options={[
+                      { value: 35, label: 'Cold', description: 'More tundra and cold regions' },
+                      {
+                        value: 50,
+                        label: 'Temperate',
+                        description: 'Balanced climate with varied terrains',
+                      },
+                      {
+                        value: 75,
+                        label: 'Tropical',
+                        description: 'More jungles and tropical regions',
+                      },
+                    ]}
+                    onChange={temperature => updateTerrainSettings({ temperature })}
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Wetness</label>
-                  <div className="inline-flex w-full -space-x-px rounded-md shadow-xs rtl:space-x-reverse">
-                    <Button
-                      type="button"
-                      variant={terrainSettings.wetness === 35 ? 'default' : 'outline'}
-                      className="flex-1 rounded-none rounded-s-md shadow-none focus-visible:z-10"
-                      onClick={() => updateTerrainSettings({ wetness: 35 })}
-                    >
-                      Dry
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={terrainSettings.wetness === 50 ? 'default' : 'outline'}
-                      className="flex-1 rounded-none shadow-none focus-visible:z-10"
-                      onClick={() => updateTerrainSettings({ wetness: 50 })}
-                    >
-                      Normal
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={terrainSettings.wetness === 75 ? 'default' : 'outline'}
-                      className="flex-1 rounded-none rounded-e-md shadow-none focus-visible:z-10"
-                      onClick={() => updateTerrainSettings({ wetness: 75 })}
-                    >
-                      Wet
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {terrainSettings.wetness === 35 && 'More deserts and dry regions'}
-                    {terrainSettings.wetness === 50 && 'Balanced moisture with varied terrains'}
-                    {terrainSettings.wetness === 75 && 'More forests, rivers, and swamps'}
-                  </p>
+                  <ButtonGroup
+                    label="Wetness"
+                    value={terrainSettings.wetness}
+                    options={[
+                      { value: 35, label: 'Dry', description: 'More deserts and dry regions' },
+                      {
+                        value: 50,
+                        label: 'Normal',
+                        description: 'Balanced moisture with varied terrains',
+                      },
+                      {
+                        value: 75,
+                        label: 'Wet',
+                        description: 'More forests, rivers, and swamps',
+                      },
+                    ]}
+                    onChange={wetness => updateTerrainSettings({ wetness })}
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Rivers</label>
-                  <div className="inline-flex w-full -space-x-px rounded-md shadow-xs rtl:space-x-reverse">
-                    <Button
-                      type="button"
-                      variant={terrainSettings.rivers === 35 ? 'default' : 'outline'}
-                      className="flex-1 rounded-none rounded-s-md shadow-none focus-visible:z-10"
-                      onClick={() => updateTerrainSettings({ rivers: 35 })}
-                    >
-                      Few
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={terrainSettings.rivers === 50 ? 'default' : 'outline'}
-                      className="flex-1 rounded-none shadow-none focus-visible:z-10"
-                      onClick={() => updateTerrainSettings({ rivers: 50 })}
-                    >
-                      Normal
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={terrainSettings.rivers === 75 ? 'default' : 'outline'}
-                      className="flex-1 rounded-none rounded-e-md shadow-none focus-visible:z-10"
-                      onClick={() => updateTerrainSettings({ rivers: 75 })}
-                    >
-                      Many
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {terrainSettings.rivers === 35 && 'Fewer rivers and waterways'}
-                    {terrainSettings.rivers === 50 && 'Balanced river distribution'}
-                    {terrainSettings.rivers === 75 && 'More rivers and waterways'}
-                  </p>
+                  <ButtonGroup
+                    label="Rivers"
+                    value={terrainSettings.rivers}
+                    options={[
+                      { value: 35, label: 'Few', description: 'Fewer rivers and waterways' },
+                      { value: 50, label: 'Normal', description: 'Balanced river distribution' },
+                      { value: 75, label: 'Many', description: 'More rivers and waterways' },
+                    ]}
+                    onChange={rivers => updateTerrainSettings({ rivers })}
+                  />
                 </div>
 
                 <div>

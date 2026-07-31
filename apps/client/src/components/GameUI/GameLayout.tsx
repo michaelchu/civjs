@@ -144,6 +144,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
       if (report === 'research') setResearchReportOpen(true);
       if (report === 'diplomacy') setDiplomacyReportOpen(true);
       if (report === 'empire') setEmpireReportOpen(true);
+      if (report === 'demographics') setDemographicsReportOpen(true);
     };
     document.addEventListener('open-report', handleOpenReport);
     return () => document.removeEventListener('open-report', handleOpenReport);
@@ -151,19 +152,19 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
 
   if (clientState === 'initial' || clientState === 'connecting') {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
         <div className="text-center">
           <div className="text-2xl mb-4">
             {clientState === 'initial' ? 'Initializing...' : 'Connecting to server...'}
           </div>
-          <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-cyan-300 border-t-transparent"></div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen bg-gray-800 text-white overflow-hidden flex flex-col">
+    <div className="flex h-screen flex-col overflow-hidden bg-slate-950 text-white">
       <NotificationFeed />
       <EndGamePanel />
       <ScoreReport
