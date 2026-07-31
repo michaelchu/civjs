@@ -244,6 +244,69 @@ describe('UnitManager', () => {
       expect(second.orders).toEqual([]);
     });
 
+    it('applies the Engineer double work rate', async () => {
+      const engineer = await unitManager.createUnit('player-123', 'engineers', 10, 10);
+
+      await unitManager.executeUnitAction(
+        engineer.id,
+        ActionType.BUILD_ROAD,
+        undefined,
+        undefined,
+        'player-123'
+      );
+      await unitManager.processUnitOrders('player-123');
+
+      expect(tile.hasRoad).toBe(true);
+      expect(engineer.orders).toEqual([]);
+    });
+
+    it('lets a worker join an activity that already has progress', async () => {
+      const first = await unitManager.createUnit('player-123', 'worker', 10, 10);
+      await unitManager.executeUnitAction(
+        first.id,
+        ActionType.BUILD_ROAD,
+        undefined,
+        undefined,
+        'player-123'
+      );
+      await unitManager.processUnitOrders('player-123');
+      expect(first.orders?.[0]?.activity?.turnsRemaining).toBe(1);
+
+      const second = await unitManager.createUnit('player-123', 'worker', 10, 10);
+      await unitManager.executeUnitAction(
+        second.id,
+        ActionType.BUILD_ROAD,
+        undefined,
+        undefined,
+        'player-123'
+      );
+      await unitManager.processUnitOrders('player-123');
+
+      expect(tile.hasRoad).toBe(true);
+      expect(first.orders).toEqual([]);
+      expect(second.orders).toEqual([]);
+    });
+
+    it('keeps conflicting activities independent on the same tile', async () => {
+      const roadBuilder = await unitManager.createUnit('player-123', 'worker', 10, 10);
+      const miner = await unitManager.createUnit('player-123', 'worker', 10, 10);
+      roadBuilder.orders = [{ type: 'road' }];
+      miner.orders = [{ type: 'mine' }];
+
+      await unitManager.processUnitOrders('player-123');
+
+      expect(tile.hasRoad).toBe(false);
+      expect(roadBuilder.orders?.[0]?.type).toBe('road');
+      expect(miner.orders).toEqual([]);
+      expect(tile.improvements).toContain('mine');
+
+      await unitManager.processUnitOrders('player-123');
+
+      expect(tile.hasRoad).toBe(true);
+      expect(roadBuilder.orders).toEqual([]);
+      expect(tile.improvements).toContain('mine');
+    });
+
     it('treats fallout as a cleanable extra and removes it on completion', async () => {
       tile.improvements = ['fallout'];
       const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);

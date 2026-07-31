@@ -905,8 +905,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Expected outcome:** Track shared compatible progress (or equivalent work
   points), account for unit/veteran rates, and resolve completion once.
 - **Regression coverage:** `UnitManager.test.ts` covers one-worker and
-  two-worker road completion. Worker/Engineer rates, departure and joining,
-  conflicting activities, and reload persistence remain to be covered.
+  two-worker road completion, Engineer double-rate completion, a worker joining
+  an activity in progress, and conflicting same-tile activities. Reload
+  persistence remains to be covered.
 
 ### GP-030 — Several goody-hut outcomes use different game consequences
 
