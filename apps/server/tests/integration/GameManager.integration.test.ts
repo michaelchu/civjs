@@ -469,6 +469,16 @@ describe('GameManager - Integration Tests with Real Database', () => {
       expect(completedTurns[0].stateSnapshot).toEqual(
         expect.objectContaining({ version: 2, turn: initialTurn })
       );
+      expect((completedTurns[0].stateSnapshot as any).players).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: playerId,
+            unitsBuilt: expect.any(Number),
+            unitsKilled: expect.any(Number),
+            unitsLost: expect.any(Number),
+          }),
+        ])
+      );
 
       const phases = await db.query.turnPhases.findMany({
         where: (turnPhases, { eq }) => eq(turnPhases.turnId, completedTurns[0].id),

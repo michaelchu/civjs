@@ -1346,6 +1346,17 @@ export class GameManager {
     });
     gameInstance.turnManager.setReplaySnapshotProvider(() => ({
       map: gameInstance.mapManager.getMapData(),
+      players: Array.from(gameInstance.players.values()).map(player => ({
+        id: player.id,
+        teamId: player.teamId,
+        isAlive: player.isAlive,
+        hasConceded: player.hasConceded,
+        history: player.history,
+        unitsBuilt: player.unitsBuilt,
+        unitsKilled: player.unitsKilled,
+        unitsLost: player.unitsLost,
+        spaceshipState: player.spaceshipState,
+      })),
     }));
     gameInstance.turnManager.setEndGameEvaluator(async (turn, year) => {
       const evaluation = await this.endGameService.evaluate({

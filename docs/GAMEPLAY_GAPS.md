@@ -1080,8 +1080,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Regression coverage:** `PlayerScoreService.test.ts` covers citizen and
   future-tech weighting, wonder/unit/culture truncation, and arrived spaceship
   scoring. `EndGameService.test.ts` covers persisted standings, launch state,
-  and team winner behavior. Remaining coverage includes specialist/wonder
-  transfer fixtures, counter recovery, and replay/final-report consistency.
+  and team winner behavior. Turn snapshots now carry the player counters and
+  spaceship/team state needed to recompute score during replay; the remaining
+  coverage is specialist/wonder transfer fixtures and final-report consistency.
 
 ## Scope-dependent Freeciv behaviors to triage
 
