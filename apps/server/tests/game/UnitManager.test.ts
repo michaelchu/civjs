@@ -446,6 +446,64 @@ describe('UnitManager', () => {
       );
     });
 
+    it('allows military goto paths to end at a foreign city but warns until war is declared', async () => {
+      const requestPath = jest.fn(async () => ({
+        success: true,
+        path: {
+          tiles: [
+            { x: 10, y: 10, moveCost: 0 },
+            { x: 11, y: 10, moveCost: 3 },
+          ],
+        },
+      }));
+      let cityOwner = 'player-456';
+      const captureCity = jest.fn().mockImplementation(async () => {
+        cityOwner = 'player-123';
+        return true;
+      });
+      const manager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, undefined, {
+        foundCity: jest.fn(),
+        requestPath,
+        broadcastUnitMoved: jest.fn(),
+        getCityAt: (x, y) =>
+          x === 11 && y === 10 ? { id: 'foreign-city', playerId: cityOwner } : null,
+        captureCity,
+      });
+      manager.setAlliedPlayersProvider(() => new Set());
+      manager.setHostilityProvider(async () => false);
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      await expect(
+        manager.executeUnitAction(warrior.id, ActionType.GOTO, 11, 10, 'player-123')
+      ).resolves.toMatchObject({
+        success: false,
+        message: "Cannot enter player-456's city unless you declare war first.",
+      });
+      expect(warrior).toMatchObject({ x: 10, y: 10, movementLeft: 3 });
+      expect(requestPath).not.toHaveBeenCalled();
+
+      manager.setHostilityProvider(async () => true);
+      await expect(
+        manager.executeUnitAction(warrior.id, ActionType.GOTO, 11, 10, 'player-123')
+      ).resolves.toMatchObject({ success: true, newPosition: { x: 11, y: 10 } });
+      expect(captureCity).toHaveBeenCalledWith('foreign-city', 'player-123', warrior.id);
+    });
+
+    it('treats a foreign city as a legal military path destination', async () => {
+      const manager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, undefined, {
+        foundCity: jest.fn(),
+        requestPath: jest.fn(),
+        broadcastUnitMoved: jest.fn(),
+        getCityAt: (x, y) =>
+          x === 11 && y === 10 ? { id: 'foreign-city', playerId: 'player-456' } : null,
+      });
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+      (manager as any).calculateTerrainMovementCost = jest.fn(() => 3);
+
+      expect((manager as any).getPathStepCost(warrior, 10, 10, 11, 10, true)).toBe(3);
+      expect((manager as any).getPathStepCost(warrior, 10, 10, 11, 10, false)).toBe(-1);
+    });
+
     it('should reject move to invalid position', async () => {
       await expect(unitManager.moveUnit(unitId, -1, 10)).rejects.toThrow(
         'Invalid position: -1, 10'

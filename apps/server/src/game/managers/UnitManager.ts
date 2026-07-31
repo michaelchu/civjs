@@ -2339,7 +2339,15 @@ export class UnitManager {
     isDestination: boolean
   ): number {
     if (this.hasHostileUnitAt(unit, toX, toY)) return -1;
-    if (this.hasHostileCityAt(unit, toX, toY)) return -1;
+    // A military Go To may end on a foreign city. The actual move still
+    // performs the diplomatic/war validation, but the path preview must be
+    // able to reach the city and let the player see why it is blocked.
+    if (
+      this.hasHostileCityAt(unit, toX, toY) &&
+      !(isDestination && this.canUnitCaptureCity(this.unitTypes[unit.unitTypeId]))
+    ) {
+      return -1;
+    }
     if (!this.canMoveWithZoneOfControlFrom(unit, fromX, fromY, toX, toY)) return -1;
 
     const movementCost = this.calculateTerrainMovementCost(unit, fromX, fromY, toX, toY);
@@ -3550,6 +3558,13 @@ export class UnitManager {
   ): Promise<ActionResult> {
     const targetError = this.validateGotoTarget(unit, targetX, targetY);
     if (targetError) return targetError;
+    const foreignCityWarning = await this.getPeacefulForeignCityGotoWarning(
+      unit,
+      targetX!,
+      targetY!
+    );
+    if (foreignCityWarning) return { success: false, message: foreignCityWarning };
+
     const startingMovement = unit.movementLeft;
     const pathResult = await this.gameManagerCallback!.requestPath(
       unit.playerId,
@@ -3580,6 +3595,32 @@ export class UnitManager {
       movementCost: startingMovement - unit.movementLeft,
       newOrders: unit.orders,
     };
+  }
+
+  /**
+   * Go To may target a foreign city so the client can preview the route, but
+   * entering it is an attack/conquest action and requires a state of war.
+   * Freeciv reports this as a diplomatic error instead of a generic path
+   * failure; the player can declare war and retry the order.
+   */
+  private async getPeacefulForeignCityGotoWarning(
+    unit: Unit,
+    targetX: number,
+    targetY: number
+  ): Promise<string | undefined> {
+    const city = this.gameManagerCallback?.getCityAt?.(targetX, targetY);
+    if (
+      !city ||
+      city.playerId === unit.playerId ||
+      this.alliedPlayersProvider?.(unit.playerId).has(city.playerId) ||
+      !this.canUnitCaptureCity(this.unitTypes[unit.unitTypeId]) ||
+      !this.hostilityProvider
+    ) {
+      return undefined;
+    }
+
+    if (await this.hostilityProvider(unit.playerId, city.playerId)) return undefined;
+    return `Cannot enter ${city.playerId}'s city unless you declare war first.`;
   }
 
   private getGotoPathError(

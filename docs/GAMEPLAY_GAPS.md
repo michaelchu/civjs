@@ -36,10 +36,15 @@ Suggested status values:
 - **Observed behavior:** Selecting a unit's goto action toward a foreign city or
   foreign occupied tile can result in `No valid path found`. The player is not
   told whether the problem is terrain, a peaceful border, a foreign city, or an
-  enemy unit.
-- **Current implementation:** `UnitManager.getPathStepCost()` rejects foreign
-  cities and foreign units before considering diplomatic state or unit class;
-  `MapCanvas` turns a failed path response into the generic warning.
+  enemy unit. A military Go To aimed directly at a foreign city is now allowed
+  to preview the route and returns a declare-war warning at execution time;
+  foreign-unit and broader border cases remain unresolved.
+- **Current implementation:** `UnitManager.getPathStepCost()` allows a
+  city-capable military unit to use a foreign city as the final path tile, and
+  `executeAuthoritativeGoto()` rejects a peaceful foreign-city entry with a
+  specific declare-war message. Foreign cities/units remain blocked for other
+  path contexts, and `MapCanvas` still turns failed path responses into the
+  generic warning.
 - **Reference behavior:** Freeciv distinguishes peaceful-border movement from
   foreign-city attacks. Military units attempting to enter peaceful foreign
   territory receive `Cannot invade unless you break peace with %s first.`;
@@ -57,10 +62,11 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/server/unithand.c` (movement error notifications)
   - `reference/freeciv/server/plrhand.c` (`maybe_make_contact`)
 - **Expected outcome:** Preserve path preview blocking where movement is
-  illegal, but return a reason-specific result. Distinguish at least:
-  peaceful military border entry, foreign-city entry without war, foreign-unit
-  occupancy, and ordinary terrain/path failures. Apply the reference's
-  civilian, allied, war, and border-entry rules.
+  illegal, but return a reason-specific result. The direct military foreign-city
+  case should remain previewable and report that war must be declared before
+  retrying the move. Distinguish the remaining peaceful military border entry,
+  foreign-unit occupancy, and ordinary terrain/path failures. Apply the
+  reference's civilian, allied, war, and border-entry rules.
 - **Regression coverage:** Add server path/movement tests and a browser test
   asserting the player-visible message for peaceful territory and foreign-city
   attempts.
