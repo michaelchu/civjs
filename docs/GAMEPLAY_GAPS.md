@@ -46,7 +46,8 @@ Suggested status values:
   capture, while cancelling the confirmation leaves the order untouched.
   Failed path responses now retain reason-specific server errors for peaceful
   foreign-unit territory and foreign-city attacks, and the client displays
-  those messages. Military Go To previews can now reach a foreign occupied
+  those messages; rejected path requests now also surface their error instead
+  of only logging it. Military Go To previews can now reach a foreign occupied
   destination so the same peace warning is shown at execution, and movement
   establishes contact with nearby foreign units and cities. Military units are
   now blocked from peaceful foreign territory while civilian units may enter;

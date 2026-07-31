@@ -585,7 +585,14 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           }));
         }
       } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to request a Go To path';
         console.error('Error requesting path:', error);
+        setActionFeedback({ success: false, message });
+        setGotoMode(prev => ({
+          ...prev,
+          targetTile: { x: targetX, y: targetY },
+          currentPath: null,
+        }));
       }
     },
     [gotoMode.unit]
@@ -604,10 +611,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         : undefined;
       const willDeclareWar = Boolean(
         targetCity &&
-        targetCity.playerId !== currentPlayerId &&
-        targetRelation !== 'war' &&
-        targetRelation !== 'alliance' &&
-        targetRelation !== 'team'
+          targetCity.playerId !== currentPlayerId &&
+          targetRelation !== 'war' &&
+          targetRelation !== 'alliance' &&
+          targetRelation !== 'team'
       );
 
       if (willDeclareWar) {
