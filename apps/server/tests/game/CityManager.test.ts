@@ -506,6 +506,15 @@ describe('CityManager', () => {
       expect(updatedCity!.productionType).toBe('building');
     });
 
+    it('rejects direct unit production when ruleset requirements are unmet', async () => {
+      await expect(
+        cityManager.setCityProduction(city.id, 'unit', 'riflemen', 'player-123')
+      ).rejects.toThrow('Unit is not currently available: riflemen');
+      await expect(
+        cityManager.setCityProduction(city.id, 'unit', 'diplomat', 'player-123')
+      ).rejects.toThrow('Unit is not currently available: diplomat');
+    });
+
     it('should process city turns', async () => {
       await cityManager.processCityTurn(city.id, 1);
 

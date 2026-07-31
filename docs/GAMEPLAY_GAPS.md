@@ -553,17 +553,17 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-019 — Direct unit production selection bypasses build requirements
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** City production, technology, unit placement, ruleset requirements
 - **Observed behavior:** A direct production request can select a unit that the
   city is not allowed to build.
 - **Reproduction:** Select a late-game unit without its technology, a
   `NoBuild` unit, or a naval unit in an inland city through the authoritative
   production endpoint.
-- **Current implementation:** `CityManager.setCityProduction()` verifies that
-  a requested unit identifier exists but does not call `canCityQueueItem()`.
-  Building selection and turn completion do use that stricter buildability
-  check, so this bypass is specific to direct unit selection.
+- **Current implementation:** `CityManager.setCityProduction()` and worklist
+  insertion use the shared `canCityQueueItem()` evaluator, rejecting missing
+  technologies, `NoBuild`, `BarbarianOnly`, population costs, duplicate
+  buildings, wonder uniqueness, and spaceship limits before persisting a choice.
 - **Reference behavior:** Freeciv evaluates the complete requirement vector,
   obsolescence, unit flags, uniqueness, build slots, and native terrain near
   the city before accepting or completing production.
@@ -576,9 +576,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
     `can_city_build_improvement_*`)
 - **Expected outcome:** Use one authoritative buildability evaluator for direct
   selection, worklists, AI choices, restoration, and completion.
-- **Regression coverage:** Test technology, `NoBuild`, `BarbarianOnly`,
-  obsolescence, `Unique`, and inland naval production through direct selection,
-  queue selection, and turn completion.
+- **Regression coverage:** `CityManager.test.ts` covers direct rejection of a
+  technology-gated unit and a `NoBuild` unit; shared queue and completion tests
+  cover the same evaluator for worklists and active production.
 
 ### GP-020 — City names are neither player-unique nor ruleset-driven
 
