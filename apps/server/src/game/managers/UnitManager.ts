@@ -2467,8 +2467,19 @@ export class UnitManager {
     const unit = this.units.get(unitId);
     if (!unit) return;
 
-    for (const cargoId of [...(unit.cargoUnits ?? [])]) {
-      await this.destroyUnit(cargoId);
+    const cargo = [...(unit.cargoUnits ?? [])]
+      .map(cargoId => this.units.get(cargoId))
+      .filter((cargoUnit): cargoUnit is Unit => Boolean(cargoUnit));
+    if (cargo.length > 0) {
+      await this.resolveTransportLoss(unit, cargo);
+    }
+    for (const cargoUnit of cargo) {
+      if (this.units.has(cargoUnit.id) && cargoUnit.transportedBy === unit.id) {
+        await this.destroyUnit(cargoUnit.id);
+      }
+    }
+    if (unit.cargoUnits?.length) {
+      unit.cargoUnits = [];
     }
     if (unit.transportedBy) {
       const transport = this.units.get(unit.transportedBy);
@@ -2489,6 +2500,132 @@ export class UnitManager {
     // state cannot miss a path or receive duplicate path-specific events.
     this.notifyUnitLifecycle({ type: 'destroyed', unit });
     logger.info(`Unit ${unitId} destroyed`);
+  }
+
+  private async resolveTransportLoss(transport: Unit, cargo: Unit[]): Promise<void> {
+    const orderedCargo = [...cargo].sort((left, right) => {
+      const priority = (unit: Unit): number => {
+        const unitType = this.unitTypes[unit.unitTypeId];
+        const flags = [...(unitType?.rulesetUnitClassFlags ?? []), ...(unitType?.flags ?? [])];
+        return flags.includes('GameLoss') ? 0 : flags.includes('EvacuateFirst') ? 1 : 2;
+      };
+      return priority(left) - priority(right) || left.id.localeCompare(right.id);
+    });
+
+    for (const cargoUnit of orderedCargo) {
+      await this.tryRescueCargo(transport, cargoUnit);
+    }
+  }
+
+  private async tryRescueCargo(transport: Unit, cargo: Unit): Promise<boolean> {
+    const transportDestination = this.findCargoRescueTransport(transport, cargo);
+    if (transportDestination) {
+      await this.detachCargoFromTransport(cargo, transport);
+      cargo.transportedBy = transportDestination.id;
+      cargo.x = transportDestination.x;
+      cargo.y = transportDestination.y;
+      cargo.movementLeft = 0;
+      transportDestination.cargoUnits ??= [];
+      transportDestination.cargoUnits.push(cargo.id);
+      await this.databaseProvider
+        .getDatabase()
+        .update(units)
+        .set({
+          transportedBy: transportDestination.id,
+          x: cargo.x,
+          y: cargo.y,
+          movementPoints: '0',
+        })
+        .where(eq(units.id, cargo.id));
+      await this.databaseProvider
+        .getDatabase()
+        .update(units)
+        .set({ cargoUnits: transportDestination.cargoUnits })
+        .where(eq(units.id, transportDestination.id));
+      this.notifyUnitLifecycle({
+        type: 'moved',
+        unit: cargo,
+        previousX: transport.x,
+        previousY: transport.y,
+      });
+      return true;
+    }
+
+    const destination = this.findCargoRescueTile(transport, cargo);
+    if (!destination) return false;
+    await this.detachCargoFromTransport(cargo, transport);
+    cargo.transportedBy = undefined;
+    cargo.x = destination.x;
+    cargo.y = destination.y;
+    cargo.movementLeft = 0;
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ transportedBy: null, x: cargo.x, y: cargo.y, movementPoints: '0' })
+      .where(eq(units.id, cargo.id));
+    this.notifyUnitLifecycle({
+      type: 'moved',
+      unit: cargo,
+      previousX: transport.x,
+      previousY: transport.y,
+    });
+    return true;
+  }
+
+  private findCargoRescueTransport(transport: Unit, cargo: Unit): Unit | undefined {
+    return [...this.units.values()]
+      .filter(candidate => {
+        if (
+          candidate.id === transport.id ||
+          candidate.id === cargo.id ||
+          candidate.playerId !== cargo.playerId ||
+          candidate.transportedBy ||
+          this.getTransportCapacityRemaining(candidate.id) <= 0
+        ) {
+          return false;
+        }
+        if (this.calculateDistance(transport.x, transport.y, candidate.x, candidate.y) > 1) {
+          return false;
+        }
+        return this.isValidTransportCombination(candidate.unitTypeId, cargo.unitTypeId);
+      })
+      .sort(
+        (left, right) =>
+          this.calculateDistance(transport.x, transport.y, left.x, left.y) -
+            this.calculateDistance(transport.x, transport.y, right.x, right.y) ||
+          left.id.localeCompare(right.id)
+      )[0];
+  }
+
+  private findCargoRescueTile(transport: Unit, cargo: Unit): { x: number; y: number } | undefined {
+    const positions = [
+      { x: transport.x, y: transport.y },
+      ...this.getMapTopology().getNeighbors(transport.x, transport.y),
+    ];
+    return positions.find(position => {
+      if (!this.isValidPosition(position.x, position.y)) return false;
+      if (getTerrainMovementCost(this.getTerrainAt(position.x, position.y), cargo.unitTypeId) < 0) {
+        return false;
+      }
+      if (
+        this.getUnitsAt(position.x, position.y).some(
+          candidate => candidate.playerId !== cargo.playerId
+        )
+      ) {
+        return false;
+      }
+      const city = this.gameManagerCallback?.getCityAt?.(position.x, position.y);
+      return !city || city.playerId === cargo.playerId;
+    });
+  }
+
+  private async detachCargoFromTransport(cargo: Unit, transport: Unit): Promise<void> {
+    transport.cargoUnits = (transport.cargoUnits ?? []).filter(id => id !== cargo.id);
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ cargoUnits: transport.cargoUnits })
+      .where(eq(units.id, transport.id));
   }
 
   /**

@@ -579,7 +579,17 @@ describe('UnitManager', () => {
       roads.clear();
       railroads.clear();
       mapManager.getTile.mockClear();
-      unitManager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, mapManager);
+      unitManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        mapManager,
+        undefined,
+        new EffectsManager('civ2civ3'),
+        Math.random,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
     });
 
     it('enforces loaded land and sea terrain classes', async () => {
@@ -651,6 +661,55 @@ describe('UnitManager', () => {
       await expect(unitManager.unloadUnit(cargo.id, 12, 10)).resolves.toBe(true);
       expect(cargo.transportedBy).toBeUndefined();
       expect({ x: cargo.x, y: cargo.y }).toEqual({ x: 12, y: 10 });
+    });
+
+    it('rescues cargo to a legal tile when its transport is destroyed', async () => {
+      const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const cargo = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      await unitManager.loadUnitOntoTransport(transport.id, cargo.id);
+
+      await unitManager.removeUnit(transport.id);
+
+      expect(unitManager.getUnit(transport.id)).toBeUndefined();
+      expect(unitManager.getUnit(cargo.id)).toMatchObject({
+        transportedBy: undefined,
+        x: 10,
+        y: 10,
+        movementLeft: 0,
+      });
+    });
+
+    it('prioritizes GameLoss cargo for a compatible rescue transport', async () => {
+      for (let x = 9; x <= 11; x++) {
+        for (let y = 9; y <= 11; y++) terrain.set(`${x},${y}`, 'ocean');
+      }
+      const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const ordinary = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      const leader = await unitManager.createUnit('player-123', 'leader', 10, 10);
+      await unitManager.loadUnitOntoTransport(transport.id, ordinary.id);
+      await unitManager.loadUnitOntoTransport(transport.id, leader.id);
+      const rescueTransport = await unitManager.createUnit('player-123', 'helicopter', 11, 10);
+
+      await unitManager.removeUnit(transport.id);
+
+      expect(unitManager.getUnit(leader.id)).toMatchObject({
+        transportedBy: rescueTransport.id,
+      });
+      expect(unitManager.getUnit(ordinary.id)).toBeUndefined();
+      expect(rescueTransport.cargoUnits).toEqual([leader.id]);
+    });
+
+    it('destroys cargo that has no legal evacuation location', async () => {
+      for (let x = 9; x <= 11; x++) {
+        for (let y = 9; y <= 11; y++) terrain.set(`${x},${y}`, 'ocean');
+      }
+      const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const cargo = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      await unitManager.loadUnitOntoTransport(transport.id, cargo.id);
+
+      await unitManager.removeUnit(transport.id);
+
+      expect(unitManager.getUnit(cargo.id)).toBeUndefined();
     });
 
     it('preserves missile movement when launching from a compatible transport', async () => {

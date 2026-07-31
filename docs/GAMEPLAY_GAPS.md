@@ -203,7 +203,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-007 — Transport destruction kills all cargo without evacuation
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Transport, cargo survival, unit loss, combat consequences
 - **Observed behavior:** When a transport is destroyed, all cargo units are
   recursively destroyed immediately. Cargo is never given a chance to escape
@@ -211,9 +211,11 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Reproduction:** Load multiple units into a transport, destroy the transport,
   and observe that every cargo unit is removed regardless of available rescue
   locations or unit priority flags.
-- **Current implementation:** `UnitManager.destroyUnit()` recursively calls
-  itself for every `cargoUnits` entry before removing the transport. The
-  `civ2civ3` `EvacuateFirst` and `GameLoss` flags are not consulted.
+- **Current implementation:** Transport loss now prioritizes `GameLoss` and
+  `EvacuateFirst` cargo, then attempts compatible nearby transports, friendly
+  cities, and legal adjacent tiles. Rescued cargo is detached and persisted;
+  cargo without a legal destination is destroyed through the normal lifecycle
+  notification path.
 - **Reference behavior:** Freeciv first separates helpless and imperiled cargo,
   prioritizes `GameLoss` and `EvacuateFirst` units, attempts to rescue cargo,
   and only destroys units that cannot be saved.
@@ -226,9 +228,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Expected outcome:** Implement transport-loss resolution with rescue
   candidates, priority ordering, legal-placement validation, cargo updates,
   and destruction notifications for units that cannot evacuate.
-- **Regression coverage:** Add transport-loss tests covering rescuable cargo,
-  drowning cargo, `EvacuateFirst` priority, and preservation of a
-  `GameLoss` unit when a legal rescue exists.
+- **Regression coverage:** UnitManager tests cover legal-tile rescue, priority
+  preservation of a `GameLoss` unit, and destruction when no legal evacuation
+  location exists.
 
 ### GP-008 — Super Spies do not defend against diplomatic missions
 
