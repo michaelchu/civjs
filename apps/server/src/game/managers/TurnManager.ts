@@ -217,6 +217,9 @@ export class TurnManager {
       databaseProvider,
       random
     );
+    unitManager.setHutBarbarianProvider((_playerId, x, y) =>
+      barbarianManager.unleashBarbariansAt(x, y)
+    );
     const randomEventsManager = new RandomEventsManager(
       gameId,
       {

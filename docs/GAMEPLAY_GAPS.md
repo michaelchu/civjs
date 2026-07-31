@@ -902,8 +902,11 @@ you declare war first.` Civilian/border-entry units may enter permitted
   outright and spawns no horde. A failed free-city roll gives gold instead of
   nomad settlers, and mercenary selection filters by the explorer's unit class
   rather than using the `HutTech`/`Hut` role fallback sequence.
-- **Current implementation:** `UnitManager.resolveHutReward()` implements a
-  fourteen-way roll but substitutes these simplified consequences.
+- **Current implementation:** `UnitManager.resolveHutReward()` keeps the
+  fourteen-way roll, uses the ruleset `HutTech` then `Hut` role fallback for
+  mercenaries, creates nomad settlers when a city roll cannot found a city, and
+  delegates the barbarian roll to `BarbarianManager` with protected-tile and
+  GameLoss checks.
 - **Reference behavior:** `civ2civ3` inherits Freeciv's default hut script,
   which unleashes barbarians unless protected by nearby-city/GameLoss/
   disabled-barbarian rules, creates a city or settlers based on terrain, and
@@ -916,9 +919,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/server/unittools.c` (`unit_enter_hut`)
 - **Expected outcome:** Implement each scripted outcome and its eligibility,
   fallback, barbarian creation, visibility, and notification behavior.
-- **Regression coverage:** Seed all fourteen rolls, including protected
-  barbarian outcomes, poor city terrain, unavailable mercenaries, and GameLoss
-  explorers.
+- **Regression coverage:** `UnitManager.test.ts` covers the horde delegation,
+  protected explorer survival, and nomad fallback. Full fourteen-roll seeded
+  coverage, unavailable mercenaries, and integration visibility/notification
+  behavior remain to be covered.
 
 ### GP-031 — Eligible city captures never create partisans
 

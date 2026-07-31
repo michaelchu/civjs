@@ -2356,6 +2356,55 @@ describe('UnitManager', () => {
       expect(map.manager.getMapData).toHaveBeenCalled();
       expect((mockDbProvider.getDatabase() as any).update).toHaveBeenCalled();
     });
+
+    it('delegates the barbarian hut roll without killing a protected explorer', async () => {
+      const spawnHutBarbarians = jest.fn().mockResolvedValue(true);
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          spawnHutBarbarians,
+        },
+        undefined,
+        () => 10 / 14
+      );
+      const explorer = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      await (manager as any).resolveHutReward(explorer);
+
+      expect(spawnHutBarbarians).toHaveBeenCalledWith('player-123', 10, 10);
+      expect(manager.getUnit(explorer.id)).toBeDefined();
+    });
+
+    it('creates nomad settlers when a hut city roll cannot found a city', async () => {
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: jest.fn().mockRejectedValue(new Error('Tile cannot host a city')),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+        },
+        undefined,
+        () => 11 / 14
+      );
+      const explorer = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      await (manager as any).resolveHutReward(explorer);
+
+      expect(
+        manager.getPlayerUnits('player-123').some(unit => unit.unitTypeId === 'settlers')
+      ).toBe(true);
+    });
   });
 
   describe('unit queries', () => {

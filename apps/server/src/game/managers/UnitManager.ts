@@ -245,6 +245,7 @@ export class UnitManager {
     ) => Promise<string[]>;
     grantHutTechnology?: (playerId: string) => Promise<string | null>;
     revealHutMap?: (playerId: string, x: number, y: number) => string[];
+    spawnHutBarbarians?: (playerId: string, x: number, y: number) => Promise<boolean>;
     broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
   };
   private playerTechsProvider: (playerId: string) => Set<string> = () => new Set();
@@ -334,6 +335,7 @@ export class UnitManager {
       ) => Promise<string[]>;
       grantHutTechnology?: (playerId: string) => Promise<string | null>;
       revealHutMap?: (playerId: string, x: number, y: number) => string[];
+      spawnHutBarbarians?: (playerId: string, x: number, y: number) => Promise<boolean>;
       broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
     },
     effectsManager?: EffectsManager,
@@ -485,6 +487,12 @@ export class UnitManager {
     provider: (playerId: string, x: number, y: number) => string[]
   ): void {
     if (this.gameManagerCallback) this.gameManagerCallback.revealHutMap = provider;
+  }
+
+  public setHutBarbarianProvider(
+    provider: (playerId: string, x: number, y: number) => Promise<boolean>
+  ): void {
+    if (this.gameManagerCallback) this.gameManagerCallback.spawnHutBarbarians = provider;
   }
 
   /**
@@ -836,7 +844,7 @@ export class UnitManager {
     if (chance <= 4) return this.resolveHutGold(unit, chance);
     if (chance <= 7) return this.resolveHutTechnology(unit);
     if (chance <= 9) return this.resolveHutMercenary(unit);
-    if (chance === 10) return this.destroyUnit(unit.id);
+    if (chance === 10) return this.resolveHutBarbarians(unit);
     if (chance === 11 && this.gameManagerCallback?.foundCity) {
       return this.resolveHutSettlement(unit);
     }
@@ -854,15 +862,37 @@ export class UnitManager {
   }
 
   private async resolveHutMercenary(unit: Unit): Promise<void> {
-    const unitType = this.unitTypes[unit.unitTypeId];
-    const mercenary = Object.values(this.unitTypes).find(
-      type => type.roles?.includes('Hut') && type.rulesetUnitClass === unitType.rulesetUnitClass
-    );
+    const terrain = this.getTerrainAt(unit.x, unit.y);
+    const techs = this.playerTechsProvider(unit.playerId);
+    const canExist = (type: UnitType): boolean =>
+      getTerrainMovementCost(terrain, type.id) >= 0 &&
+      (!type.requiredTech ||
+        [...techs].some(tech => tech.toLowerCase() === type.requiredTech!.toLowerCase()));
+    const mercenary =
+      Object.values(this.unitTypes).find(
+        type => type.roles?.includes('HutTech') && canExist(type)
+      ) ??
+      Object.values(this.unitTypes).find(type => type.roles?.includes('Hut') && canExist(type));
     if (mercenary) {
       await this.createUnit(unit.playerId, mercenary.id, unit.x, unit.y, unit.homeCityId);
       return;
     }
     await this.changePlayerGold(unit.playerId, 25);
+  }
+
+  private async resolveHutBarbarians(unit: Unit): Promise<void> {
+    const isGameLoss = this.unitTypes[unit.unitTypeId]?.rulesetUnitClassFlags.includes('GameLoss');
+    if (isGameLoss) return;
+    const alive = await this.gameManagerCallback?.spawnHutBarbarians?.(
+      unit.playerId,
+      unit.x,
+      unit.y
+    );
+    if (alive === undefined) {
+      await this.changePlayerGold(unit.playerId, 25);
+    } else if (!alive && this.units.has(unit.id)) {
+      await this.destroyUnit(unit.id);
+    }
   }
 
   private async resolveHutSettlement(unit: Unit): Promise<void> {
@@ -875,7 +905,16 @@ export class UnitManager {
         unit.y
       );
     } catch {
-      await this.changePlayerGold(unit.playerId, 25);
+      const settlers = Object.values(this.unitTypes).find(
+        type =>
+          (type.canFoundCity || type.rulesetUnitClassFlags.includes('Cities')) &&
+          getTerrainMovementCost(this.getTerrainAt(unit.x, unit.y), type.id) >= 0
+      );
+      if (settlers) {
+        await this.createUnit(unit.playerId, settlers.id, unit.x, unit.y, unit.homeCityId);
+      } else {
+        await this.changePlayerGold(unit.playerId, 25);
+      }
     }
   }
 
