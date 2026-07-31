@@ -353,6 +353,15 @@ describe('UnitManager', () => {
   });
 
   describe('Milestone 14 city actions', () => {
+    it('creates Partisans on legal surrounding land tiles', async () => {
+      const created = await unitManager.createPartisans('player-456', { x: 10, y: 10 }, 4, 1);
+
+      expect(created).toHaveLength(4);
+      expect(created.every(unit => unit.playerId === 'player-456')).toBe(true);
+      expect(created.every(unit => unit.unitTypeId === 'partisan')).toBe(true);
+      expect(created.every(unit => unit.x !== 10 || unit.y !== 10)).toBe(true);
+    });
+
     it('reconciles units when a city changes owner', async () => {
       unitManager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, undefined, {
         foundCity: jest.fn(),

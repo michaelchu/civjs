@@ -40,6 +40,7 @@ import {
   FreecivRandom,
   generateFreecivGameSeed,
   isFreecivRandomState,
+  randomInt,
 } from '@game/random/FreecivRandom';
 import {
   FREECIV_IDENTITY_NUMBER_SKIP,
@@ -457,8 +458,40 @@ export class GameInstanceRecoveryService extends BaseGameService {
           .set({ spaceshipState: player.spaceshipState })
           .where(eq(playerRecords.id, playerId));
       },
-      onCityOwnershipChanged: (city, oldPlayerId, newPlayerId) =>
-        unitManager.reconcileCityOwnership(city, oldPlayerId, newPlayerId),
+      onCityOwnershipChanged: async (city, oldPlayerId, newPlayerId, reason) => {
+        await unitManager.reconcileCityOwnership(city, oldPlayerId, newPlayerId);
+        if (reason !== 'conquest' || city.originalOwnerId !== oldPlayerId) return;
+        const loser = players.get(oldPlayerId);
+        if (!loser || loser.nation === 'barbarian' || loser.civilization.startsWith('barbarian')) {
+          return;
+        }
+        const playerTechs = new Set(researchManager.getResearchedTechs(oldPlayerId));
+        const worldTechs = new Set<string>();
+        for (const player of players.values()) {
+          for (const technology of researchManager.getResearchedTechs(player.id)) {
+            worldTechs.add(technology);
+          }
+        }
+        const inspire = effectsManager.calculateEffect(EffectType.INSPIRE_PARTISANS, {
+          playerId: oldPlayerId,
+          government: governmentManager.getPlayerGovernment(oldPlayerId)?.currentGovernment,
+          playerTechs,
+          worldTechs,
+        });
+        if (inspire.value <= 0) return;
+        const count = randomInt(random, 2 + Math.floor((city.size + 1) / 2)) + 1;
+        const partisans = await unitManager.createPartisans(
+          oldPlayerId,
+          city,
+          Math.min(8, count),
+          city.cityRadius
+        );
+        if (partisans.length > 0) {
+          const message = `The loss of ${city.name} has inspired partisans!`;
+          this.io.to(`player:${oldPlayerId}`).emit('diplomacy_event', { message });
+          this.io.to(`player:${newPlayerId}`).emit('diplomacy_event', { message });
+        }
+      },
     });
     cityManager.setUnitSupportProvider(city => this.getUnitSupport(city, unitManager, cityManager));
 

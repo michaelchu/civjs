@@ -923,9 +923,12 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Area:** City capture, partisans, governments, ruleset scripts
 - **Observed behavior:** Capturing an eligible city never spawns partisan units
   for the losing player.
-- **Current implementation:** No capture hook evaluates `Inspire_Partisans`;
-  `EffectsManager` has no consumer even though the converted `civ2civ3` data
-  retains the effect.
+- **Current implementation:** City ownership changes now carry a conquest
+  reason. The lifecycle callback evaluates the retained `Inspire_Partisans`
+  effects against the original owner, player/world technologies, government,
+  and the ruleset Partisan unit, then places a seeded size-dependent group on
+  legal surrounding land tiles and emits the player-facing loss notification.
+  Incitement and other peaceful transfers do not trigger the conquest behavior.
 - **Reference behavior:** `civ2civ3` inherits the default partisan script,
   which evaluates local support, technologies, government, and
   `Inspire_Partisans`, then places a size-dependent number of Partisan-role
@@ -940,8 +943,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/data/civ2civ3/effects.ruleset`
 - **Expected outcome:** Evaluate the retained effect and execute the partisan
   behavior after conquest with legal placement and player notifications.
-- **Regression coverage:** Test eligible governments/techs, original versus
-  non-original owner, city sizes, no legal tiles, and non-conquest transfer.
+- **Regression coverage:** `UnitManager.test.ts` covers Partisan creation on
+  surrounding legal tiles. Effect eligibility, original versus non-original
+  owner, city-size counts, no-legal-tile fallback, and non-conquest transfer
+  still need integration coverage.
 
 ### GP-032 — Pollution never accumulates into global warming
 

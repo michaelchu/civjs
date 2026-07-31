@@ -84,6 +84,7 @@ export enum EffectType {
   ACTION_SUCCESS_ACTOR_MOVE_COST = 'Action_Success_Actor_Move_Cost',
   UNIT_BRIBE_COST_PCT = 'Unit_Bribe_Cost_Pct',
   INCITE_COST_PCT = 'Incite_Cost_Pct',
+  INSPIRE_PARTISANS = 'Inspire_Partisans',
 
   // Culture system effects (freeciv culture.c and effects_enums.def)
   PERFORMANCE = 'Performance', // EFT_PERFORMANCE (123) - Immediate culture boost
@@ -148,6 +149,7 @@ export interface EffectContext {
   cityCelebrating?: boolean;
   currentYear?: number;
   playerTechs?: Set<string>; // Player's researched technologies
+  worldTechs?: Set<string>; // Technologies known by at least one player
   playerBuildings?: Set<string>; // Buildings owned anywhere by the player
   cityBuildings?: Set<string>; // Buildings in the city
   cityPopulation?: number;
@@ -618,7 +620,8 @@ export class EffectsManager {
 
     // Technology requirement handler
     this.requirementHandlers['Tech'] = (req, context) => {
-      return this.requirementResult('Tech', req, this.setContains(context.playerTechs, req.name));
+      const techs = req.range === 'World' ? context.worldTechs : context.playerTechs;
+      return this.requirementResult('Tech', req, this.setContains(techs, req.name));
     };
     // Government ruleset requirements use the lowercase spelling.
     // @reference reference/freeciv/data/classic/governments.ruleset

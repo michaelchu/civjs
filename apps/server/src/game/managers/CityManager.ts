@@ -179,6 +179,7 @@ export interface CityState {
   x: number;
   y: number;
   playerId: string;
+  originalOwnerId?: string;
   population: number;
   size: number; // City size level (1-40)
   cityRadius: number; // Workable tile radius
@@ -302,7 +303,8 @@ export interface CityManagerCallbacks {
   onCityOwnershipChanged?: (
     city: CityState,
     oldPlayerId: string,
-    newPlayerId: string
+    newPlayerId: string,
+    reason: 'conquest' | 'transfer'
   ) => void | Promise<void>;
   onCityTurnProcessed?: (city: CityState) => void;
   onCapitalLost?: (playerId: string) => void | Promise<void>;
@@ -778,6 +780,7 @@ export class CityManager {
       x,
       y,
       playerId,
+      originalOwnerId: playerId,
       population: 1,
       size: 1,
       cityRadius: CITY_MAP_DEFAULT_RADIUS,
@@ -1280,6 +1283,7 @@ export class CityManager {
           x: record.x,
           y: record.y,
           playerId: record.playerId,
+          originalOwnerId: record.originalOwnerId ?? record.playerId,
           population: record.population,
           size: record.population,
           cityRadius: CITY_MAP_DEFAULT_RADIUS,
@@ -1363,6 +1367,7 @@ export class CityManager {
         playerId: city.playerId,
         population: city.population,
         foundedTurn: city.founded || 1,
+        originalOwnerId: city.originalOwnerId ?? city.playerId,
         currentProduction: city.currentProduction,
         food: city.foodStock || 0,
         foodPerTurn: city.foodPerTurn || 0,
@@ -2100,7 +2105,12 @@ export class CityManager {
 
     const city = this.cities.get(cityId);
     if (result.success && city) {
-      await this.callbacks.onCityOwnershipChanged?.(city, oldPlayerId, conquerorPlayerId);
+      await this.callbacks.onCityOwnershipChanged?.(
+        city,
+        oldPlayerId,
+        conquerorPlayerId,
+        'conquest'
+      );
       if (lostCapital && !result.cityDestroyed) {
         await this.handleCapitalLoss(oldPlayerId, cityId);
       }
@@ -2120,7 +2130,7 @@ export class CityManager {
     const oldPlayerId = city.playerId;
     const transferred = await this.captureService.transferCity(cityId, newPlayerId);
     if (transferred && oldPlayerId !== newPlayerId) {
-      await this.callbacks.onCityOwnershipChanged?.(city, oldPlayerId, newPlayerId);
+      await this.callbacks.onCityOwnershipChanged?.(city, oldPlayerId, newPlayerId, 'transfer');
       city.rallyPoint = undefined;
       this.calculateCityOutputs(cityId);
       this.applyCityHappiness(cityId);

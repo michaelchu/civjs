@@ -11,6 +11,7 @@ export const cities = pgTable('cities', {
   playerId: uuid('player_id')
     .references(() => players.id, { onDelete: 'cascade' })
     .notNull(),
+  originalOwnerId: uuid('original_owner_id').references(() => players.id, { onDelete: 'set null' }),
 
   // Basic info
   name: varchar('name', { length: 100 }).notNull(),

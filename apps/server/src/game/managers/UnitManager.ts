@@ -1825,6 +1825,36 @@ export class UnitManager {
     }
   }
 
+  /** Place ruleset Partisan units around a conquered city. */
+  async createPartisans(
+    playerId: string,
+    city: { x: number; y: number },
+    count: number,
+    radius: number
+  ): Promise<Unit[]> {
+    const partisanType = this.unitTypes.partisan;
+    if (!partisanType || count <= 0) return [];
+
+    const candidates: Array<{ x: number; y: number }> = [];
+    for (let y = city.y - radius; y <= city.y + radius; y += 1) {
+      for (let x = city.x - radius; x <= city.x + radius; x += 1) {
+        if ((x === city.x && y === city.y) || !this.isValidPosition(x, y)) continue;
+        if (getTerrainMovementCost(this.getTerrainAt(x, y), partisanType.id) < 0) continue;
+        if (this.gameManagerCallback?.getCityAt?.(x, y)) continue;
+        candidates.push({ x, y });
+      }
+    }
+
+    const created: Unit[] = [];
+    while (created.length < count && candidates.length > 0) {
+      const index = randomInt(this.random, candidates.length);
+      const [position] = candidates.splice(index, 1);
+      if (!position) break;
+      created.push(await this.createUnit(playerId, partisanType.id, position.x, position.y));
+    }
+    return created;
+  }
+
   private async rehomeUnit(unit: Unit, homeCityId: string): Promise<void> {
     unit.homeCityId = homeCityId;
     await this.databaseProvider
