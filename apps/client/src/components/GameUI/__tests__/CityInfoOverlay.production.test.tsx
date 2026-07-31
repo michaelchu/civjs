@@ -32,6 +32,15 @@ const idleCity = {
 } as City;
 
 describe('CityInfoOverlay production', () => {
+  it('shows city size in the overlay summary', () => {
+    render(
+      <CityInfoOverlay city={{ ...idleCity, actualPopulation: 20000 }} isOpen onClose={vi.fn()} />
+    );
+
+    expect(screen.getAllByText(/Size:/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Population: 20,000/)).not.toBeInTheDocument();
+  });
+
   it('displays an empty granary as zero rather than missing data', () => {
     render(<CityInfoOverlay city={{ ...idleCity, foodStock: 0 }} isOpen onClose={vi.fn()} />);
 

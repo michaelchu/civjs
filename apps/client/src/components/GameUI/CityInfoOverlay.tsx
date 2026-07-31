@@ -313,7 +313,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
               </div>
               <div className="flex items-center gap-1">
                 <Users className="h-4 w-4" />
-                Population: {city.actualPopulation ? city.actualPopulation.toLocaleString() : '--'}
+                Size: {city.size}
               </div>
               <div className={`flex items-center gap-1 ${stateInfo.color}`}>
                 <StateIcon className="h-4 w-4" />
