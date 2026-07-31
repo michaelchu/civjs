@@ -5,12 +5,32 @@ import { DemographicsReport } from '../DemographicsReport';
 
 const players: Record<string, Player> = {
   'player-1': {
-    id: 'player-1', name: 'Player One', nation: 'Romans', color: '#67e8f9', gold: 20, goldPerTurn: 3,
-    science: 10, sciencePerTurn: 5, history: 0, government: 'despotism', isHuman: true, isActive: true,
+    id: 'player-1',
+    name: 'Player One',
+    nation: 'Romans',
+    color: '#67e8f9',
+    gold: 20,
+    goldPerTurn: 3,
+    science: 10,
+    sciencePerTurn: 5,
+    history: 0,
+    government: 'despotism',
+    isHuman: true,
+    isActive: true,
   },
   'player-2': {
-    id: 'player-2', name: 'Player Two', nation: 'Greeks', color: '#c4b5fd', gold: 8, goldPerTurn: -1,
-    science: 5, sciencePerTurn: 2, history: 0, government: 'despotism', isHuman: false, isActive: true,
+    id: 'player-2',
+    name: 'Player Two',
+    nation: 'Greeks',
+    color: '#c4b5fd',
+    gold: 8,
+    goldPerTurn: -1,
+    science: 5,
+    sciencePerTurn: 2,
+    history: 0,
+    government: 'despotism',
+    isHuman: false,
+    isActive: true,
   },
 };
 

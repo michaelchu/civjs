@@ -17,13 +17,17 @@ describe('ChatBox', () => {
     render(<ChatBox open onOpenChange={onOpenChange} />);
 
     expect(screen.getByLabelText('Chat')).toBeInTheDocument();
-    expect(screen.getByText('No messages yet. Say hello to the other players.')).toBeInTheDocument();
+    expect(
+      screen.getByText('No messages yet. Say hello to the other players.')
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Close chat' }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it('sends trimmed messages through the game client', () => {
-    const sendChatMessage = vi.spyOn(gameClient, 'sendChatMessage').mockImplementation(() => undefined);
+    const sendChatMessage = vi
+      .spyOn(gameClient, 'sendChatMessage')
+      .mockImplementation(() => undefined);
     render(<ChatBox open onOpenChange={vi.fn()} />);
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Message' }), {

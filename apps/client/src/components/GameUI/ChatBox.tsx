@@ -40,8 +40,12 @@ export const ChatBox: React.FC<ChatBoxProps> = ({ open, onOpenChange }) => {
       <div className="flex items-center gap-2 border-b border-white/10 px-1 pb-2">
         <MessageSquare className="h-4 w-4 text-cyan-300" aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-100">Chat</div>
-          <div className="text-[10px] text-slate-500">Game channel · {currentPlayer?.name ?? 'Player'}</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-100">
+            Chat
+          </div>
+          <div className="text-[10px] text-slate-500">
+            Game channel · {currentPlayer?.name ?? 'Player'}
+          </div>
         </div>
         <HudIconButton label="Close chat" onClick={() => onOpenChange(false)}>
           <X className="h-4 w-4" aria-hidden="true" />
@@ -59,7 +63,10 @@ export const ChatBox: React.FC<ChatBoxProps> = ({ open, onOpenChange }) => {
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium text-cyan-200">{message.sender}</span>
                 <time className="text-[10px] tabular-nums text-slate-600">
-                  {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(message.timestamp).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
                 </time>
               </div>
               <p className="mt-0.5 break-words text-slate-300">{message.message}</p>
@@ -69,8 +76,13 @@ export const ChatBox: React.FC<ChatBoxProps> = ({ open, onOpenChange }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSubmit} className="flex items-center gap-2 border-t border-white/10 pt-2">
-        <label htmlFor="chat-message" className="sr-only">Message</label>
+      <form
+        onSubmit={handleSubmit}
+        className="flex items-center gap-2 border-t border-white/10 pt-2"
+      >
+        <label htmlFor="chat-message" className="sr-only">
+          Message
+        </label>
         <input
           id="chat-message"
           type="text"

@@ -194,7 +194,11 @@ describe('MapRenderer live-state updates', () => {
       units: { [unit.id]: unit },
     });
 
-    expect(context.fillText).toHaveBeenCalledWith('warriors', expect.any(Number), expect.any(Number));
+    expect(context.fillText).toHaveBeenCalledWith(
+      'warriors',
+      expect.any(Number),
+      expect.any(Number)
+    );
   });
 
   it('keeps unit sprites in the overdraw margin while panning', () => {

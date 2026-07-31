@@ -4,7 +4,15 @@ import type { Tile } from '../../../types';
 import { ClimateReport } from '../ClimateReport';
 
 const tiles: Record<string, Tile> = {
-  '0,0': { x: 0, y: 0, terrain: 'grassland', known: true, visible: true, elevation: 1, riverMask: 1 },
+  '0,0': {
+    x: 0,
+    y: 0,
+    terrain: 'grassland',
+    known: true,
+    visible: true,
+    elevation: 1,
+    riverMask: 1,
+  },
   '1,0': { x: 1, y: 0, terrain: 'ocean', known: true, visible: true, elevation: 0 },
   '0,1': { x: 0, y: 1, terrain: 'hills', known: true, visible: true, elevation: 3 },
   '1,1': { x: 1, y: 1, terrain: 'desert', known: false, visible: false, elevation: 2 },
