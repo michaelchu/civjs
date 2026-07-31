@@ -240,6 +240,57 @@ describe('TurnManager', () => {
       expect(turnManager.getCurrentTurn()).toBe(2);
     });
 
+    it('processes climate during a completed turn and refreshes changed map state', async () => {
+      const pollutedTile = {
+        x: 1,
+        y: 1,
+        terrain: 'grassland',
+        improvements: ['pollution'],
+      };
+      mockUnitManager.getMapManager = jest.fn(() => ({
+        getMapData: () => ({ width: 1, height: 1, tiles: [[pollutedTile]] }),
+        updateTileProperty: jest.fn(),
+      }));
+      mockVisibilityManager.updateAllPlayersVisibility = jest.fn();
+      mockDatabase.getDatabase().query.games.findFirst.mockResolvedValue({
+        gameState: { climate: { warmingPressure: 99 } },
+      });
+      const broadcastMapData = jest.fn();
+      const manager = new TurnManager(
+        'test-game-id',
+        mockDatabase,
+        mockIo,
+        mockUnitManager,
+        mockCityManager,
+        mockResearchManager,
+        mockBorderManager,
+        mockVisibilityManager,
+        mockCultureManager,
+        { ...({ broadcastCityData: jest.fn(), broadcastMapData } as any) },
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { warmingThreshold: 1 }
+      );
+      await manager.initializeTurn(['player1']);
+      (manager as any).turnPhaseService.executePhaseProcessing = jest.fn().mockResolvedValue({
+        success: true,
+        totalDuration: 1,
+        phases: [],
+        errors: [],
+      });
+
+      await manager.processTurn();
+
+      expect(pollutedTile.terrain).toBe('swamp');
+      expect(broadcastMapData).toHaveBeenCalledWith('test-game-id', expect.any(Object));
+      expect(mockVisibilityManager.updateAllPlayersVisibility).toHaveBeenCalledWith(['player1']);
+    });
+
     it('rejects concurrent processing when another server owns the turn lease', async () => {
       mockDatabase.getDatabase().returning.mockResolvedValueOnce([]);
 

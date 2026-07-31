@@ -1019,9 +1019,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
   checks, terrain transformations, map/city refresh, and notifications.
 - **Regression coverage:** `ClimateManager.test.ts` covers persisted pressure,
   warming/cooling thresholds, disabled climate, terrain eligibility, cleanup
-  of the triggering extra, and configured-threshold remainder handling. Turn
-  processing now refreshes city occupancy and player visibility after a
-  transformation; full turn/recovery integration remains open.
+  of the triggering extra, and configured-threshold remainder handling.
+  `TurnManager.test.ts` covers climate processing during a completed turn,
+  map broadcasting, and visibility refresh; recovery-specific wiring remains
+  open.
 
 ### GP-033 — Roads on desert and tundra tiles provide no trade
 
