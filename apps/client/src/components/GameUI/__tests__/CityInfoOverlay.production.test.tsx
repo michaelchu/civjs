@@ -75,6 +75,35 @@ describe('CityInfoOverlay production', () => {
     expect(screen.getByRole('button', { name: /Change/ })).toBeEnabled();
   });
 
+  it('shows estimated completion turns instead of shield costs', () => {
+    render(
+      <CityInfoOverlay
+        city={idleCity}
+        isOpen
+        onClose={vi.fn()}
+        availableProductions={[
+          {
+            id: 'warriors',
+            name: 'Warriors',
+            type: 'unit',
+            cost: 10,
+            available: true,
+          },
+        ]}
+        onProductionChange={vi.fn()}
+      />
+    );
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /Production/ }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.keyDown(screen.getByRole('button', { name: /Change/ }), { key: 'ArrowDown' });
+
+    expect(screen.getByText('5 turns')).toBeInTheDocument();
+    expect(screen.queryByText('10 shields')).not.toBeInTheDocument();
+  });
+
   it('keeps long production choices within a scrollable viewport menu', () => {
     render(
       <CityInfoOverlay

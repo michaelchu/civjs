@@ -189,6 +189,9 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
   const conversionOptions = availableProductions.filter(
     option => option.available && option.conversion
   );
+  const shieldsPerTurn = Math.max(1, city.surplus?.shields ?? 0);
+
+  const getProductionTurns = (option: ProductionOption) => Math.ceil(option.cost / shieldsPerTurn);
 
   const renderProductionItem = (
     option: ProductionOption,
@@ -203,7 +206,11 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
         <div className="font-medium">{option.name}</div>
         <div className="text-xs text-slate-400">{option.description}</div>
       </div>
-      {!option.conversion && <span className="text-xs">{option.cost} shields</span>}
+      {!option.conversion && (
+        <span className="text-xs">
+          {getProductionTurns(option)} {getProductionTurns(option) === 1 ? 'turn' : 'turns'}
+        </span>
+      )}
     </DropdownMenuItem>
   );
 
