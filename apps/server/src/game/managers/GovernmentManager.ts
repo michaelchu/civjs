@@ -124,6 +124,50 @@ export class GovernmentManager {
     this.playerBuildingsProvider = provider;
   }
 
+  /** Reconcile government state after a prerequisite technology is revoked. */
+  public async reconcileAfterTechnologyLoss(playerId: string): Promise<string | null> {
+    const playerGov = this.playerGovernments.get(playerId);
+    if (!playerGov) return null;
+
+    const technologies = this.playerTechsProvider(playerId);
+    const buildings = this.playerBuildingsProvider(playerId);
+    const currentGovernment = playerGov.currentGovernment;
+    const pendingGovernment = playerGov.requestedGovernment;
+    const currentValid =
+      currentGovernment === getRevolutionGovernment(this.rulesetName) ||
+      this.canPlayerUseGovernment(currentGovernment, technologies, buildings).allowed;
+    const pendingValid =
+      !pendingGovernment ||
+      this.canPlayerUseGovernment(pendingGovernment, technologies, buildings).allowed;
+
+    if (currentValid && pendingValid) return null;
+
+    const revolutionGovernment = getRevolutionGovernment(this.rulesetName);
+    const replacementGovernments = Object.keys(getGovernments(this.rulesetName)).filter(
+      governmentId =>
+        governmentId !== revolutionGovernment &&
+        governmentId !== currentGovernment &&
+        this.canPlayerUseGovernment(governmentId, technologies, buildings).allowed
+    );
+    const replacement =
+      replacementGovernments.length > 0
+        ? replacementGovernments[randomInt(this.random, replacementGovernments.length)]
+        : 'despotism';
+
+    if (playerGov.revolutionTurns > 0 || currentGovernment === revolutionGovernment) {
+      playerGov.requestedGovernment = replacement;
+      await this.databaseProvider
+        .getDatabase()
+        .update(playersTable)
+        .set({ government: revolutionGovernment, revolutionTurns: playerGov.revolutionTurns })
+        .where(and(eq(playersTable.gameId, this.gameId), eq(playersTable.id, playerId)));
+      return replacement;
+    }
+
+    const result = await this.startRevolution(playerId, replacement, technologies, 0);
+    return result.success ? replacement : null;
+  }
+
   public async loadPlayerGovernment(
     playerId: string,
     currentGovernment: string,

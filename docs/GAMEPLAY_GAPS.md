@@ -814,8 +814,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Expected outcome:** Evaluate government requirements against authoritative
   research/effects before revolution and after technology loss.
 - **Regression coverage:** `GovernmentManager.test.ts` covers missing/present
-  technology and an `Any_Government` wonder override. Revolution-in-progress
-  and technology-loss enforcement remain open for integration coverage.
+  technology, an `Any_Government` wonder override, and deterministic replacement
+  of an invalid revolution target after technology loss. `ResearchManager`
+  invokes the government reconciliation hook when a technology is revoked.
 
 ### GP-028 — Worker actions bypass ruleset enablers and extra requirements
 

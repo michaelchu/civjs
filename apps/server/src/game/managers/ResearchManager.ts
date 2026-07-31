@@ -56,6 +56,7 @@ export class ResearchManager {
   private databaseProvider: DatabaseProvider;
   private currentTurnProvider?: () => number;
   private scienceCostProvider: (playerId: string) => number = () => 100;
+  private technologyLossHandler?: (playerId: string) => Promise<void>;
 
   constructor(
     gameId: string,
@@ -74,6 +75,10 @@ export class ResearchManager {
 
   public setScienceCostProvider(provider: (playerId: string) => number): void {
     this.scienceCostProvider = provider;
+  }
+
+  public setTechnologyLossHandler(handler: (playerId: string) => Promise<void>): void {
+    this.technologyLossHandler = handler;
   }
 
   /**
@@ -501,6 +506,7 @@ export class ResearchManager {
           eq(playerTechs.techId, techId)
         )
       );
+    await this.technologyLossHandler?.(playerId);
   }
 
   public async grantAvailableTechnologies(playerId: string, count: number): Promise<string[]> {

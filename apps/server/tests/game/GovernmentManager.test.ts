@@ -65,4 +65,26 @@ describe('GovernmentManager classic progression', () => {
       success: true,
     });
   });
+
+  it('selects a valid replacement when a revolution target loses its technology', async () => {
+    const manager = new GovernmentManager(
+      'game-1',
+      createMockDatabaseProvider(),
+      undefined,
+      () => 0
+    );
+    await manager.initializePlayerGovernment('player-1');
+    let technologies = new Set(['monarchy']);
+    manager.setPlayerTechsProvider(() => technologies);
+    await expect(
+      manager.startRevolution('player-1', 'monarchy', technologies)
+    ).resolves.toMatchObject({ success: true });
+
+    technologies = new Set();
+    await expect(manager.reconcileAfterTechnologyLoss('player-1')).resolves.toBe('despotism');
+    expect(manager.getPlayerGovernment('player-1')).toMatchObject({
+      currentGovernment: 'anarchy',
+      requestedGovernment: 'despotism',
+    });
+  });
 });

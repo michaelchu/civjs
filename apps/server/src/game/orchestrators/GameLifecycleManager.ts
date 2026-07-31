@@ -379,6 +379,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     governmentManager.setPlayerTechsProvider(
       playerId => new Set(researchManager.getResearchedTechs(playerId))
     );
+    researchManager.setTechnologyLossHandler(async playerId => {
+      await governmentManager.reconcileAfterTechnologyLoss(playerId);
+    });
     const unitManager = this.createUnitManager(
       gameId,
       game,
