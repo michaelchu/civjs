@@ -10,11 +10,10 @@ import {
   LocateFixed,
   ScrollText,
   Sparkles,
-  Swords,
 } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { openReport } from './reportEvents';
-import type { City, Unit } from '../../types';
+import type { City } from '../../types';
 import { HudActionButton } from './HudActionButton';
 import { HudIconButton } from './HudIconButton';
 import { HudPanel } from './HudPanel';
@@ -157,33 +156,12 @@ const CityAlertRow: React.FC<{ city: City }> = ({ city }) => {
   );
 };
 
-const UnitOrderRow: React.FC<{ unit: Unit }> = ({ unit }) => {
-  const selectUnit = useGameStore(state => state.selectUnit);
-  const selectCity = useGameStore(state => state.selectCity);
-
-  return (
-    <LinkRow
-      icon={Swords}
-      title={formatName(unit.unitTypeId)}
-      detail={`${unit.movesLeft} movement${unit.movesLeft === 1 ? '' : 's'} remaining`}
-      tone="urgent"
-      ariaLabel={`Select ${formatName(unit.unitTypeId)} awaiting orders`}
-      onClick={() => {
-        selectCity(null);
-        selectUnit(unit.id);
-        centerOn(unit.x, unit.y);
-      }}
-    />
-  );
-};
-
 export const ObjectivesJournal: React.FC<{ popover?: boolean }> = ({ popover = false }) => {
   const [collapsed, setCollapsed] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [popoverOpen, setPopoverOpen] = React.useState(false);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
   const cities = useGameStore(state => state.cities);
-  const units = useGameStore(state => state.units);
   const notifications = useGameStore(state => state.notifications);
   const urgentFocusQueue = useGameStore(state => state.urgentFocusQueue);
 
@@ -195,15 +173,8 @@ export const ObjectivesJournal: React.FC<{ popover?: boolean }> = ({ popover = f
     () => ownedCities.filter(city => city.disorder || city.granaryTurns < 0 || !city.production),
     [ownedCities]
   );
-  const pendingUnits = React.useMemo(
-    () =>
-      Object.values(units).filter(
-        unit => unit.playerId === currentPlayerId && unit.movesLeft > 0 && !unit.doneMoving
-      ),
-    [units, currentPlayerId]
-  );
   const recentEvents = notifications.slice(-3).reverse();
-  const urgentCount = cityAlerts.length + pendingUnits.length + urgentFocusQueue.length;
+  const urgentCount = cityAlerts.length + urgentFocusQueue.length;
 
   if (!popover && collapsed) {
     return (
@@ -319,29 +290,6 @@ export const ObjectivesJournal: React.FC<{ popover?: boolean }> = ({ popover = f
                 </div>
               ) : (
                 <div className="px-2 py-2 text-[10px] text-emerald-300/80">All cities stable</div>
-              )}
-            </section>
-
-            <section>
-              <SectionHeading
-                icon={Swords}
-                label="Awaiting orders"
-                count={pendingUnits.length}
-                urgent={pendingUnits.length > 0}
-              />
-              {pendingUnits.length > 0 ? (
-                <div className="mt-1 space-y-0.5">
-                  {pendingUnits.slice(0, 4).map(unit => (
-                    <UnitOrderRow key={unit.id} unit={unit} />
-                  ))}
-                  {pendingUnits.length > 4 && (
-                    <div className="px-2 py-1 text-[10px] text-slate-500">
-                      {pendingUnits.length - 4} more units pending
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="px-2 py-2 text-[10px] text-slate-500">No units need attention</div>
               )}
             </section>
 

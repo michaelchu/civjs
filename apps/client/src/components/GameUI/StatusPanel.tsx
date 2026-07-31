@@ -1,5 +1,4 @@
 import React from 'react';
-import { createPortal } from 'react-dom';
 import {
   Building2,
   CalendarDays,
@@ -15,6 +14,7 @@ import { useGameStore } from '../../store/gameStore';
 import { openReport } from './reportEvents';
 import type { City, Player } from '../../types';
 import { NationInsignia } from './NationInsignia';
+import { HudTooltip } from './HudTooltip';
 
 const formatNationName = (nation: string): string => {
   if (nation === 'random') return 'Random';
@@ -46,52 +46,6 @@ const ResourceDelta: React.FC<{ label: string; value?: number }> = ({ label, val
   </span>
 );
 
-const IconTooltip: React.FC<{ label: string; children: React.ReactNode }> = ({
-  label,
-  children,
-}) => {
-  const anchorRef = React.useRef<HTMLSpanElement>(null);
-  const [isVisible, setIsVisible] = React.useState(false);
-  const [position, setPosition] = React.useState({ left: 0, top: 0 });
-
-  const showTooltip = () => {
-    const bounds = anchorRef.current?.getBoundingClientRect();
-    if (!bounds) return;
-
-    setPosition({ left: bounds.left + bounds.width / 2, top: bounds.bottom + 8 });
-    setIsVisible(true);
-  };
-
-  return (
-    <>
-      <span
-        ref={anchorRef}
-        className="inline-flex shrink-0"
-        aria-label={label}
-        title={label}
-        tabIndex={0}
-        onMouseEnter={showTooltip}
-        onMouseLeave={() => setIsVisible(false)}
-        onFocus={showTooltip}
-        onBlur={() => setIsVisible(false)}
-      >
-        {children}
-      </span>
-      {isVisible &&
-        createPortal(
-          <span
-            role="tooltip"
-            className="pointer-events-none fixed z-[2000] -translate-x-1/2 whitespace-nowrap rounded-md border border-white/15 bg-slate-950 px-2 py-1 text-[11px] font-medium text-white shadow-lg"
-            style={{ left: position.left, top: position.top }}
-          >
-            {label}
-          </span>,
-          document.body
-        )}
-    </>
-  );
-};
-
 interface ResourceMetricProps {
   label: string;
   value: number;
@@ -108,9 +62,9 @@ const ResourceMetric: React.FC<ResourceMetricProps> = ({
   tone,
 }) => (
   <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap">
-    <IconTooltip label={`${label}: ${value}`}>
+    <HudTooltip label={`${label}: ${value}`}>
       <Icon className={`h-3.5 w-3.5 ${tone}`} aria-hidden="true" />
-    </IconTooltip>
+    </HudTooltip>
     <span className="font-semibold tabular-nums text-slate-100">{value}</span>
     {delta !== undefined && <ResourceDelta label={label} value={delta} />}
   </div>
@@ -124,11 +78,11 @@ const EconomyButton: React.FC<{ player: Player; onOpen: () => void }> = ({ playe
     aria-label="Open economy settings"
     title="Open economy settings"
   >
-    <IconTooltip
+    <HudTooltip
       label={`Rates: ${player.taxRate ?? '—'}/${player.luxuryRate ?? '—'}/${player.scienceRate ?? '—'}%`}
     >
       <Gauge className="h-3.5 w-3.5 text-cyan-300" aria-hidden="true" />
-    </IconTooltip>
+    </HudTooltip>
     <span className="font-semibold tabular-nums text-slate-100">
       {player.taxRate ?? '—'}/{player.luxuryRate ?? '—'}/{player.scienceRate ?? '—'}%
     </span>
@@ -202,15 +156,15 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({
           tone="text-violet-300"
         />
         <div className="hidden items-center gap-1.5 whitespace-nowrap md:flex">
-          <IconTooltip label={`Trade: ${trade}`}>
+          <HudTooltip label={`Trade: ${trade}`}>
             <ArrowLeftRight className="h-3.5 w-3.5 text-teal-300" aria-hidden="true" />
-          </IconTooltip>
+          </HudTooltip>
           <span className="font-semibold tabular-nums text-slate-100">{trade}</span>
         </div>
         <div className="hidden items-center gap-1.5 whitespace-nowrap md:flex">
-          <IconTooltip label="Luxury rate">
+          <HudTooltip label="Luxury rate">
             <Sparkles className="h-3.5 w-3.5 text-fuchsia-300" aria-hidden="true" />
-          </IconTooltip>
+          </HudTooltip>
           <span className="font-semibold tabular-nums text-slate-100">
             {currentPlayer.luxuryRate ?? '—'}%
           </span>
@@ -221,9 +175,9 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({
       <div className="hidden h-7 w-px bg-white/10 lg:block" aria-hidden="true" />
 
       <div className="flex items-center gap-1.5 whitespace-nowrap">
-        <IconTooltip label={`Population: ${population} · ${ownedCities.length} cities`}>
+        <HudTooltip label={`Population: ${population} · ${ownedCities.length} cities`}>
           <Users className="h-3.5 w-3.5 text-violet-300" aria-hidden="true" />
-        </IconTooltip>
+        </HudTooltip>
         <span className="font-semibold tabular-nums text-slate-100">
           {formatCompactNumber(population)}
         </span>
@@ -231,9 +185,9 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({
 
       <div className="hidden items-center gap-3 lg:flex">
         <div className="flex items-center gap-1.5 whitespace-nowrap">
-          <IconTooltip label="Current score">
+          <HudTooltip label="Current score">
             <Building2 className="h-3.5 w-3.5 text-teal-300" aria-hidden="true" />
-          </IconTooltip>
+          </HudTooltip>
           <span className="font-semibold tabular-nums text-slate-100">
             {currentPlayer.score ?? '—'}
           </span>

@@ -846,6 +846,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       maxmoves: unitManager.getUnitMaxMovement(unitTypeId) * 3,
       fuel: this.unitValue(unit.fuel, 0),
       maxFuel: this.unitValue(unitType?.fuel, 0),
+      transportCapacity: this.unitValue(unitType?.transport_capacity, 0),
       hp: this.unitValue(unit.health, 100),
       ...this.getUnitCombatStats(unitType),
       veteran: this.unitValue(unit.veteranLevel, false),

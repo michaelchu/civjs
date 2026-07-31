@@ -92,15 +92,16 @@ describe('SelectionTray', () => {
     expect(screen.getByRole('button', { name: 'Focus next unit' })).toBeInTheDocument();
   });
 
-  it('shows unit context and clears the selection', () => {
+  it('shows unit context without cargo text for non-transport units', () => {
     useGameStore.setState({ selectedUnitId: 'unit-1', focusedUnits: ['unit-1'] });
     render(<SelectionTray />);
 
     expect(screen.getByText('Warriors')).toBeInTheDocument();
-    expect(screen.getByText('80%')).toBeInTheDocument();
-    expect(screen.getByTitle('Owner: Player One · Cargo: No cargo')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Clear unit selection' }));
-    expect(useGameStore.getState().selectedUnitId).toBeNull();
+    expect(screen.queryByText('HP')).not.toBeInTheDocument();
+    expect(screen.queryByText('Move')).not.toBeInTheDocument();
+    expect(screen.queryByText('Rank')).not.toBeInTheDocument();
+    expect(screen.getByTitle('Roman')).toBeInTheDocument();
+    expect(screen.queryByText('No cargo')).not.toBeInTheDocument();
   });
 
   it('shows transport state for cargo units', () => {
@@ -111,10 +112,10 @@ describe('SelectionTray', () => {
     });
     render(<SelectionTray />);
 
-    expect(screen.getByTitle('Owner: Player One · Cargo: 2 cargo')).toBeInTheDocument();
+    expect(screen.getByTitle('Roman · Cargo: 2 cargo')).toBeInTheDocument();
   });
 
-  it('explains why unit actions are unavailable', () => {
+  it('disables unit actions when they are unavailable without showing a status label', () => {
     useGameStore.setState({
       selectedUnitId: 'unit-1',
       focusedUnits: ['unit-1'],
@@ -122,16 +123,11 @@ describe('SelectionTray', () => {
     });
     render(<SelectionTray />);
 
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'Actions unavailable during the research phase'
-    );
-    expect(screen.getByRole('button', { name: 'Go to' })).toHaveAttribute(
-      'aria-describedby',
-      'unit-action-status'
-    );
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Go to' })).toBeDisabled();
   });
 
-  it('shows queued order state when the unit has a command queue', () => {
+  it('shows queued order controls when the unit has a command queue', () => {
     useGameStore.setState({
       selectedUnitId: 'unit-1',
       focusedUnits: ['unit-1'],
@@ -139,7 +135,6 @@ describe('SelectionTray', () => {
     });
     render(<SelectionTray />);
 
-    expect(screen.getByText('2, 3 · 1 queued · Goto')).toBeInTheDocument();
     expect(screen.getByText('1 queued')).toBeInTheDocument();
     expect(screen.getByTitle('Queued orders')).toBeInTheDocument();
   });

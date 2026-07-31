@@ -443,6 +443,7 @@ export class GameClient {
               maxMoves: normalizedUnit.maxmoves,
               fuel: normalizedUnit.fuel,
               maxFuel: normalizedUnit.maxFuel,
+              transportCapacity: normalizedUnit.transportCapacity,
               veteranLevel: normalizedUnit.veteran,
               homeCityId: normalizedUnit.homeCity ?? undefined,
               upkeep: {
@@ -746,6 +747,7 @@ export class GameClient {
       cargoUnits: unitData.cargoUnits ?? unitData.cargo ?? [],
       birthTurn: unitData.birthTurn ?? unitData.birth_turn,
       maxFuel: unitData.maxFuel ?? unitData.max_fuel,
+      transportCapacity: unitData.transportCapacity ?? unitData.transport_capacity,
       fortified: unitData.fortified ?? unitData.activity === 'fortified',
     };
   }

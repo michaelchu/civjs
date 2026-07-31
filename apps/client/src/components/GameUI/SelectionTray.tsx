@@ -9,9 +9,7 @@ import {
   Ellipsis,
   Flag,
   Hammer,
-  Heart,
   MapPin,
-  Move,
   ListOrdered,
   Shield,
   Sparkles,
@@ -27,11 +25,18 @@ import { ActionType } from '../../types/shared/actions';
 import type { City, Unit } from '../../types';
 import { HudIconButton } from './HudIconButton';
 import { HudPanel } from './HudPanel';
+import { HudTooltip } from './HudTooltip';
 
 const formatName = (value: string): string =>
   value
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     .split(/[_-]+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+
+const formatNationName = (value: string): string =>
+  value
+    .split(/[\s_-]+/)
     .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(' ');
 
@@ -41,21 +46,25 @@ const ActionButton: React.FC<{
   onClick: () => void;
   disabled?: boolean;
   title?: string;
-  describedBy?: string;
-}> = ({ label, icon: Icon, onClick, disabled = false, title, describedBy }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    disabled={disabled}
-    title={title ?? label}
-    aria-label={label}
-    aria-describedby={describedBy}
-    className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 text-xs font-medium text-slate-200 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 disabled:cursor-not-allowed disabled:opacity-40"
-  >
-    <Icon className="h-4 w-4" aria-hidden="true" />
-    <span className="hidden sm:inline">{label}</span>
-  </button>
-);
+  showLabel?: boolean;
+  tooltip?: string;
+}> = ({ label, icon: Icon, onClick, disabled = false, title, showLabel = true, tooltip }) => {
+  const button = (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={tooltip ? undefined : (title ?? label)}
+      aria-label={label}
+      className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 text-xs font-medium text-slate-200 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70 disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      <Icon className="h-4 w-4" aria-hidden="true" />
+      <span className={showLabel ? 'hidden sm:inline' : 'sr-only'}>{label}</span>
+    </button>
+  );
+
+  return tooltip ? <HudTooltip label={tooltip}>{button}</HudTooltip> : button;
+};
 
 const Stat: React.FC<{ label: string; value: React.ReactNode; icon: React.ElementType }> = ({
   label,
@@ -83,35 +92,20 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
   const players = useGameStore(state => state.players);
   const clientState = useGameStore(state => state.clientState);
   const phase = useGameStore(state => state.phase);
-  const selectUnit = useGameStore(state => state.selectUnit);
   const addNotification = useGameStore(state => state.addNotification);
   const isOwned = unit.playerId === currentPlayerId;
   const canAct = isOwned && clientState === 'running' && phase === 'movement';
-  const movement = `${Math.max(0, unit.movesLeft ?? 0)}/${unit.maxMoves ?? '—'}`;
   const unitLabel = formatName(unit.unitTypeId);
-  const ownerLabel = players[unit.playerId]?.name ?? unit.playerId;
+  const owner = players[unit.playerId];
+  const civilizationLabel = owner?.nation ? formatNationName(owner.nation) : unit.playerId;
   const cargoSummary = unit.transportedBy
     ? 'Transported'
     : unit.cargoUnits && unit.cargoUnits.length > 0
       ? `${unit.cargoUnits.length} cargo`
-      : 'No cargo';
+      : unit.transportCapacity && unit.transportCapacity > 0
+        ? 'No cargo'
+        : undefined;
   const queuedOrders = getUnitOrders(unit.orders);
-  const orderSummary =
-    queuedOrders.length > 0
-      ? `${queuedOrders.length} queued · ${formatName(String(queuedOrders[0]?.type ?? 'Order'))}`
-      : unit.activity
-        ? formatName(String(unit.activity))
-        : 'Idle';
-  const actionStatus = !isOwned
-    ? 'You do not control this unit'
-    : clientState !== 'running'
-      ? `Actions unavailable while connection is ${clientState.replaceAll('_', ' ')}`
-      : phase !== 'movement'
-        ? `Actions unavailable during the ${phase} phase`
-        : !unit.capabilities?.canFortify
-          ? 'Fortify is unavailable for this unit'
-          : undefined;
-
   const dispatchTargetAction = (action: ActionType) => {
     document.dispatchEvent(
       new CustomEvent(
@@ -161,26 +155,24 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
             <span className="max-w-28 truncate text-sm font-semibold text-white">{unitLabel}</span>
             {unitCount > 1 && <span className="text-[10px] text-slate-400">+{unitCount - 1}</span>}
           </div>
-          <div className="max-w-36 truncate text-[10px] uppercase tracking-[0.12em] text-slate-400">
-            {unit.x}, {unit.y} · {orderSummary}
-          </div>
           <div
             className="max-w-44 truncate text-[10px] text-slate-500"
-            title={`Owner: ${ownerLabel} · Cargo: ${cargoSummary}`}
+            title={
+              cargoSummary ? `${civilizationLabel} · Cargo: ${cargoSummary}` : civilizationLabel
+            }
           >
-            <span className="text-slate-400">Owner</span> {ownerLabel} · {cargoSummary}
+            {civilizationLabel}
+            {cargoSummary ? ` · Cargo: ${cargoSummary}` : ''}
           </div>
         </div>
       </div>
 
-      <TrayDivider />
-
-      <div className="hidden items-center gap-3 md:flex">
-        <Stat label="HP" value={`${unit.hp}%`} icon={Heart} />
-        <Stat label="Move" value={movement} icon={Move} />
-        <Stat label="Rank" value={unit.veteranLevel ? 'Veteran' : 'Rookie'} icon={Shield} />
+      <div className="flex items-center gap-3">
+        <TrayDivider />
         {unit.maxFuel ? (
-          <Stat label="Fuel" value={`${unit.fuel ?? 0}/${unit.maxFuel}`} icon={Zap} />
+          <div className="hidden items-center gap-3 md:flex">
+            <Stat label="Fuel" value={`${unit.fuel ?? 0}/${unit.maxFuel}`} icon={Zap} />
+          </div>
         ) : null}
       </div>
 
@@ -194,26 +186,16 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
         </div>
       )}
 
-      {actionStatus && (
-        <div
-          id="unit-action-status"
-          role="status"
-          className="max-w-52 shrink-0 truncate text-[10px] text-amber-200/80"
-          title={actionStatus}
-        >
-          {actionStatus}
-        </div>
-      )}
-
-      <div className="ml-auto flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5">
         {queuedOrders.length > 0 && (
           <ActionButton
             label="Cancel orders"
             icon={X}
             onClick={() => void executeAction(ActionType.CANCEL_ORDERS)}
             disabled={!canAct}
-            describedBy={!canAct && actionStatus ? 'unit-action-status' : undefined}
             title={canAct ? 'Cancel all queued orders' : 'Unit cannot act right now'}
+            showLabel={false}
+            tooltip="Cancel orders"
           />
         )}
         <ActionButton
@@ -221,8 +203,9 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
           icon={MapPin}
           onClick={() => void executeAction(ActionType.GOTO)}
           disabled={!canAct}
-          describedBy={!canAct && actionStatus ? 'unit-action-status' : undefined}
           title={canAct ? 'Select a destination on the map' : 'Unit cannot act right now'}
+          showLabel={false}
+          tooltip="Go to"
         />
         <ActionButton
           label={unit.fortified ? 'Sentry' : 'Fortify'}
@@ -231,7 +214,6 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
             void executeAction(unit.fortified ? ActionType.SENTRY : ActionType.FORTIFY)
           }
           disabled={!canAct || !unit.capabilities?.canFortify}
-          describedBy={!canAct || !unit.capabilities?.canFortify ? 'unit-action-status' : undefined}
           title={
             !unit.capabilities?.canFortify
               ? 'This unit cannot fortify'
@@ -239,13 +221,16 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
                 ? undefined
                 : 'Unit cannot act right now'
           }
+          showLabel={false}
+          tooltip={unit.fortified ? 'Sentry' : 'Fortify'}
         />
-        <HudIconButton label="More unit actions" onClick={openActions}>
-          <Ellipsis className="h-4 w-4" aria-hidden="true" />
-        </HudIconButton>
-        <HudIconButton label="Clear unit selection" onClick={() => selectUnit(null)}>
-          <ChevronRight className="h-4 w-4 rotate-90" aria-hidden="true" />
-        </HudIconButton>
+        <ActionButton
+          label="More unit actions"
+          icon={Ellipsis}
+          onClick={openActions}
+          showLabel={false}
+          tooltip="More unit actions"
+        />
       </div>
     </HudPanel>
   );

@@ -32,6 +32,7 @@ export interface Unit {
   maxMoves?: number;
   fuel?: number;
   maxFuel?: number;
+  transportCapacity?: number;
   veteranLevel: number;
   homeCityId?: string;
   upkeep?: { food: number; shields: number; gold: number };

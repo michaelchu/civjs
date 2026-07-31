@@ -65,12 +65,12 @@ describe('ObjectivesJournal', () => {
     });
   });
 
-  it('shows research, city attention, awaiting orders, and recent events', () => {
+  it('shows research, city attention, and recent events', () => {
     render(<ObjectivesJournal />);
     expect(screen.getByText('Writing')).toBeInTheDocument();
     expect(screen.getByText('Alpha')).toBeInTheDocument();
-    expect(screen.getByText('Scout')).toBeInTheDocument();
     expect(screen.getByText('A border expanded')).toBeInTheDocument();
+    expect(screen.queryByText('Awaiting orders')).not.toBeInTheDocument();
   });
 
   it('centers and selects a city alert', () => {
@@ -87,7 +87,7 @@ describe('ObjectivesJournal', () => {
     render(<ObjectivesJournal />);
     fireEvent.click(screen.getByRole('button', { name: /collapse objectives/i }));
     expect(screen.getByRole('button', { name: /expand objectives/i })).toBeInTheDocument();
-    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
   });
 
   it('reopens the full panel when expanded from the collapsed mobile affordance', () => {
