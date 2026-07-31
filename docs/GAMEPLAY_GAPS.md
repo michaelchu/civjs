@@ -992,7 +992,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
   changed map, and emits a climate event. `GameConfig.climate` now controls
   whether processing is enabled and allows warming/cooling thresholds to be
   configured; recovery persists those settings in game state. Finer reference
-  probability tuning and city/visibility integration coverage remain open.
+  probability tuning and full turn/recovery integration remain open.
 - **Reference behavior:** Freeciv accumulates warming/cooling pressure from
   pollution/fallout and periodically applies ruleset terrain transformations,
   with global notifications and persistent risk state.
@@ -1007,9 +1007,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Expected outcome:** Add persistent global climate pressure, configured
   checks, terrain transformations, map/city refresh, and notifications.
 - **Regression coverage:** `ClimateManager.test.ts` covers persisted pressure,
-  warming/cooling thresholds, disabled climate, terrain eligibility, and
-  cleanup of the triggering extra. Full turn/recovery integration and
-  city/visibility refresh coverage remain open.
+  warming/cooling thresholds, disabled climate, terrain eligibility, cleanup
+  of the triggering extra, and configured-threshold remainder handling. Turn
+  processing now refreshes city occupancy and player visibility after a
+  transformation; full turn/recovery integration remains open.
 
 ### GP-033 — Roads on desert and tundra tiles provide no trade
 

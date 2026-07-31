@@ -67,21 +67,25 @@ export class ClimateManager {
     const state = await this.loadState();
     state.warmingPressure += pollutionTiles;
     state.coolingPressure += falloutTiles;
+    const warmingThreshold = Math.max(
+      1,
+      this.settings.warmingThreshold ?? ClimateManager.EVENT_THRESHOLD
+    );
+    const coolingThreshold = Math.max(
+      1,
+      this.settings.coolingThreshold ?? ClimateManager.EVENT_THRESHOLD
+    );
 
     const warmingApplied =
-      this.settings.enabled !== false &&
-      state.warmingPressure >=
-        Math.max(1, this.settings.warmingThreshold ?? ClimateManager.EVENT_THRESHOLD);
+      this.settings.enabled !== false && state.warmingPressure >= warmingThreshold;
     const coolingApplied =
-      this.settings.enabled !== false &&
-      state.coolingPressure >=
-        Math.max(1, this.settings.coolingThreshold ?? ClimateManager.EVENT_THRESHOLD);
+      this.settings.enabled !== false && state.coolingPressure >= coolingThreshold;
     if (warmingApplied) {
-      state.warmingPressure -= ClimateManager.EVENT_THRESHOLD;
+      state.warmingPressure -= warmingThreshold;
       state.warmingEvents += 1;
     }
     if (coolingApplied) {
-      state.coolingPressure -= ClimateManager.EVENT_THRESHOLD;
+      state.coolingPressure -= coolingThreshold;
       state.coolingEvents += 1;
     }
 

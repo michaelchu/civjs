@@ -99,5 +99,6 @@ describe('ClimateManager', () => {
     ).processTurn();
 
     expect(result.warmingApplied).toBe(true);
+    expect(result.state.warmingPressure).toBe(0);
   });
 });

@@ -58,8 +58,7 @@ function getBarbarianRulesetConfig(
 ): { rate: number; onsetTurn: number } {
   const settings = (
     rulesetLoader.loadGameRulesRuleset(rulesetName).settings.set as
-      | Array<{ name: string; value: unknown }>
-      | undefined
+      Array<{ name: string; value: unknown }> | undefined
   )?.reduce<Record<string, unknown>>((values, entry) => {
     values[entry.name] = entry.value;
     return values;
@@ -121,6 +120,7 @@ export class TurnManager {
   private unitManager: UnitManager;
   private researchManager: ResearchManager;
   private effectsManager: EffectsManager;
+  private visibilityManager: VisibilityManager;
   private climateManager?: ClimateManager;
 
   constructor(
@@ -153,6 +153,7 @@ export class TurnManager {
     this.unitManager = unitManager;
     this.researchManager = researchManager;
     this.effectsManager = effectsManager;
+    this.visibilityManager = visibilityManager;
 
     // Initialize services
     this.turnProcessingService = new TurnProcessingService(
@@ -371,7 +372,11 @@ export class TurnManager {
 
         await this.processGovernmentTurns(playerIds);
         await this.diplomacyProcessor?.();
-        await this.climateManager?.processTurn();
+        const climateResult = await this.climateManager?.processTurn();
+        if (climateResult?.warmingApplied || climateResult?.coolingApplied) {
+          this.cityManager.refreshAllTileOccupancy?.();
+          this.visibilityManager.updateAllPlayersVisibility(playerIds);
+        }
 
         await this.completeTurnRecord(phaseResult);
         if (await this.endGameEvaluator?.(this.currentTurn, this.currentYear)) {
