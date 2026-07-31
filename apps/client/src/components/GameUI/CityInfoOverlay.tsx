@@ -408,7 +408,9 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                     ) : (
                       <>
                         <div className="flex items-center justify-between">
-                          <span className="font-medium text-sm">{city.production.target}</span>
+                          <span className="font-medium text-sm">
+                            {city.production.name ?? city.production.target}
+                          </span>
                           <Badge variant="secondary" className="capitalize text-xs">
                             {city.production.type}
                           </Badge>
@@ -745,7 +747,9 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                   ) : (
                     <>
                       <div className="flex items-center justify-between">
-                        <span className="font-medium">{city.production.target}</span>
+                        <span className="font-medium">
+                          {city.production.name ?? city.production.target}
+                        </span>
                         <Badge variant="secondary" className="capitalize">
                           {city.production.type}
                         </Badge>

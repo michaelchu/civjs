@@ -195,6 +195,7 @@ export interface City {
   // Production
   production?: {
     target: string;
+    name?: string;
     type: 'unit' | 'building' | 'wonder';
     progress: number;
     cost: number;

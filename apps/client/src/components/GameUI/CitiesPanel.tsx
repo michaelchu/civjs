@@ -584,7 +584,9 @@ export const CitiesPanel: React.FC = () => {
                       {city.production ? (
                         <>
                           <div className="flex items-center justify-between gap-3">
-                            <span className="truncate font-medium">{city.production.target}</span>
+                            <span className="truncate font-medium">
+                              {city.production.name ?? city.production.target}
+                            </span>
                             <span className="whitespace-nowrap text-xs text-slate-400">
                               {city.production.turnsToComplete}t
                             </span>

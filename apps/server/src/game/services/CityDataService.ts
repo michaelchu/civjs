@@ -16,7 +16,7 @@ import { rulesetBuildingsService, type RulesetBuildingsService } from './Ruleset
 import type { CityPresentation } from './CityPresentationService';
 
 export interface CityDataRulesetDependencies {
-  loader: Pick<RulesetLoader, 'getCivstyle'>;
+  loader: Pick<RulesetLoader, 'getCivstyle'> & Partial<Pick<RulesetLoader, 'getUnits'>>;
   buildings: RulesetBuildingsService;
 }
 
@@ -122,6 +122,7 @@ export interface ClientCityData {
   // Production info
   production?: {
     target: string;
+    name: string;
     type: 'unit' | 'building' | 'wonder';
     progress: number;
     cost: number;
@@ -537,8 +538,15 @@ export class CityDataService {
     const remaining = Math.max(0, cost - progress);
     const unitBuyCost = 2 * remaining + Math.floor((remaining * remaining) / 20);
     const buyCost = (type === 'unit' ? unitBuyCost : 2 * remaining) * (progress === 0 ? 2 : 1);
+    const name =
+      city.currentProduction === 'capitalization'
+        ? 'Wealth'
+        : type === 'unit'
+          ? dependencies.loader.getUnits?.(rulesetName)[city.currentProduction]?.name
+          : dependencies.buildings.getBuildingTypes(rulesetName)[city.currentProduction]?.name;
     return {
       target: city.currentProduction,
+      name: name ?? city.currentProduction,
       type: city.currentProduction === 'capitalization' ? 'building' : type,
       progress,
       cost,

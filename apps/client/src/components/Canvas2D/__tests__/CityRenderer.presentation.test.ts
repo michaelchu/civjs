@@ -123,6 +123,7 @@ describe('CityRenderer presentation state', () => {
       disorder: false,
       production: {
         target: 'granary',
+        name: 'Granary',
         type: 'building',
         progress: 7,
         cost: 30,

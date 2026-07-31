@@ -72,6 +72,15 @@ describe('ruleset-backed city values', () => {
     expect(rulesetBuildingsService.getBuildingTypes().cathedral.upkeep).toBe(3);
   });
 
+  it('serializes the canonical name for active production targets', () => {
+    const result = CityDataService.transformCityForClient(
+      city({ currentProduction: 'city_walls', productionType: 'building' })
+    );
+
+    expect(result.production?.target).toBe('city_walls');
+    expect(result.production?.name).toBe('City Walls');
+  });
+
   it('uses civstyle.food_cost for serialized food surplus', () => {
     const baseCivstyle = rulesetLoader.getCivstyle();
     const result = CityDataService.transformCityForClient(city({ foodPerTurn: -1 }), 'classic', {
