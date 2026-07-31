@@ -434,6 +434,29 @@ export class UnitManager {
     this.alliedPlayersProvider = provider;
   }
 
+  /** Wake sentried units when a hostile unit enters their visible area. */
+  public async wakeSentriesForUnit(unit: Unit): Promise<void> {
+    if (!this.hostilePlayersProvider || unit.transportedBy) return;
+    const topology = (this.mapManager as Partial<MapManager> | undefined)?.getTopology?.();
+    for (const sentry of this.units.values()) {
+      if (
+        sentry.sentryUntil !== 'enemy_sighted' ||
+        sentry.transportedBy ||
+        !this.hostilePlayersProvider(sentry.playerId).has(unit.playerId)
+      ) {
+        continue;
+      }
+      const distance = topology
+        ? topology.mapDistance(sentry.x, sentry.y, unit.x, unit.y)
+        : Math.max(Math.abs(sentry.x - unit.x), Math.abs(sentry.y - unit.y));
+      const visionRadiusSq = this.unitTypes[sentry.unitTypeId]?.vision_radius_sq ?? 1;
+      if (distance * distance > visionRadiusSq) continue;
+
+      sentry.sentryUntil = undefined;
+      logger.info(`Unit ${sentry.id} woke from sentry duty after sighting ${unit.id}`);
+    }
+  }
+
   public setTileExtrasChangedCallback(
     callback: (change: {
       x: number;

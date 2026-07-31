@@ -62,6 +62,19 @@ describe('UnitManager', () => {
   });
 
   describe('unit creation', () => {
+    it('wakes sentried units when a hostile unit enters their vision', async () => {
+      unitManager.setHostilePlayersProvider(playerId =>
+        playerId === 'player-123' ? new Set(['player-456']) : new Set()
+      );
+      const sentry = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      const hostile = await unitManager.createUnit('player-456', 'warriors', 11, 10);
+      sentry.sentryUntil = 'enemy_sighted';
+
+      await unitManager.wakeSentriesForUnit(hostile);
+
+      expect(sentry.sentryUntil).toBeUndefined();
+    });
+
     it('records the authoritative turn when creating a unit', async () => {
       unitManager.setCurrentTurnProvider(() => 7);
 

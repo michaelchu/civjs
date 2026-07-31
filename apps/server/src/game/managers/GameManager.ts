@@ -1221,6 +1221,9 @@ export class GameManager {
         gameInstance.cityManager.refreshTileOccupancy(event.previousX, event.previousY);
       }
       gameInstance.cityManager.refreshTileOccupancy(event.unit.x, event.unit.y);
+      if (event.type === 'created' || event.type === 'moved' || event.type === 'owner_changed') {
+        void gameInstance.unitManager.wakeSentriesForUnit(event.unit);
+      }
       this.aiOrchestrator.onUnitLifecycle(gameId, gameInstance, event);
     });
     gameInstance.unitManager.setDiplomatActionExecutor(

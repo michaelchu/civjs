@@ -705,14 +705,15 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-025 — Sentry units never wake when an enemy is sighted
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Unit orders, visibility, turn focus
 - **Observed behavior:** Sentry sets `sentryUntil = enemy_sighted`, but no
   movement or visibility path consumes that condition, so the unit remains
   inactive and is not surfaced when enemies approach.
-- **Current implementation:** The field is written by
-  `UnitManager.processSentryOrder()` and read mainly for focus/AI filtering;
-  only `turn_start` sentries are cleared.
+- **Current implementation:** `UnitManager.wakeSentriesForUnit()` evaluates
+  hostile-player state, transport status, map distance, and the sentry's
+  vision radius. The authoritative unit lifecycle path invokes it when units
+  are created, moved, or change owners.
 - **Reference behavior:** Freeciv wakes sentried units when hostile units
   become visible nearby and interrupts orders when danger requires attention.
 - **CivJS references:**
@@ -723,8 +724,8 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/server/unittools.c` (sentry wake-up processing)
 - **Expected outcome:** Evaluate sentry wake conditions after movement,
   visibility, diplomacy, and unit creation, then notify/focus the owner.
-- **Regression coverage:** Test hostile, allied, hidden, transported, and
-  out-of-range units plus save/reload.
+- **Regression coverage:** `UnitManager.test.ts` covers a hostile unit entering
+  a sentry's vision and clearing its sentry condition.
 
 ### GP-026 — Espionage ignores repeat-theft state and target-selection rules
 
