@@ -8,6 +8,15 @@ import { HudIconButton } from './HudIconButton';
 import { HudPanel } from './HudPanel';
 import { NationInsignia } from './NationInsignia';
 
+const formatNationName = (nation: string): string => {
+  if (nation === 'random') return 'Random';
+
+  return nation
+    .split(/[\s_-]+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
+
 const stateLabels: Record<DiplomaticState, string> = {
   no_contact: 'No contact',
   war: 'War',
@@ -145,6 +154,22 @@ const NationButton: React.FC<{
   );
 };
 
+const CurrentPlayerButton: React.FC<{
+  player: { nation: string; government: string; color: string; name: string };
+}> = ({ player }) => {
+  const nationName = formatNationName(player.nation);
+  return (
+    <HudIconButton
+      label={`Open ${nationName} government`}
+      title={`${nationName} · ${player.name}`}
+      className="relative h-9 w-9 rounded-lg p-0"
+      onClick={() => openReport('government')}
+    >
+      <NationInsignia color={player.color} name={nationName} size="md" />
+    </HudIconButton>
+  );
+};
+
 export const DiplomacyStrip: React.FC = () => {
   React.useEffect(() => {
     gameClient.requestDiplomacy();
@@ -152,59 +177,20 @@ export const DiplomacyStrip: React.FC = () => {
 
   const diplomacy = useGameStore(state => state.diplomacy);
   const players = useGameStore(state => state.players);
+  const currentPlayer = useGameStore(state => state.players[state.currentPlayerId]);
 
   const nations = diplomacy?.nations ?? [];
-  const knownNations = nations.filter(nation => nation.known && nation.isAlive);
-  const unknownCount = nations.filter(nation => !nation.known && nation.isAlive).length;
+  const knownNations = nations.filter(
+    nation => nation.known && nation.isAlive && nation.relation.state !== 'no_contact'
+  );
 
   return (
     <HudPanel className="flex w-11 flex-col items-center gap-1.5 overflow-visible p-1.5">
-      {!diplomacy ? (
-        <HudIconButton
-          label="Open diplomacy"
-          title="Loading diplomacy"
-          onClick={() => openReport('diplomacy')}
-        >
-          <Users className="h-4 w-4 text-cyan-300" aria-hidden="true" />
-        </HudIconButton>
-      ) : (
-        <>
-          {knownNations.length === 0 && unknownCount === 0 ? (
-            <HudIconButton
-              label="Open diplomacy"
-              title="No other nations"
-              onClick={() => openReport('diplomacy')}
-            >
-              <Users className="h-4 w-4 text-cyan-300" aria-hidden="true" />
-            </HudIconButton>
-          ) : (
-            <>
-              {knownNations.map(nation => (
-                <LeaderRow key={nation.id} nation={nation} color={players[nation.id]?.color} />
-              ))}
-              {Array.from({ length: unknownCount }, (_, index) => (
-                <LeaderRow
-                  key={`unknown-${index}`}
-                  nation={{
-                    id: `unknown-${index}`,
-                    civilization: '',
-                    leaderName: '',
-                    isAlive: true,
-                    isAI: false,
-                    known: false,
-                    relation: {
-                      state: 'no_contact',
-                      sinceTurn: 0,
-                      embassy: false,
-                      sharedVision: false,
-                    },
-                  }}
-                />
-              ))}
-            </>
-          )}
-        </>
-      )}
+      {currentPlayer && <CurrentPlayerButton player={currentPlayer} />}
+      {diplomacy &&
+        knownNations.map(nation => (
+          <LeaderRow key={nation.id} nation={nation} color={players[nation.id]?.color} />
+        ))}
     </HudPanel>
   );
 };

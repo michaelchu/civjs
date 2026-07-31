@@ -66,31 +66,13 @@ vi.mock('../../../store/gameStore', () => ({
   useGameStore: vi.fn(selector => selector(mockUseGameStore)),
 }));
 
-describe('StatusPanel - Nation Display', () => {
+describe('StatusPanel - Resource Bar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseGameStore.cities = {};
     mockUseGameStore.urgentFocusQueue = [];
     mockUseGameStore.turnProcessingState = 'idle';
     mockUseGameStore.players['player-1'] = mockPlayer;
-  });
-
-  it.each([
-    { input: 'american', expected: 'American' },
-    { input: 'chinese', expected: 'Chinese' },
-    { input: 'roman', expected: 'Roman' },
-    { input: 'random', expected: 'Random' },
-    { input: 'holy_roman_empire', expected: 'Holy Roman Empire' },
-    { input: 'austro-hungarian', expected: 'Austro Hungarian' },
-    { input: 'ancient greece', expected: 'Ancient Greece' },
-    { input: 'UPPERCASE', expected: 'Uppercase' },
-    { input: 'mixed_CASE-nation name', expected: 'Mixed Case Nation Name' },
-  ])('formats $input as $expected', ({ input, expected }) => {
-    mockUseGameStore.players['player-1'] = { ...mockPlayer, nation: input };
-
-    const { getByText } = render(<StatusPanel />);
-
-    expect(getByText(expected)).toBeInTheDocument();
   });
 
   it('shows signed gold and science changes per turn', () => {

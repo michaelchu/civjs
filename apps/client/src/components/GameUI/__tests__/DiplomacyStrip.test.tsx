@@ -18,6 +18,18 @@ describe('DiplomacyStrip', () => {
       activeTab: 'map',
       currentPlayerId: 'player-1',
       players: {
+        'player-1': {
+          id: 'player-1',
+          name: 'Qin Shi Huang',
+          nation: 'chinese',
+          color: '#b7ff00',
+          gold: 0,
+          science: 0,
+          history: 0,
+          government: 'despotism',
+          isHuman: true,
+          isActive: true,
+        },
         'player-2': {
           id: 'player-2',
           name: 'Pericles',
@@ -70,6 +82,20 @@ describe('DiplomacyStrip', () => {
               sharedVision: false,
             },
           },
+          {
+            id: 'player-4',
+            civilization: 'American',
+            leaderName: 'AI Leader 2',
+            isAlive: true,
+            isAI: true,
+            known: true,
+            relation: {
+              state: 'no_contact',
+              sinceTurn: 0,
+              embassy: false,
+              sharedVision: false,
+            },
+          },
         ],
       },
     });
@@ -83,10 +109,28 @@ describe('DiplomacyStrip', () => {
     expect(screen.getByText('Pericles')).toBeInTheDocument();
     expect(screen.getByText('Greek · Human')).toBeInTheDocument();
     expect(screen.getByText('Peace')).toBeInTheDocument();
-    expect(screen.getByText('Unknown nation')).toBeInTheDocument();
+    expect(screen.queryByText('Unknown nation')).not.toBeInTheDocument();
     expect(screen.queryByText('Hidden Leader')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /open diplomacy card for ai leader 2/i })
+    ).not.toBeInTheDocument();
     const insignia = leaderButton.querySelector('span[style]');
     expect(insignia).toHaveStyle({ backgroundColor: '#22c55e' });
+  });
+
+  it('keeps the current player first and opens the government report', () => {
+    const dispatchSpy = vi.spyOn(document, 'dispatchEvent');
+    render(<DiplomacyStrip />);
+
+    const currentPlayerButton = screen.getByRole('button', {
+      name: 'Open Chinese government',
+    });
+    expect(currentPlayerButton).toBe(screen.getAllByRole('button')[0]);
+
+    fireEvent.click(currentPlayerButton);
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'open-report', detail: { report: 'government' } })
+    );
   });
 
   it('shows pending treaty status in the hover details', () => {
@@ -107,7 +151,6 @@ describe('DiplomacyStrip', () => {
   });
 
   it('keeps each nation as an avatar launcher with hover details', () => {
-    const dispatchSpy = vi.spyOn(document, 'dispatchEvent');
     render(<DiplomacyStrip />);
 
     expect(
@@ -115,10 +158,6 @@ describe('DiplomacyStrip', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Peace')).toBeInTheDocument();
     expect(screen.queryByText('Hidden Leader')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Unknown nation' }));
-    expect(dispatchSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'open-report', detail: { report: 'diplomacy' } })
-    );
   });
 
   it('keeps diplomacy accessible through the avatar rail', () => {
