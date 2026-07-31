@@ -420,6 +420,29 @@ export class CityManager {
     this.unitSupportProvider = provider;
   }
 
+  public setTileOccupancyProvider(
+    provider: (city: CityState, tile: WorkableTile) => boolean
+  ): void {
+    this.tileManagementService?.setTileOccupancyProvider(provider);
+  }
+
+  public refreshTileOccupancy(x: number, y: number): void {
+    for (const city of this.cities.values()) {
+      if (!city.workableTiles?.some(tile => tile.x === x && tile.y === y)) continue;
+      if (this.tileManagementService?.refreshBlockedTiles(city)) {
+        this.calculateCityOutputs(city.id);
+      }
+    }
+  }
+
+  public refreshAllTileOccupancy(): void {
+    for (const city of this.cities.values()) {
+      if (this.tileManagementService?.refreshBlockedTiles(city)) {
+        this.calculateCityOutputs(city.id);
+      }
+    }
+  }
+
   public setMapChangedCallback(callback: (gameId: string, mapData: unknown) => void): void {
     this.mapChangedCallback = callback;
   }

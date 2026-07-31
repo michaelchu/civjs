@@ -672,6 +672,27 @@ describe('CityManager', () => {
   });
 
   describe('services access', () => {
+    it('blocks and reopens workable tiles when enemy occupancy changes', async () => {
+      const city = await cityManager.foundCity(10, 10, 'Target', 'player-123');
+      const tile = cityManager.getWorkableTiles(city.id)?.find(candidate => !candidate.isCenter);
+      expect(tile).toBeDefined();
+
+      let occupied = true;
+      cityManager.setTileOccupancyProvider((candidateCity, candidateTile) =>
+        candidateCity.id === city.id && candidateTile.x === tile!.x && candidateTile.y === tile!.y
+          ? occupied
+          : false
+      );
+
+      cityManager.calculateCityOutputs(city.id);
+      expect(tile?.isBlocked).toBe(true);
+      expect(tile?.isWorked).toBe(false);
+
+      occupied = false;
+      cityManager.refreshTileOccupancy(tile!.x, tile!.y);
+      expect(tile?.isBlocked).toBe(false);
+    });
+
     it('should provide access to specialized services', async () => {
       expect(cityManager.getTileManagementService()).toBeDefined();
       expect(cityManager.getBuildingService()).toBeDefined();

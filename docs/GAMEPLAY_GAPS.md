@@ -31,7 +31,7 @@ Suggested status values:
 
 ### GP-001 — Foreign border and city movement reports a generic path error
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Movement, borders, diplomacy, pathfinding, client feedback
 - **Observed behavior:** Selecting a unit's goto action toward a foreign city or
   foreign occupied tile can result in `No valid path found`. The player is not
@@ -340,11 +340,11 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Reproduction:** Assign a citizen to a non-center city tile, move an enemy
   land unit onto that tile during war, and process city output. The assignment
   remains usable and its output is retained.
-- **Current implementation:** Workable tiles expose an `isBlocked` field and
-  citizen allocation respects it, but production code initializes the field to
-  `false` and no authoritative unit movement, diplomacy, or city-refresh path
-  derives it from hostile occupants. The `DoesntOccupyTile` class flag is
-  loaded but is not used for city tile availability.
+- **Current implementation:** `CityTileManagementService` refreshes
+  `isBlocked` from the authoritative occupancy provider before output
+  calculation. `GameManager` supplies war-state and unit-type checks, ignores
+  `DoesntOccupyTile` units, and refreshes affected cities when units move,
+  leave, are destroyed, or ownership changes.
 - **Reference behavior:** Freeciv's city-work validation treats a tile as
   occupied when it contains a unit belonging to a player at war, except for
   unit classes with `DoesntOccupyTile`. The `civ2civ3` Missile, Air, Small
@@ -361,9 +361,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Expected outcome:** Recompute workability when hostile units enter or leave
   a city radius and when diplomacy changes; unassign blocked workers, refresh
   city output, and exempt non-occupying unit classes.
-- **Regression coverage:** Add city-output tests for hostile land occupation,
-  allied and peaceful units, an enemy air or missile unit with
-  `DoesntOccupyTile`, unit departure/destruction, and war-state changes.
+- **Regression coverage:** `CityManager.test.ts` covers blocking and reopening a
+  workable tile as occupancy changes; the lifecycle wiring refreshes affected
+  city tiles on authoritative unit movement events.
 
 ### GP-012 — Losing a GameLoss unit does not eliminate its owner
 

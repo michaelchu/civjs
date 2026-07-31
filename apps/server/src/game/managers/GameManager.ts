@@ -1186,6 +1186,15 @@ export class GameManager {
     gameInstance.unitManager.setHostilePlayersProvider(
       playerId => this.hostilePlayersByGame.get(gameId)?.get(playerId) ?? new Set()
     );
+    gameInstance.cityManager.setTileOccupancyProvider((city, tile) => {
+      const hostilePlayers = this.hostilePlayersByGame.get(gameId)?.get(city.playerId);
+      if (!hostilePlayers?.size) return false;
+      return gameInstance.unitManager.getUnitsAt(tile.x, tile.y).some(unit => {
+        const unitType = gameInstance.unitManager.getUnitType(unit.unitTypeId);
+        return hostilePlayers.has(unit.playerId) && !unitType?.flags?.includes('DoesntOccupyTile');
+      });
+    });
+    gameInstance.cityManager.refreshAllTileOccupancy();
     gameInstance.unitManager.setAlliedPlayersProvider(
       playerId => this.alliedPlayersByGame.get(gameId)?.get(playerId) ?? new Set()
     );
@@ -1207,9 +1216,13 @@ export class GameManager {
       const player = gameInstance.players.get(playerId);
       return player?.isAI ? createAIProfile(player.aiLevel, player.aiTraits).scienceCost : 100;
     });
-    gameInstance.unitManager.setUnitLifecycleObserver(event =>
-      this.aiOrchestrator.onUnitLifecycle(gameId, gameInstance, event)
-    );
+    gameInstance.unitManager.setUnitLifecycleObserver(event => {
+      if (event.type === 'moved') {
+        gameInstance.cityManager.refreshTileOccupancy(event.previousX, event.previousY);
+      }
+      gameInstance.cityManager.refreshTileOccupancy(event.unit.x, event.unit.y);
+      this.aiOrchestrator.onUnitLifecycle(gameId, gameInstance, event);
+    });
     gameInstance.unitManager.setDiplomatActionExecutor(
       (playerId, unitId, actionType, targetX, targetY) =>
         this.executeDiplomatAction(gameId, playerId, unitId, actionType, targetX, targetY)
