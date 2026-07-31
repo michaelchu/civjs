@@ -1422,6 +1422,47 @@ describe('UnitManager', () => {
       expect(unit!.movementLeft).toBe(3); // Reset to warrior's full movement in fragments
     });
 
+    it('scales damaged DamageSlows units while preserving class minimum speed', async () => {
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      const warriorType = manager.getUnitType('warriors')!;
+
+      expect((manager as any).getUnitMovementPoints('player-123', warriorType, 0, 100)).toBe(3);
+      expect((manager as any).getUnitMovementPoints('player-123', warriorType, 0, 50)).toBe(1);
+      expect((manager as any).getUnitMovementPoints('player-123', warriorType, 0, 1)).toBe(1);
+    });
+
+    it('does not slow a unit class without DamageSlows', () => {
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      const missileType = manager.getUnitType('cruise_missile')!;
+
+      expect((manager as any).getUnitMovementPoints('player-123', missileType, 0, 100)).toBe(
+        missileType.movement * 3
+      );
+      expect((manager as any).getUnitMovementPoints('player-123', missileType, 0, 10)).toBe(
+        missileType.movement * 3
+      );
+    });
+
     it('should heal fortified units', async () => {
       const unit = unitManager.getUnit(unitId)!;
       unit.health = 80;

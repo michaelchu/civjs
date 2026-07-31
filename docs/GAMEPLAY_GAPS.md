@@ -265,18 +265,18 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-009 — Damaged land and sea units retain full movement
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Unit movement, damage, turn processing, unit-class flags
-- **Observed behavior:** Damaged units receive their full base movement
-  allowance at the start of every turn. Damage affects combat strength but does
+- **Observed behavior:** Damaged units received their full base movement
+  allowance at the start of every turn. Damage affected combat strength but did
   not slow movement.
 - **Reproduction:** Damage a `civ2civ3` land or sea unit without destroying
   it, end the turn, and compare its restored movement points with an undamaged
   unit of the same type.
-- **Current implementation:** `UnitManager.resetMovement()` restores the
-  ruleset/effect/veteran maximum through `getUnitMovementPoints()`, but that
-  calculation has no health input. The converted ruleset retains the
-  `DamageSlows` unit-class flag, but movement restoration does not consume it.
+- **Current implementation:** `UnitManager.resetMovement()` passes current
+  health into `getUnitMovementPoints()`. The selected ruleset's unit-class
+  `DamageSlows` and `min_speed` values are applied before movement effects;
+  unaffected classes retain their full movement.
 - **Reference behavior:** Freeciv scales the base movement rate by current hit
   points for classes with `DamageSlows`, then enforces the class minimum speed
   and applies movement effects and veteran bonuses.

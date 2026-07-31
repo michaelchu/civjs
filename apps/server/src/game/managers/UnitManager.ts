@@ -1474,7 +1474,12 @@ export class UnitManager {
           continue;
         }
         // Restore full movement points in fragments
-        unit.movementLeft = this.getUnitMovementPoints(unit.playerId, unitType, unit.veteranLevel);
+        unit.movementLeft = this.getUnitMovementPoints(
+          unit.playerId,
+          unitType,
+          unit.veteranLevel,
+          unit.health
+        );
 
         if (this.effectsManager && unit.health < 100) {
           const { gain } = this.calculateUnitHitpointRecovery(unit);
@@ -2320,7 +2325,8 @@ export class UnitManager {
   private getUnitMovementPoints(
     playerId: string,
     unitType: UnitType,
-    veteranLevel: number = 0
+    veteranLevel: number = 0,
+    health: number = 100
   ): number {
     const effectsManager = this.effectsManager;
     const effectBonus = effectsManager
@@ -2335,7 +2341,15 @@ export class UnitManager {
         }).value
       : 0;
     const veteranBonus = this.getVeteranLevel(veteranLevel).moveBonus;
-    return Math.max(0, unitType.movement + veteranBonus + effectBonus) * 3;
+    const baseMovement = Math.max(0, unitType.movement + veteranBonus) * SINGLE_MOVE;
+    const ruleset = rulesetLoader.loadUnitsRuleset(this.getRulesetName());
+    const unitClass = ruleset.unit_classes[unitType.rulesetUnitClass ?? ''];
+    const damageSlows = unitClass?.flags.includes('DamageSlows') ?? false;
+    const slowedMovement = damageSlows
+      ? Math.floor((baseMovement * Math.max(0, Math.min(100, health))) / 100)
+      : baseMovement;
+    const minimumSpeed = Math.min(unitClass?.min_speed ?? 0, baseMovement);
+    return Math.max(minimumSpeed, slowedMovement + Math.max(0, effectBonus) * SINGLE_MOVE);
   }
 
   getUnitMaxMovement(unitTypeId: string): number {
