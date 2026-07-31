@@ -34,7 +34,7 @@ import {
 import type { City, CityBatchAction, CityBatchResult, ProductionOption } from '../../types';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogHeader, DialogTitle } from '../ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,16 +46,10 @@ import {
 import { Input } from '../ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/Table';
 import { CityInfoOverlay } from './CityInfoOverlay';
+import { HudDialogContent } from './HudDialogContent';
 
 type ReportColumn =
-  | 'status'
-  | 'size'
-  | 'growth'
-  | 'resources'
-  | 'economy'
-  | 'units'
-  | 'governor'
-  | 'production';
+  'status' | 'size' | 'growth' | 'resources' | 'economy' | 'units' | 'governor' | 'production';
 type SortKey = 'name' | 'size' | 'growth' | 'food' | 'shields' | 'gold' | 'production';
 type StatusFilter = 'all' | 'attention' | 'idle' | 'starving' | 'disorder' | 'governed';
 type BatchDialog = 'production' | 'worklist' | 'governor' | 'buy' | 'sell' | null;
@@ -906,7 +900,7 @@ const BatchActionDialog: React.FC<BatchActionDialogProps> = props => {
 
   return (
     <Dialog open={Boolean(props.kind)} onOpenChange={open => !open && props.onClose()}>
-      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+      <HudDialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {batchTitle(props.kind)} · {props.cityCount} cities
@@ -1137,7 +1131,7 @@ const BatchActionDialog: React.FC<BatchActionDialogProps> = props => {
             {props.batchRunning ? 'Applying…' : 'Apply to selected'}
           </Button>
         </div>
-      </DialogContent>
+      </HudDialogContent>
     </Dialog>
   );
 };

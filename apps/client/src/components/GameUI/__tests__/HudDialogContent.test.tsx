@@ -16,6 +16,7 @@ describe('HudDialogContent', () => {
     );
 
     expect(screen.getByRole('dialog')).toHaveClass(
+      'hud-dialog',
       'bg-slate-900/90',
       'border-white/15',
       'backdrop-blur-xl',

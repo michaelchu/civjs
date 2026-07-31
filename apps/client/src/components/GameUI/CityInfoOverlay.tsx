@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Badge } from '../ui/badge';
 import { Separator } from '../ui/separator';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
@@ -41,6 +41,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import type { City, Unit, ProductionOption } from '../../types';
+import { HudDialogContent } from './HudDialogContent';
 
 const SPECIALIST_IDS: Record<string, number> = {
   scientist: 0,
@@ -185,11 +186,11 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
     <DropdownMenuItem
       key={option.id}
       onClick={() => onSelect(option)}
-      className="flex items-center justify-between"
+      className="flex items-center justify-between text-slate-100 hover:bg-slate-800 hover:text-white focus:bg-slate-800 focus:text-white"
     >
       <div>
         <div className="font-medium">{option.name}</div>
-        <div className="text-xs text-muted-foreground">{option.description}</div>
+        <div className="text-xs text-slate-400">{option.description}</div>
       </div>
       {!option.conversion && <span className="text-xs">{option.cost} shields</span>}
     </DropdownMenuItem>
@@ -201,9 +202,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
     productionGroups.flatMap((group, groupIndex) => [
       ...(groupIndex > 0 ? [<DropdownMenuSeparator key={`${group.label}-separator`} />] : []),
       <React.Fragment key={group.label}>
-        <DropdownMenuLabel className="text-xs text-muted-foreground">
-          {group.label}
-        </DropdownMenuLabel>
+        <DropdownMenuLabel className="text-xs text-slate-400">{group.label}</DropdownMenuLabel>
         {group.options.map(option => renderProductionItem(option, onSelect))}
       </React.Fragment>,
     ]);
@@ -255,17 +254,17 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
   const cityData = getCityData();
 
   const getResourceColor = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return 'text-gray-400';
-    if (value > 0) return 'text-green-600';
-    if (value < 0) return 'text-red-600';
-    return 'text-gray-600';
+    if (value === null || value === undefined) return 'text-slate-500';
+    if (value > 0) return 'text-emerald-300';
+    if (value < 0) return 'text-rose-300';
+    return 'text-slate-300';
   };
 
   const getResourceBgColor = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return 'bg-gray-50 border-gray-300';
-    if (value > 0) return 'bg-green-50 border-green-200';
-    if (value < 0) return 'bg-red-50 border-red-200';
-    return 'bg-gray-50 border-gray-200';
+    if (value === null || value === undefined) return 'bg-slate-800/70 border-slate-700';
+    if (value > 0) return 'bg-emerald-950/40 border-emerald-700/50';
+    if (value < 0) return 'bg-rose-950/40 border-rose-700/50';
+    return 'bg-slate-800/70 border-slate-700';
   };
 
   const formatResourceValue = (value: number | null | undefined, showSign = true) => {
@@ -286,9 +285,10 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
   };
 
   const getCityStateInfo = () => {
-    if (cityData.celebrating) return { text: 'Celebrating', color: 'text-green-600', icon: Heart };
-    if (cityData.disorder) return { text: 'Disorder', color: 'text-red-600', icon: Frown };
-    return { text: 'Peace', color: 'text-blue-600', icon: Smile };
+    if (cityData.celebrating)
+      return { text: 'Celebrating', color: 'text-emerald-300', icon: Heart };
+    if (cityData.disorder) return { text: 'Disorder', color: 'text-rose-300', icon: Frown };
+    return { text: 'Peace', color: 'text-cyan-300', icon: Smile };
   };
 
   const presentUnits = cityData.presentUnits?.map(id => units[id]).filter(Boolean) || [];
@@ -299,7 +299,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-4xl w-full h-[580px] max-h-[85vh] min-h-[500px] overflow-hidden flex flex-col">
+      <HudDialogContent className="h-[580px] min-h-[500px] max-h-[85vh] max-w-4xl overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Building2 className="h-6 w-6" />
@@ -328,20 +328,32 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
           onValueChange={setActiveTab}
           className="w-full flex flex-col flex-1 min-h-0"
         >
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="main" className="flex items-center gap-2">
+          <TabsList className="grid w-full grid-cols-4 bg-slate-800/80 text-slate-400">
+            <TabsTrigger
+              value="main"
+              className="flex items-center gap-2 text-slate-400 data-[state=active]:bg-slate-700 data-[state=active]:text-white"
+            >
               <Home className="h-4 w-4" />
               Main
             </TabsTrigger>
-            <TabsTrigger value="production" className="flex items-center gap-2">
+            <TabsTrigger
+              value="production"
+              className="flex items-center gap-2 text-slate-400 data-[state=active]:bg-slate-700 data-[state=active]:text-white"
+            >
               <Package2 className="h-4 w-4" />
               Production
             </TabsTrigger>
-            <TabsTrigger value="happiness" className="flex items-center gap-2">
+            <TabsTrigger
+              value="happiness"
+              className="flex items-center gap-2 text-slate-400 data-[state=active]:bg-slate-700 data-[state=active]:text-white"
+            >
               <Heart className="h-4 w-4" />
               Happiness
             </TabsTrigger>
-            <TabsTrigger value="management" className="flex items-center gap-2">
+            <TabsTrigger
+              value="management"
+              className="flex items-center gap-2 text-slate-400 data-[state=active]:bg-slate-700 data-[state=active]:text-white"
+            >
               <Settings2 className="h-4 w-4" />
               Manage
             </TabsTrigger>
@@ -350,8 +362,8 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
           <TabsContent value="main" className="space-y-4 flex-1 overflow-y-auto min-h-0 p-1">
             {/* Population Status */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 border rounded-lg bg-blue-50">
-                <h3 className="font-medium text-blue-800 mb-2 flex items-center gap-2">
+              <div className="rounded-lg border border-cyan-700/50 bg-cyan-950/30 p-4">
+                <h3 className="mb-2 flex items-center gap-2 font-medium text-cyan-200">
                   <Users className="h-4 w-4" />
                   Population
                 </h3>
@@ -365,21 +377,21 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                       {city.foodStock ?? '--'}/{city.granarySize ?? '--'}
                     </span>
                   </div>
-                  <div className="text-xs text-blue-600">{formatGrowthText()}</div>
+                  <div className="text-xs text-cyan-300">{formatGrowthText()}</div>
                 </div>
               </div>
 
               {/* Current Production */}
               {city.production && (
-                <div className="p-4 border rounded-lg bg-purple-50">
-                  <h3 className="font-medium text-purple-800 mb-2 flex items-center gap-2">
+                <div className="rounded-lg border border-indigo-700/50 bg-indigo-950/30 p-4">
+                  <h3 className="mb-2 flex items-center gap-2 font-medium text-indigo-200">
                     <Hammer className="h-4 w-4" />
                     Production
                   </h3>
                   <div className="space-y-2">
                     {isWealthProduction ? (
-                      <div className="rounded-md border border-purple-200 bg-white/70 p-3 text-sm text-purple-800">
-                        <div className="font-medium text-purple-950">Wealth</div>
+                      <div className="rounded-md border border-indigo-700/50 bg-slate-900/70 p-3 text-sm text-indigo-200">
+                        <div className="font-medium text-white">Wealth</div>
                         Converts this city&apos;s shield production to gold each turn.
                       </div>
                     ) : (
@@ -390,15 +402,15 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                             {city.production.type}
                           </Badge>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="h-2 w-full rounded-full bg-slate-700">
                           <div
-                            className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                            className="h-2 rounded-full bg-indigo-400 transition-all duration-300"
                             style={{
                               width: `${city.production.percentComplete || 0}%`,
                             }}
                           />
                         </div>
-                        <div className="flex justify-between text-xs text-purple-600">
+                        <div className="flex justify-between text-xs text-indigo-300">
                           <span>
                             {city.production.progress}/{city.production.cost}
                           </span>
@@ -432,7 +444,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                     <div>Food</div>
                     {cityData.prod?.food !== cityData.surplus?.food &&
                       cityData.prod?.food !== undefined && (
-                        <div className="text-gray-500">({cityData.prod.food} base)</div>
+                        <div className="text-slate-500">({cityData.prod.food} base)</div>
                       )}
                   </div>
                 </div>
@@ -451,7 +463,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                     <div>Shields</div>
                     {cityData.prod?.shields !== cityData.surplus?.shields &&
                       cityData.prod?.shields !== undefined && (
-                        <div className="text-gray-500">({cityData.prod.shields} base)</div>
+                        <div className="text-slate-500">({cityData.prod.shields} base)</div>
                       )}
                   </div>
                 </div>
@@ -470,7 +482,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                     <div>Trade</div>
                     {cityData.prod?.trade !== cityData.surplus?.trade &&
                       cityData.prod?.trade !== undefined && (
-                        <div className="text-gray-500">({cityData.prod.trade} base)</div>
+                        <div className="text-slate-500">({cityData.prod.trade} base)</div>
                       )}
                   </div>
                 </div>
@@ -515,19 +527,21 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
 
               {/* Waste/Corruption */}
               {cityData.waste && (cityData.waste.shields > 0 || cityData.waste.trade > 0) && (
-                <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                  <h4 className="text-sm font-medium text-orange-800 mb-2">Waste & Corruption</h4>
+                <div className="mt-3 rounded-lg border border-amber-700/50 bg-amber-950/30 p-3">
+                  <h4 className="mb-2 text-sm font-medium text-amber-200">Waste & Corruption</h4>
                   <div className="flex gap-4 text-sm">
                     {cityData.waste.shields > 0 && (
                       <div>
                         Shield waste:{' '}
-                        <span className="font-semibold text-red-600">{cityData.waste.shields}</span>
+                        <span className="font-semibold text-rose-300">
+                          {cityData.waste.shields}
+                        </span>
                       </div>
                     )}
                     {cityData.waste.trade > 0 && (
                       <div>
                         Trade corruption:{' '}
-                        <span className="font-semibold text-red-600">{cityData.waste.trade}</span>
+                        <span className="font-semibold text-rose-300">{cityData.waste.trade}</span>
                       </div>
                     )}
                   </div>
@@ -548,12 +562,12 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                   {cityData.buildings.map((building, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded border hover:bg-gray-100 transition-colors"
+                      className="flex items-center justify-between rounded border border-slate-700 bg-slate-800/60 p-3 transition-colors hover:bg-slate-800"
                     >
                       <span className="text-sm font-medium">{building.name}</span>
                       <div className="flex items-center gap-2">
                         {building.upkeep > 0 && (
-                          <div className="flex items-center gap-1 text-xs text-red-600">
+                          <div className="flex items-center gap-1 text-xs text-rose-300">
                             <Coins className="h-3 w-3" />
                             {building.upkeep}
                           </div>
@@ -602,10 +616,10 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                         {presentUnits.map(unit => (
                           <div
                             key={unit.id}
-                            className="flex items-center justify-between p-2 bg-green-50 rounded border text-sm"
+                            className="flex items-center justify-between rounded border border-emerald-700/50 bg-emerald-950/30 p-2 text-sm"
                           >
                             <span>{unit.unitTypeId}</span>
-                            <div className="flex items-center gap-2 text-xs text-green-600">
+                            <div className="flex items-center gap-2 text-xs text-emerald-300">
                               <span>HP: {unit.hp}</span>
                               <span>Moves: {unit.movesLeft}</span>
                             </div>
@@ -626,10 +640,10 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                         {supportedUnits.map(unit => (
                           <div
                             key={unit.id}
-                            className="flex items-center justify-between p-2 bg-blue-50 rounded border text-sm"
+                            className="flex items-center justify-between rounded border border-cyan-700/50 bg-cyan-950/30 p-2 text-sm"
                           >
                             <span>{unit.unitTypeId}</span>
-                            <div className="flex items-center gap-2 text-xs text-blue-600">
+                            <div className="flex items-center gap-2 text-xs text-cyan-300">
                               <span>HP: {unit.hp}</span>
                               <span>Vet: {unit.veteranLevel}</span>
                             </div>
@@ -645,9 +659,9 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
 
           <TabsContent value="production" className="space-y-4 flex-1 overflow-y-auto min-h-0 p-1">
             {/* Current Production */}
-            <div className="p-4 border rounded-lg bg-purple-50">
+            <div className="rounded-lg border border-indigo-700/50 bg-indigo-950/30 p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium text-purple-800 flex items-center gap-2">
+                <h3 className="flex items-center gap-2 font-medium text-indigo-200">
                   <Hammer className="h-4 w-4" />
                   Current Production
                 </h3>
@@ -667,12 +681,14 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                     align="end"
                     className="max-h-[min(32rem,var(--radix-dropdown-menu-content-available-height))] w-72 overscroll-contain overflow-y-auto"
                   >
-                    <DropdownMenuLabel>Select Production</DropdownMenuLabel>
+                    <DropdownMenuLabel className="text-slate-200">
+                      Select Production
+                    </DropdownMenuLabel>
                     <DropdownMenuSeparator />
 
                     {isLoadingProductions ? (
                       <DropdownMenuItem disabled>
-                        <span className="text-sm text-muted-foreground">
+                        <span className="text-sm text-slate-400">
                           Loading production options...
                         </span>
                       </DropdownMenuItem>
@@ -690,7 +706,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                 </DropdownMenu>
               </div>
               {productionError ? (
-                <div className="flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                <div className="flex items-center justify-between gap-3 rounded-md border border-amber-700/50 bg-amber-950/40 p-3 text-sm text-amber-200">
                   <span className="flex items-center gap-2">
                     <AlertTriangle className="h-4 w-4 shrink-0" />
                     {productionError}
@@ -703,15 +719,15 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                   )}
                 </div>
               ) : !isLoadingProductions && availableProductions.length === 0 ? (
-                <div className="rounded-md border border-dashed border-purple-300 p-4 text-sm text-purple-900">
+                <div className="rounded-md border border-dashed border-indigo-700/60 p-4 text-sm text-indigo-200">
                   No production choices were returned for this city.
                 </div>
               ) : city.production ? (
                 <div className="space-y-3">
                   {city.production.conversion || city.production.target === 'capitalization' ? (
-                    <div className="rounded-md border border-purple-200 bg-white/70 p-4">
-                      <div className="font-medium text-purple-950">Wealth</div>
-                      <p className="mt-1 text-sm text-purple-800">
+                    <div className="rounded-md border border-indigo-700/50 bg-slate-900/70 p-4">
+                      <div className="font-medium text-white">Wealth</div>
+                      <p className="mt-1 text-sm text-indigo-200">
                         Converts this city&apos;s shield production to gold each turn.
                       </p>
                     </div>
@@ -730,9 +746,9 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                             {city.production.progress} / {city.production.cost}
                           </span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div className="h-3 w-full rounded-full bg-slate-700">
                           <div
-                            className="bg-purple-600 h-3 rounded-full transition-all duration-300"
+                            className="h-3 rounded-full bg-indigo-400 transition-all duration-300"
                             style={{
                               width: `${city.production.percentComplete || 0}%`,
                             }}
@@ -753,9 +769,9 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                   )}
                 </div>
               ) : (
-                <div className="rounded-md border border-purple-200 bg-white/70 p-4">
-                  <div className="font-medium text-purple-950">This city is idle</div>
-                  <p className="mt-1 text-sm text-purple-800">
+                <div className="rounded-md border border-indigo-700/50 bg-slate-900/70 p-4">
+                  <div className="font-medium text-white">This city is idle</div>
+                  <p className="mt-1 text-sm text-indigo-200">
                     Choose a unit or building with the Change menu to start production.
                   </p>
                 </div>
@@ -786,12 +802,14 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                       align="end"
                       className="max-h-[min(32rem,var(--radix-dropdown-menu-content-available-height))] w-72 overscroll-contain overflow-y-auto"
                     >
-                      <DropdownMenuLabel>Add to Production Queue</DropdownMenuLabel>
+                      <DropdownMenuLabel className="text-slate-200">
+                        Add to Production Queue
+                      </DropdownMenuLabel>
                       <DropdownMenuSeparator />
 
                       {isLoadingProductions ? (
                         <DropdownMenuItem disabled>
-                          <span className="text-sm text-muted-foreground">
+                          <span className="text-sm text-slate-400">
                             Loading production options...
                           </span>
                         </DropdownMenuItem>
@@ -816,7 +834,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                       {cityData.worklist.map((item, index) => (
                         <div
                           key={index}
-                          className="flex items-center justify-between p-3 bg-gray-50 rounded border hover:bg-gray-100 transition-colors group"
+                          className="group flex items-center justify-between rounded border border-slate-700 bg-slate-800/60 p-3 transition-colors hover:bg-slate-800"
                         >
                           <div className="flex items-center gap-3">
                             <div className="flex flex-col gap-1">
@@ -847,12 +865,12 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                                 <ArrowDown className="h-3 w-3" />
                               </Button>
                             </div>
-                            <span className="text-xs bg-gray-200 rounded-full w-6 h-6 flex items-center justify-center font-medium">
+                            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-700 text-xs font-medium">
                               {index + 1}
                             </span>
                             <div>
                               <span className="font-medium">{item.target}</span>
-                              <div className="text-xs text-gray-500">{item.cost} shields</div>
+                              <div className="text-xs text-slate-500">{item.cost} shields</div>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -862,7 +880,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-6 w-6 p-0 text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="h-6 w-6 p-0 text-rose-300 opacity-0 transition-opacity hover:text-rose-200 group-hover:opacity-100"
                               onClick={() => onQueueRemove?.(city.id, index)}
                             >
                               <Trash2 className="h-3 w-3" />
@@ -872,7 +890,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                       ))}
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                    <div className="flex h-full flex-col items-center justify-center text-slate-500">
                       <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
                       <p className="text-sm">No items in production queue</p>
                       <p className="text-xs text-muted-foreground">
@@ -897,15 +915,15 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                     {cityData.tradeRoutes.map((route, index) => (
                       <div
                         key={index}
-                        className="flex items-center justify-between p-3 bg-yellow-50 rounded border"
+                        className="flex items-center justify-between rounded border border-amber-700/50 bg-amber-950/30 p-3"
                       >
                         <div>
                           <span className="font-medium">Partner City</span>
-                          <div className="text-xs text-gray-600">{route.goods}</div>
+                          <div className="text-xs text-slate-500">{route.goods}</div>
                         </div>
                         <div className="text-right">
-                          <span className="font-semibold text-yellow-600">+{route.value}</span>
-                          <div className="text-xs text-gray-600">trade/turn</div>
+                          <span className="font-semibold text-amber-300">+{route.value}</span>
+                          <div className="text-xs text-slate-500">trade/turn</div>
                         </div>
                       </div>
                     ))}
@@ -926,23 +944,23 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-3">
                     {/* Happy Citizens */}
-                    <div className="flex items-center justify-between p-3 bg-green-50 rounded border">
+                    <div className="flex items-center justify-between rounded border border-emerald-700/50 bg-emerald-950/30 p-3">
                       <div className="flex items-center gap-2">
-                        <Heart className="h-4 w-4 text-green-600" />
+                        <Heart className="h-4 w-4 text-emerald-300" />
                         <span className="text-sm font-medium">Happy</span>
                       </div>
-                      <span className="font-semibold text-green-600">
+                      <span className="font-semibold text-emerald-300">
                         {cityData.citizens.happy}
                       </span>
                     </div>
 
                     {/* Content Citizens */}
-                    <div className="flex items-center justify-between p-3 bg-blue-50 rounded border">
+                    <div className="flex items-center justify-between rounded border border-cyan-700/50 bg-cyan-950/30 p-3">
                       <div className="flex items-center gap-2">
-                        <Smile className="h-4 w-4 text-blue-600" />
+                        <Smile className="h-4 w-4 text-cyan-300" />
                         <span className="text-sm font-medium">Content</span>
                       </div>
-                      <span className="font-semibold text-blue-600">
+                      <span className="font-semibold text-cyan-300">
                         {cityData.citizens.content}
                       </span>
                     </div>
@@ -950,23 +968,23 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
 
                   <div className="space-y-3">
                     {/* Unhappy Citizens */}
-                    <div className="flex items-center justify-between p-3 bg-orange-50 rounded border">
+                    <div className="flex items-center justify-between rounded border border-amber-700/50 bg-amber-950/30 p-3">
                       <div className="flex items-center gap-2">
-                        <Frown className="h-4 w-4 text-orange-600" />
+                        <Frown className="h-4 w-4 text-amber-300" />
                         <span className="text-sm font-medium">Unhappy</span>
                       </div>
-                      <span className="font-semibold text-orange-600">
+                      <span className="font-semibold text-amber-300">
                         {cityData.citizens.unhappy}
                       </span>
                     </div>
 
                     {/* Angry Citizens */}
-                    <div className="flex items-center justify-between p-3 bg-red-50 rounded border">
+                    <div className="flex items-center justify-between rounded border border-rose-700/50 bg-rose-950/30 p-3">
                       <div className="flex items-center gap-2">
-                        <Frown className="h-4 w-4 text-red-600" />
+                        <Frown className="h-4 w-4 text-rose-300" />
                         <span className="text-sm font-medium">Angry</span>
                       </div>
-                      <span className="font-semibold text-red-600">{cityData.citizens.angry}</span>
+                      <span className="font-semibold text-rose-300">{cityData.citizens.angry}</span>
                     </div>
                   </div>
                 </div>
@@ -980,10 +998,10 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                         {Object.entries(cityData.citizens.specialists).map(([type, count]) => (
                           <div
                             key={type}
-                            className="flex items-center justify-between p-2 bg-purple-50 rounded border text-sm"
+                            className="flex items-center justify-between rounded border border-indigo-700/50 bg-indigo-950/30 p-2 text-sm"
                           >
                             <span className="capitalize">{type}</span>
-                            <span className="font-semibold text-purple-600">{count}</span>
+                            <span className="font-semibold text-indigo-300">{count}</span>
                           </div>
                         ))}
                       </div>
@@ -993,7 +1011,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
             )}
 
             {/* City Status */}
-            <div className="p-4 border rounded-lg bg-gray-50">
+            <div className="rounded-lg border border-slate-700 bg-slate-800/60 p-4">
               <h3 className="font-medium mb-3 flex items-center gap-2">
                 <StateIcon className={`h-4 w-4 ${stateInfo.color}`} />
                 City Status
@@ -1001,10 +1019,10 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
               <div className="space-y-2 text-sm">
                 <div className={`font-medium ${stateInfo.color}`}>{stateInfo.text}</div>
                 {cityData.pollution > 0 && (
-                  <div className="text-orange-600">Pollution: {cityData.pollution}</div>
+                  <div className="text-amber-300">Pollution: {cityData.pollution}</div>
                 )}
                 {cityData.rallyPoint && (
-                  <div className="text-blue-600">
+                  <div className="text-cyan-300">
                     Rally Point: ({cityData.rallyPoint.x}, {cityData.rallyPoint.y})
                     {cityData.rallyPoint.persistent && ' (Persistent)'}
                   </div>
@@ -1015,7 +1033,10 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
 
           <TabsContent value="management" className="space-y-4 flex-1 overflow-y-auto min-h-0 p-1">
             {managementMessage && (
-              <div role="status" className="rounded border bg-gray-50 p-3 text-sm text-gray-700">
+              <div
+                role="status"
+                className="rounded border border-indigo-700/50 bg-indigo-950/30 p-3 text-sm text-indigo-200"
+              >
                 {managementMessage}
               </div>
             )}
@@ -1025,7 +1046,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
               <div className="flex gap-2">
                 <input
                   aria-label="City name"
-                  className="min-w-0 flex-1 rounded border bg-background p-2 text-sm"
+                  className="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 p-2 text-sm text-white"
                   value={cityName}
                   maxLength={100}
                   onChange={event => setCityName(event.target.value)}
@@ -1054,7 +1075,9 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                     </Button>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-red-700">Permanently disband {city.name}?</span>
+                      <span className="text-sm text-rose-300">
+                        Permanently disband {city.name}?
+                      </span>
                       <Button
                         onClick={() => {
                           void onDisband(city.id)
@@ -1094,13 +1117,13 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                   return (
                     <div
                       key={`${tile.x},${tile.y}`}
-                      className="flex items-center justify-between rounded border bg-gray-50 p-2 text-xs"
+                      className="flex items-center justify-between rounded border border-slate-700 bg-slate-800/60 p-2 text-xs"
                     >
                       <div>
                         <div className="font-medium">
                           ({tile.x}, {tile.y}) {tile.isCenter ? 'Center' : ''}
                         </div>
-                        <div className="text-muted-foreground">
+                        <div className="text-slate-500">
                           {tile.outputs.food} food · {tile.outputs.shields} shields ·{' '}
                           {tile.outputs.trade} trade
                         </div>
@@ -1197,7 +1220,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                 <label className="text-sm">
                   Priority
                   <select
-                    className="mt-1 w-full rounded border bg-background p-2"
+                    className="mt-1 w-full rounded border border-slate-700 bg-slate-950 p-2 text-white"
                     value={governorPriority}
                     onChange={event => setGovernorPriority(event.target.value)}
                   >
@@ -1274,7 +1297,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
             </div>
           </TabsContent>
         </Tabs>
-      </DialogContent>
+      </HudDialogContent>
     </Dialog>
   );
 };

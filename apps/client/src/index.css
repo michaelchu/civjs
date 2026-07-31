@@ -173,6 +173,24 @@ canvas {
   background: rgb(15 23 42 / 96%);
 }
 
+/* Keep shared controls inside report dialogs on the same dark HUD theme. */
+.hud-dialog {
+  --background: rgb(15 23 42 / 96%);
+  --foreground: rgb(241 245 249);
+  --card: rgb(30 41 59 / 92%);
+  --card-foreground: rgb(241 245 249);
+  --popover: rgb(15 23 42 / 98%);
+  --popover-foreground: rgb(241 245 249);
+  --secondary: rgb(51 65 85);
+  --secondary-foreground: rgb(241 245 249);
+  --muted: rgb(51 65 85 / 72%);
+  --muted-foreground: rgb(148 163 184);
+  --accent: rgb(51 65 85);
+  --accent-foreground: rgb(241 245 249);
+  --border: rgb(148 163 184 / 28%);
+  --input: rgb(71 85 105);
+}
+
 .dark {
   --background: oklch(0.253 0.027 52.9); /* #3e2723 - darker version */
   --foreground: oklch(0.985 0.005 80.9); /* #fcfaf8 */

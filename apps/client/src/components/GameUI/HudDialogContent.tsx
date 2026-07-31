@@ -12,7 +12,7 @@ export const HudDialogContent: React.FC<React.ComponentProps<typeof DialogConten
 }) => (
   <DialogContent
     className={cn(
-      'z-[2000] flex h-[min(88vh,56rem)] max-h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col overflow-y-auto border-white/15 bg-slate-900/90 p-4 text-white shadow-2xl backdrop-blur-xl sm:h-[min(88vh,56rem)] sm:w-[75vw] sm:max-w-[75vw] sm:p-6',
+      'hud-dialog z-[2000] flex h-[min(88vh,56rem)] max-h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col overflow-y-auto border-white/15 bg-slate-900/90 p-4 text-white shadow-2xl backdrop-blur-xl sm:h-[min(88vh,56rem)] sm:w-[75vw] sm:max-w-[75vw] sm:p-6',
       className
     )}
     {...props}

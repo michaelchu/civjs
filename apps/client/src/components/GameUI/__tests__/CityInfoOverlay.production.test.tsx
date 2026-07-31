@@ -103,8 +103,10 @@ describe('CityInfoOverlay production', () => {
     expect(screen.getByRole('menu')).toHaveClass(
       'max-h-[min(32rem,var(--radix-dropdown-menu-content-available-height))]',
       'overflow-y-auto',
-      'overscroll-contain'
+      'overscroll-contain',
+      'z-[2100]'
     );
+    expect(screen.getByRole('separator')).toHaveClass('bg-slate-700');
   });
 
   it('hides production choices the city cannot build yet', () => {
