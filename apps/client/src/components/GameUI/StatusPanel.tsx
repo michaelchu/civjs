@@ -170,7 +170,7 @@ export const StatusPanel: React.FC<{ onOpenDemographics?: () => void }> = ({
           type="button"
           onClick={() => {
             if (onOpenDemographics) onOpenDemographics();
-            else openReport('diplomacy');
+            else openReport('demographics');
           }}
           className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
           aria-label="Open demographics report"

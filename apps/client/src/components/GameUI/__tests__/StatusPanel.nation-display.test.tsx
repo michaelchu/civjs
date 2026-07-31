@@ -135,6 +135,22 @@ describe('StatusPanel - Resource Bar', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('opens the demographics report when no direct callback is provided', () => {
+    const openReport = vi.fn();
+    const handleOpenReport = (event: Event) => {
+      openReport((event as CustomEvent<{ report?: string }>).detail?.report);
+    };
+    document.addEventListener('open-report', handleOpenReport);
+
+    try {
+      render(<StatusPanel />);
+      fireEvent.click(screen.getByRole('button', { name: 'Open demographics report' }));
+      expect(openReport).toHaveBeenCalledWith('demographics');
+    } finally {
+      document.removeEventListener('open-report', handleOpenReport);
+    }
+  });
+
   it('uses authoritative city population when available', () => {
     mockUseGameStore.cities = {
       cityOne: { id: 'cityOne', playerId: 'player-1', size: 4, actualPopulation: 7, trade: 3 },

@@ -1,16 +1,25 @@
-# AI Simulation Mode Implementation Specification
+# AI Control Handover and Simulation Mode Specification
 
 ## Status
 
-Proposed implementation specification. This document defines the required
-behavior and architecture for the first CivJS AI-versus-AI simulation mode. It
-does not claim that the feature is currently implemented.
+Proposed implementation specification. This document defines two ordered
+capabilities and does not claim that either feature is currently implemented:
+
+1. standard-game handover of a civilization between human and native AI control;
+2. full AI-versus-AI Simulation Game mode with authenticated spectators.
+
+Phase 1 is the prerequisite for Phase 2 because it establishes the authoritative
+controller, reconnect, recovery, and turn-boundary contracts used by both modes.
 
 The authoritative random-stream prerequisite described below is implemented.
 Simulation mode must reuse it rather than introduce a simulation-only random
 source or deterministic keyed-decision scheme.
 
 ## Objective
+
+Deliver standard-game AI handover first, then add a first-class **Simulation
+Game** mode. Standard-game behavior must remain unchanged except for the
+explicit host handover capability.
 
 Add a first-class **Simulation Game** mode in which every civilization is
 controlled by the native CivJS AI and one or more authenticated users watch as
@@ -51,6 +60,8 @@ The first implementation does not include:
 - LLM-generated narration;
 - action-by-action cinematic replay;
 - human participation in a simulation civilization;
+- AI takeover as a simulation control: simulation civilizations remain
+  spectator-only and cannot be handed to a human during a run;
 - multiplayer host transfer;
 - editing a running civilization's personality;
 - disabling fog of war for the AI itself;
@@ -84,6 +95,10 @@ parallel game engine:
 - AI fuzziness and gameplay outcomes already consume that shared stream in
   authoritative call order. Generated maps use their separate seeded generator
   without consuming or replacing the gameplay stream.
+- `GameManager.setPlayerAIControl` already provides the server-side primitive
+  for transferring a standard-game civilization between human and native AI
+  control, including host authorization, turn locking, persistence, and the
+  `player-control-changed` notification.
 
 The existing paired AI regression gate runs three fixed seeds for 12 turns,
 swaps hard/easy starting positions, and currently expects exact aggregate
@@ -110,6 +125,100 @@ Add a **Simulation Game** button to the CivJS home screen. It navigates to
 
 The existing **Start New Game**, **Quick Start**, and **Browse Games** behavior
 must remain unchanged.
+
+### Standard-game AI takeover
+
+AI takeover is a standard-game capability and is separate from Simulation Game
+mode. The host may hand an alive human civilization to the native AI while a
+game is waiting, active, or paused. The civilization retains its identity,
+cities, units, diplomacy, and score; only its controller changes.
+
+The host may later return that civilization to human control. Returning control
+requires an explicit controller user and must not silently attach a second
+civilization to a user who already controls one in the game.
+
+The authoritative server must:
+
+- authorize control changes using the game host, not the requesting browser's
+  claimed player identity;
+- serialize takeover with end-turn and turn-processing operations;
+- persist `isAI`, `userId`, `aiLevel`, AI state, connection status, and turn
+  completion state together;
+- broadcast the new controller to every connected client;
+- prevent eliminated or conceded civilizations from being reactivated;
+- safely release the human turn barrier when the last human civilization is
+  handed to AI;
+- preserve standard-game fog-of-war rules for AI decisions.
+
+The client must expose host controls to **Let AI take over** and **Resume human
+control**, show the current controller and difficulty, and remove or disable
+player-only actions while the selected civilization is AI-controlled. A control
+transfer is not a spectator transition: the host remains a player if they still
+control another human civilization.
+
+#### Reconnect and recovery requirement
+
+Control ownership must be reconstructed from authoritative server state on every
+join, reconnect, browser refresh, and recovered game-instance load. The current
+browser flow attempts to rejoin an existing game as a player based on the
+authenticated user. That flow must become control-aware because an AI takeover
+may intentionally retain the original `userId` so the host can later reclaim the
+civilization.
+
+The implementation must satisfy all of the following:
+
+- A human-controlled civilization reconnects to the same player ID and receives
+  a complete authoritative snapshot.
+- An AI-controlled civilization is not silently reclaimed as human when its
+  original user refreshes or reconnects.
+- A user who controls another human civilization may reconnect to that
+  civilization while the handed-over civilization continues under AI control.
+- A user whose civilization is AI-controlled reconnects with host/admin or
+  observer-level access to the game, but not gameplay authority for that
+  civilization; resuming human control requires an explicit handover command.
+- Reconnect responses and snapshots include authoritative control state so the
+  client does not infer ownership from cached browser state.
+- Server recovery restores `isAI`, `userId`, AI difficulty/state, turn state, and
+  connection state together before accepting gameplay or control commands.
+- A server failure during a handover cannot leave a partially updated
+  human/AI ownership record. The handover must resolve atomically to the old or
+  new controller state.
+- Recovery after a failure during turn processing resumes from the last durable
+  turn/phase checkpoint and cannot process the same turn twice.
+
+The first implementation may reset temporary AI planning state on each
+human-to-AI or AI-to-human transfer. If preserving AI plans becomes important,
+add a versioned control-transfer backup to the player state rather than making
+the client responsible for restoring it.
+
+#### Handover command contract
+
+The standard-game handover command must be an authenticated, correlated
+application command. Its wire representation may use the existing
+`host:setPlayerAIControl` event during compatibility migration, but the
+authoritative contract is:
+
+```ts
+type PlayerControlCommand = {
+  playerId: string;
+  isAI: boolean;
+  aiLevel?: AILevel;
+  controllerUserId?: string;
+};
+
+type PlayerControlResult = {
+  playerId: string;
+  isAI: boolean;
+  aiLevel: AILevel;
+  controllerUserId: string | null;
+};
+```
+
+The server must validate the requester, game state, target player, controller
+availability, and requested AI level before mutating state. Replies must return
+the authoritative result or a stable error; clients must not treat a local
+toggle as successful before receiving that result. Every connected client must
+also receive the resulting `player-control-changed` notification.
 
 ### Simulation setup
 
@@ -1146,8 +1255,10 @@ preserving responsibilities.
 - `apps/client/src/store/simulationCreationStore.ts`
   - persisted setup draft independent from standard game creation.
 - `apps/client/src/services/GameClient.ts`
-  - correlated simulation/replay requests and explicit authenticated observer
-    flow.
+  - handover commands, correlated simulation/replay requests, and explicit
+    authenticated observer flow.
+- `apps/client/src/components/GameRoute.tsx`
+  - control-aware player rejoin and observer fallback after refresh/reconnect.
 - `apps/client/src/services/GameSessionCoordinator.ts`
   - preserve explicit observer intent across reconnects.
 - `apps/client/src/store/gameStore.ts`
@@ -1175,7 +1286,8 @@ preserving responsibilities.
 - packet type/name catalogues
   - append new packet IDs without renumbering.
 - `apps/server/src/network/handlers/GameManagementHandler.ts`
-  - route simulation commands through narrow application services.
+  - authorize and route handover and simulation commands through narrow
+    application services.
 - `apps/server/src/game/services/SimulationGameService.ts`
   - atomic/idempotent creation and authorization orchestration.
 - `apps/server/src/game/services/SimulationRunner.ts`
@@ -1223,7 +1335,41 @@ preserving responsibilities.
 
 Implement vertical slices in this order.
 
-### Phase 1: Contracts and persistence
+### Phase 1: Standard-game AI handover
+
+1. Add host-facing takeover and resume-human-control UI using the existing
+   `host:setPlayerAIControl` command.
+2. Refresh the authoritative player/session model after
+   `player-control-changed`, including reconnect and recovery paths.
+3. Serialize control changes with `END_TURN`, timeout, and AI processing locks.
+4. Make player rejoin control-aware so an AI-controlled civilization is not
+   silently reclaimed after browser refresh or transport reconnect.
+5. Persist and recover the complete handover state atomically, including
+   `isAI`, `userId`, AI state, connection state, turn state, and the last durable
+   turn/phase checkpoint.
+6. Add tests for host authorization, duplicate human ownership, eliminated
+   players, last-human takeover, transfer during active turn processing,
+   browser refresh, transport reconnect, server restart, and failure during
+   handover or turn processing.
+7. Keep takeover unavailable in Simulation Game mode and preserve existing
+   standard-game creation/join behavior.
+
+Phase 1 is complete when a host can safely hand an alive civilization to the
+native AI during a standard game, resume human control later, and recover the
+same ownership state after reconnect or server restart. This phase must not
+change standard game creation, joining, fog-of-war, or normal human turn
+behavior.
+
+### Phase 2: Full AI simulation mode
+
+Simulation mode is delivered as one end-to-end capability. Its workstreams may
+be implemented as separate vertical slices, but they are all part of Phase 2.
+The first usable Phase 2 slice is AI-only creation, the server-owned turn
+runner, pause/resume/step, an authenticated omniscient observer, and safe
+restart recovery. Replay, diagnostics, score parity, and the strategy-provider
+seam must not be allowed to obscure or delay those runtime guarantees.
+
+#### 2.1 Contracts and persistence
 
 1. Reuse and validate the existing persisted authoritative random/identity
    state; do not add a simulation-specific RNG.
@@ -1234,7 +1380,7 @@ Implement vertical slices in this order.
 6. Extend AI state validation for personality and accepted strategic plan.
 7. Add focused score, codec, and recovery validation tests.
 
-### Phase 2: AI-only creation
+#### 2.2 AI-only creation
 
 1. Extract reusable exact-count AI creation.
 2. Add deterministic personality assignment.
@@ -1242,15 +1388,15 @@ Implement vertical slices in this order.
 4. Establish the host as spectator and send the full snapshot before reply.
 5. Add server handler and integration coverage.
 
-### Phase 3: Authoritative runner
+#### 2.3 Authoritative runner
 
 1. Add runner scheduling and generation invalidation.
 2. Integrate with turn completion and end-game handling.
 3. Bypass normal human timers for simulations.
-4. Add control authorization.
+4. Add simulation-control authorization for pause, resume, step, and speed.
 5. Restore running/paused state after recovery.
 
-### Phase 4: Client creation and live observer
+#### 2.4 Client creation and live observer
 
 1. Add the home button and setup route.
 2. Add explicit authenticated simulation observer route.
@@ -1258,14 +1404,14 @@ Implement vertical slices in this order.
 4. Build the simulation header, controls, and omniscient map.
 5. Gate player-only controls and hooks.
 
-### Phase 5: Observer dashboards
+#### 2.5 Observer dashboards
 
 1. Add the simulation read model and broadcasts.
 2. Build Overview, Civilizations, Diplomacy, Timeline, and Diagnostics tabs.
 3. Add observer focus and map highlighting.
 4. Persist and display compact AI turn summaries.
 
-### Phase 6: Turn-level replay
+#### 2.6 Turn-level replay
 
 1. Add replay manifest/frame request contracts.
 2. Include events, phases, statistics, and AI summaries.
@@ -1274,7 +1420,7 @@ Implement vertical slices in this order.
 5. Link replay frames, telemetry, failures, AI summaries, and state hashes.
 6. Add **Watch Live** and **Watch Replay** lobby actions.
 
-### Phase 7: Diagnostic query and export
+#### 2.7 Diagnostic query and export
 
 1. Add the shared diagnostics query/redaction service.
 2. Add filtered packet queries for the Diagnostics tab and replay.
@@ -1282,7 +1428,7 @@ Implement vertical slices in this order.
 4. Add concise issue/agent diagnostic summaries.
 5. Verify degraded/missing telemetry is explicit and export ordering is stable.
 
-### Phase 8: Strategy-provider seam
+#### 2.8 Strategy-provider seam
 
 1. Add provider registry, native provider, and coordinator.
 2. Persist accepted plans and refresh cadence.
@@ -1292,7 +1438,31 @@ Implement vertical slices in this order.
 
 ## Acceptance criteria
 
-### Creation and authority
+### Phase 1: Standard-game AI handover
+
+- Standard game creation and joining remain unchanged.
+- A host can hand an alive standard-game civilization to native AI without
+  changing its identity or ownership of game state.
+- A non-host cannot transfer control, even if they control the target
+  civilization.
+- Returning control requires an unoccupied controller user and updates all
+  clients consistently.
+- Refreshing or reconnecting a browser never silently converts an
+  AI-controlled civilization back to human control.
+- A user controlling multiple eligible sessions reconnects to the same
+  human-controlled civilization while AI-controlled civilizations remain AI
+  controlled.
+- A recovered game exposes the same authoritative controller state as before
+  the server restart.
+- A failed handover is atomic and leaves no mixed human/AI ownership state.
+- A failed or interrupted turn resumes from the last durable checkpoint without
+  duplicate turn processing.
+- A takeover and concurrent end-turn request serialize into one authoritative
+  turn outcome.
+- Handing the last human civilization to AI does not leave the game waiting on
+  a human turn completion.
+
+### Phase 2: Simulation creation and authority
 
 - Creating a six-player simulation persists six AI players and zero human
   players.
@@ -1304,7 +1474,8 @@ Implement vertical slices in this order.
   creation reply becomes ready.
 - Reloading `/simulation/:gameId` reconnects directly as observer without
   attempting to join as a player.
-- Standard game creation and joining remain unchanged.
+- Simulation civilizations cannot be returned to human control through the
+  standard-game takeover command.
 
 ### Turn scheduling
 
@@ -1428,6 +1599,10 @@ Implement vertical slices in this order.
   and identity-counter ordering;
 - AI fuzziness consuming `fc_rand(1000)` from the shared stream;
 - exact-count AI creation;
+- player-control command validation, AI-level validation, and controller
+  availability;
+- atomic human-to-AI and AI-to-human state transitions;
+- control-aware player rejoin decisions for human and AI-controlled players;
 - runner pause/resume/step/speed state machine;
 - stale timer generation rejection;
 - no-overlap processing;
@@ -1462,6 +1637,10 @@ Implement vertical slices in this order.
 - diagnostic persistence failure without recursive failure recording;
 - host-authorized and unauthorized diagnostic export;
 - standard single-player and multiplayer lifecycle regression.
+- standard-game human → AI → human handover;
+- browser refresh and transport reconnect while a civilization is AI-controlled;
+- server restart recovery preserving controller state;
+- handover failure and interrupted-turn recovery without duplicate processing.
 
 ### Client tests
 
@@ -1471,6 +1650,8 @@ Implement vertical slices in this order.
 - reconnect preserving simulation observer intent;
 - player controls absent in simulation/replay;
 - simulation control request/acknowledgement handling;
+- handover request/acknowledgement and `player-control-changed` handling;
+- AI-controlled reconnects do not regain gameplay controls;
 - omniscient fog rendering;
 - observer focus;
 - dashboard state rendering;
