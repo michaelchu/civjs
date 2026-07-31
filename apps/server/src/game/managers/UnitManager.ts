@@ -1126,7 +1126,7 @@ export class UnitManager {
   private hasCityAtEitherEndpoint(fromX: number, fromY: number, toX: number, toY: number): boolean {
     return Boolean(
       this.gameManagerCallback?.getCityAt?.(fromX, fromY) ||
-      this.gameManagerCallback?.getCityAt?.(toX, toY)
+        this.gameManagerCallback?.getCityAt?.(toX, toY)
     );
   }
 
@@ -1459,7 +1459,7 @@ export class UnitManager {
     const tile = this.mapManager?.getTile(defender.x, defender.y);
     return Boolean(
       city ||
-      tile?.improvements?.some((extra: string) => extra === 'fortress' || extra === 'airbase')
+        tile?.improvements?.some((extra: string) => extra === 'fortress' || extra === 'airbase')
     );
   }
 
@@ -2754,8 +2754,8 @@ export class UnitManager {
     const city = this.gameManagerCallback?.getCityAt?.(x, y);
     return Boolean(
       city &&
-      city.playerId !== unit.playerId &&
-      !this.alliedPlayersProvider?.(unit.playerId).has(city.playerId)
+        city.playerId !== unit.playerId &&
+        !this.alliedPlayersProvider?.(unit.playerId).has(city.playerId)
     );
   }
 
@@ -2763,9 +2763,9 @@ export class UnitManager {
     const owner = this.mapManager?.getTile?.(x, y)?.owner;
     return Boolean(
       owner &&
-      owner !== unit.playerId &&
-      !this.alliedPlayersProvider?.(unit.playerId).has(owner) &&
-      !this.hostilePlayersProvider?.(unit.playerId).has(owner)
+        owner !== unit.playerId &&
+        !this.alliedPlayersProvider?.(unit.playerId).has(owner) &&
+        !this.hostilePlayersProvider?.(unit.playerId).has(owner)
     );
   }
 
@@ -3589,10 +3589,10 @@ export class UnitManager {
   private isParadropActorReady(unit: Unit, unitType: UnitType): boolean {
     return Boolean(
       unitType.flags?.includes('Paratroopers') &&
-      unitType.paratroopersRange > 0 &&
-      !unit.transportedBy &&
-      unit.lastActionTurn !== (this.currentTurnProvider?.() ?? 1) &&
-      unit.movementLeft >= SINGLE_MOVE
+        unitType.paratroopersRange > 0 &&
+        !unit.transportedBy &&
+        unit.lastActionTurn !== (this.currentTurnProvider?.() ?? 1) &&
+        unit.movementLeft >= SINGLE_MOVE
     );
   }
 
@@ -3935,9 +3935,9 @@ export class UnitManager {
     const y = targetY ?? unit.y;
     return Boolean(
       type.flags?.includes('Nuclear') &&
-      unit.movementLeft > 0 &&
-      this.isValidPosition(x, y) &&
-      this.calculateDistance(unit.x, unit.y, x, y) <= Math.max(1, type.range)
+        unit.movementLeft > 0 &&
+        this.isValidPosition(x, y) &&
+        this.calculateDistance(unit.x, unit.y, x, y) <= Math.max(1, type.range)
     );
   }
 
@@ -4006,8 +4006,8 @@ export class UnitManager {
   ): boolean {
     return Boolean(
       tile &&
-      !['ocean', 'coast', 'deep_ocean', 'lake'].includes(tile.terrain) &&
-      !tile.improvements.includes('fallout')
+        !['ocean', 'coast', 'deep_ocean', 'lake'].includes(tile.terrain) &&
+        !tile.improvements.includes('fallout')
     );
   }
 
@@ -4393,13 +4393,13 @@ export class UnitManager {
     const directCheck = this.getDirectUnitActionCheck(unit, actionType);
     if (directCheck) return directCheck(targetX, targetY);
 
-    if (actionType === ActionType.BUILD_FORTRESS) {
+    if (this.getRulesetName() === 'classic' && actionType === ActionType.BUILD_FORTRESS) {
       return (
         this.playerTechsProvider(unit.playerId).has('construction') &&
         this.actionSystem.canUnitPerformAction(unit, actionType, targetX, targetY)
       );
     }
-    if (actionType === ActionType.BUILD_AIRBASE) {
+    if (this.getRulesetName() === 'classic' && actionType === ActionType.BUILD_AIRBASE) {
       return (
         this.playerTechsProvider(unit.playerId).has('radio') &&
         this.actionSystem.canUnitPerformAction(unit, actionType, targetX, targetY)
@@ -5659,9 +5659,9 @@ export class UnitManager {
     const cargo = this.unitTypes[cargoType];
     return Boolean(
       transport &&
-      cargo &&
-      (transport.transport_capacity ?? 0) > 0 &&
-      transport.cargoClasses.includes(cargo.rulesetUnitClass ?? '')
+        cargo &&
+        (transport.transport_capacity ?? 0) > 0 &&
+        transport.cargoClasses.includes(cargo.rulesetUnitClass ?? '')
     );
   }
 
