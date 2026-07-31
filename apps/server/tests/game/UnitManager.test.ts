@@ -1059,6 +1059,76 @@ describe('UnitManager', () => {
       expect(cityAwareManager.getUnit(attacker.id)).toMatchObject({ x: 11, y: 10 });
     });
 
+    it('reduces a defended city population when a KillCitizen attacker wins', async () => {
+      let population = 3;
+      const applyCityPopulationLoss = jest.fn(async () => {
+        population -= 1;
+        return true;
+      });
+      const cityAwareManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: async () => '',
+          requestPath: async () => ({ success: true }),
+          broadcastUnitMoved: () => undefined,
+          getCityAt: (x, y) =>
+            x === 11 && y === 10
+              ? { id: 'target-city', playerId: 'player-456', buildings: [], population }
+              : null,
+          applyCityPopulationLoss,
+        },
+        new EffectsManager('civ2civ3'),
+        () => 0.99
+      );
+      const attacker = await cityAwareManager.createUnit('player-123', 'legion', 10, 10);
+      const defender = await cityAwareManager.createUnit('player-456', 'warriors', 11, 10);
+      defender.health = 1;
+
+      await cityAwareManager.attackUnit(attacker.id, defender.id);
+
+      expect(applyCityPopulationLoss).toHaveBeenCalledWith('target-city');
+      expect(population).toBe(2);
+    });
+
+    it('does not reduce city population when City Walls grant Unit_No_Lose_Pop', async () => {
+      const applyCityPopulationLoss = jest.fn(async () => true);
+      const cityAwareManager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: async () => '',
+          requestPath: async () => ({ success: true }),
+          broadcastUnitMoved: () => undefined,
+          getCityAt: (x, y) =>
+            x === 11 && y === 10
+              ? {
+                  id: 'walled-city',
+                  playerId: 'player-456',
+                  buildings: ['city_walls'],
+                  population: 3,
+                }
+              : null,
+          applyCityPopulationLoss,
+        },
+        new EffectsManager('civ2civ3'),
+        () => 0.99
+      );
+      const attacker = await cityAwareManager.createUnit('player-123', 'legion', 10, 10);
+      const defender = await cityAwareManager.createUnit('player-456', 'warriors', 11, 10);
+      defender.health = 1;
+
+      await cityAwareManager.attackUnit(attacker.id, defender.id);
+
+      expect(applyCityPopulationLoss).not.toHaveBeenCalled();
+    });
+
     it('selects the strongest eligible defender instead of trusting the requested unit id', async () => {
       const deterministicManager = new UnitManager(
         gameId,

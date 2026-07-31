@@ -24,6 +24,7 @@ interface CityAtLocation {
   id: string;
   playerId: string;
   buildings?: string[];
+  population?: number;
 }
 
 export interface Unit {
@@ -207,6 +208,7 @@ export class UnitManager {
     ) => void;
     broadcastUnitDestroyed?: (gameId: string, unit: Unit) => void;
     getCityAt?: (x: number, y: number) => CityAtLocation | null;
+    applyCityPopulationLoss?: (cityId: string) => Promise<boolean>;
     getCityNames?: () => string[];
     getPlayerNation?: (playerId: string) => string | undefined;
     getPlayerBuildings?: (playerId: string) => string[];
@@ -295,6 +297,7 @@ export class UnitManager {
       ) => void;
       broadcastUnitDestroyed?: (gameId: string, unit: Unit) => void;
       getCityAt?: (x: number, y: number) => CityAtLocation | null;
+      applyCityPopulationLoss?: (cityId: string) => Promise<boolean>;
       getCityNames?: () => string[];
       getPlayerNation?: (playerId: string) => string | undefined;
       getPlayerBuildings?: (playerId: string) => string[];
@@ -1198,10 +1201,51 @@ export class UnitManager {
     await this.destroyUnit(setup.defenderId);
     const collateralDestroyedIds = await this.destroyCollateralUnits(setup);
     const targetCity = this.gameManagerCallback?.getCityAt?.(setup.defender.x, setup.defender.y);
+    await this.applyCivilianCasualty(
+      setup.attacker,
+      setup.attackerType,
+      targetCity,
+      setup.defender.x,
+      setup.defender.y
+    );
     const canOccupy = await this.canOccupyAfterCombat(setup, targetCity, attackerDestroyed);
     if (canOccupy)
       await this.moveAttackerAfterCombat(setup.attackerId, setup.attacker, setup.defender);
     return collateralDestroyedIds;
+  }
+
+  private async applyCivilianCasualty(
+    attacker: Unit,
+    attackerType: UnitType,
+    targetCity: CityAtLocation | null | undefined,
+    targetX: number,
+    targetY: number
+  ): Promise<void> {
+    if (
+      !targetCity ||
+      !this.gameManagerCallback?.applyCityPopulationLoss ||
+      !attackerType.rulesetUnitClassFlags.includes('KillCitizen') ||
+      (targetCity.population ?? 2) <= 1
+    ) {
+      return;
+    }
+
+    const noPopulationLoss = this.effectsManager?.calculateEffect(EffectType.UNIT_NO_LOSE_POP, {
+      cityId: targetCity.id,
+      tileX: targetX,
+      tileY: targetY,
+      cityBuildings: new Set(targetCity.buildings ?? []),
+      cityPopulation: targetCity.population,
+      tileIsCityCenter: true,
+      unitId: attacker.id,
+      unitType: attackerType.id,
+      unitClass: attackerType.rulesetUnitClass,
+      unitClassFlags: new Set(attackerType.rulesetUnitClassFlags),
+      unitTypeFlags: new Set(attackerType.flags ?? []),
+    }).value;
+    if ((noPopulationLoss ?? 0) > 0) return;
+
+    await this.gameManagerCallback.applyCityPopulationLoss(targetCity.id);
   }
 
   private async destroyCollateralUnits(setup: CombatSetup): Promise<string[]> {
@@ -3348,6 +3392,10 @@ export class UnitManager {
         .update(units)
         .set({ health: target.health })
         .where(eq(units.id, target.id));
+    }
+    if (affectedUnitIds.length > 0) {
+      const targetCity = this.gameManagerCallback?.getCityAt?.(targetX!, targetY!);
+      await this.applyCivilianCasualty(unit, type, targetCity, targetX!, targetY!);
     }
     unit.movementLeft = 0;
     await this.databaseProvider

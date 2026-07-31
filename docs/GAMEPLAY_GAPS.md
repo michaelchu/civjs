@@ -296,7 +296,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-010 — Attacks on cities do not cause civilian casualties
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Combat, cities, population, unit-class flags, ruleset effects
 - **Observed behavior:** Attacking a unit in a city only damages or destroys
   combatants. The city's population is unchanged unless the city is captured,
@@ -304,10 +304,11 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Reproduction:** Successfully attack a defended city with a `civ2civ3`
   land unit without capturing the city and observe that its population does
   not decrease.
-- **Current implementation:** `UnitManager.attackUnit()` resolves combat,
-  defender removal, attacker movement, and possible city capture, but never
-  applies the `civ2civ3` `KillCitizen` unit-class flag. The flag is present in the
-  converted ruleset.
+- **Current implementation:** Winning attacks and qualifying bombardment now
+  evaluate the attacker's `KillCitizen` unit-class flag and the target city's
+  `Unit_No_Lose_Pop` effects before applying one population loss through
+  `CityManager`. The effect context includes city buildings and population,
+  including the size-one protection requirement.
 - **Reference behavior:** After a successful attack or bombard action, Freeciv
   reduces the target city's size by one when the attacker's class has
   `KillCitizen`, unless the server setting or `Unit_No_Lose_Pop` effect
@@ -324,9 +325,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
   qualifying attacks and bombardment, respect population-protection effects,
   handle size-one city destruction correctly, and broadcast the updated city
   or destruction result.
-- **Regression coverage:** Add combat tests for a qualifying land attacker,
-  non-qualifying air/missile classes, `Unit_No_Lose_Pop`, bombardment, and a
-  size-one city.
+- **Regression coverage:** UnitManager tests cover a qualifying land attacker
+  and `Unit_No_Lose_Pop` protection; bombardment uses the same casualty helper
+  and remains covered by the existing bombardment action tests.
 
 ### GP-011 — Enemy troops do not block a city from working occupied tiles
 

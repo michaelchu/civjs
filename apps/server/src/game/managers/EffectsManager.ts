@@ -66,6 +66,7 @@ export enum EffectType {
   GIVE_IMMEDIATE_TECH = 'Give_Imm_Tech',
   TECH_PARASITE = 'Tech_Parasite',
   UNIT_VISION_RADIUS_SQ = 'Unit_Vision_Radius_Sq',
+  UNIT_NO_LOSE_POP = 'Unit_No_Lose_Pop',
   FORTIFY_DEFENSE_BONUS = 'Fortify_Defense_Bonus',
   DEFEND_BONUS = 'Defend_Bonus',
   GROWTH_FOOD = 'Growth_Food',
@@ -149,6 +150,7 @@ export interface EffectContext {
   playerTechs?: Set<string>; // Player's researched technologies
   playerBuildings?: Set<string>; // Buildings owned anywhere by the player
   cityBuildings?: Set<string>; // Buildings in the city
+  cityPopulation?: number;
 }
 
 // Requirement evaluation result
@@ -679,6 +681,14 @@ export class EffectsManager {
         context.maxUnitsOnTile === undefined
           ? undefined
           : context.maxUnitsOnTile <= Number(req.name)
+      );
+    this.requirementHandlers['MinSize'] = (req, context) =>
+      this.requirementResult(
+        'MinSize',
+        req,
+        context.cityPopulation === undefined
+          ? undefined
+          : context.cityPopulation >= Number(req.name)
       );
     this.requirementHandlers['NationGroup'] = (req, context) =>
       this.requirementResult(

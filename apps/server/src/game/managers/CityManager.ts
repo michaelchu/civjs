@@ -2011,6 +2011,16 @@ export class CityManager {
     return affected;
   }
 
+  /** Apply the population loss caused by a qualifying attack on a city. */
+  async applyCityPopulationLoss(cityId: string): Promise<boolean> {
+    const city = this.cities.get(cityId);
+    if (!city || city.population <= 1) return false;
+    city.population -= 1;
+    city.size = city.population;
+    await this.saveCityToDatabase(city);
+    return true;
+  }
+
   // === UTILITY METHODS ===
 
   private async updateTradeRoutesOnPlayerChange(

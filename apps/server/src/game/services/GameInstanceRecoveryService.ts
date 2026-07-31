@@ -366,8 +366,16 @@ export class GameInstanceRecoveryService extends BaseGameService {
         },
         getCityAt: (x: number, y: number) => {
           const city = cityManager.getCityAt(x, y);
-          return city ? { id: city.id, playerId: city.playerId, buildings: city.buildings } : null;
+          return city
+            ? {
+                id: city.id,
+                playerId: city.playerId,
+                buildings: city.buildings,
+                population: city.population,
+              }
+            : null;
         },
+        applyCityPopulationLoss: cityId => cityManager.applyCityPopulationLoss(cityId),
         getPlayerNation: (playerId: string) =>
           game.players.find((player: any) => player.id === playerId)?.nation ??
           game.players.find((player: any) => player.id === playerId)?.civilization,
