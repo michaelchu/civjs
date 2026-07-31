@@ -9,6 +9,7 @@ describe('RandomEventsManager', () => {
         spawns: [{ success: true, unitsCreated: 2, barbarianPlayerId: 'barbarians' }],
       }),
     };
+    const broadcastToGame = jest.fn();
     const manager = new RandomEventsManager(
       'game-1',
       {
@@ -26,7 +27,7 @@ describe('RandomEventsManager', () => {
       { checkPlayerDisasters: jest.fn() } as any,
       {} as any,
       {} as any,
-      {} as any
+      { broadcastToGame } as any
     );
 
     const result = await manager.processRandomEvents(10, -3900, ['player-1']);
@@ -40,6 +41,11 @@ describe('RandomEventsManager', () => {
         details: expect.objectContaining({ unitsSpawned: 2 }),
       }),
     ]);
+    expect(broadcastToGame).toHaveBeenCalledWith(
+      'game-1',
+      'barbarian_uprising',
+      expect.objectContaining({ unitsSpawned: 2, spawnType: undefined })
+    );
   });
 
   it('processes random-movement units during the random-events phase', async () => {
@@ -72,7 +78,7 @@ describe('RandomEventsManager', () => {
       disasterManager as any,
       unitManager as any,
       {} as any,
-      {} as any
+      { broadcastToGame: jest.fn() } as any
     );
 
     const result = await manager.processRandomEvents(60, -3900, ['player-1']);
@@ -91,5 +97,42 @@ describe('RandomEventsManager', () => {
       }),
     ]);
     expect(unitManager.executeRandomMovement).toHaveBeenCalledWith('storm-1');
+  });
+
+  it('does not count a Storm whose legal destinations are blocked', async () => {
+    const unitManager = {
+      getUnitsWithRandomMovement: jest
+        .fn()
+        .mockReturnValue([{ id: 'storm-1', unitTypeId: 'storm' }]),
+      executeRandomMovement: jest.fn().mockResolvedValue({
+        success: false,
+        fromTile: { x: 2, y: 2 },
+        movementPointsUsed: 0,
+      }),
+    };
+    const manager = new RandomEventsManager(
+      'game-1',
+      {
+        barbarianRate: 0,
+        onsetBarbarian: 60,
+        disastersEnabled: false,
+        disasterFrequency: 0,
+        randomMovementsEnabled: true,
+        resourceChangesEnabled: false,
+        resourceChangeFrequency: 0,
+        goodyHutsEnabled: false,
+        barbarianHutChance: 0,
+      },
+      { spawnBarbarians: jest.fn() } as any,
+      { checkPlayerDisasters: jest.fn() } as any,
+      unitManager as any,
+      {} as any,
+      { broadcastToGame: jest.fn() } as any
+    );
+
+    const result = await manager.processRandomEvents(60, -3900, ['player-1']);
+
+    expect(result.unitMovements).toBe(0);
+    expect(result.results).toEqual([]);
   });
 });

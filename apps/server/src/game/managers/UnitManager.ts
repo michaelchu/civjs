@@ -3292,7 +3292,8 @@ export class UnitManager {
       return this.setAutomation(unit, actionType);
     }
     if (
-      [ActionType.BUILD_FORTRESS, ActionType.BUILD_AIRBASE].includes(actionType) &&
+      (this.isRulesetWorkerAction(actionType) ||
+        [ActionType.BUILD_FORTRESS, ActionType.BUILD_AIRBASE].includes(actionType)) &&
       !this.canUnitPerformAction(unit.id, actionType, targetX, targetY)
     ) {
       return { success: false, message: `Unit cannot perform ${actionType}` };
@@ -4385,7 +4386,7 @@ export class UnitManager {
 
     if (
       this.isRulesetWorkerAction(actionType) &&
-      !this.canPerformRulesetWorkerAction(unit, actionType)
+      !this.canPerformRulesetWorkerAction(unit, actionType, targetX, targetY)
     ) {
       return false;
     }
@@ -4420,13 +4421,20 @@ export class UnitManager {
     ]).has(actionType);
   }
 
-  private canPerformRulesetWorkerAction(unit: Unit, actionType: ActionType): boolean {
+  private canPerformRulesetWorkerAction(
+    unit: Unit,
+    actionType: ActionType,
+    targetX?: number,
+    targetY?: number
+  ): boolean {
     // The legacy classic ruleset does not expose the complete action/extra
     // requirement vectors used by civ2civ3. Preserve its existing dedicated
     // validators; apply the universal evaluator whenever the active ruleset
     // supplies the reference vectors.
     if (this.getRulesetName() === 'classic') return true;
-    const tile = this.mapManager?.getTile(unit.x, unit.y) as any;
+    const effectiveX = targetX ?? unit.x;
+    const effectiveY = targetY ?? unit.y;
+    const tile = this.mapManager?.getTile(effectiveX, effectiveY) as any;
     if (!tile) return false;
     const rulesetName = this.getRulesetName();
     const unitType = this.unitTypes[unit.unitTypeId];
@@ -4436,7 +4444,8 @@ export class UnitManager {
       ...(tile.hasRoad ? ['Road'] : []),
       ...(tile.hasRailroad ? ['Railroad'] : []),
     ];
-    const adjacent = this.mapManager?.getTopology?.().getCardinalNeighbors(unit.x, unit.y) ?? [];
+    const adjacent =
+      this.mapManager?.getTopology?.().getCardinalNeighbors(effectiveX, effectiveY) ?? [];
     const adjacentTiles = adjacent
       .map(({ x, y }: { x: number; y: number }) => this.mapManager?.getTile(x, y))
       .filter(Boolean) as any[];
@@ -4459,6 +4468,13 @@ export class UnitManager {
         extras: new Set<string>(tileExtras),
         extraFlags: this.getExtraFlags(tileExtras, rulesetName),
       },
+      Target: {
+        terrain: tile.terrain,
+        terrainClass: terrain.class,
+        terrainAlterations: this.getTerrainAlterations(terrain),
+        extras: new Set<string>(tileExtras),
+        extraFlags: this.getExtraFlags(tileExtras, rulesetName),
+      },
       Player: { technologies: this.playerTechsProvider(unit.playerId) },
       CAdjacent: {
         terrainClass: new Set(
@@ -4475,6 +4491,9 @@ export class UnitManager {
     };
     const actionNames: Partial<Record<ActionType, string>> = {
       [ActionType.BUILD_ROAD]: 'Build Road',
+      // Freeciv uses the Build Road enabler for both roads and railroads;
+      // the Railroad extra carries the additional technology/extra guards.
+      [ActionType.BUILD_RAILROAD]: 'Build Road',
       [ActionType.BUILD_IRRIGATION]: 'Build Irrigation',
       [ActionType.BUILD_MINE]: 'Build Mine',
       [ActionType.BUILD_FORTRESS]: 'Build Base',

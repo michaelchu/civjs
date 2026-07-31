@@ -77,9 +77,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
   reference's civilian, allied, war, and border-entry rules.
 - **Regression coverage:** `UnitManager.test.ts` covers foreign-city preview,
   foreign-unit preview, peaceful military border blocking, civilian border
-  entry, and war-gated capture; `MapCanvas`/path-service integration still
-  needs a browser test asserting the player-visible peaceful-territory and
-  foreign-city messages.
+  entry, and war-gated capture. `MapCanvas.goto-feedback.test.tsx` covers the
+  player-visible rejected-path message and confirmation/explicit-war intent
+  before executing a peaceful foreign-city Go To.
 
 ## Additional open gaps
 
@@ -178,8 +178,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Expected outcome:** Wire the manager into turn processing and implement
   ruleset-driven random movement with legal destination selection, visibility,
   persistence, and player notifications.
-- **Regression coverage:** Add a deterministic turn-phase test covering a
-  `civ2civ3` Storm with legal and blocked destinations.
+- **Regression coverage:** `UnitManager.test.ts` covers a legal Storm move;
+  `RandomEventsManager.test.ts` covers random-events integration and a blocked
+  Storm destination.
 
 ### GP-006 — Submarines can attack non-native tiles
 
@@ -191,10 +192,11 @@ you declare war first.` Civilian/border-entry units may enter permitted
   non-native tiles when the reference ruleset would reject the action.
 - **Reproduction:** Use a `civ2civ3` Submarine and attempt to attack a unit on
   a non-native land tile.
-- **Current implementation:** `UnitManager` validates the attacker's strength,
-  movement points, and range but has no native-target check. The converted
-  `civ2civ3` ruleset retains `Only_Native_Attack` on Submarines (and on
-  non-attacking Caravels), but no authoritative combat path consumes it.
+- **Current implementation:** `UnitManager.validateCombatRange()` applies the
+  target-terrain native check, `Only_Native_Attack`, and the unit-class
+  `AttackNonNative` exception before authoritative combat. The same native
+  restriction is applied by the direct bombardment, nuclear, and suicide
+  attack validators.
 - **Reference behavior:** Freeciv rejects attack, wipe-unit, nuclear-unit, and
   ransom actions against non-native tiles unless the unit class permits
   non-native attacks and the unit does not have `Only_Native_Attack`.
@@ -254,10 +256,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Reproduction:** Place a Super Spy-type unit in a city and perform a
   diplomatic mission against that city. The mission-resolution path ignores
   the Super Spy unless it also has the `Diplomat` flag.
-- **Current implementation:** `GameManager.executeDiplomatAction()` selects a
-  defender by checking only `candidateType.flags?.includes('Diplomat')`. No
-  Super Spy priority, guaranteed contest result, or non-diplomat city-defense
-  behavior is applied.
+- **Current implementation:** Diplomatic resolution selects both Diplomat and
+  Super Spy defenders. Super Spy versus ordinary diplomat and Super Spy versus
+  Super Spy precedence is applied before ordinary mission odds, including when
+  the defending Super Spy is not itself a Diplomat.
 - **Reference behavior:** Freeciv's `SuperSpy` flag always wins diplomatic
   contests except against another Super Spy, where the defender wins. It may
   also protect cities from diplomats when placed on a non-diplomat unit.
@@ -424,9 +426,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
   movement, even when it began the turn with several movement points.
 - **Reproduction:** Attack with a fast non-`OneAttack` unit after spending no
   movement. The unit cannot move or attack again after combat.
-- **Current implementation:** `UnitManager.attackUnit()` unconditionally sets
-  `attacker.movementLeft = 0`. The converted `civ2civ3` data retains
-  `Action_Success_Actor_Move_Cost`, but the combat path does not evaluate it.
+- **Current implementation:** Combat evaluates the ruleset
+  `Action_Success_Actor_Move_Cost` effect and subtracts six movement fragments
+  for ordinary attacks or 65535 for `OneAttack` units.
 - **Reference behavior:** `civ2civ3` charges two moves (six fragments) for an
   ordinary attack. Units with `OneAttack` pay 65535 fragments and therefore
   lose all movement.
@@ -452,8 +454,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
   build cost to city production.
 - **Reproduction:** Disband a 20-shield unit into a city's production and
   observe a 20-shield increase.
-- **Current implementation:** `CityManager.recoverUnitShields()` is called
-  with `unitType.cost`, and the success message reports that full value.
+- **Current implementation:** `CityManager` evaluates the
+  `Unit_Shield_Value_Pct` effect for `Disband Unit Recover`, floors the ruleset
+  percentage result, persists that amount, and reports the same amount.
 - **Reference behavior:** The `civ2civ3` ruleset applies
   `Unit_Shield_Value_Pct = -50` to `Disband Unit Recover`, yielding half the
   unit's shield value.
@@ -474,8 +477,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Area:** Unit actions, cities, action ranges
 - **Observed behavior:** A caravan or disbanding unit must occupy the target
   city's center tile; selecting an adjacent city fails.
-- **Current implementation:** `UnitManager.canPerformCityUnitAction()` requires
-  exact equality between the unit and target coordinates.
+- **Current implementation:** `UnitManager.canPerformCityUnitAction()` loads
+  the configured `help_wonder_max_range` and
+  `disband_unit_recover_max_range` values and validates the target city within
+  that range.
 - **Reference behavior:** `civ2civ3` configures both `Help Wonder` and
   `Disband Unit Recover` with a maximum range of one tile.
 - **CivJS references:**
@@ -598,9 +603,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Observed behavior:** A player may found or rename multiple cities to the
   same name. The generic action path generates `New City (x,y)` rather than
   selecting the next nation city name.
-- **Current implementation:** `CityManager.foundCity()` and `renameCity()` do
-  not check existing city names; `ActionSystem.executeFoundCity()` constructs
-  a coordinate-based name.
+- **Current implementation:** `CityManager.foundCity()` and `renameCity()`
+  enforce case-insensitive global uniqueness. `ActionSystem.executeFoundCity()`
+  selects the first unused city name from the player's nation list and falls
+  back to a unique generated name after that list is exhausted.
 - **Reference behavior:** Freeciv defaults `allowed_city_names` to
   `PLAYER_UNIQUE` and selects suggested names from the player's nation list,
   with validation when a name is submitted.
@@ -829,15 +835,15 @@ you declare war first.` Civilian/border-entry units may enter permitted
   several worker actions solely because a unit has `canBuildImprovements`, even
   when the owning player lacks a required technology or the current tile cannot
   accept the resulting extra/activity.
-- **Current implementation:** `UnitManager` now evaluates active ruleset action
+- **Current implementation:** `UnitManager` evaluates active ruleset action
   enablers and extra requirement vectors with owner technologies, unit facts,
-  current/adjacent tile facts, and current extras before the existing
-  specialized validators run. The authoritative
-  `availableWorkerActions` projection uses the same guard, and
-  `UnitContextMenu` uses it to hide currently illegal worker actions. The
-  legacy `classic` compatibility path retains its dedicated validators because
-  that ruleset does not expose the complete civ2civ3 vectors; target-specific
-  and cross-ruleset requirement coverage remains incomplete.
+  current/target/adjacent tile facts, and current extras before worker actions
+  execute. Railroad actions use Freeciv's `Build Road` enablers plus the
+  Railroad extra requirements. The authoritative `availableWorkerActions`
+  projection uses the same current-tile guard, and `UnitContextMenu` uses it to
+  hide currently illegal worker actions. The legacy `classic` compatibility
+  path retains its dedicated validators because that ruleset does not expose
+  the complete civ2civ3 vectors.
 - **Reference behavior:** Freeciv combines action enablers, `TerrainAlter`
   capabilities, extra requirements, technologies, unit flags, and tile state.
   For example, special oil mining and advanced extras have technology gates.
@@ -859,31 +865,6 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Expected outcome:** Route worker action availability and execution through
   the general ruleset requirement evaluator. Keep the server authoritative and
   use the same availability result to drive the context menu.
-
-  Deferred implementation plan:
-  1. Define a server-side action-availability service that accepts the acting
-     unit plus authoritative owner research, unit state, current tile/extra
-     state, and (where applicable) an explicit target. It should return the
-     supported action IDs and a machine-readable reason for unavailable
-     actions; it must evaluate action enablers and extra requirements through
-     `RulesetRequirementEvaluator` rather than reproduce rules in the client.
-  2. Make `ActionSystem` and `UnitManager` use that service as the final
-     execution guard. Preserve dedicated behavior such as irrigation-source,
-     movement, diplomatic, and target-selection checks by supplying them as
-     facts or explicit post-requirement validators, not as a second unrelated
-     availability model.
-  3. Include a current-unit availability projection in the owner-only unit
-     payload (or serve it through a dedicated owner-authorized query). Retain
-     static unit-type capability data only for presentation that does not claim
-     an action is currently executable.
-  4. Replace `UnitContextMenu`'s hard-coded worker submenu and coarse action
-     gates with the server projection. Hide unavailable self/current-tile
-     actions; retain target-selection actions only when the unit can potentially
-     perform them, then re-evaluate against the chosen target before execution.
-  5. Refresh the projection after research completion, unit movement/activity,
-     tile-extra/terrain changes, transport changes, and other state changes
-     that can alter availability. Do not trust a stale client result at action
-     execution time.
 
 - **Regression coverage:** `UnitManager.test.ts` and
   `GameBroadcastManager.test.ts` cover the authoritative worker checks;
@@ -935,8 +916,11 @@ you declare war first.` Civilian/border-entry units may enter permitted
   fourteen-way roll, uses the ruleset `HutTech` then `Hut` role fallback for
   mercenaries, creates nomad settlers when a city roll cannot found a city, and
   delegates the barbarian roll to `BarbarianManager` with protected-tile and
-  GameLoss checks. Hut outcomes now emit player-scoped notifications for gold,
+  GameLoss checks. Hut outcomes emit player-scoped notifications for gold,
   technology, mercenaries, settlers, map discovery, and barbarian results.
+  Random barbarian uprisings broadcast a game event, and `DISABLED` versus
+  `HUTS_ONLY` settings are distinguished so hut hordes remain available in the
+  latter mode.
 - **Reference behavior:** `civ2civ3` inherits Freeciv's default hut script,
   which unleashes barbarians unless protected by nearby-city/GameLoss/
   disabled-barbarian rules, creates a city or settlers based on terrain, and
@@ -948,15 +932,13 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/data/default/default.lua`
   - `reference/freeciv/server/unittools.c` (`unit_enter_hut`)
 - **Expected outcome:** Implement each scripted outcome and its eligibility,
-  fallback, barbarian creation, visibility, and notification behavior. The
-  remaining gap is seeded full-roll coverage plus exact reference probability
-  and disabled-barbarian/mercenary settings.
+  fallback, barbarian creation, visibility, and notification behavior.
 - **Regression coverage:** `UnitManager.test.ts` covers the horde delegation,
   protected explorer survival, nomad fallback, player-facing hut notification,
   every deterministic roll outcome, and the unavailable-mercenary gold
-  fallback. `BarbarianManager.test.ts` covers protected/disabled huts versus
-  actual horde spawning. Integration visibility/notification behavior and
-  exact reference probability settings remain to be covered.
+  fallback. `BarbarianManager.test.ts` covers protected/disabled huts,
+  `HUTS_ONLY`, and actual horde spawning. `RandomEventsManager.test.ts` covers
+  the player-visible uprising broadcast.
 
 ### GP-031 — Eligible city captures never create partisans
 
@@ -1036,9 +1018,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Observed behavior:** A road adds one trade only when the terrain identifier
   is hard-coded as grassland or plains; `civ2civ3` desert and tundra roads
   receive no bonus.
-- **Current implementation:** `CityTileManagementService.calculateCityOutputs()`
-  checks `['grassland', 'plains']` instead of consuming the terrain's
-  `road_trade_incr_pct`.
+- **Current implementation:** `CityTileManagementService` reads the active
+  terrain's `road_trade_incr_pct` and applies that percentage to road trade
+  output, including desert and tundra.
 - **Reference behavior:** `civ2civ3` desert, grassland, plains, and tundra all
   configure a 100-percent road trade increment; the terrain ruleset determines
   the result.

@@ -134,8 +134,20 @@ describe('BarbarianManager', () => {
     expect(await protectedHut.unleashBarbariansAt(1, 1)).toBe(true);
 
     const disabledHut = scenario().manager;
-    (disabledHut as any).config.rate = 0;
+    (disabledHut as any).config.allowHutBarbarians = false;
     expect(await disabledHut.unleashBarbariansAt(5, 5)).toBe(true);
+  });
+
+  it('allows hut hordes in HUTS_ONLY mode while random uprisings remain disabled', async () => {
+    const { manager } = scenario();
+    (manager as any).config.rate = 0;
+    (manager as any).config.allowHutBarbarians = true;
+    (manager as any).mapManager.getDistance = jest.fn(() => 10);
+    jest.spyOn(manager as any, 'getOrCreateBarbarianPlayer').mockResolvedValue('barbarian-land');
+    jest.spyOn(manager as any, 'spawnBarbarianUnits').mockResolvedValue(['barbarian-1']);
+
+    await expect(manager.unleashBarbariansAt(5, 5)).resolves.toBe(false);
+    expect((manager as any).spawnBarbarianUnits).toHaveBeenCalled();
   });
 
   it('reports explorer loss when a hut horde actually spawns', async () => {
