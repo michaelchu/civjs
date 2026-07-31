@@ -942,8 +942,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Regression coverage:** `UnitManager.test.ts` covers the horde delegation,
   protected explorer survival, nomad fallback, player-facing hut notification,
   every deterministic roll outcome, and the unavailable-mercenary gold
-  fallback. Integration visibility/notification behavior, exact reference
-  probability/settings, and disabled-barbarian rules remain to be covered.
+  fallback. `BarbarianManager.test.ts` covers protected/disabled huts versus
+  actual horde spawning. Integration visibility/notification behavior and
+  exact reference probability settings remain to be covered.
 
 ### GP-031 — Eligible city captures never create partisans
 

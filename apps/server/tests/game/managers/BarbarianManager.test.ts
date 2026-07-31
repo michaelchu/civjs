@@ -39,7 +39,7 @@ function scenario(sea = false) {
   });
   const manager = new BarbarianManager(
     'game',
-    config,
+    { ...config },
     {
       getAllUnits: () => new Map(),
       getUnitType: (id: string) =>
@@ -127,5 +127,26 @@ describe('BarbarianManager', () => {
       undefined,
       expect.any(String)
     );
+  });
+
+  it('reports explorer survival for protected and disabled huts', async () => {
+    const protectedHut = scenario().manager;
+    expect(await protectedHut.unleashBarbariansAt(1, 1)).toBe(true);
+
+    const disabledHut = scenario().manager;
+    (disabledHut as any).config.rate = 0;
+    expect(await disabledHut.unleashBarbariansAt(5, 5)).toBe(true);
+  });
+
+  it('reports explorer loss when a hut horde actually spawns', async () => {
+    const { manager } = scenario();
+    (manager as any).mapManager.getDistance = jest.fn(() => 10);
+    jest.spyOn(manager as any, 'getOrCreateBarbarianPlayer').mockResolvedValue('barbarian-land');
+    jest.spyOn(manager as any, 'spawnBarbarianUnits').mockResolvedValue(['barbarian-1']);
+
+    const survived = await manager.unleashBarbariansAt(5, 5);
+    expect((manager as any).getOrCreateBarbarianPlayer).toHaveBeenCalled();
+    expect((manager as any).spawnBarbarianUnits).toHaveBeenCalled();
+    expect(survived).toBe(false);
   });
 });

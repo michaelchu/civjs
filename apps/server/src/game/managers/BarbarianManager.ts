@@ -177,7 +177,9 @@ export class BarbarianManager {
   }
 
   /**
-   * Unleash a hut horde at the hut tile. Protected huts remain harmless.
+   * Unleash a hut horde at the hut tile. The result indicates whether the
+   * explorer survives: protected, disabled, and failed spawns return true;
+   * a successful horde returns false.
    * @reference reference/freeciv/data/default/default.lua:103-130
    */
   async unleashBarbariansAt(x: number, y: number): Promise<boolean> {
@@ -208,7 +210,7 @@ export class BarbarianManager {
     const barbarianPlayerId = await this.getOrCreateBarbarianPlayer(type);
     if (!barbarianPlayerId) return true;
     const unitIds = await this.spawnBarbarianUnits(barbarianPlayerId, location, type);
-    return unitIds.length > 0;
+    return unitIds.length === 0;
   }
 
   /**
@@ -616,9 +618,9 @@ export class BarbarianManager {
   ): boolean {
     return Boolean(
       boatType &&
-        boatDefinition &&
-        (boatDefinition.transport_capacity ?? 0) > 0 &&
-        canUnitEnterTerrain(location.terrain, boatType)
+      boatDefinition &&
+      (boatDefinition.transport_capacity ?? 0) > 0 &&
+      canUnitEnterTerrain(location.terrain, boatType)
     );
   }
 
