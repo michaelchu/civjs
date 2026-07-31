@@ -82,6 +82,7 @@ export class GovernmentManager {
   private effectsManager: EffectsManager;
   private readonly rulesetName: string;
   private playerTechsProvider: (playerId: string) => Set<string> = () => new Set();
+  private playerBuildingsProvider: (playerId: string) => Set<string> = () => new Set();
 
   constructor(
     gameId: string,
@@ -117,6 +118,10 @@ export class GovernmentManager {
 
   public setPlayerTechsProvider(provider: (playerId: string) => Set<string>): void {
     this.playerTechsProvider = provider;
+  }
+
+  public setPlayerBuildingsProvider(provider: (playerId: string) => Set<string>): void {
+    this.playerBuildingsProvider = provider;
   }
 
   public async loadPlayerGovernment(
@@ -177,7 +182,11 @@ export class GovernmentManager {
     }
 
     // Check requirements
-    const canChange = this.canPlayerUseGovernment(requestedGovernment, playerResearchedTechs);
+    const canChange = this.canPlayerUseGovernment(
+      requestedGovernment,
+      playerResearchedTechs,
+      this.playerBuildingsProvider(playerId)
+    );
     if (!canChange.allowed) {
       return { success: false, message: canChange.reason };
     }
@@ -287,7 +296,8 @@ export class GovernmentManager {
 
   public canPlayerUseGovernment(
     governmentId: string,
-    playerResearchedTechs: Set<string>
+    playerResearchedTechs: Set<string>,
+    playerBuildings: Set<string> = this.playerBuildingsProvider('')
   ): { allowed: boolean; reason?: string } {
     let government: Government;
     try {
@@ -301,13 +311,20 @@ export class GovernmentManager {
       return { allowed: true };
     }
 
-    // Use EffectsManager to evaluate requirements properly
-    if (government.reqs) {
-      const context: EffectContext = {
-        government: governmentId,
-        playerTechs: playerResearchedTechs,
-      };
+    const context: EffectContext = {
+      government: governmentId,
+      playerTechs: playerResearchedTechs,
+      playerBuildings,
+    };
 
+    // Any_Government effects, such as Statue of Liberty, bypass the
+    // technology requirement for the selected government.
+    if (this.effectsManager.calculateEffect(EffectType.ANY_GOVERNMENT, context).value > 0) {
+      return { allowed: true };
+    }
+
+    // Use EffectsManager to evaluate the government's requirements properly.
+    if (government.reqs) {
       const result = this.effectsManager.evaluateRequirements(government.reqs, context);
       if (!result.satisfied) {
         return { allowed: false, reason: result.reason };
@@ -406,8 +423,11 @@ export class GovernmentManager {
         return true;
       }
 
-      return this.canPlayerUseGovernment(governmentType, this.playerTechsProvider(playerId))
-        .allowed;
+      return this.canPlayerUseGovernment(
+        governmentType,
+        this.playerTechsProvider(playerId),
+        this.playerBuildingsProvider(playerId)
+      ).allowed;
     } catch {
       return false;
     }

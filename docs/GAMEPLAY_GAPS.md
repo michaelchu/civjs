@@ -618,7 +618,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-021 — City transfer leaves supported and occupying units inconsistent
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** City capture, incitement, city gifts, unit ownership and support
 - **Observed behavior:** Incitement transfers only former-owner units that are
   both supported by the city and within one tile. Supported units farther away
@@ -749,7 +749,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-026 — Espionage ignores repeat-theft state and target-selection rules
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Diplomats, spies, technology theft, sabotage
 - **Observed behavior:** Untargeted technology theft always picks the
   alphabetically first available technology; sabotage always removes the
@@ -795,9 +795,11 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Area:** Governments, research, revolution
 - **Observed behavior:** A player can initiate a revolution toward any loaded
   government regardless of researched technologies.
-- **Current implementation:** `GovernmentManager.canChangeGovernment()` sees
-  the ruleset requirements but deliberately returns `true` without checking
-  the player's research or requirement effects.
+- **Current implementation:** `GovernmentManager` evaluates government
+  requirements against the authoritative player technology set before allowing
+  a revolution. `Any_Government` effects such as Statue of Liberty are also
+  evaluated with the player's owned buildings and can override the technology
+  gate; invalid, duplicate, or in-progress revolutions remain blocked.
 - **Reference behavior:** Freeciv permits the change only when the government's
   requirements are satisfied, unless an `Any_Government` effect overrides
   them. Losing the enabling technology can also force a new government.
@@ -811,8 +813,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/server/techtools.c`
 - **Expected outcome:** Evaluate government requirements against authoritative
   research/effects before revolution and after technology loss.
-- **Regression coverage:** Test missing/present technology, wonder/effect
-  overrides, revolution already in progress, and loss of an enabling tech.
+- **Regression coverage:** `GovernmentManager.test.ts` covers missing/present
+  technology and an `Any_Government` wonder override. Revolution-in-progress
+  and technology-loss enforcement remain open for integration coverage.
 
 ### GP-028 — Worker actions bypass ruleset enablers and extra requirements
 
@@ -894,7 +897,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-029 — Multiple workers cannot cooperate on the same activity
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Worker activities, multi-unit coordination, activity progress
 - **Observed behavior:** Each worker maintains an independent integer
   `turnsRemaining`; two workers building the same road or mine do not combine
@@ -920,7 +923,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-030 — Several goody-hut outcomes use different game consequences
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Huts, barbarians, free cities, mercenaries
 - **Observed behavior:** The barbarian hut roll destroys the exploring unit
   outright and spawns no horde. A failed free-city roll gives gold instead of
@@ -1045,7 +1048,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-035 — Civilization score and turn-cap ranking are not reference-compatible
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Scoring, statistics, end-game ranking, persistence, replay
 - **Observed behavior:** CivJS previously calculated an approximation and used
   individual totals for maximum-turn winners. Live `PLAYER_INFO` packets also

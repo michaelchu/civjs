@@ -414,6 +414,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     cityManager.setPlayerBuildingsProvider(
       playerId => new Set(cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings))
     );
+    governmentManager.setPlayerBuildingsProvider(
+      playerId => new Set(cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings))
+    );
     cityManager.setPlayerSpaceshipProvider(playerId =>
       normalizeSpaceshipState(players.get(playerId)?.spaceshipState)
     );

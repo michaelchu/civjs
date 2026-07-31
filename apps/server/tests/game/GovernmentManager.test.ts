@@ -1,4 +1,5 @@
 import { GovernmentManager, getGovernments } from '@game/managers/GovernmentManager';
+import { EffectsManager } from '@game/managers/EffectsManager';
 import { TECHNOLOGIES } from '@game/managers/ResearchManager';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
@@ -45,5 +46,23 @@ describe('GovernmentManager classic progression', () => {
 
     manager.setPlayerTechsProvider(() => new Set(['The Republic']));
     await expect(manager.canChangeGovernment('player-1', 'republic')).resolves.toBe(true);
+  });
+
+  it('allows an unavailable government when an Any_Government effect is active', async () => {
+    const manager = new GovernmentManager(
+      'game-1',
+      createMockDatabaseProvider(),
+      new EffectsManager('civ2civ3')
+    );
+    await manager.initializePlayerGovernment('player-1');
+    manager.setPlayerTechsProvider(() => new Set());
+    manager.setPlayerBuildingsProvider(() => new Set(['statue_of_liberty']));
+
+    await expect(manager.canChangeGovernment('player-1', 'democracy')).resolves.toBe(true);
+    await expect(
+      manager.startRevolution('player-1', 'democracy', new Set())
+    ).resolves.toMatchObject({
+      success: true,
+    });
   });
 });
