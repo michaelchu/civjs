@@ -60,12 +60,7 @@ export const GameOptionsPanel: React.FC = () => {
   }, []);
 
   return (
-    <section className="h-full overflow-y-auto bg-gray-900 p-6 text-white">
-      <h2 className="text-2xl font-bold">Settings</h2>
-      <p className="mt-1 text-sm text-gray-400">
-        Configure this browser and inspect the current game's fixed settings.
-      </p>
-
+    <section className="p-1 text-white">
       {import.meta.env.DEV && (
         <div className="mt-6 max-w-3xl rounded-lg border border-amber-700/70 bg-gray-800 p-5">
           <h3 className="font-semibold">Map display</h3>

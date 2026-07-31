@@ -54,6 +54,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
   const [scoreHistory, setScoreHistory] = useState<ScoreSnapshot[]>([]);
 
   const activeTab = useGameStore(state => state.activeTab);
+  const setActiveTab = useGameStore(state => state.setActiveTab);
   const clientState = useGameStore(state => state.clientState);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
   const currentPlayer = useGameStore(state => state.players[state.currentPlayerId]);
@@ -233,7 +234,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
       <div className="flex-1 overflow-hidden flex flex-col">
         {/* Primary content */}
         <div className="flex-1 relative">
-          <div className={`h-full relative ${activeTab === 'options' ? 'hidden' : 'block'}`}>
+          <div className="h-full relative">
             <MapCanvas
               width={canvasSize.width}
               height={canvasSize.height}
@@ -272,10 +273,6 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
               }
             />
           </div>
-
-          <div className={`h-full ${activeTab === 'options' ? 'block' : 'hidden'}`}>
-            <GameOptionsPanel />
-          </div>
         </div>
       </div>
 
@@ -310,6 +307,14 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
         description="Review and manage your cities, production, and governors."
       >
         <CitiesPanel />
+      </ReportDialog>
+      <ReportDialog
+        open={activeTab === 'options'}
+        onOpenChange={open => setActiveTab(open ? 'options' : 'map')}
+        title="Settings"
+        description="Configure this browser and inspect the current game's fixed settings."
+      >
+        <GameOptionsPanel />
       </ReportDialog>
     </div>
   );
