@@ -404,6 +404,42 @@ describe('FreecivAIOrchestrator', () => {
     );
   });
 
+  it('replaces an indefinitely active Wealth conversion with ranked early production', async () => {
+    const scenario = createScenario();
+    const city = {
+      id: 'capital',
+      playerId: 'ai',
+      x: 2,
+      y: 2,
+      size: 1,
+      population: 1,
+      currentProduction: 'capitalization',
+      productionType: 'building',
+      productionPerTurn: 2,
+      goldPerTurn: 1,
+      foodPerTurn: 2,
+      tradePerTurn: 1,
+      buildings: [],
+      happiness: { happy: 0, content: 1, unhappy: 0, angry: 0 },
+      workableTiles: [],
+      worklist: [],
+    };
+    (scenario.game.cityManager as any).getPlayerCities = () => [city];
+    (scenario.game.cityManager as any).canCityContinueProduction = () => true;
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.setCityProduction).toHaveBeenCalledWith(
+      'capital',
+      'unit',
+      expect.not.stringMatching(/^capitalization$/),
+      'ai'
+    );
+  });
+
   it('persists an urgent treasury savings goal and rushes when it is funded', async () => {
     const scenario = createScenario();
     (scenario.game.players.get('ai') as any).aiLevel = 'hard';

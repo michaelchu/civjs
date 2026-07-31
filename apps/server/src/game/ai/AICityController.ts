@@ -807,6 +807,18 @@ export class FreecivAICityController {
     if (profile.handicaps.has('away') && city.currentProduction) {
       return { actions: 0, expansionQueued };
     }
+    // Wealth is an indefinite conversion, so it never completes and cannot
+    // advance the normal worklist. Treat it as idle for AI purposes; otherwise
+    // a city that starts on Wealth remains there forever and never produces the
+    // workers, settlers, or military units ranked above.
+    if (city.currentProduction === 'capitalization') {
+      const choice = this.initialProductionChoice(game, city, ranked, expansionQueued);
+      await game.cityManager.setCityProduction(city.id, choice.type, choice.id, playerId);
+      if (buildingTypesFor(game)[choice.id]?.genus === 'GreatWonder') {
+        reservedWonders.add(choice.id);
+      }
+      return { actions: 1, expansionQueued: choice.expansionQueued };
+    }
     if (
       city.currentProduction &&
       (city.worklist?.length ?? 0) === 0 &&
