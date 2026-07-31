@@ -110,6 +110,12 @@ export interface WorkableTile {
   improvements?: string[];
 }
 
+export interface CityRallyPoint {
+  x: number;
+  y: number;
+  persistent: boolean;
+}
+
 export interface TradeRoute {
   id?: string;
   sourceCity: string;
@@ -222,6 +228,7 @@ export interface CityState {
 
   // Automation
   governor?: CityGovernor;
+  rallyPoint?: CityRallyPoint;
 
   // Worklist for production queue
   worklist: ProductionItem[];
@@ -1193,7 +1200,49 @@ export class CityManager {
     return true;
   }
 
+  async setCityRallyPoint(
+    cityId: string,
+    playerId: string,
+    rallyPoint: CityRallyPoint | null
+  ): Promise<CityRallyPoint | undefined> {
+    const city = this.cities.get(cityId);
+    if (!city || city.playerId !== playerId) throw new Error('City does not belong to player');
+    if (
+      rallyPoint &&
+      (!Number.isInteger(rallyPoint.x) ||
+        !Number.isInteger(rallyPoint.y) ||
+        !this.mapManager?.isValidPosition(rallyPoint.x, rallyPoint.y))
+    ) {
+      throw new Error('Rally point is outside the map');
+    }
+    city.rallyPoint = rallyPoint
+      ? { x: rallyPoint.x, y: rallyPoint.y, persistent: Boolean(rallyPoint.persistent) }
+      : undefined;
+    await this.saveCityToDatabase(city);
+    return city.rallyPoint;
+  }
+
+  async consumeCityRallyPoint(cityId: string): Promise<CityRallyPoint | undefined> {
+    const city = this.cities.get(cityId);
+    if (!city?.rallyPoint) return undefined;
+    const rallyPoint = { ...city.rallyPoint };
+    if (!rallyPoint.persistent) {
+      city.rallyPoint = undefined;
+      await this.saveCityToDatabase(city);
+    }
+    return rallyPoint;
+  }
+
   // === DATABASE OPERATIONS ===
+
+  private normalizeRallyPoint(value: unknown): CityRallyPoint | undefined {
+    if (!value || typeof value !== 'object') return undefined;
+    const point = value as Partial<CityRallyPoint>;
+    if (!Number.isInteger(point.x) || !Number.isInteger(point.y)) return undefined;
+    const x = point.x as number;
+    const y = point.y as number;
+    return { x, y, persistent: Boolean(point.persistent) };
+  }
 
   async loadCities(): Promise<void> {
     try {
@@ -1239,6 +1288,7 @@ export class CityManager {
           },
           tradeRoutes: (record.tradeRoutes as TradeRoute[]) || [],
           governor: (record.governor as CityGovernor | null) ?? undefined,
+          rallyPoint: this.normalizeRallyPoint(record.rallyPoint),
           happiness: {
             happy: 0,
             content: Math.max(0, record.population - 1),
@@ -1299,6 +1349,7 @@ export class CityManager {
         pollution: city.pollution || 0,
         tradeRoutes: city.tradeRoutes,
         governor: city.governor ?? null,
+        rallyPoint: city.rallyPoint ?? null,
         culturePerTurn: 0, // Will be calculated
         faithPerTurn: 0, // Will be calculated
         history: city.history || 0, // Culture history
@@ -1984,6 +2035,7 @@ export class CityManager {
 
     const city = this.cities.get(cityId);
     if (result.success && city) {
+      city.rallyPoint = undefined;
       this.calculateCityOutputs(cityId);
       this.applyCityHappiness(cityId);
       await this.saveCityToDatabase(city);
@@ -1999,6 +2051,7 @@ export class CityManager {
     const oldPlayerId = city.playerId;
     const transferred = await this.captureService.transferCity(cityId, newPlayerId);
     if (transferred && oldPlayerId !== newPlayerId) {
+      city.rallyPoint = undefined;
       this.calculateCityOutputs(cityId);
       this.applyCityHappiness(cityId);
       await this.saveCityToDatabase(city);

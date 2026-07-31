@@ -36,6 +36,7 @@ export const cities = pgTable('cities', {
   pollution: integer('pollution').default(0).notNull(),
   tradeRoutes: jsonb('trade_routes').default([]).notNull(),
   governor: jsonb('governor'),
+  rallyPoint: jsonb('rally_point'),
   faithPerTurn: integer('faith_per_turn').default(0).notNull(),
 
   // Culture system (freeciv-based)

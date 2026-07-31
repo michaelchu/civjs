@@ -577,6 +577,15 @@ export class UnitManager {
     return unit;
   }
 
+  async applyRallyPoint(unit: Unit, rallyPoint: { x: number; y: number }): Promise<void> {
+    unit.orders = [{ type: 'move', targetX: rallyPoint.x, targetY: rallyPoint.y }];
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ isAutomated: true, orders: unit.orders, currentOrder: 'move' })
+      .where(eq(units.id, unit.id));
+  }
+
   private resolveTransportForCreation(
     transportedBy: string | undefined,
     unitTypeId: string

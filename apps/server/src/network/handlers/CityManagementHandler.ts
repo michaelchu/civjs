@@ -184,6 +184,35 @@ export class CityManagementHandler extends BaseSocketHandler {
       callback({ success });
     });
 
+    socket.on('city:setRallyPoint', async (data, callback) => {
+      const context = this.resolveLiveCityContext(socket, data?.cityId);
+      if (!context) {
+        callback({ success: false, error: 'City not found or not owned by player' });
+        return;
+      }
+      try {
+        const rallyPoint = data?.rallyPoint
+          ? {
+              x: Number(data.rallyPoint.x),
+              y: Number(data.rallyPoint.y),
+              persistent: Boolean(data.rallyPoint.persistent),
+            }
+          : null;
+        const saved = await context.game.cityManager.setCityRallyPoint(
+          data.cityId,
+          context.player.id,
+          rallyPoint
+        );
+        this.gameManager.broadcastCityData(context.game.id);
+        callback({ success: true, rallyPoint: saved });
+      } catch (error) {
+        callback({
+          success: false,
+          error: error instanceof Error ? error.message : 'Invalid rally point',
+        });
+      }
+    });
+
     socket.on('city:buyProduction', async (data, callback) => {
       const context = this.resolveLiveCityContext(socket, data?.cityId);
       if (!context) {

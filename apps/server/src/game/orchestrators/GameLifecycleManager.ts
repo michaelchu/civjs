@@ -488,6 +488,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
               city.y,
               city.id
             );
+            const rallyPoint = await cityManager.consumeCityRallyPoint(city.id);
+            if (rallyPoint) await unitManager.applyRallyPoint(unit, rallyPoint);
             this.logger.info(`Unit ${item.value} created at city ${city.name}`, {
               cityId: city.id,
               playerId: city.playerId,

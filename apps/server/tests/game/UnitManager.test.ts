@@ -75,6 +75,15 @@ describe('UnitManager', () => {
       expect(sentry.sentryUntil).toBeUndefined();
     });
 
+    it('applies a city rally point as a persisted movement order', async () => {
+      const unit = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+
+      await unitManager.applyRallyPoint(unit, { x: 12, y: 10 });
+
+      expect(unit.orders).toEqual([{ type: 'move', targetX: 12, targetY: 10 }]);
+      expect(mockDbProvider.getDatabase().update).toHaveBeenCalled();
+    });
+
     it('records the authoritative turn when creating a unit', async () => {
       unitManager.setCurrentTurnProvider(() => 7);
 

@@ -1957,6 +1957,18 @@ export class GameClient {
     }
   }
 
+  async setCityRallyPoint(
+    cityId: string,
+    rallyPoint: { x: number; y: number; persistent: boolean } | null
+  ): Promise<void> {
+    const response = await this.requestSocketEvent<{
+      success: boolean;
+      rallyPoint?: { x: number; y: number; persistent: boolean };
+      error?: string;
+    }>('city:setRallyPoint', { cityId, rallyPoint });
+    if (!response.success) throw new Error(response.error || 'Failed to set rally point');
+  }
+
   async optimizeCityCitizens(cityId: string): Promise<void> {
     const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
       'city:optimizeCitizens',

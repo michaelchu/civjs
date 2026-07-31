@@ -515,6 +515,22 @@ describe('CityManager', () => {
       ).rejects.toThrow('Unit is not currently available: diplomat');
     });
 
+    it('stores rally points and consumes non-persistent orders once', async () => {
+      await cityManager.setCityRallyPoint(city.id, 'player-123', {
+        x: 12,
+        y: 10,
+        persistent: false,
+      });
+
+      expect(city.rallyPoint).toEqual({ x: 12, y: 10, persistent: false });
+      await expect(cityManager.consumeCityRallyPoint(city.id)).resolves.toEqual({
+        x: 12,
+        y: 10,
+        persistent: false,
+      });
+      expect(city.rallyPoint).toBeUndefined();
+    });
+
     it('should process city turns', async () => {
       await cityManager.processCityTurn(city.id, 1);
 

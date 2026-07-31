@@ -1566,6 +1566,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
             }`,
           });
         }}
+        onSetRallyPoint={(cityId, rallyPoint) => gameClient.setCityRallyPoint(cityId, rallyPoint)}
       />
     </div>
   );

@@ -411,7 +411,15 @@ export class GameInstanceRecoveryService extends BaseGameService {
     cityManager.setCallbacks({
       onCityProductionComplete: async (city, item) => {
         if (item.kind === 'unit') {
-          await unitManager.createUnit(city.playerId, item.value, city.x, city.y, city.id);
+          const unit = await unitManager.createUnit(
+            city.playerId,
+            item.value,
+            city.x,
+            city.y,
+            city.id
+          );
+          const rallyPoint = await cityManager.consumeCityRallyPoint(city.id);
+          if (rallyPoint) await unitManager.applyRallyPoint(unit, rallyPoint);
           return;
         }
         if (isSpaceshipPart(item.value)) {

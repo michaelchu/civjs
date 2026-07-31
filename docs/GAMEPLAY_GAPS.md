@@ -107,7 +107,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-003 — City rally points cannot be set or applied
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Cities, production, unit orders, client city management
 - **Observed behavior:** The city interface has a rally-point data shape and
   display path, but every city response reports no rally point and newly
@@ -115,10 +115,11 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Reproduction:** Attempt to configure or inspect a city's rally point. No
   server action exists to save orders, and the city payload always contains an
   undefined rally point.
-- **Current implementation:** `CityDataService` hardcodes
-  `rallyPoint: undefined`. There are no matching server handlers, city-manager
-  methods, persistence fields, or production-completion hooks for rally-point
-  orders.
+- **Current implementation:** Cities persist a validated rally point in the
+  `rally_point` field. City management exposes set/clear controls and client
+  state includes the configured point. Production completion applies a Go To
+  order to the new unit; non-persistent points are consumed once, while
+  persistent points remain active. Ownership transfer clears the point.
 - **Reference behavior:** Freeciv accepts city rally-point orders, sends them
   to the client, and copies the configured orders to newly created units.
   Non-persistent rally points are cleared after use; persistent rally points
@@ -135,9 +136,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Expected outcome:** Add authoritative rally-order storage and validation,
   client controls, persistence, production-completion order assignment, and
   persistent/non-persistent lifecycle behavior.
-- **Regression coverage:** Add server tests for setting, clearing, persisting,
-  and applying rally points to produced units, plus a client test for the city
-  control flow.
+- **Regression coverage:** `CityManager.test.ts` covers storing and consuming a
+  non-persistent point; `UnitManager.test.ts` covers applying and persisting the
+  generated movement order. Client type-check covers the city control flow.
 
 ### GP-004 — Storm random movement is a no-op
 

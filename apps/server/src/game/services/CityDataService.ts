@@ -312,7 +312,7 @@ export class CityDataService {
       disorder: this.isInDisorder(city),
       pollution: city.pollution ?? this.calculatePollution(city),
 
-      rallyPoint: undefined, // TODO: Implement rally points
+      rallyPoint: city.rallyPoint,
     };
   }
 
