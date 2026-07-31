@@ -3,6 +3,10 @@ import { research as researchTable, playerTechs } from '@database/schema';
 import { eq, and } from 'drizzle-orm';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
+import {
+  resolveResearchPacingSettings,
+  type ResearchPacingSettings,
+} from '@game/services/ResearchPacing';
 
 export interface Technology {
   id: string;
@@ -55,18 +59,23 @@ export class ResearchManager {
   private gameId: string;
   private databaseProvider: DatabaseProvider;
   private currentTurnProvider?: () => number;
+  private currentYearProvider: () => number = () => -4000;
   private scienceCostProvider: (playerId: string) => number = () => 100;
+  private playerBuildingsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
   private technologyLossHandler?: (playerId: string) => Promise<void>;
+  private readonly researchPacing: ResearchPacingSettings;
 
   constructor(
     gameId: string,
     databaseProvider: DatabaseProvider,
     private readonly technologies: Record<string, Technology> = TECHNOLOGIES,
     private readonly effectsManager: EffectsManager = new EffectsManager(),
-    private readonly rulesetName: string = 'classic'
+    private readonly rulesetName: string = 'classic',
+    researchPacing: Partial<ResearchPacingSettings> = {}
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
+    this.researchPacing = resolveResearchPacingSettings(rulesetName, researchPacing);
   }
 
   public setCurrentTurnProvider(provider: () => number): void {
@@ -75,6 +84,14 @@ export class ResearchManager {
 
   public setScienceCostProvider(provider: (playerId: string) => number): void {
     this.scienceCostProvider = provider;
+  }
+
+  public setCurrentYearProvider(provider: () => number): void {
+    this.currentYearProvider = provider;
+  }
+
+  public setPlayerBuildingsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
+    this.playerBuildingsProvider = provider;
   }
 
   public setTechnologyLossHandler(handler: (playerId: string) => Promise<void>): void {
@@ -97,14 +114,30 @@ export class ResearchManager {
     const research = this.playerResearch.get(playerId);
     if (!research) return 0;
 
-    const totalCost = [...research.researchedTechs].reduce(
-      (sum, techId) => sum + (this.technologies[techId]?.cost ?? 0),
-      0
-    );
+    const dynamicCivCost = rules.tech_cost_style.toLowerCase() === 'civ i|ii';
+    const researchedCount = research.researchedTechs.size + 1;
+    let totalCost = dynamicCivCost
+      ? (rules.base_tech_cost * researchedCount * (researchedCount + 1)) / 2
+      : [...research.researchedTechs].reduce(
+          (sum, techId) => sum + (this.technologies[techId]?.cost ?? 0),
+          0
+        );
+    if (!dynamicCivCost && research.futureTechs > 0) {
+      const future = research.futureTechs;
+      totalCost +=
+        (rules.base_tech_cost *
+          (future * (2 * researchedCount + future + 1) + 2 * researchedCount)) /
+        2;
+    }
+    const researchFactor =
+      this.getTechnologyCostFactor(playerId, research, playerBuildings) +
+      Math.max(1, this.scienceCostProvider(playerId)) / 100;
+    totalCost *= researchFactor * (this.researchPacing.scienceBox / 100);
     const free = this.effectsManager.calculateEffect(EffectType.TECH_UPKEEP_FREE, {
       playerId,
       playerTechs: new Set(research.researchedTechs),
       playerBuildings,
+      currentYear: this.currentYearProvider(),
     }).value;
     let upkeep = Math.max(0, totalCost / rules.tech_upkeep_divider - free);
     if (rules.tech_upkeep_style === 'Cities') upkeep *= cityCount;
@@ -181,10 +214,12 @@ export class ResearchManager {
     const switchingTargets =
       playerResearch.currentTech !== undefined && playerResearch.currentTech !== techId;
     if (switchingTargets && playerResearch.bulbsAccumulated > 0) {
-      // Classic's default techpenalty is 100 percent.
       // @reference reference/freeciv/common/game.h GAME_DEFAULT_TECHPENALTY
       // @reference reference/freeciv/server/techtools.c:1048-1062
-      playerResearch.bulbsAccumulated = 0;
+      const lostBulbs = Math.floor(
+        (playerResearch.bulbsAccumulated * this.researchPacing.techPenalty) / 100
+      );
+      playerResearch.bulbsAccumulated = Math.max(0, playerResearch.bulbsAccumulated - lostBulbs);
     }
     playerResearch.currentTech = techId;
 
@@ -271,7 +306,7 @@ export class ResearchManager {
     playerResearch.bulbsLastTurn = bulbs;
 
     // Check if technology is completed
-    const effectiveCost = this.getEffectiveTechnologyCost(playerId, tech.cost);
+    const effectiveCost = this.getEffectiveTechnologyCost(playerId, tech);
     if (playerResearch.bulbsAccumulated >= effectiveCost) {
       const completedTech = playerResearch.currentTech;
       await this.completeTechnology(playerId, completedTech);
@@ -300,7 +335,7 @@ export class ResearchManager {
 
     // Save excess bulbs
     const excessBulbs =
-      playerResearch.bulbsAccumulated - this.getEffectiveTechnologyCost(playerId, tech.cost);
+      playerResearch.bulbsAccumulated - this.getEffectiveTechnologyCost(playerId, tech);
     playerResearch.bulbsAccumulated = 0;
     playerResearch.currentTech = undefined;
 
@@ -365,12 +400,47 @@ export class ResearchManager {
       research.techGoal = undefined;
   }
 
-  private getEffectiveTechnologyCost(playerId: string, baseCost: number): number {
-    // Freeciv's difficulty science_cost scales the technology cost rather
-    // than changing the player's bulb output.
-    // @reference reference/freeciv/common/research.c
+  private getEffectiveTechnologyCost(playerId: string, tech: Technology): number {
+    const playerResearch = this.playerResearch.get(playerId);
+    const rules = rulesetLoader.loadGameRulesRuleset(this.rulesetName).research;
+    const dynamicCivCost = rules.tech_cost_style.toLowerCase() === 'civ i|ii';
+    const baseCost =
+      tech.id !== FUTURE_TECH_ID && dynamicCivCost && playerResearch
+        ? Math.max(
+            rules.min_tech_cost,
+            rules.base_tech_cost *
+              (playerResearch.researchedTechs.size + playerResearch.futureTechs + 1)
+          )
+        : tech.cost;
+    const rulesetFactor = this.getTechnologyCostFactor(playerId, playerResearch);
+    // Freeciv applies ruleset cost factors, AI difficulty, then sciencebox.
+    // @reference reference/freeciv/common/research.c:890-1050
     const scienceCost = Math.max(1, this.scienceCostProvider(playerId));
-    return Math.max(1, Math.ceil((baseCost * scienceCost) / 100));
+    return Math.max(
+      1,
+      Math.ceil(
+        baseCost * rulesetFactor * (scienceCost / 100) * (this.researchPacing.scienceBox / 100)
+      )
+    );
+  }
+
+  private getTechnologyCostFactor(
+    playerId: string,
+    playerResearch: PlayerResearch | undefined,
+    playerBuildings: ReadonlySet<string> = this.playerBuildingsProvider(playerId)
+  ): number {
+    const playerTechs = new Set(playerResearch?.researchedTechs ?? []);
+    const worldTechs = new Set(
+      [...this.playerResearch.values()].flatMap(research => [...research.researchedTechs])
+    );
+    const result = this.effectsManager.calculateEffect(EffectType.TECH_COST_FACTOR, {
+      playerId,
+      playerTechs,
+      worldTechs,
+      playerBuildings: new Set(playerBuildings),
+      currentYear: this.currentYearProvider(),
+    });
+    return result.effects.length > 0 ? result.value : 1;
   }
 
   private async saveResearchState(playerResearch: PlayerResearch): Promise<void> {
@@ -405,7 +475,7 @@ export class ResearchManager {
     if (available.length === 0 && this.hasCompletedTechnologyTree(playerResearch)) {
       available.push(this.createFutureTechnology(playerResearch));
     }
-    return available;
+    return available.map(tech => this.withEffectiveCost(playerId, tech));
   }
 
   public canResearch(playerId: string, techId: string): boolean {
@@ -445,7 +515,7 @@ export class ResearchManager {
       return null;
     }
 
-    const effectiveCost = this.getEffectiveTechnologyCost(playerId, tech.cost);
+    const effectiveCost = this.getEffectiveTechnologyCost(playerId, tech);
     const remaining = effectiveCost - playerResearch.bulbsAccumulated;
     const turnsRemaining =
       playerResearch.bulbsLastTurn > 0 ? Math.ceil(remaining / playerResearch.bulbsLastTurn) : -1;
@@ -470,7 +540,15 @@ export class ResearchManager {
   public getTechnologyCatalogue(playerId: string): Technology[] {
     const research = this.playerResearch.get(playerId);
     const technologies = Object.values(this.technologies);
-    return research ? [...technologies, this.createFutureTechnology(research)] : technologies;
+    return research
+      ? [...technologies, this.createFutureTechnology(research)].map(tech =>
+          this.withEffectiveCost(playerId, tech)
+        )
+      : technologies;
+  }
+
+  private withEffectiveCost(playerId: string, tech: Technology): Technology {
+    return { ...tech, cost: this.getEffectiveTechnologyCost(playerId, tech) };
   }
 
   public async grantTechnology(playerId: string, techId: string): Promise<boolean> {
@@ -651,7 +729,8 @@ export class ResearchManager {
 
   private createFutureTechnology(playerResearch: PlayerResearch): Technology {
     const rules = rulesetLoader.loadGameRulesRuleset(this.rulesetName).research;
-    const researchedCount = Object.keys(this.technologies).length + playerResearch.futureTechs;
+    // Freeciv initializes techs_researched to one, then increments it for each discovery.
+    const researchedCount = Object.keys(this.technologies).length + playerResearch.futureTechs + 1;
     const prerequisites = new Set(
       Object.values(this.technologies).flatMap(technology => technology.requirements)
     );

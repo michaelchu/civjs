@@ -61,6 +61,7 @@ import {
 import { rulesetUnitsService, type UnitType } from '@game/services/RulesetUnitsService';
 import type { FreecivRandom } from '@game/random/FreecivRandom';
 import type { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAllocator';
+import type { ResearchPacingSettings } from '@game/services/ResearchPacing';
 
 // Freeciv dai_incident_simple() converts action badness into MAX_AI_LOVE / 35
 // victim penalties. CivJS stores love on the same -1000..1000 scale.
@@ -108,6 +109,8 @@ export interface GameConfig {
   terrainSettings?: TerrainSettings;
   /** Default difficulty assigned to AI players created for this game. */
   aiLevel?: SettableAILevel;
+  /** Freeciv-compatible global research cost and target-switching settings. */
+  researchPacing?: Partial<ResearchPacingSettings>;
   /** Freeciv-compatible seed for the authoritative gameplay random stream. */
   randomSeed?: number;
   /** Optional barbarian frequency override for presets such as Quick Start. */

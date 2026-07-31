@@ -298,6 +298,7 @@ describe('GameManagementHandler', () => {
         mapHeight: 50,
         selectedNation: 'romans',
         aiLevel: 'hard',
+        researchPacing: { scienceBox: 150 },
       };
 
       mockGameManager.createGame.mockResolvedValue(mockGameId);
@@ -321,6 +322,7 @@ describe('GameManagementHandler', () => {
           hostId: mockUserId,
           maxPlayers: 4,
           aiLevel: 'hard',
+          researchPacing: { scienceBox: 150 },
         })
       );
 

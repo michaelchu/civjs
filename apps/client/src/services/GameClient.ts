@@ -1244,6 +1244,7 @@ export class GameClient {
     selectedNation: string;
     aiLevel?: 'restricted' | 'novice' | 'easy' | 'normal' | 'hard' | 'cheating';
     barbarianRate?: number;
+    researchPacing?: { scienceBox?: number; techPenalty?: number };
     terrainSettings?: {
       generator: string;
       landmass: string;
@@ -1285,6 +1286,7 @@ export class GameClient {
           selectedNation: gameData.selectedNation,
           aiLevel: gameData.aiLevel,
           barbarianRate: gameData.barbarianRate,
+          researchPacing: gameData.researchPacing,
           victoryConditions: ['conquest'],
           turnTimeLimit: 120,
           terrainSettings: gameData.terrainSettings || {

@@ -72,6 +72,7 @@ export const TerrainSettingsDialog: React.FC = () => {
         mapSize: formData.mapSize,
         selectedNation: formData.selectedNation,
         aiLevel: formData.aiLevel,
+        researchPacing: { scienceBox: formData.scienceBox },
         terrainSettings,
       });
 

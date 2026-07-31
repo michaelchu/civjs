@@ -5,6 +5,7 @@ import {
   loadRulesetTechnologies,
 } from '@game/managers/ResearchManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { EffectsManager } from '@game/managers/EffectsManager';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 describe('ResearchManager', () => {
@@ -77,6 +78,25 @@ describe('ResearchManager', () => {
 
       expect(researchManager.calculateTechnologyUpkeep('player-123', 4)).toBe(0);
     });
+
+    it('applies civ2civ3 cost factors and sciencebox to per-city technology upkeep', async () => {
+      const technologies = loadRulesetTechnologies(rulesetLoader, 'civ2civ3');
+      const manager = new ResearchManager(
+        gameId,
+        createMockDatabaseProvider(),
+        technologies,
+        new EffectsManager('civ2civ3'),
+        'civ2civ3'
+      );
+      await manager.initializePlayerResearch('player');
+      for (const tech of Object.values(technologies)) {
+        await manager.grantTechnology('player', tech.id);
+      }
+
+      const totalCost = Object.values(technologies).reduce((sum, tech) => sum + tech.cost, 0);
+      const expected = Math.floor(Math.max(0, (totalCost * 4) / 6000 - 3) * 2);
+      expect(manager.calculateTechnologyUpkeep('player', 2)).toBe(expected);
+    });
   });
 
   describe('research selection', () => {
@@ -139,6 +159,25 @@ describe('ResearchManager', () => {
         currentTech: 'warrior_code',
         bulbsAccumulated: 0,
       });
+    });
+
+    it('applies a configured partial switching penalty', async () => {
+      const manager = new ResearchManager(
+        gameId,
+        createMockDatabaseProvider(),
+        TECHNOLOGIES,
+        new EffectsManager(),
+        'classic',
+        { techPenalty: 25 }
+      );
+      await manager.initializePlayerResearch('player');
+      await manager.grantTechnology('player', 'alphabet');
+      await manager.setCurrentResearch('player', 'pottery');
+      await manager.addResearchPoints('player', 8);
+
+      await manager.setCurrentResearch('player', 'warrior_code');
+
+      expect(manager.getPlayerResearch('player')?.bulbsAccumulated).toBe(6);
     });
   });
 
@@ -233,6 +272,49 @@ describe('ResearchManager', () => {
       expect(await researchManager.addResearchPoints('player-123', 24)).toBeNull();
       expect(await researchManager.addResearchPoints('player-123', 6)).toBe('pottery');
       expect(researchManager.getPlayerResearch('player-123')!.bulbsAccumulated).toBe(5);
+    });
+
+    it('matches civ2civ3 cost-factor, game-speed, and AI pacing semantics', async () => {
+      const technologies = loadRulesetTechnologies(rulesetLoader, 'civ2civ3');
+      const manager = new ResearchManager(
+        gameId,
+        createMockDatabaseProvider(),
+        technologies,
+        new EffectsManager('civ2civ3'),
+        'civ2civ3',
+        { scienceBox: 150 }
+      );
+      for (const playerId of ['human', 'easy-ai', 'restricted-ai']) {
+        await manager.initializePlayerResearch(playerId);
+      }
+      manager.setScienceCostProvider(playerId => (playerId === 'restricted-ai' ? 250 : 100));
+      const baseCost = technologies.alphabet.cost;
+
+      expect(manager.getResearchProgress('human')?.required).toBe(baseCost * 3 * 1.5);
+      expect(manager.getResearchProgress('easy-ai')?.required).toBe(baseCost * 3 * 1.5);
+      expect(manager.getResearchProgress('restricted-ai')?.required).toBe(
+        Math.ceil(baseCost * 3 * 1.5 * 2.5)
+      );
+      expect(
+        manager.getAvailableTechnologies('human').find(tech => tech.id === 'alphabet')?.cost
+      ).toBe(baseCost * 3 * 1.5);
+    });
+
+    it('uses Civ I/II dynamic costs together with the ruleset sciencebox', async () => {
+      const manager = new ResearchManager(
+        gameId,
+        createMockDatabaseProvider(),
+        loadRulesetTechnologies(rulesetLoader, 'civ2'),
+        new EffectsManager('civ2'),
+        'civ2'
+      );
+      await manager.initializePlayerResearch('player');
+
+      expect(manager.getResearchProgress('player')?.required).toBe(10);
+      await manager.grantTechnology('player', 'alphabet');
+      await manager.setCurrentResearch('player', 'pottery');
+
+      expect(manager.getResearchProgress('player')?.required).toBe(20);
     });
 
     it('routes the next research through a goal prerequisite chain', async () => {

@@ -49,6 +49,21 @@ describe('GameLifecycleManager helper behavior', () => {
     expect(data.gameState.randomState).toEqual(new FreecivRandom(1234).getState());
   });
 
+  test('stores resolved per-game research pacing', () => {
+    const manager = createManager();
+
+    const data = (manager as any).buildGameData(
+      {
+        name: 'slow research',
+        hostId: 'host',
+        researchPacing: { scienceBox: 150 },
+      },
+      'civ2civ3'
+    );
+
+    expect(data.gameState.researchPacing).toEqual({ scienceBox: 150, techPenalty: 100 });
+  });
+
   test('uses a configured map seed when constructing a map manager for replayable games', () => {
     const manager = createManager();
     const terrainSettings = {

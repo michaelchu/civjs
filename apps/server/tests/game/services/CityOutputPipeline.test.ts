@@ -1,4 +1,4 @@
-import { EffectsManager } from '@game/managers/EffectsManager';
+import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import {
   CityCalculationService,
   type CityPlayerContext,
@@ -104,6 +104,26 @@ describe('city output pipeline', () => {
     );
 
     expect(result.science).toBe(6);
+  });
+
+  it('combines Output_Bonus and Output_Bonus_2 multiplicatively', () => {
+    const effects = {
+      calculateEffect: jest.fn((type: EffectType) => ({
+        value: type === EffectType.OUTPUT_BONUS ? 50 : type === EffectType.OUTPUT_BONUS_2 ? 20 : 0,
+      })),
+      calculateCityCorruption: jest.fn().mockReturnValue({ corruption: 0 }),
+      getRulesetName: jest.fn().mockReturnValue('civ2civ3'),
+    } as unknown as EffectsManager;
+    const subject = city({ population: 1 });
+
+    const result = new CityCalculationService(effects).calculateCityOutputs(
+      subject,
+      { food: 2, shields: 1, trade: 10 },
+      undefined,
+      context(subject, { taxRates: { tax: 100, luxury: 0, science: 0 } })
+    );
+
+    expect(result.trade).toBe(18);
   });
 
   it('deducts supported-unit food and shield upkeep from surplus', () => {

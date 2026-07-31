@@ -25,6 +25,7 @@ describe('TerrainSettingsDialog', () => {
         mapSize: 'standard',
         selectedNation: 'random',
         aiLevel: 'normal',
+        scienceBox: 150,
       },
       terrainSettings: {
         generator: 'random',

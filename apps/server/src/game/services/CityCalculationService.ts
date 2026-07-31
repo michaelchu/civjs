@@ -344,11 +344,17 @@ export class CityCalculationService extends BaseGameService {
     outputType: OutputType,
     output: number
   ): number {
-    const bonus = this.effectsManager.calculateEffect(EffectType.OUTPUT_BONUS, {
+    const context = {
       ...effectContext,
       outputType,
-    }).value;
-    return Math.floor((output * (100 + bonus)) / 100);
+    };
+    const bonus = this.effectsManager.calculateEffect(EffectType.OUTPUT_BONUS, context).value;
+    const multiplierBonus = this.effectsManager.calculateEffect(
+      EffectType.OUTPUT_BONUS_2,
+      context
+    ).value;
+    const factor = Math.max(0, ((100 + bonus) * (100 + multiplierBonus)) / 100);
+    return Math.floor((output * factor) / 100);
   }
 
   /**

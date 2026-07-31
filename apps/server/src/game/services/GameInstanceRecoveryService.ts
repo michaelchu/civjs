@@ -42,6 +42,7 @@ import {
   shouldCreatePartisans,
 } from '@game/services/PartisanService';
 import { getClimateSettingsFromGameState } from '@game/services/ClimateManager';
+import { researchPacingFromGameState } from '@game/services/ResearchPacing';
 import {
   FreecivRandom,
   generateFreecivGameSeed,
@@ -51,6 +52,10 @@ import {
   FREECIV_IDENTITY_NUMBER_SKIP,
   FreecivIdentityAllocator,
 } from '@game/random/FreecivIdentityAllocator';
+
+function recoveredResearchPacing(game: any) {
+  return researchPacingFromGameState(game.ruleset || DEFAULT_RULESET, game.gameState);
+}
 
 /**
  * GameInstanceRecoveryService - Extracted game recovery operations from GameManager
@@ -336,7 +341,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       this.databaseProvider,
       loadRulesetTechnologies(rulesetLoader, rulesetName),
       effectsManager,
-      rulesetName
+      rulesetName,
+      researchPacingFromGameState(rulesetName, game.gameState)
     );
     governmentManager.setPlayerTechsProvider(
       playerId => new Set(researchManager.getResearchedTechs(playerId))
@@ -653,6 +659,10 @@ export class GameInstanceRecoveryService extends BaseGameService {
     // @reference reference/freeciv/server/techtools.c:665-719
     // Keep recovered research associated with the restored authoritative turn.
     researchManager.setCurrentTurnProvider(() => turnManager.getCurrentTurn());
+    researchManager.setCurrentYearProvider(() => turnManager.getCurrentYear());
+    researchManager.setPlayerBuildingsProvider(
+      playerId => new Set(cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings))
+    );
 
     return {
       turnManager,
@@ -795,6 +805,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
         aiLevel: isSettableAILevel((game.gameState as any)?.aiLevel)
           ? (game.gameState as any).aiLevel
           : 'easy',
+        researchPacing: recoveredResearchPacing(game),
         randomSeed: game.gameState.randomSeed,
       },
       state: game.status as GameState,

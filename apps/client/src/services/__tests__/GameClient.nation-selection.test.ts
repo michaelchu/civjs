@@ -316,6 +316,7 @@ describe('GameClient - Nation Selection', () => {
         mapSize: 'standard',
         selectedNation: 'japanese',
         aiLevel: 'hard' as const,
+        researchPacing: { scienceBox: 150 },
       };
 
       // Mock authentication
@@ -361,6 +362,7 @@ describe('GameClient - Nation Selection', () => {
           data: expect.objectContaining({
             selectedNation: 'japanese',
             aiLevel: 'hard',
+            researchPacing: { scienceBox: 150 },
           }),
         })
       );

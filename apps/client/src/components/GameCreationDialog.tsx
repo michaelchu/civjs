@@ -45,6 +45,7 @@ export const GameCreationDialog: React.FC = () => {
     mapSize,
     selectedNation,
     aiLevel = 'easy',
+    scienceBox = 100,
   } = formData;
 
   const handleBack = () => {
@@ -80,6 +81,7 @@ export const GameCreationDialog: React.FC = () => {
       mapSize,
       selectedNation,
       aiLevel,
+      scienceBox,
     });
 
     // Navigate to terrain settings
@@ -111,6 +113,13 @@ export const GameCreationDialog: React.FC = () => {
     { value: 'normal', label: 'Normal' },
     { value: 'hard', label: 'Hard' },
     { value: 'cheating', label: 'Cheating' },
+  ];
+
+  const researchPaceOptions = [
+    { value: '50', label: 'Fast (50%)' },
+    { value: '100', label: 'Standard (100%)' },
+    { value: '150', label: 'Slow (150%)' },
+    { value: '200', label: 'Epic (200%)' },
   ];
 
   // Create nation options from the fetched nations
@@ -266,6 +275,24 @@ export const GameCreationDialog: React.FC = () => {
                     </p>
                   </div>
                 )}
+
+                <div>
+                  <label
+                    htmlFor="researchPace"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
+                    Research Pace
+                  </label>
+                  <Combobox
+                    options={researchPaceOptions}
+                    value={scienceBox.toString()}
+                    onValueChange={value => updateFormData({ scienceBox: Number(value) })}
+                    placeholder="Select research pace"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Scales technology costs for every civilization.
+                  </p>
+                </div>
               </div>
 
               {gameType === 'multiplayer' && (

@@ -71,6 +71,19 @@ import {
   shouldCreatePartisans,
 } from '@game/services/PartisanService';
 import { getClimateSettingsFromGameState } from '@game/services/ClimateManager';
+import {
+  researchPacingFromGameState,
+  resolveResearchPacingSettings,
+  type ResearchPacingSettings,
+} from '@game/services/ResearchPacing';
+
+function configuredVictoryConditions(gameConfig: GameConfig): string[] {
+  return gameConfig.victoryConditions?.length ? gameConfig.victoryConditions : ['conquest'];
+}
+
+function storedResearchPacing(game: any): ResearchPacingSettings {
+  return researchPacingFromGameState(game.ruleset ?? DEFAULT_RULESET, game.gameState);
+}
 
 export interface GameLifecycleService {
   createGame(gameConfig: GameConfig): Promise<string>;
@@ -179,9 +192,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       historyInterestPml: rulesetLoader.getCultureRules(rulesetName).history_interest_pml,
       turnTimeLimit: gameConfig.turnTimeLimit,
       maxTurns: gameConfig.maxTurns ?? 0,
-      victoryConditions: gameConfig.victoryConditions?.length
-        ? gameConfig.victoryConditions
-        : ['conquest'],
+      victoryConditions: configuredVictoryConditions(gameConfig),
       gameState: {
         // Freeciv stores a game default skill and copies it to generated AI
         // players. Keep easy as the reference default, but persist the
@@ -220,6 +231,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
   private buildGameData(gameConfig: GameConfig, rulesetName: string) {
     const { randomSeed, randomState } = this.createInitialRandomState(gameConfig.randomSeed);
+    const researchPacing = resolveResearchPacingSettings(rulesetName, gameConfig.researchPacing);
     return {
       name: gameConfig.name,
       hostId: gameConfig.hostId,
@@ -232,11 +244,10 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       historyInterestPml: rulesetLoader.getCultureRules(rulesetName).history_interest_pml,
       turnTimeLimit: gameConfig.turnTimeLimit,
       maxTurns: gameConfig.maxTurns ?? 0,
-      victoryConditions: gameConfig.victoryConditions?.length
-        ? gameConfig.victoryConditions
-        : ['conquest'],
+      victoryConditions: configuredVictoryConditions(gameConfig),
       gameState: {
         aiLevel: gameConfig.aiLevel || 'easy',
+        researchPacing,
         randomSeed,
         randomState,
         identityNumber: FREECIV_IDENTITY_NUMBER_SKIP,
@@ -379,7 +390,12 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       rulesetName
     );
     this.borderNetworkService = this.createBorderNetworkService(borderManager);
-    const researchManager = this.createResearchManager(gameId, rulesetName, effectsManager);
+    const researchManager = this.createResearchManager(
+      gameId,
+      rulesetName,
+      effectsManager,
+      researchPacingFromGameState(rulesetName, game.gameState)
+    );
     await this.initializePlayerResearch(researchManager, players);
     governmentManager.setPlayerTechsProvider(
       playerId => new Set(researchManager.getResearchedTechs(playerId))
@@ -493,6 +509,10 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     // @reference reference/freeciv/server/techtools.c:665-719
     // Research completion belongs to the active authoritative turn.
     researchManager.setCurrentTurnProvider(() => turnManager.getCurrentTurn());
+    researchManager.setCurrentYearProvider(() => turnManager.getCurrentYear());
+    researchManager.setPlayerBuildingsProvider(
+      playerId => new Set(cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings))
+    );
 
     // Set up callbacks after all managers are created
     cityManager.setCallbacks({
@@ -1227,6 +1247,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         victoryConditions: game.victoryConditions as string[] | undefined,
         terrainSettings: (game.gameState as any)?.terrainSettings,
         aiLevel: (game.gameState as any)?.aiLevel,
+        researchPacing: storedResearchPacing(game),
         randomSeed: game.gameState.randomSeed,
       },
       state: 'active',
@@ -1394,6 +1415,11 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     unitManager.setCurrentTurnProvider(() => tm.getCurrentTurn());
     // @reference reference/freeciv/server/citytools.c:639-690
     cityManager.setCurrentTurnProvider(() => tm.getCurrentTurn());
+    researchManager.setCurrentTurnProvider(() => tm.getCurrentTurn());
+    researchManager.setCurrentYearProvider(() => tm.getCurrentYear());
+    researchManager.setPlayerBuildingsProvider(
+      playerId => new Set(cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings))
+    );
 
     // Initialize economic system
     await economicManager.initialize();
@@ -1567,14 +1593,16 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   private createResearchManager(
     gameId: string,
     rulesetName: string,
-    effectsManager: EffectsManager
+    effectsManager: EffectsManager,
+    researchPacing?: Partial<ResearchPacingSettings>
   ): ResearchManager {
     return new ResearchManager(
       gameId,
       this.databaseProvider,
       loadRulesetTechnologies(rulesetLoader, rulesetName),
       effectsManager,
-      rulesetName
+      rulesetName,
+      researchPacing
     );
   }
 
@@ -1626,6 +1654,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         victoryConditions: game.victoryConditions,
         terrainSettings: terrainSettings,
         aiLevel: (game.gameState as any)?.aiLevel,
+        researchPacing: storedResearchPacing(game),
         randomSeed: (game.gameState as any)?.randomSeed,
       },
       state: 'active',

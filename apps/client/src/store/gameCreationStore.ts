@@ -9,6 +9,7 @@ export interface GameCreationFormState {
   mapSize: string;
   selectedNation: string;
   aiLevel: 'restricted' | 'novice' | 'easy' | 'normal' | 'hard' | 'cheating';
+  scienceBox: number;
 }
 
 export interface TerrainSettings {
@@ -50,6 +51,7 @@ const initialFormData: GameCreationFormState = {
   mapSize: 'standard',
   selectedNation: 'random',
   aiLevel: 'easy',
+  scienceBox: 100,
 };
 
 const initialTerrainSettings: TerrainSettings = {
