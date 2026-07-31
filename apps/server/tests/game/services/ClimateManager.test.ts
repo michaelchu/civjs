@@ -1,7 +1,15 @@
-import { ClimateManager } from '@game/services/ClimateManager';
+import { ClimateManager, getClimateSettingsFromGameState } from '@game/services/ClimateManager';
 import { createMockDatabaseProvider } from '../../utils/mockDatabaseProvider';
 
 describe('ClimateManager', () => {
+  it('extracts persisted climate settings for fresh and recovered games', () => {
+    expect(
+      getClimateSettingsFromGameState({ climateSettings: { enabled: false, warmingThreshold: 7 } })
+    ).toEqual({ enabled: false, warmingThreshold: 7 });
+    expect(getClimateSettingsFromGameState({})).toBeUndefined();
+    expect(getClimateSettingsFromGameState(null)).toBeUndefined();
+  });
+
   it('accumulates pollution, persists pressure, and applies a warming transformation', async () => {
     const databaseProvider = createMockDatabaseProvider();
     const tile = {

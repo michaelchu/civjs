@@ -960,7 +960,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-031 — Eligible city captures never create partisans
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** City capture, partisans, governments, ruleset scripts
 - **Observed behavior:** Capturing an eligible city never spawns partisan units
   for the losing player.
@@ -993,7 +993,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-032 — Pollution never accumulates into global warming
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Pollution, climate, terrain transformation, global events
 - **Observed behavior:** Pollution can appear and be cleaned, but leaving
   polluted tiles indefinitely never raises a warming risk or transforms world
@@ -1007,8 +1007,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
   climate event. `GameConfig.climate` can disable processing or provide an
   explicit deterministic threshold; recovery persists those settings in game
   state, and recovered games now pass the persisted settings back into
-  `TurnManager`. A full restart-and-transform integration scenario remains
-  open.
+  `TurnManager` through the shared persisted-settings extractor.
 - **Reference behavior:** Freeciv accumulates warming/cooling pressure from
   pollution/fallout and periodically applies ruleset terrain transformations,
   with global notifications and persistent risk state.
@@ -1027,8 +1026,8 @@ you declare war first.` Civilian/border-entry units may enter permitted
   of the triggering extra, configured-threshold remainder handling, and the
   map-scaled probability/level escalation model.
   `TurnManager.test.ts` covers climate processing during a completed turn,
-  map broadcasting, and visibility refresh. Recovery unit coverage verifies
-  map restoration, while the full restart-and-transform scenario remains open.
+  map broadcasting, and visibility refresh. `ClimateManager.test.ts` also
+  verifies the persisted-settings contract used by fresh and recovered games.
 
 ### GP-033 — Roads on desert and tundra tiles provide no trade
 

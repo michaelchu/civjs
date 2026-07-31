@@ -41,6 +41,7 @@ import {
   notifyPartisanLoss,
   shouldCreatePartisans,
 } from '@game/services/PartisanService';
+import { getClimateSettingsFromGameState } from '@game/services/ClimateManager';
 import {
   FreecivRandom,
   generateFreecivGameSeed,
@@ -621,9 +622,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
       game.gameState && typeof game.gameState === 'object'
         ? (game.gameState as { barbarianRate?: number }).barbarianRate
         : undefined,
-      game.gameState && typeof game.gameState === 'object'
-        ? (game.gameState as { climateSettings?: Record<string, unknown> }).climateSettings
-        : undefined
+      getClimateSettingsFromGameState(game.gameState)
     );
 
     const playerIds = Array.from(players.keys());

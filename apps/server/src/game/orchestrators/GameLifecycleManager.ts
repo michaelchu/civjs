@@ -70,6 +70,7 @@ import {
   notifyPartisanLoss,
   shouldCreatePartisans,
 } from '@game/services/PartisanService';
+import { getClimateSettingsFromGameState } from '@game/services/ClimateManager';
 
 export interface GameLifecycleService {
   createGame(gameConfig: GameConfig): Promise<string>;
@@ -471,9 +472,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       game.gameState && typeof game.gameState === 'object'
         ? (game.gameState as { barbarianRate?: number }).barbarianRate
         : undefined,
-      game.gameState && typeof game.gameState === 'object'
-        ? (game.gameState as { climateSettings?: Record<string, unknown> }).climateSettings
-        : undefined
+      getClimateSettingsFromGameState(game.gameState)
     );
     unitManager.setGameLossHandler(async playerId => {
       const player = players.get(playerId);

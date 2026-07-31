@@ -28,6 +28,12 @@ export interface ClimateSettings {
   coolingThreshold?: number;
 }
 
+export function getClimateSettingsFromGameState(gameState: unknown): ClimateSettings | undefined {
+  if (!gameState || typeof gameState !== 'object') return undefined;
+  const settings = (gameState as { climateSettings?: unknown }).climateSettings;
+  return settings && typeof settings === 'object' ? (settings as ClimateSettings) : undefined;
+}
+
 const DEFAULT_STATE: ClimateState = {
   warmingPressure: 0,
   coolingPressure: 0,
