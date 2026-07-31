@@ -810,6 +810,12 @@ export class UnitManager {
         )
         .map(other => other.playerId)
     );
+    for (let dx = -1; dx <= 1; dx += 1) {
+      for (let dy = -1; dy <= 1; dy += 1) {
+        const city = this.gameManagerCallback?.getCityAt?.(unit.x + dx, unit.y + dy);
+        if (city && city.playerId !== unit.playerId) foreignPlayers.add(city.playerId);
+      }
+    }
     for (const otherPlayerId of foreignPlayers) {
       await this.contactProvider(unit.playerId, otherPlayerId);
     }
@@ -2688,7 +2694,8 @@ export class UnitManager {
     toY: number,
     isDestination: boolean
   ): number {
-    if (this.hasHostileUnitAt(unit, toX, toY)) return -1;
+    if (this.hasHostileUnitAt(unit, toX, toY) &&
+      !(isDestination && this.canUnitAttackForeignUnit(unit))) return -1;
     // A military Go To may end on a foreign city. The actual move still
     // performs the diplomatic/war validation, but the path preview must be
     // able to reach the city and let the player see why it is blocked.
@@ -2723,6 +2730,11 @@ export class UnitManager {
         city.playerId !== unit.playerId &&
         !this.alliedPlayersProvider?.(unit.playerId).has(city.playerId)
     );
+  }
+
+  private canUnitAttackForeignUnit(unit: Unit): boolean {
+    const type = this.unitTypes[unit.unitTypeId];
+    return Boolean(type && !type.flags?.includes('NonMil') && (type.attack ?? type.combat) > 0);
   }
 
   canContinuePathFrom(unit: Unit, x: number, y: number): boolean {
@@ -4146,6 +4158,12 @@ export class UnitManager {
       targetY!
     );
     if (foreignCityWarning) return { success: false, message: foreignCityWarning };
+    const foreignUnitWarning = await this.getPeacefulForeignUnitGotoWarning(
+      unit,
+      targetX!,
+      targetY!
+    );
+    if (foreignUnitWarning) return { success: false, message: foreignUnitWarning };
 
     const startingMovement = unit.movementLeft;
     const pathResult = await this.gameManagerCallback!.requestPath(
@@ -4203,6 +4221,21 @@ export class UnitManager {
 
     if (await this.hostilityProvider(unit.playerId, city.playerId)) return undefined;
     return `Cannot enter ${city.playerId}'s city unless you declare war first.`;
+  }
+
+  private async getPeacefulForeignUnitGotoWarning(
+    unit: Unit,
+    targetX: number,
+    targetY: number
+  ): Promise<string | undefined> {
+    if (!this.canUnitAttackForeignUnit(unit) || !this.hostilityProvider) return undefined;
+    const target = this.getUnitsAt(targetX, targetY).find(
+      candidate =>
+        candidate.playerId !== unit.playerId &&
+        !this.alliedPlayersProvider?.(unit.playerId).has(candidate.playerId)
+    );
+    if (!target || (await this.hostilityProvider(unit.playerId, target.playerId))) return undefined;
+    return `Cannot invade unless you break peace with ${target.playerId} first.`;
   }
 
   private getGotoPathError(
