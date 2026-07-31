@@ -736,6 +736,58 @@ describe('UnitManager', () => {
       expect((manager as any).getPathStepCost(warrior, 10, 10, 11, 10, false)).toBe(-1);
     });
 
+    it('blocks peaceful military border entry while allowing civilian entry', async () => {
+      const requestPath = jest.fn(async () => ({
+        success: true,
+        path: {
+          tiles: [
+            { x: 10, y: 10, moveCost: 0 },
+            { x: 11, y: 10, moveCost: 3 },
+          ],
+        },
+      }));
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        {
+          getTile: (x: number, y: number) => ({
+            x,
+            y,
+            terrain: 'grassland',
+            improvements: [],
+            owner: x === 11 ? 'player-456' : undefined,
+          }),
+        } as any,
+        {
+          foundCity: jest.fn().mockResolvedValue('city-1'),
+          requestPath,
+          broadcastUnitMoved: jest.fn(),
+        },
+        undefined,
+        undefined,
+        rulesetUnitsService.getUnitTypes('classic')
+      );
+      manager.setAlliedPlayersProvider(() => new Set());
+      manager.setHostilePlayersProvider(() => new Set());
+      manager.setHostilityProvider(async () => false);
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+      await expect(
+        manager.executeUnitAction(warrior.id, ActionType.GOTO, 11, 10, 'player-123')
+      ).resolves.toMatchObject({
+        success: false,
+        message: 'Cannot invade unless you break peace with player-456 first.',
+      });
+      expect(requestPath).not.toHaveBeenCalled();
+      await expect(manager.moveUnit(warrior.id, 11, 10)).rejects.toThrow(
+        'Cannot invade unless you break peace with player-456 first.'
+      );
+
+      const settler = await manager.createUnit('player-123', 'settlers', 10, 11);
+      await expect(manager.moveUnit(settler.id, 11, 11)).resolves.toBe(true);
+    });
+
     it('moves RandomMovement units to a legal adjacent tile during random events', async () => {
       const topology = new MapTopology(20, 20);
       const mapManager = {

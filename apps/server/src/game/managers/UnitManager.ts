@@ -668,6 +668,7 @@ export class UnitManager {
       throw new Error('Units may only move to an adjacent tile');
     }
     if (unit.transportedBy) throw new Error('Transported unit must unload before moving');
+    await this.validateForeignTerritoryEntry(unit, newX, newY);
     const targetUnit = this.getUnitAt(newX, newY);
     await this.captureMoveTargetIfNeeded(unit, targetUnit, newX, newY);
     this.validateDestination(unit, targetUnit, newX, newY);
@@ -1055,6 +1056,21 @@ export class UnitManager {
   ): void {
     this.validateUnitDestination(unit, targetUnit);
     this.validateCityDestination(unit, newX, newY);
+  }
+
+  private async validateForeignTerritoryEntry(unit: Unit, x: number, y: number): Promise<void> {
+    if (!this.canUnitAttackForeignUnit(unit)) return;
+    const owner = this.mapManager?.getTile?.(x, y)?.owner;
+    if (
+      !owner ||
+      owner === unit.playerId ||
+      this.alliedPlayersProvider?.(unit.playerId).has(owner) ||
+      this.hostilePlayersProvider?.(unit.playerId).has(owner)
+    ) {
+      return;
+    }
+    if (this.hostilityProvider && (await this.hostilityProvider(unit.playerId, owner))) return;
+    throw new Error(`Cannot invade unless you break peace with ${owner} first.`);
   }
 
   private validateUnitDestination(unit: Unit, targetUnit?: Unit): void {
@@ -2697,6 +2713,12 @@ export class UnitManager {
     isDestination: boolean
   ): number {
     if (
+      this.isPeacefulForeignTerritory(unit, toX, toY) &&
+      !(isDestination && this.hasHostileCityAt(unit, toX, toY))
+    ) {
+      return -1;
+    }
+    if (
       this.hasHostileUnitAt(unit, toX, toY) &&
       !(isDestination && this.canUnitAttackForeignUnit(unit))
     )
@@ -2734,6 +2756,16 @@ export class UnitManager {
       city &&
       city.playerId !== unit.playerId &&
       !this.alliedPlayersProvider?.(unit.playerId).has(city.playerId)
+    );
+  }
+
+  private isPeacefulForeignTerritory(unit: Unit, x: number, y: number): boolean {
+    const owner = this.mapManager?.getTile?.(x, y)?.owner;
+    return Boolean(
+      owner &&
+      owner !== unit.playerId &&
+      !this.alliedPlayersProvider?.(unit.playerId).has(owner) &&
+      !this.hostilePlayersProvider?.(unit.playerId).has(owner)
     );
   }
 
@@ -4175,6 +4207,12 @@ export class UnitManager {
       targetY!
     );
     if (foreignUnitWarning) return { success: false, message: foreignUnitWarning };
+    const foreignTerritoryWarning = await this.getPeacefulForeignTerritoryGotoWarning(
+      unit,
+      targetX!,
+      targetY!
+    );
+    if (foreignTerritoryWarning) return { success: false, message: foreignTerritoryWarning };
 
     const startingMovement = unit.movementLeft;
     const pathResult = await this.gameManagerCallback!.requestPath(
@@ -4247,6 +4285,25 @@ export class UnitManager {
     );
     if (!target || (await this.hostilityProvider(unit.playerId, target.playerId))) return undefined;
     return `Cannot invade unless you break peace with ${target.playerId} first.`;
+  }
+
+  private async getPeacefulForeignTerritoryGotoWarning(
+    unit: Unit,
+    targetX: number,
+    targetY: number
+  ): Promise<string | undefined> {
+    if (!this.canUnitAttackForeignUnit(unit) || !this.hostilityProvider) return undefined;
+    const owner = this.mapManager?.getTile?.(targetX, targetY)?.owner;
+    if (
+      !owner ||
+      owner === unit.playerId ||
+      this.alliedPlayersProvider?.(unit.playerId).has(owner) ||
+      this.hostilePlayersProvider?.(unit.playerId).has(owner)
+    ) {
+      return undefined;
+    }
+    if (await this.hostilityProvider(unit.playerId, owner)) return undefined;
+    return `Cannot invade unless you break peace with ${owner} first.`;
   }
 
   private getGotoPathError(
