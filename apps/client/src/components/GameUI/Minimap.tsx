@@ -1,12 +1,10 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { Crosshair, Map as MapIcon, Maximize2, Minimize2 } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { HudPanel } from './HudPanel';
-import { HudIconButton } from './HudIconButton';
 import { isMinimapMarkerVisible } from './minimapVisibility';
 
-const MINIMAP_WIDTH = 176;
-const MINIMAP_HEIGHT = 112;
+const MINIMAP_WIDTH = 220;
+const MINIMAP_HEIGHT = 140;
 const TILE_COLORS: Record<string, string> = {
   ocean: '#164e63',
   coast: '#0e7490',
@@ -29,6 +27,9 @@ const terrainColor = (terrain: string | undefined): string => {
   return TILE_COLORS[normalized] ?? (normalized === 'unknown' ? '#111827' : '#475569');
 };
 
+const isOceanTerrain = (terrain: string | undefined): boolean =>
+  terrain?.toLowerCase().includes('ocean') ?? false;
+
 const playerColor = (color: string | undefined, fallback: string): string => color || fallback;
 
 const inverseIsometric = (guiX: number, guiY: number): { x: number; y: number } => ({
@@ -37,7 +38,6 @@ const inverseIsometric = (guiX: number, guiY: number): { x: number; y: number } 
 });
 
 export const Minimap: React.FC = () => {
-  const [collapsed, setCollapsed] = React.useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const draggingRef = useRef(false);
   const redrawFrameRef = useRef<number | null>(null);
@@ -59,8 +59,6 @@ export const Minimap: React.FC = () => {
     const mapWidth = map.xsize ?? map.width;
     const mapHeight = map.ysize ?? map.height;
     context.clearRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
-    context.fillStyle = '#0f172a';
-    context.fillRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
     if (!mapWidth || !mapHeight) return;
 
     const cellWidth = MINIMAP_WIDTH / mapWidth;
@@ -71,13 +69,25 @@ export const Minimap: React.FC = () => {
     for (const tile of tiles) {
       if (!tile.known) continue;
       context.globalAlpha = tile.visible ? 1 : 0.55;
-      context.fillStyle = terrainColor(tile.terrain);
-      context.fillRect(tile.x * cellWidth, tile.y * cellHeight, cellWidth + 0.5, cellHeight + 0.5);
+      if (!isOceanTerrain(tile.terrain)) {
+        context.fillStyle = terrainColor(tile.terrain);
+        context.fillRect(
+          tile.x * cellWidth,
+          tile.y * cellHeight,
+          cellWidth + 0.5,
+          cellHeight + 0.5
+        );
+      }
 
       if (tile.owner) {
-        context.globalAlpha = tile.visible ? 0.28 : 0.14;
+        context.globalAlpha = tile.visible ? 0.42 : 0.22;
         context.fillStyle = playerColor(players[tile.owner]?.color, '#94a3b8');
-        context.fillRect(tile.x * cellWidth, tile.y * cellHeight, cellWidth + 0.5, cellHeight + 0.5);
+        context.fillRect(
+          tile.x * cellWidth,
+          tile.y * cellHeight,
+          cellWidth + 0.5,
+          cellHeight + 0.5
+        );
       }
     }
     context.globalAlpha = 1;
@@ -130,21 +140,20 @@ export const Minimap: React.FC = () => {
     const cameraCorners = [
       inverseIsometric(viewport.x, viewport.y),
       inverseIsometric(viewport.x + viewport.width, viewport.y),
-      inverseIsometric(viewport.x, viewport.y + viewport.height),
       inverseIsometric(viewport.x + viewport.width, viewport.y + viewport.height),
+      inverseIsometric(viewport.x, viewport.y + viewport.height),
     ];
-    const minX = Math.max(0, Math.min(...cameraCorners.map(point => point.x)));
-    const maxX = Math.min(mapWidth, Math.max(...cameraCorners.map(point => point.x)));
-    const minY = Math.max(0, Math.min(...cameraCorners.map(point => point.y)));
-    const maxY = Math.min(mapHeight, Math.max(...cameraCorners.map(point => point.y)));
     context.strokeStyle = '#f8fafc';
     context.lineWidth = 1.5;
-    context.strokeRect(
-      minX * cellWidth,
-      minY * cellHeight,
-      Math.max(cellWidth, (maxX - minX) * cellWidth),
-      Math.max(cellHeight, (maxY - minY) * cellHeight)
-    );
+    context.beginPath();
+    cameraCorners.forEach((point, index) => {
+      const x = point.x * cellWidth;
+      const y = point.y * cellHeight;
+      if (index === 0) context.moveTo(x, y);
+      else context.lineTo(x, y);
+    });
+    context.closePath();
+    context.stroke();
   }, [cities, currentPlayerId, map, players, selectedCityId, selectedUnitId, units, viewport]);
 
   useEffect(() => {
@@ -172,7 +181,10 @@ export const Minimap: React.FC = () => {
     const y = Math.floor(((clientY - rect.top) / (rect.height || MINIMAP_HEIGHT)) * mapHeight);
     document.dispatchEvent(
       new CustomEvent('center-map-on-tile', {
-        detail: { x: Math.max(0, Math.min(mapWidth - 1, x)), y: Math.max(0, Math.min(mapHeight - 1, y)) },
+        detail: {
+          x: Math.max(0, Math.min(mapWidth - 1, x)),
+          y: Math.max(0, Math.min(mapHeight - 1, y)),
+        },
       })
     );
   };
@@ -204,34 +216,8 @@ export const Minimap: React.FC = () => {
       ? `, selected unit ${selectedUnit.unitTypeId.replaceAll('_', ' ')}`
       : '';
 
-  if (collapsed) {
-    return (
-      <HudPanel className="hidden w-11 items-center justify-center p-1.5 sm:flex">
-        <HudIconButton label="Expand minimap" onClick={() => setCollapsed(false)}>
-          <Maximize2 className="h-4 w-4" aria-hidden="true" />
-        </HudIconButton>
-      </HudPanel>
-    );
-  }
-
   return (
-    <HudPanel className="hidden w-[11.5rem] overflow-hidden p-1.5 sm:block">
-      <div className="flex items-center justify-between px-1 pb-1 text-[9px] font-medium uppercase tracking-[0.14em] text-slate-400">
-        <span className="flex items-center gap-1.5">
-          <MapIcon className="h-3 w-3 text-cyan-300" aria-hidden="true" />
-          Overview
-        </span>
-        <div className="flex items-center gap-1">
-          <Crosshair className="h-3 w-3 text-slate-500" aria-hidden="true" />
-          <HudIconButton
-            label="Collapse minimap"
-            onClick={() => setCollapsed(true)}
-            className="h-6 w-6"
-          >
-            <Minimize2 className="h-3.5 w-3.5" aria-hidden="true" />
-          </HudIconButton>
-        </div>
-      </div>
+    <HudPanel className="hidden w-[234px] overflow-hidden p-1.5 sm:block">
       <canvas
         ref={canvasRef}
         width={MINIMAP_WIDTH}
@@ -242,7 +228,7 @@ export const Minimap: React.FC = () => {
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         aria-label={`Minimap overview${selectionLabel}`}
-        className="block h-28 w-44 cursor-crosshair touch-none rounded-md border border-white/10 bg-slate-950"
+        className="block h-[140px] w-[220px] cursor-crosshair touch-none rounded-md"
       />
     </HudPanel>
   );

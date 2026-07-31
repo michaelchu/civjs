@@ -35,7 +35,7 @@ describe('Minimap', () => {
   it('renders an accessible overview canvas', () => {
     render(<Minimap />);
     expect(screen.getByLabelText('Minimap overview')).toBeInTheDocument();
-    expect(screen.getByText('Overview')).toBeInTheDocument();
+    expect(screen.queryByText('Overview')).not.toBeInTheDocument();
   });
 
   it('dispatches a map-centering request when clicked', () => {
@@ -71,16 +71,7 @@ describe('Minimap', () => {
     expect(centerEvents.length).toBeGreaterThanOrEqual(2);
     const lastCenterEvent = centerEvents.at(-1)?.[0] as CustomEvent<{ x: number; y: number }>;
     expect(lastCenterEvent.type).toBe('center-map-on-tile');
-    expect(lastCenterEvent.detail).toEqual({ x: 2, y: 2 });
-  });
-
-  it('can collapse and restore the overview map', () => {
-    render(<Minimap />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse minimap' }));
-    expect(screen.queryByLabelText('Minimap overview')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Expand minimap' }));
-    expect(screen.getByLabelText('Minimap overview')).toBeInTheDocument();
+    expect(lastCenterEvent.detail).toEqual({ x: 2, y: 1 });
   });
 
   it('exposes the selected unit in the minimap context', () => {
@@ -88,8 +79,14 @@ describe('Minimap', () => {
       selectedUnitId: 'unit-1',
       units: {
         'unit-1': {
-          id: 'unit-1', playerId: 'player-1', unitTypeId: 'scout',
-          x: 1, y: 1, hp: 100, movesLeft: 1, veteranLevel: 0,
+          id: 'unit-1',
+          playerId: 'player-1',
+          unitTypeId: 'scout',
+          x: 1,
+          y: 1,
+          hp: 100,
+          movesLeft: 1,
+          veteranLevel: 0,
         },
       },
     });
