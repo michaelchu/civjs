@@ -541,6 +541,16 @@ export class UnitActionHandler extends BaseSocketHandler {
       ActionType.POISON_WATER,
       ActionType.SABOTAGE_UNIT,
     ]);
+    if (data.actionType === ActionType.GOTO && data.declareWarIfNeeded) {
+      const city =
+        data.targetX !== undefined && data.targetY !== undefined
+          ? gameInstance.cityManager.getCityAt(data.targetX, data.targetY)
+          : undefined;
+      if (city && city.playerId !== playerId) {
+        await this.gameManager.declareWar(gameId, playerId, city.playerId);
+      }
+    }
+
     const result = diplomatActions.has(data.actionType)
       ? await this.gameManager.executeDiplomatAction(
           gameId,

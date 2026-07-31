@@ -41,10 +41,10 @@ Suggested status values:
   foreign-unit and broader border cases remain unresolved.
 - **Current implementation:** `UnitManager.getPathStepCost()` allows a
   city-capable military unit to use a foreign city as the final path tile, and
-  `executeAuthoritativeGoto()` rejects a peaceful foreign-city entry with a
-  specific declare-war message. Foreign cities/units remain blocked for other
-  path contexts, and `MapCanvas` still turns failed path responses into the
-  generic warning.
+  `MapCanvas` now asks for confirmation before sending an explicit declare-war
+  intent with the Go To action. The server declares war before resolving that
+  capture, while cancelling the confirmation leaves the order untouched.
+  Foreign-unit and broader border cases remain unresolved.
 - **Reference behavior:** Freeciv distinguishes peaceful-border movement from
   foreign-city attacks. Military units attempting to enter peaceful foreign
   territory receive `Cannot invade unless you break peace with %s first.`;

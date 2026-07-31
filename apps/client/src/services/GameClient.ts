@@ -923,9 +923,16 @@ export class GameClient {
     unitId: string,
     actionType: string,
     targetX?: number,
-    targetY?: number
+    targetY?: number,
+    declareWarIfNeeded = false
   ): Promise<ActionResult> {
-    console.log('GameClient.executeUnitAction called:', { unitId, actionType, targetX, targetY });
+    console.log('GameClient.executeUnitAction called:', {
+      unitId,
+      actionType,
+      targetX,
+      targetY,
+      declareWarIfNeeded,
+    });
 
     return new Promise((resolve, reject) => {
       if (!this.socket) {
@@ -941,6 +948,7 @@ export class GameClient {
           actionType,
           targetX,
           targetY,
+          declareWarIfNeeded,
         },
         (response: any) => {
           console.log('GameClient.executeUnitAction response:', response);

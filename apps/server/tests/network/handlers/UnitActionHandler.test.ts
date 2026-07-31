@@ -47,6 +47,7 @@ describe('UnitActionHandler', () => {
       broadcastCityData: jest.fn(),
       syncGameStateToPlayer: jest.fn(),
       executeDiplomatAction: jest.fn(),
+      declareWar: jest.fn().mockResolvedValue(undefined),
     } as any;
 
     handler = new UnitActionHandler(activeConnections, mockGameManager);
@@ -386,6 +387,48 @@ describe('UnitActionHandler', () => {
         success: true,
         result: { success: true, message: 'Unit fortified' },
       });
+    });
+
+    it('declares war before an explicitly confirmed foreign-city Go To', async () => {
+      const unit = { id: mockUnitId, playerId: mockPlayerId, x: 4, y: 5 };
+      const executeUnitAction = jest.fn().mockResolvedValue({
+        success: true,
+        message: 'Unit reached destination',
+      });
+      mockGameManager.getGameInstance.mockReturnValue({
+        players: new Map([[mockPlayerId, { userId: mockUserId }]]),
+        cityManager: {
+          getCityAt: jest.fn().mockReturnValue({ id: 'foreign-city', playerId: 'other-player' }),
+        },
+        unitManager: {
+          getUnit: jest.fn().mockReturnValue(unit),
+          executeUnitAction,
+        },
+      } as any);
+
+      await getUnitActionHandler()(
+        {
+          unitId: mockUnitId,
+          actionType: ActionType.GOTO,
+          targetX: 6,
+          targetY: 5,
+          declareWarIfNeeded: true,
+        },
+        jest.fn()
+      );
+
+      expect(mockGameManager.declareWar).toHaveBeenCalledWith(
+        mockGameId,
+        mockPlayerId,
+        'other-player'
+      );
+      expect(executeUnitAction).toHaveBeenCalledWith(
+        mockUnitId,
+        ActionType.GOTO,
+        6,
+        5,
+        mockPlayerId
+      );
     });
 
     it('leaves destruction broadcasting to the authoritative UnitManager', async () => {
