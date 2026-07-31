@@ -24,6 +24,8 @@
     "test:integration:path": "cd apps/server && npm run test:integration:path --",
     "test:integration:watch": "cd apps/server && npm run test:integration:watch",
     "test:all": "npm run test:unit && npm run test:integration",
+    "setup:worktree": "bash scripts/setup-worktree.sh",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "backup:create": "node tools/postgres-backup.mjs create",

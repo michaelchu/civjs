@@ -26,14 +26,32 @@ cd civjs
 npm install
 ```
 
+For a fresh Codex worktree, the checked-in local environment at
+`.codex/environments/environment.toml` automatically runs the repeatable setup
+script. It installs all three lockfiles, creates local env files, and does not
+overwrite existing ones. You can also run it manually:
+
+```bash
+npm run setup:worktree
+```
+
+Install the Chromium runtime for end-to-end tests when needed:
+
+```bash
+INSTALL_PLAYWRIGHT_BROWSERS=1 npm run setup:worktree
+```
+
+The repository also includes `.devcontainer/devcontainer.json` for tools that
+support Development Containers. The setup does not configure Git credentials;
+the host's SSH key or GitHub CLI authentication is used for pushing branches.
+
 Start the full development stack:
 
 ```bash
 npm run docker:build
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The server runs on port
-3001. Stop the stack with:
+Open [http://localhost:3000](http://localhost:3000). The server runs on port 3001. Stop the stack with:
 
 ```bash
 npm run docker:down
@@ -80,6 +98,8 @@ npm run test:integration    # Run integration tests with disposable PostgreSQL
 npm run test:all            # Run unit and integration tests
 npm run lint                # Lint client and server
 npm run typecheck           # Type-check client and server
+npm run verify              # Formatting, lint, types, and unit tests
+npm run build               # Production build (available as a Codex action)
 ```
 
 ## How it works
