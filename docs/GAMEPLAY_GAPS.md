@@ -821,7 +821,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-028 — Worker actions bypass ruleset enablers and extra requirements
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Unit context menu, workers, terrain alteration, technology, extras
 - **Observed behavior:** Basic terrain checks are enforced, but actions such as
   railroad, oil-well mining, fortress, and airbase construction do not evaluate
@@ -893,10 +893,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
   adjacency, duplicate/conflicting extras, unit flags, movement, and
   research-name normalization; the UnitManager civ2civ3 fixture now verifies
   technology-gated railroad availability, prerequisite-road and illegal-ocean
-  target state. `GameBroadcastManager.test.ts` verifies that the owner-only
-  worker-action projection refreshes when authoritative availability changes;
-  the remaining fixture work is limited to the less common ruleset action
-  variants and research-name normalization.
+  target state, and research-name normalization. `GameBroadcastManager.test.ts`
+  verifies that the owner-only worker-action projection refreshes when
+  authoritative availability changes.
 
 ### GP-029 — Multiple workers cannot cooperate on the same activity
 

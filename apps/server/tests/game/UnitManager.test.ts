@@ -489,7 +489,7 @@ describe('UnitManager', () => {
       tile.hasRoad = true;
       unitManager.setPlayerTechsProvider(() => new Set());
       expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_RAILROAD)).toBe(false);
-      unitManager.setPlayerTechsProvider(() => new Set(['railroad']));
+      unitManager.setPlayerTechsProvider(() => new Set(['Railroad']));
       expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_RAILROAD)).toBe(true);
 
       tile.hasRoad = false;
