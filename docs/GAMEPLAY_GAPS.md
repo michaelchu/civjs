@@ -983,10 +983,11 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/data/civ2civ3/effects.ruleset`
 - **Expected outcome:** Evaluate the retained effect and execute the partisan
   behavior after conquest with legal placement and player notifications.
-- **Regression coverage:** `UnitManager.test.ts` covers Partisan creation on
-  surrounding legal tiles. Effect eligibility, original versus non-original
-  owner, city-size counts, no-legal-tile fallback, and non-conquest transfer
-  still need integration coverage.
+- **Regression coverage:** `CityManager.test.ts` covers the authoritative
+  conquest ownership callback, original-owner preservation, and separation of
+  peaceful transfers. `UnitManager.test.ts` covers legal placement and the
+  no-legal-tile fallback. The lifecycle effect-eligibility/count decision and
+  player notifications still need a full game-instance integration fixture.
 
 ### GP-032 — Pollution never accumulates into global warming
 

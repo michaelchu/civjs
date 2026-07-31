@@ -706,6 +706,39 @@ describe('CityManager', () => {
       );
       expect(cityManager.getCity(city.id)).toBeUndefined();
     });
+
+    it('reports conquest ownership changes with the original owner and reason', async () => {
+      city.population = 4;
+      const ownershipChanged = jest.fn();
+      cityManager.setCallbacks({ onCityOwnershipChanged: ownershipChanged });
+
+      await cityManager.captureCity(city.id, 'player-456', 'unit-123');
+
+      expect(ownershipChanged).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: city.id,
+          originalOwnerId: 'player-123',
+          population: 3,
+        }),
+        'player-123',
+        'player-456',
+        'conquest'
+      );
+    });
+
+    it('reports peaceful transfers separately so conquest consequences are excluded', async () => {
+      const ownershipChanged = jest.fn();
+      cityManager.setCallbacks({ onCityOwnershipChanged: ownershipChanged });
+
+      await cityManager.transferCity(city.id, 'player-456');
+
+      expect(ownershipChanged).toHaveBeenCalledWith(
+        expect.objectContaining({ id: city.id, originalOwnerId: 'player-123' }),
+        'player-123',
+        'player-456',
+        'transfer'
+      );
+    });
   });
 
   describe('city queries', () => {

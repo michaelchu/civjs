@@ -372,6 +372,19 @@ describe('UnitManager', () => {
       expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_IRRIGATION)).toBe(true);
     });
 
+    it('returns no Partisans when every surrounding tile is illegal', async () => {
+      mapManager.getTile.mockImplementation((x: number, y: number) => ({
+        ...tile,
+        x,
+        y,
+        terrain: 'ocean',
+      }));
+
+      await expect(
+        unitManager.createPartisans('player-456', { x: 10, y: 10 }, 4, 1)
+      ).resolves.toEqual([]);
+    });
+
     it('completes a queued pillage activity and removes the authoritative extra', async () => {
       tile.hasRoad = true;
       tile.improvements = ['road'];
