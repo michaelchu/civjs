@@ -1088,6 +1088,9 @@ export class CityManager {
       if (!unit || unit.flags?.includes('NoBuild') || unit.flags?.includes('BarbarianOnly')) {
         return false;
       }
+      if ((unit.pop_cost ?? 0) > 0 && city.population <= (unit.pop_cost ?? 0)) {
+        return false;
+      }
       return !unit.requiredTech || this.playerTechsProvider(city.playerId).has(unit.requiredTech);
     }
 
@@ -1139,6 +1142,9 @@ export class CityManager {
     } else if (productionType === 'unit') {
       if (!Object.values(this.unitTypes).some(unitType => unitType.id === productionId)) {
         throw new Error(`Unknown unit type: ${productionId}`);
+      }
+      if (!this.canCityQueueItem(city, 'unit', productionId)) {
+        throw new Error(`Unit is not currently available: ${productionId}`);
       }
     }
 

@@ -426,6 +426,17 @@ export class CityTurnProcessingService extends BaseGameService {
     // never accumulate shields or complete at the ruleset's 999 sentinel cost.
     if (this.isWealthProduction(city)) return;
 
+    if (this.isPopulationCostProductionBlocked(city)) {
+      logger.warn(`Clearing population-blocked production for city ${city.name}`, {
+        cityId: city.id,
+        production: city.currentProduction,
+        population: city.population,
+      });
+      this.clearProduction(city);
+      this.promoteProductionAfterCompletion(city);
+      return;
+    }
+
     const productionPerTurn = city.productionPerTurn || 0;
     const currentProductionStock = city.productionStock ?? city.shieldStock ?? 0;
     const newProductionStock = currentProductionStock + productionPerTurn;
@@ -474,9 +485,8 @@ export class CityTurnProcessingService extends BaseGameService {
       // The default Freeciv city option does not allow a population-cost unit
       // to consume the city's final citizen.
       if (populationCost > 0 && city.population <= populationCost) {
-        city.productionStock = newProductionStock;
-        city.shieldStock = newProductionStock;
-        city.turnsToComplete = 0;
+        this.clearProduction(city);
+        this.promoteProductionAfterCompletion(city);
         return;
       }
       // Production completed
@@ -520,6 +530,12 @@ export class CityTurnProcessingService extends BaseGameService {
     city.shieldStock = 0;
     city.turnsToComplete = 0;
     return true;
+  }
+
+  private isPopulationCostProductionBlocked(city: CityState): boolean {
+    if (city.productionType !== 'unit' || !city.currentProduction) return false;
+    const populationCost = this.unitTypes[city.currentProduction]?.pop_cost ?? 0;
+    return populationCost > 0 && city.population <= populationCost;
   }
 
   private getProductionCost(city: CityState): { cost: number; valid: boolean } {

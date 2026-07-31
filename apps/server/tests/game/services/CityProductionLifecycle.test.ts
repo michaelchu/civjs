@@ -214,7 +214,9 @@ describe('city production lifecycle', () => {
     const onComplete = jest.fn();
     await turnService(blocked, onComplete).processCityTurn(blocked.id, 7);
     expect(blocked.population).toBe(1);
-    expect(blocked.currentProduction).toBe('settlers');
+    expect(blocked.currentProduction).toBeNull();
+    expect(blocked.productionType).toBeNull();
+    expect(blocked.productionStock).toBe(0);
     expect(onComplete).not.toHaveBeenCalled();
   });
 
