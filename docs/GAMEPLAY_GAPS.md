@@ -619,8 +619,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
   for conquest and peaceful transfer. `UnitManager.reconcileCityOwnership()`
   transfers units on the city tile and nearby supported units, rehomes
   supported units found in another friendly city, and removes supported units
-  outside the one-tile transfer radius. Incitement retains its existing
-  defector handling for mocked/legacy transfer paths.
+  outside the one-tile transfer radius. City-tile transports now transfer their
+  compatible cargo stacks with the transport and persist the ownership/home
+  city changes. Incitement retains its existing defector handling for
+  mocked/legacy transfer paths.
 - **Reference behavior:** Freeciv transfers appropriate units in and near the
   city, rehomes supported units in other friendly cities, and removes units
   that cannot legally remain supported after transfer.
@@ -634,9 +636,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Expected outcome:** Centralize unit disposition for conquest, incitement,
   gifts, and scripted transfer, including cargo and home-city persistence.
 - **Regression coverage:** `UnitManager.test.ts` covers city-tile units,
-  nearby supported units, far-away supported units, homeless units, and
-  supported units in another friendly city. Transported and allied stacks
-  remain to be covered by an integration fixture.
+  nearby supported units, far-away supported units, homeless units, supported
+  units in another friendly city, and transported cargo stacks. Allied-stack
+  behavior remains to be covered by an integration fixture.
 
 ### GP-022 — Losing a capital neither relocates the Palace nor cancels its spaceship
 
@@ -964,8 +966,12 @@ you declare war first.` Civilian/border-entry units may enter permitted
   polluted tiles indefinitely never raises a warming risk or transforms world
   terrain.
 - **Current implementation:** Runtime references to warming are limited to map
-  generation terminology and ruleset help text; turn processing has no global
-  warming or nuclear-winter state machine.
+  generation terminology and ruleset help text; turn processing now includes a
+  persistent `ClimateManager` that accumulates pollution/fallout pressure,
+  applies deterministic thresholded warming/cooling transformations from the
+  active terrain ruleset, clears transformed pollution/fallout, broadcasts the
+  changed map, and emits a climate event. Disabled/option-specific settings
+  and finer reference probability tuning remain unresolved.
 - **Reference behavior:** Freeciv accumulates warming/cooling pressure from
   pollution/fallout and periodically applies ruleset terrain transformations,
   with global notifications and persistent risk state.
@@ -979,9 +985,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/data/civ2civ3/terrain.ruleset`
 - **Expected outcome:** Add persistent global climate pressure, configured
   checks, terrain transformations, map/city refresh, and notifications.
-- **Regression coverage:** Use deterministic thresholds to test accumulation,
-  cleanup lag, warming, cooling, terrain eligibility, persistence, and
-  disabled settings.
+- **Regression coverage:** `ClimateManager.test.ts` covers persisted pressure,
+  warming/cooling thresholds, terrain eligibility, and cleanup of the triggering
+  extra. Add disabled-setting and full turn/recovery integration coverage.
 
 ### GP-033 — Roads on desert and tundra tiles provide no trade
 

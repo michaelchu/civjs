@@ -438,6 +438,31 @@ describe('UnitManager', () => {
       expect(unitManager.getUnit(farAway.id)).toBeUndefined();
     });
 
+    it('transfers transported stacks together with the city tile', async () => {
+      unitManager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, undefined, {
+        foundCity: jest.fn(),
+        requestPath: jest.fn(),
+        broadcastUnitMoved: jest.fn(),
+        getCityAt: jest.fn(() => null),
+      });
+      const transport = await unitManager.createUnit('player-456', 'trireme', 10, 10, 'city-1');
+      const cargo = await unitManager.createUnit('player-456', 'warriors', 10, 10, 'city-1');
+      await unitManager.loadUnitOntoTransport(transport.id, cargo.id);
+
+      await unitManager.reconcileCityOwnership(
+        { id: 'city-1', x: 10, y: 10 },
+        'player-456',
+        'player-123'
+      );
+
+      expect(transport).toMatchObject({ playerId: 'player-123', homeCityId: 'city-1' });
+      expect(cargo).toMatchObject({
+        playerId: 'player-123',
+        homeCityId: 'city-1',
+        transportedBy: transport.id,
+      });
+    });
+
     it('broadcasts settler destruction after a successful found-city action', async () => {
       const broadcastUnitDestroyed = jest.fn();
       const foundCity = jest.fn().mockResolvedValue('city-1');

@@ -1844,6 +1844,11 @@ export class UnitManager {
     for (const unit of tileUnits) {
       if (!this.units.has(unit.id) || unit.playerId !== oldPlayerId) continue;
       await this.bribeUnit(unit.id, newPlayerId, unit.homeCityId ? city.id : undefined);
+      for (const cargoId of unit.cargoUnits ?? []) {
+        const cargo = this.units.get(cargoId);
+        if (!cargo || cargo.playerId !== oldPlayerId) continue;
+        await this.bribeUnit(cargo.id, newPlayerId, cargo.homeCityId ? city.id : undefined);
+      }
     }
 
     for (const unit of candidates) {
