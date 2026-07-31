@@ -542,7 +542,9 @@ describe('UnitActionHandler', () => {
         mockUnitId,
         'establish_embassy',
         5,
-        5
+        5,
+        undefined,
+        undefined
       );
       expect(callback).toHaveBeenCalledWith({
         success: true,
@@ -574,7 +576,9 @@ describe('UnitActionHandler', () => {
           mockUnitId,
           actionType,
           5,
-          5
+          5,
+          undefined,
+          undefined
         );
       }
     );

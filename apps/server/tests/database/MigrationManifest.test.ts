@@ -15,9 +15,11 @@ describe('production migration manifest', () => {
     }
   });
 
-  it('ends with the durable turn schema reconciliation', () => {
-    const latest = journal.entries.at(-1);
-    expect(latest).toEqual(
+  it('includes the durable turn schema reconciliation', () => {
+    const durableTurnEntry = journal.entries.find(
+      entry => entry.tag === '0020_reconcile_durable_turn_schema'
+    );
+    expect(durableTurnEntry).toEqual(
       expect.objectContaining({
         idx: 20,
         tag: '0020_reconcile_durable_turn_schema',

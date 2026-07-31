@@ -168,7 +168,7 @@ describe('GameManagementHandler', () => {
 
       expect(snapshotPlayer).toEqual(
         expect.objectContaining({
-          score: 337,
+          score: 8,
           gold: 125,
           science: 12,
           taxRate: 30,

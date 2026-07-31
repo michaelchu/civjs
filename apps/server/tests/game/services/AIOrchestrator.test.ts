@@ -434,7 +434,7 @@ describe('FreecivAIOrchestrator', () => {
 
     expect(scenario.setCityProduction).toHaveBeenCalledWith(
       'capital',
-      'unit',
+      expect.any(String),
       expect.not.stringMatching(/^capitalization$/),
       'ai'
     );

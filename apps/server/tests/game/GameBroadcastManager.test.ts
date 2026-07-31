@@ -569,6 +569,7 @@ describe('GameBroadcastManager visibility sync', () => {
       'bribe_unit',
       'incite_city',
       'sabotage_city',
+      'sabotage_city_production',
       'poison_water',
       'sabotage_unit',
     ]);

@@ -26,7 +26,7 @@ describe('classic ruleset calendar', () => {
     expect(
       effects.calculateEffect(EffectType.SLOW_DOWN_TIMELINE, {
         currentYear: 1900,
-        playerTechs: new Set(['plastics', 'superconductors', 'space_flight']),
+        worldTechs: new Set(['Plastics', 'Superconductors', 'Space Flight']),
       }).value
     ).toBe(3);
   });

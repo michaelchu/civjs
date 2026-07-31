@@ -72,6 +72,7 @@ describe('CultureManager - Core Calculations', () => {
         foundedTurn: 1,
         capturedTurn: null,
         wasHappy: false,
+        originalOwnerId: null,
         createdAt: new Date(),
       };
 
@@ -139,6 +140,7 @@ describe('CultureManager - Core Calculations', () => {
         foundedTurn: 1,
         capturedTurn: null,
         wasHappy: false,
+        originalOwnerId: null,
         createdAt: new Date(),
       };
 
@@ -198,6 +200,7 @@ describe('CultureManager - Core Calculations', () => {
         foundedTurn: 1,
         capturedTurn: null,
         wasHappy: false,
+        originalOwnerId: null,
         createdAt: new Date(),
       };
 
@@ -263,6 +266,7 @@ describe('CultureManager - Core Calculations', () => {
         foundedTurn: 1,
         capturedTurn: null,
         wasHappy: false,
+        originalOwnerId: null,
         createdAt: new Date(),
       };
 
@@ -325,6 +329,7 @@ describe('CultureManager - Core Calculations', () => {
         foundedTurn: 1,
         capturedTurn: null,
         wasHappy: false,
+        originalOwnerId: null,
         createdAt: new Date(),
       };
 
@@ -386,6 +391,7 @@ describe('CultureManager - Core Calculations', () => {
         foundedTurn: 10,
         capturedTurn: null,
         wasHappy: false,
+        originalOwnerId: null,
         createdAt: new Date(),
       };
 
@@ -446,6 +452,7 @@ describe('CultureManager - Core Calculations', () => {
         foundedTurn: 1,
         capturedTurn: null,
         wasHappy: false,
+        originalOwnerId: null,
         createdAt: new Date(),
       };
 
@@ -494,6 +501,7 @@ describe('CultureManager - Core Calculations', () => {
         foundedTurn: 1,
         capturedTurn: null,
         wasHappy: false,
+        originalOwnerId: null,
         createdAt: new Date(),
       };
 
