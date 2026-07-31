@@ -19,6 +19,7 @@ import { MapTopology } from '@game/map/MapTopology';
 import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
 import { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAllocator';
 import type { MapManager } from '@game/managers/MapManager';
+import { RulesetRequirementEvaluator } from '@game/services/RulesetRequirementEvaluator';
 
 interface CityAtLocation {
   id: string;
@@ -184,6 +185,7 @@ export class UnitManager {
   private mapWidth: number;
   private mapHeight: number;
   private mapManager: any; // MapManager instance for terrain access
+  private readonly rulesetRequirements = new RulesetRequirementEvaluator();
   private actionSystem: ActionSystem;
   private effectsManager?: EffectsManager;
   private currentTurnProvider?: () => number;
@@ -4315,6 +4317,13 @@ export class UnitManager {
     const unit = this.units.get(unitId);
     if (!unit) return false;
 
+    if (
+      this.isRulesetWorkerAction(actionType) &&
+      !this.canPerformRulesetWorkerAction(unit, actionType)
+    ) {
+      return false;
+    }
+
     const directCheck = this.getDirectUnitActionCheck(unit, actionType);
     if (directCheck) return directCheck(targetX, targetY);
 
@@ -4332,6 +4341,131 @@ export class UnitManager {
     }
 
     return this.actionSystem.canUnitPerformAction(unit, actionType, targetX, targetY);
+  }
+
+  private isRulesetWorkerAction(actionType: ActionType): boolean {
+    return new Set([
+      ActionType.BUILD_ROAD,
+      ActionType.BUILD_RAILROAD,
+      ActionType.BUILD_IRRIGATION,
+      ActionType.BUILD_MINE,
+      ActionType.BUILD_FORTRESS,
+      ActionType.BUILD_AIRBASE,
+    ]).has(actionType);
+  }
+
+  private canPerformRulesetWorkerAction(unit: Unit, actionType: ActionType): boolean {
+    // The legacy classic ruleset does not expose the complete action/extra
+    // requirement vectors used by civ2civ3. Preserve its existing dedicated
+    // validators; apply the universal evaluator whenever the active ruleset
+    // supplies the reference vectors.
+    if (this.getRulesetName() === 'classic') return true;
+    const tile = this.mapManager?.getTile(unit.x, unit.y) as any;
+    if (!tile) return false;
+    const rulesetName = this.getRulesetName();
+    const unitType = this.unitTypes[unit.unitTypeId];
+    const terrain = rulesetLoader.getTerrain(tile.terrain, rulesetName) as any;
+    const tileExtras = [
+      ...(tile.improvements ?? []),
+      ...(tile.hasRoad ? ['Road'] : []),
+      ...(tile.hasRailroad ? ['Railroad'] : []),
+    ];
+    const adjacent = this.mapManager?.getTopology?.().getCardinalNeighbors(unit.x, unit.y) ?? [];
+    const adjacentTiles = adjacent
+      .map(({ x, y }: { x: number; y: number }) => this.mapManager?.getTile(x, y))
+      .filter(Boolean) as any[];
+    const facts = {
+      Local: {
+        unitTypeFlags: new Set([
+          ...(unitType?.flags ?? []),
+          ...(unitType?.rulesetUnitClassFlags ?? []),
+        ]),
+        unitClass: unitType?.rulesetUnitClass,
+        unitClassFlags: new Set(unitType?.rulesetUnitClassFlags ?? []),
+        extras: new Set<string>(tileExtras),
+        extraFlags: this.getExtraFlags(tileExtras, rulesetName),
+        moves: unit.movementLeft,
+      },
+      Tile: {
+        terrain: tile.terrain,
+        terrainClass: terrain.class,
+        terrainAlterations: this.getTerrainAlterations(terrain),
+        extras: new Set<string>(tileExtras),
+        extraFlags: this.getExtraFlags(tileExtras, rulesetName),
+      },
+      Player: { technologies: this.playerTechsProvider(unit.playerId) },
+      CAdjacent: {
+        terrainClass: new Set(
+          adjacentTiles.map(
+            neighbor => (rulesetLoader.getTerrain(neighbor.terrain, rulesetName) as any).class
+          )
+        ),
+        extras: new Set<string>(adjacentTiles.flatMap(neighbor => neighbor.improvements ?? [])),
+        extraFlags: this.getExtraFlags(
+          adjacentTiles.flatMap(neighbor => neighbor.improvements ?? []),
+          rulesetName
+        ),
+      },
+    };
+    const actionNames: Partial<Record<ActionType, string>> = {
+      [ActionType.BUILD_ROAD]: 'Build Road',
+      [ActionType.BUILD_IRRIGATION]: 'Build Irrigation',
+      [ActionType.BUILD_MINE]: 'Build Mine',
+      [ActionType.BUILD_FORTRESS]: 'Build Base',
+      [ActionType.BUILD_AIRBASE]: 'Build Base',
+    };
+    const actionName = actionNames[actionType];
+    const actionEnablers = actionName
+      ? rulesetLoader.getActionEnablersFor(actionName, rulesetName)
+      : [];
+    const extraName: Partial<Record<ActionType, string>> = {
+      [ActionType.BUILD_ROAD]: 'Road',
+      [ActionType.BUILD_RAILROAD]: 'Railroad',
+      [ActionType.BUILD_IRRIGATION]: 'Irrigation',
+      [ActionType.BUILD_MINE]: 'Mine',
+      [ActionType.BUILD_FORTRESS]: 'Fortress',
+      [ActionType.BUILD_AIRBASE]: 'Airbase',
+    };
+    const extra = rulesetLoader.getExtra(extraName[actionType] ?? '', rulesetName) as any;
+    const actionAllowed =
+      actionEnablers.length === 0 ||
+      actionEnablers.some(
+        enabler =>
+          this.rulesetRequirements.evaluateAll(enabler.actor_reqs, facts) &&
+          this.rulesetRequirements.evaluateAll(enabler.target_reqs, facts)
+      );
+    return (
+      actionAllowed &&
+      (!extra?.reqs || this.rulesetRequirements.evaluateAll(extra.reqs, facts))
+    );
+  }
+
+  private getTerrainAlterations(terrain: any): Set<string> {
+    const alterations = new Set<string>();
+    if (terrain?.roadTime > 0) alterations.add('CanRoad');
+    if (terrain?.irrigationTime > 0) alterations.add('CanIrrigate');
+    if (terrain?.miningTime > 0) alterations.add('CanMine');
+    if (terrain?.transformTo) alterations.add('CanTransform');
+    if (terrain?.cultivateTo) alterations.add('CanCultivate');
+    if (terrain?.plantTo) alterations.add('CanPlant');
+    if (!['ocean', 'deep_ocean', 'coast', 'lake'].includes(String(terrain?.name).toLowerCase())) {
+      alterations.add('CanBase');
+    }
+    return alterations;
+  }
+
+  private getExtraFlags(extraNames: string[], rulesetName: string): Set<string> {
+    return new Set(
+      extraNames.flatMap(name => {
+        let flags: unknown;
+        try {
+          flags = rulesetLoader.getExtra(name, rulesetName)?.flags;
+        } catch {
+          flags = undefined;
+        }
+        return Array.isArray(flags) ? flags : typeof flags === 'string' ? [flags] : [];
+      })
+    );
   }
 
   private getDirectUnitActionCheck(

@@ -293,6 +293,7 @@ describe('UnitManager', () => {
       );
 
       tile.hasRoad = true;
+      unitManager.setPlayerTechsProvider(() => new Set(['railroad']));
       expect(unitManager.getAvailableWorkerActions(worker.id)).toContain(ActionType.BUILD_RAILROAD);
     });
 
@@ -332,6 +333,7 @@ describe('UnitManager', () => {
     it('persists cultivate, plant, fortress, and airbase ruleset outcomes', async () => {
       unitManager.setPlayerTechsProvider(() => new Set(['construction', 'radio']));
       tile.terrain = 'forest';
+      tile.improvements = ['fort', 'airstrip'];
       const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);
 
       await expect(
@@ -390,6 +392,7 @@ describe('UnitManager', () => {
       const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);
 
       expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_FORTRESS)).toBe(false);
+      tile.improvements = ['fort'];
       unitManager.setPlayerTechsProvider(() => new Set(['construction']));
       expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_FORTRESS)).toBe(true);
     });

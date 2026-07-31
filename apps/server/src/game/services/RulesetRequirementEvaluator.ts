@@ -7,6 +7,7 @@ export interface RulesetRequirementFacts {
   cityTiles?: Set<string>;
   diplomaticRelations?: Set<string>;
   extras?: Set<string>;
+  extraFlags?: Set<string>;
   government?: string;
   hitPoints?: number;
   latitude?: number;
@@ -18,7 +19,7 @@ export interface RulesetRequirementFacts {
   technologies?: Set<string>;
   terrain?: string;
   terrainAlterations?: Set<string>;
-  terrainClass?: string;
+  terrainClass?: string | Set<string>;
   terrainFlags?: Set<string>;
   unitClass?: string;
   unitClassFlags?: Set<string>;
@@ -55,7 +56,7 @@ export class RulesetRequirementEvaluator {
     facts: RulesetRequirementFacts
   ): boolean | undefined {
     const name = requirement.name;
-    const equalFacts: Record<string, string | undefined> = {
+    const equalFacts: Record<string, string | Set<string> | undefined> = {
       Activity: facts.activity,
       BuildingGenus: facts.buildingGenus,
       Gov: facts.government,
@@ -69,6 +70,7 @@ export class RulesetRequirementEvaluator {
       CityTile: facts.cityTiles,
       DiplRel: facts.diplomaticRelations,
       Extra: facts.extras,
+      ExtraFlag: facts.extraFlags,
       NationGroup: facts.nationGroups,
       PlayerState: facts.playerStates,
       Tech: facts.technologies,
@@ -102,8 +104,11 @@ export class RulesetRequirementEvaluator {
     return value.toLowerCase().replace(/[^a-z0-9]/g, '');
   }
 
-  private equal(actual: string | undefined, expected: string): boolean | undefined {
-    return actual === undefined ? undefined : this.normalize(actual) === this.normalize(expected);
+  private equal(actual: string | Set<string> | undefined, expected: string): boolean | undefined {
+    if (actual === undefined) return undefined;
+    return typeof actual === 'string'
+      ? this.normalize(actual) === this.normalize(expected)
+      : [...actual].some(value => this.normalize(value) === this.normalize(expected));
   }
 
   private contains(values: Set<string> | undefined, expected: string): boolean | undefined {

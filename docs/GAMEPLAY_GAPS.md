@@ -815,15 +815,15 @@ you declare war first.` Civilian/border-entry units may enter permitted
   several worker actions solely because a unit has `canBuildImprovements`, even
   when the owning player lacks a required technology or the current tile cannot
   accept the resulting extra/activity.
-- **Current implementation:** `ActionSystem` uses hand-written checks for
-  movement, terrain times, adjacent irrigation sources, and a few unit flags.
-  It has no general research context and does not evaluate all extra build
-  requirements. `GameBroadcastManager` now adds an authoritative
-  `availableWorkerActions` projection for the unit's current tile, and
+- **Current implementation:** `UnitManager` now evaluates active ruleset action
+  enablers and extra requirement vectors with owner technologies, unit facts,
+  current/adjacent tile facts, and current extras before the existing
+  specialized validators run. The authoritative
+  `availableWorkerActions` projection uses the same guard, and
   `UnitContextMenu` uses it to hide currently illegal worker actions. The
-  projection is presentation-only; server execution still revalidates the
-  request. Full ruleset-enabler and extra-requirement coverage remains
-  incomplete.
+  legacy `classic` compatibility path retains its dedicated validators because
+  that ruleset does not expose the complete civ2civ3 vectors; target-specific
+  and cross-ruleset requirement coverage remains incomplete.
 - **Reference behavior:** Freeciv combines action enablers, `TerrainAlter`
   capabilities, extra requirements, technologies, unit flags, and tile state.
   For example, special oil mining and advanced extras have technology gates.
@@ -873,14 +873,13 @@ you declare war first.` Civilian/border-entry units may enter permitted
      execution time.
 
 - **Regression coverage:** `UnitManager.test.ts` and
-  `GameBroadcastManager.test.ts` cover the existing authoritative worker
-  checks; `UnitContextMenu.specialActions.test.tsx` verifies the client hides
-  actions absent from the server projection. Add evaluator/service tests for
-  each worker action before and after its technology, legal/illegal terrain,
+  `GameBroadcastManager.test.ts` cover the authoritative worker checks;
+  `UnitContextMenu.specialActions.test.tsx` verifies the client hides actions
+  absent from the server projection. Add civ2civ3 evaluator/service fixtures
+  for each worker action before and after its technology, legal/illegal terrain,
   adjacency, duplicate/conflicting extras, unit flags, movement, and
-  research-name normalization. Add execution tests proving unavailable
-  actions are rejected even if requested directly, and packet tests for
-  availability changes after research and tile changes.
+  research-name normalization, plus packet tests for availability changes after
+  research and tile changes.
 
 ### GP-029 — Multiple workers cannot cooperate on the same activity
 
