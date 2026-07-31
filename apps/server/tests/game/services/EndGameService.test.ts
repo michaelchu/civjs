@@ -70,7 +70,7 @@ describe('EndGameService', () => {
     expect(result.report?.standings[0]).toEqual(
       expect.objectContaining({
         playerId: 'winner',
-        score: 410,
+        score: 12,
         cities: 2,
         population: 8,
         units: 1,
@@ -205,6 +205,8 @@ describe('EndGameService', () => {
           modules: 3,
           launchedTurn: 20,
           arrivalTurn: 30,
+          population: 8,
+          successRate: 100,
         },
       },
       { id: 'defeated', civilization: 'Greek', isAlive: true },
@@ -266,6 +268,8 @@ describe('EndGameService', () => {
           modules: 3,
           launchedTurn: 20,
           arrivalTurn: 30,
+          population: 8,
+          successRate: 100,
         },
       })
     );
@@ -275,6 +279,8 @@ describe('EndGameService', () => {
       modules: 3,
       launchedTurn: 20,
       arrivalTurn: 30,
+      population: 8,
+      successRate: 100,
     });
     unitsByPlayer.defeated = [];
   });
@@ -393,5 +399,37 @@ describe('EndGameService', () => {
       expect.objectContaining({ reason: 'max_turns', winnerPlayerIds: ['winner'] })
     );
     unitsByPlayer.defeated = [];
+  });
+
+  it('ranks maximum-turn teams by the sum of living member scores', async () => {
+    const databaseProvider = createMockDatabaseProvider();
+    const database = databaseProvider.getDatabase() as any;
+    database.query.players.findMany.mockResolvedValue([
+      { id: 'red-a', civilization: 'Roman', teamId: 'red', isAlive: true },
+      { id: 'red-b', civilization: 'Greek', teamId: 'red', isAlive: true },
+      { id: 'blue', civilization: 'Egyptian', teamId: 'blue', isAlive: true },
+    ]);
+    citiesByPlayer['red-a'] = [{ size: 5 }];
+    citiesByPlayer['red-b'] = [{ size: 5 }];
+    citiesByPlayer.blue = [{ size: 9 }];
+
+    const result = await new EndGameService(databaseProvider, io).evaluate({
+      gameId: 'game-1',
+      turn: 100,
+      year: 2000,
+      maxTurns: 100,
+      victoryConditions: [],
+      playerIds: ['red-a', 'red-b', 'blue'],
+      cityManager,
+      unitManager,
+      researchManager,
+    });
+
+    expect(result.report).toEqual(
+      expect.objectContaining({ reason: 'max_turns', winnerPlayerIds: ['red-a', 'red-b'] })
+    );
+    delete citiesByPlayer['red-a'];
+    delete citiesByPlayer['red-b'];
+    delete citiesByPlayer.blue;
   });
 });

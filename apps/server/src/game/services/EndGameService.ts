@@ -15,6 +15,8 @@ import {
   normalizeSpaceshipState,
   type SpaceshipState,
 } from '@game/services/SpaceshipService';
+import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
+import { calculatePlayerScore } from '@game/services/PlayerScoreService';
 
 export interface EndGameStanding {
   playerId: string;
@@ -185,14 +187,33 @@ export class EndGameService {
     const population = cities.reduce((total, city) => total + city.size, 0);
     const technologies = context.researchManager.getResearchedTechs(playerId).length;
     const history = player?.history ?? 0;
+    const rulesetName = context.rulesetName ?? 'classic';
+    const buildingTypes = rulesetBuildingsService.getBuildingTypes(rulesetName);
+    const greatWonders = cities.reduce(
+      (total, city) =>
+        total +
+        (city.buildings ?? []).filter(
+          buildingId => buildingTypes[buildingId]?.genus === 'GreatWonder'
+        ).length,
+      0
+    );
     const alive = this.isPlayerAlive(player, cities.length, units.length);
     const spaceship = this.getSpaceshipState(
       player?.spaceshipState,
       context.turn,
-      player?.isAI === true
+      player?.isAI === true,
+      population
     );
-    const score =
-      population * 10 + cities.length * 100 + units.length * 20 + technologies * 50 + history;
+    const score = calculatePlayerScore({
+      cities,
+      researchedTechs: context.researchManager.getResearchedTechs(playerId),
+      history,
+      greatWonders,
+      unitsBuilt: player?.unitsBuilt ?? 0,
+      unitsKilled: player?.unitsKilled ?? 0,
+      spaceship,
+      currentTurn: context.turn,
+    });
     return {
       playerId,
       civilization: player?.civilization ?? playerId,
@@ -205,11 +226,11 @@ export class EndGameService {
       alive,
       teamId: player?.teamId ?? undefined,
       categoryScores: {
-        population: population * 10,
-        cities: cities.length * 100,
-        units: units.length * 20,
-        technologies: technologies * 50,
-        culture: history,
+        population,
+        cities: greatWonders * 5,
+        units: Math.floor(Math.max(0, player?.unitsBuilt ?? 0) / 10),
+        technologies: technologies * 2,
+        culture: Math.floor(Math.max(0, history) / 50),
       },
       spaceship,
     };
@@ -353,8 +374,21 @@ export class EndGameService {
   private findMaxTurnWinner(context: EvaluationContext, standings: EndGameStanding[]) {
     if (!(context.maxTurns && context.maxTurns > 0 && context.turn >= context.maxTurns))
       return undefined;
-    const best = Math.max(...standings.map(s => s.score));
-    return { reason: 'max_turns' as const, winners: standings.filter(s => s.score === best) };
+    const teamScores = new Map<string, number>();
+    for (const standing of standings.filter(candidate => candidate.alive)) {
+      const teamKey = standing.teamId ?? `player:${standing.playerId}`;
+      teamScores.set(teamKey, (teamScores.get(teamKey) ?? 0) + standing.score);
+    }
+    const best = Math.max(...teamScores.values());
+    const winningTeams = new Set(
+      [...teamScores.entries()].filter(([, score]) => score === best).map(([team]) => team)
+    );
+    return {
+      reason: 'max_turns' as const,
+      winners: standings.filter(standing =>
+        winningTeams.has(standing.teamId ?? `player:${standing.playerId}`)
+      ),
+    };
   }
 
   private isEnabled(enabled: string[], ...aliases: string[]): boolean {
@@ -364,7 +398,8 @@ export class EndGameService {
   private getSpaceshipState(
     persisted: unknown,
     turn: number,
-    waitForOptimal: boolean
+    waitForOptimal: boolean,
+    population: number
   ): SpaceshipState {
     const state = normalizeSpaceshipState(persisted);
     const launchReady = waitForOptimal ? isSpaceshipOptimal(state) : isSpaceshipComplete(state);
@@ -373,6 +408,8 @@ export class EndGameService {
     if (state.launchedTurn === undefined && launchReady) {
       state.launchedTurn = turn;
       state.arrivalTurn = turn + 10;
+      if (state.population === undefined) state.population = population;
+      if (state.successRate === undefined) state.successRate = 100;
     }
     return state;
   }

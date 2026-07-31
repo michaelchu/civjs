@@ -1165,6 +1165,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         science: dbPlayer.science,
         government: dbPlayer.government,
         history: dbPlayer.history ?? 0,
+        unitsBuilt: dbPlayer.unitsBuilt ?? 0,
+        unitsKilled: dbPlayer.unitsKilled ?? 0,
+        unitsLost: dbPlayer.unitsLost ?? 0,
         teamId: dbPlayer.teamId ?? undefined,
         hasConceded: dbPlayer.hasConceded ?? false,
         spaceshipState: normalizeSpaceshipState(dbPlayer.spaceshipState),
@@ -1493,6 +1496,10 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
           (await cityManager.captureCity(cityId, playerId, unitId)).success,
         broadcastHutEvent: (changedGameId, playerId, message) =>
           this.io.to(`player:${playerId}`).emit('hut_event', { gameId: changedGameId, message }),
+        updatePlayerStatistic: (playerId, statistic) => {
+          const player = game.players.get(playerId);
+          if (player) player[statistic] = (player[statistic] ?? 0) + 1;
+        },
         broadcastMapChanged: (changedGameId, mapData) =>
           this.onBroadcastMapData?.(changedGameId, mapData),
       },

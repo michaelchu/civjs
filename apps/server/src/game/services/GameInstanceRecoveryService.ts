@@ -403,6 +403,10 @@ export class GameInstanceRecoveryService extends BaseGameService {
           (await cityManager.captureCity(cityId, playerId, unitId)).success,
         broadcastHutEvent: (changedGameId, playerId, message) =>
           this.io.to(`player:${playerId}`).emit('hut_event', { gameId: changedGameId, message }),
+        updatePlayerStatistic: (playerId, statistic) => {
+          const player = game.players.find((candidate: any) => candidate.id === playerId);
+          if (player) player[statistic] = (player[statistic] ?? 0) + 1;
+        },
         broadcastMapChanged: (changedGameId, mapData) =>
           this.broadcastManager.broadcastMapData(changedGameId, mapData),
       },

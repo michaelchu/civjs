@@ -247,6 +247,10 @@ export class UnitManager {
     revealHutMap?: (playerId: string, x: number, y: number) => string[];
     spawnHutBarbarians?: (playerId: string, x: number, y: number) => Promise<boolean>;
     broadcastHutEvent?: (gameId: string, playerId: string, message: string) => void;
+    updatePlayerStatistic?: (
+      playerId: string,
+      statistic: 'unitsBuilt' | 'unitsKilled' | 'unitsLost'
+    ) => void;
     broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
   };
   private playerTechsProvider: (playerId: string) => Set<string> = () => new Set();
@@ -338,6 +342,10 @@ export class UnitManager {
       revealHutMap?: (playerId: string, x: number, y: number) => string[];
       spawnHutBarbarians?: (playerId: string, x: number, y: number) => Promise<boolean>;
       broadcastHutEvent?: (gameId: string, playerId: string, message: string) => void;
+      updatePlayerStatistic?: (
+        playerId: string,
+        statistic: 'unitsBuilt' | 'unitsKilled' | 'unitsLost'
+      ) => void;
       broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
     },
     effectsManager?: EffectsManager,
@@ -583,6 +591,7 @@ export class UnitManager {
     }
 
     this.units.set(unit.id, unit);
+    await this.recordPlayerStatistic(playerId, 'unitsBuilt');
     this.notifyUnitLifecycle({ type: 'created', unit });
     logger.info(`Created unit ${unit.id} at (${x}, ${y})`);
 
@@ -1347,6 +1356,7 @@ export class UnitManager {
     setup: CombatSetup,
     attackerDestroyed: boolean
   ): Promise<string[]> {
+    await this.recordPlayerStatistic(setup.attacker.playerId, 'unitsKilled');
     await this.destroyUnit(setup.defenderId);
     const collateralDestroyedIds = await this.destroyCollateralUnits(setup);
     const targetCity = this.gameManagerCallback?.getCityAt?.(setup.defender.x, setup.defender.y);
@@ -1361,6 +1371,19 @@ export class UnitManager {
     if (canOccupy)
       await this.moveAttackerAfterCombat(setup.attackerId, setup.attacker, setup.defender);
     return collateralDestroyedIds;
+  }
+
+  private async recordPlayerStatistic(
+    playerId: string,
+    statistic: 'unitsBuilt' | 'unitsKilled' | 'unitsLost'
+  ): Promise<void> {
+    const column = players[statistic];
+    await this.databaseProvider
+      .getDatabase()
+      .update(players)
+      .set({ [column.name]: sql`${column} + 1` } as any)
+      .where(eq(players.id, playerId));
+    this.gameManagerCallback?.updatePlayerStatistic?.(playerId, statistic);
   }
 
   private async applyCivilianCasualty(
@@ -2748,6 +2771,7 @@ export class UnitManager {
           .where(eq(units.id, transport.id));
       }
     }
+    await this.recordPlayerStatistic(unit.playerId, 'unitsLost');
     this.units.delete(unitId);
     await this.databaseProvider.getDatabase().delete(units).where(eq(units.id, unitId));
     this.identities.releaseUuid(unitId);

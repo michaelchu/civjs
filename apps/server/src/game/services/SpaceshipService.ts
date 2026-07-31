@@ -23,6 +23,10 @@ export interface SpaceshipPartCounts {
 export interface SpaceshipState extends SpaceshipPartCounts {
   launchedTurn?: number;
   arrivalTurn?: number;
+  /** Population carried by the ship when it arrives, for final scoring. */
+  population?: number;
+  /** Success percentage used by the reference spaceship score formula. */
+  successRate?: number;
 }
 
 const COUNT_KEY: Record<SpaceshipPartId, keyof SpaceshipPartCounts> = {
@@ -43,6 +47,10 @@ export function normalizeSpaceshipState(value: unknown): SpaceshipState {
     modules: Math.max(0, Math.floor(state.modules ?? 0)),
     ...(state.launchedTurn === undefined ? {} : { launchedTurn: state.launchedTurn }),
     ...(state.arrivalTurn === undefined ? {} : { arrivalTurn: state.arrivalTurn }),
+    ...(state.population === undefined ? {} : { population: Math.max(0, Math.floor(state.population)) }),
+    ...(state.successRate === undefined
+      ? {}
+      : { successRate: Math.max(0, Math.min(100, Math.floor(state.successRate))) }),
   };
 }
 

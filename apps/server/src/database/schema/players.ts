@@ -60,6 +60,9 @@ export const players = pgTable('players', {
 
   // Score
   score: integer('score').default(0).notNull(),
+  unitsBuilt: integer('units_built').default(0).notNull(),
+  unitsKilled: integer('units_killed').default(0).notNull(),
+  unitsLost: integer('units_lost').default(0).notNull(),
   spaceshipState: jsonb('spaceship_state')
     .default({ structurals: 0, components: 0, modules: 0 })
     .notNull(),

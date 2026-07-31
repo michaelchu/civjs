@@ -158,6 +158,9 @@ export interface PlayerState {
   sciencePerTurn?: number;
   government?: string;
   history?: number;
+  unitsBuilt?: number;
+  unitsKilled?: number;
+  unitsLost?: number;
   teamId?: string;
   hasConceded?: boolean;
   spaceshipState?: SpaceshipState;

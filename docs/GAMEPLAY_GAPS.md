@@ -1025,18 +1025,17 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 - **Status:** Confirmed gap
 - **Area:** Scoring, statistics, end-game ranking, persistence, replay
-- **Observed behavior:** CivJS calculates a deterministic score, persists it
-  during end-game evaluation, and uses it to select maximum-turn winners, but
-  the formula is a CivJS approximation. Live `PLAYER_INFO` packets additionally
-  report every player's score as zero.
-- **Current implementation:** `EndGameService.buildStanding()` calculates
-  `population * 10 + cities * 100 + current units * 20 + technologies * 50 +
-history`. Maximum-turn resolution compares individual totals and awards
-  every exact tie. `GameBroadcastManager.formatPlayerInfo()` hard-codes
-  `score: 0`. Players do not persist the cumulative units-built,
-  units-killed, and units-lost counters required by the reference, and the
-  current spaceship state does not represent arrived-ship population or
-  success rate.
+- **Observed behavior:** CivJS previously calculated an approximation and used
+  individual totals for maximum-turn winners. Live `PLAYER_INFO` packets also
+  reported the approximation rather than the final-score formula.
+- **Current implementation:** `PlayerScoreService.calculatePlayerScore()` is
+  now shared by live player packets and end-game standings. It counts citizens,
+  adjusted future technologies, great wonders, arrived-spaceship score, units
+  built/killed, and culture with reference integer truncation. Unit creation and
+  combat persist cumulative built/killed/lost counters, spaceship state carries
+  arrival population and success rate, and maximum-turn ranking sums living
+  members by team before applying ties. Report category fields remain
+  diagnostics and do not change the parity total.
 - **Reference behavior:** `calc_civ_score()` derives score categories from
   authoritative player/city/research/unit/wonder/spaceship state.
   `get_civ_score()` totals citizens, twice the adjusted technology count, five
@@ -1065,11 +1064,11 @@ history`. Maximum-turn resolution compares individual totals and awards
   integer truncation and future-tech weighting, aggregate hard-cap team scores,
   and broadcast the calculated total instead of zero. Additional report-only
   metrics may remain visible but must not alter the parity total.
-- **Regression coverage:** Add fixtures for citizens and specialists, known and
-  future technologies, great-wonder ownership/transfer, units built/killed/lost
-  across recovery, culture scaling, incomplete/launched/arrived spaceships,
-  individual and team hard-cap ranking, tie behavior, live packet/persisted
-  score consistency, and replay/final-report consistency.
+- **Regression coverage:** `PlayerScoreService.test.ts` covers citizen and
+  future-tech weighting, wonder/unit/culture truncation, and arrived spaceship
+  scoring. `EndGameService.test.ts` covers persisted standings, launch state,
+  and team winner behavior. Remaining coverage includes specialist/wonder
+  transfer fixtures, counter recovery, and replay/final-report consistency.
 
 ## Scope-dependent Freeciv behaviors to triage
 

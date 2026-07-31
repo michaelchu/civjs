@@ -14,6 +14,7 @@ import { resolveCityPresentations } from '@game/services/CityPresentationService
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import { calculatePlayerScore } from '@game/services/PlayerScoreService';
+import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 import { visibleResourceForPlayer } from '@game/services/ResourceVisibilityService';
 
 const LOBBY_EVENTS = new Set(['player-joined', 'player-connection-changed']);
@@ -408,11 +409,32 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       player.id
     );
     const history = this.playerValue(player.history, 0);
+    const buildingTypes = rulesetBuildingsService.getBuildingTypes(
+      gameInstance.config?.ruleset ?? 'classic'
+    );
+    const greatWonders = cities.reduce(
+      (total: number, city: any) =>
+        total +
+        (city.buildings ?? []).filter(
+          (buildingId: string) => buildingTypes[buildingId]?.genus === 'GreatWonder'
+        ).length,
+      0
+    );
     return {
       id: player.id,
       name: this.playerValue(player.leaderName, player.civilization),
       nation: this.playerValue(player.nation, player.civilization),
-      score: calculatePlayerScore({ cities, units, researchedTechs, history }),
+      score: calculatePlayerScore({
+        cities,
+        units,
+        researchedTechs,
+        history,
+        greatWonders,
+        unitsBuilt: player.unitsBuilt,
+        unitsKilled: player.unitsKilled,
+        spaceship: player.spaceshipState,
+        currentTurn: gameInstance.currentTurn,
+      }),
       gold: this.playerValue(player.gold, 0),
       goldPerTurn: this.playerValue(player.goldPerTurn, 0),
       science: this.playerValue(research?.bulbsAccumulated, this.playerValue(player.science, 0)),
