@@ -11,6 +11,7 @@ export const cities = pgTable('cities', {
   playerId: uuid('player_id')
     .references(() => players.id, { onDelete: 'cascade' })
     .notNull(),
+  originalOwnerId: uuid('original_owner_id').references(() => players.id, { onDelete: 'set null' }),
 
   // Basic info
   name: varchar('name', { length: 100 }).notNull(),
@@ -36,6 +37,7 @@ export const cities = pgTable('cities', {
   pollution: integer('pollution').default(0).notNull(),
   tradeRoutes: jsonb('trade_routes').default([]).notNull(),
   governor: jsonb('governor'),
+  rallyPoint: jsonb('rally_point'),
   faithPerTurn: integer('faith_per_turn').default(0).notNull(),
 
   // Culture system (freeciv-based)
@@ -61,6 +63,9 @@ export const cities = pgTable('cities', {
   defenseStrength: integer('defense_strength').default(1).notNull(),
   wallsLevel: integer('walls_level').default(0).notNull(),
   airliftUsedTurn: integer('airlift_used_turn'),
+  didSellTurn: integer('did_sell_turn'),
+  didBuyTurn: integer('did_buy_turn'),
+  espionageThefts: jsonb('espionage_thefts').default({}).notNull(),
 
   // Timestamps
   foundedTurn: integer('founded_turn').notNull(),

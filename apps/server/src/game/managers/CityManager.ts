@@ -110,6 +110,12 @@ export interface WorkableTile {
   improvements?: string[];
 }
 
+export interface CityRallyPoint {
+  x: number;
+  y: number;
+  persistent: boolean;
+}
+
 export interface TradeRoute {
   id?: string;
   sourceCity: string;
@@ -173,10 +179,12 @@ export interface CityState {
   x: number;
   y: number;
   playerId: string;
+  originalOwnerId?: string;
   population: number;
   size: number; // City size level (1-40)
   cityRadius: number; // Workable tile radius
   founded: number; // Turn founded
+  isCapital?: boolean;
 
   // Production
   currentProduction?: string | null;
@@ -222,6 +230,7 @@ export interface CityState {
 
   // Automation
   governor?: CityGovernor;
+  rallyPoint?: CityRallyPoint;
 
   // Worklist for production queue
   worklist: ProductionItem[];
@@ -231,6 +240,9 @@ export interface CityState {
 
   // A classic airport may participate in one airlift per turn.
   airliftUsedTurn?: number;
+  didSellTurn?: number;
+  didBuyTurn?: number;
+  espionageThefts?: Record<string, number>;
 }
 
 export interface CityWorkerTaskRequest {
@@ -288,7 +300,14 @@ export interface CityManagerCallbacks {
   onCityProductionComplete?: (city: CityState, item: ProductionItem) => void | Promise<void>;
   onCityDestroyed?: (city: CityState) => void;
   onCityCaptured?: (city: CityState, oldPlayerId: string) => void;
+  onCityOwnershipChanged?: (
+    city: CityState,
+    oldPlayerId: string,
+    newPlayerId: string,
+    reason: 'conquest' | 'transfer'
+  ) => void | Promise<void>;
   onCityTurnProcessed?: (city: CityState) => void;
+  onCapitalLost?: (playerId: string) => void | Promise<void>;
 }
 
 /**
@@ -418,6 +437,29 @@ export class CityManager {
 
   public setUnitSupportProvider(provider: (city: CityState) => UnitSupportData[]): void {
     this.unitSupportProvider = provider;
+  }
+
+  public setTileOccupancyProvider(
+    provider: (city: CityState, tile: WorkableTile) => boolean
+  ): void {
+    this.tileManagementService?.setTileOccupancyProvider(provider);
+  }
+
+  public refreshTileOccupancy(x: number, y: number): void {
+    for (const city of this.cities.values()) {
+      if (!city.workableTiles?.some(tile => tile.x === x && tile.y === y)) continue;
+      if (this.tileManagementService?.refreshBlockedTiles(city)) {
+        this.calculateCityOutputs(city.id);
+      }
+    }
+  }
+
+  public refreshAllTileOccupancy(): void {
+    for (const city of this.cities.values()) {
+      if (this.tileManagementService?.refreshBlockedTiles(city)) {
+        this.calculateCityOutputs(city.id);
+      }
+    }
   }
 
   public setMapChangedCallback(callback: (gameId: string, mapData: unknown) => void): void {
@@ -738,10 +780,12 @@ export class CityManager {
       x,
       y,
       playerId,
+      originalOwnerId: playerId,
       population: 1,
       size: 1,
       cityRadius: CITY_MAP_DEFAULT_RADIUS,
       founded: currentTurn,
+      isCapital: false,
       currentProduction: 'warriors', // Default production following Freeciv
       productionType: 'unit' as const,
       turnsToComplete: 10, // Warriors cost, will be recalculated
@@ -763,6 +807,7 @@ export class CityManager {
         [SpecialistType.MERCHANT]: 0,
       },
       tradeRoutes: [],
+      espionageThefts: {},
       happiness: {
         happy: 0,
         content: 1,
@@ -780,6 +825,7 @@ export class CityManager {
     const isFirstCity = !this.playersWithFirstCity.has(playerId);
     if (isFirstCity) {
       this.buildFreeBuildings(city);
+      city.isCapital = true;
       this.playersWithFirstCity.add(playerId);
     }
 
@@ -907,8 +953,17 @@ export class CityManager {
       return;
     }
 
+    this.resetTurnScopedEconomicActions(this.cities.get(cityId), currentTurn);
     // Delegate to CityTurnProcessingService for comprehensive turn processing
     await this.turnProcessingService.processCityTurn(cityId, currentTurn);
+  }
+
+  private resetTurnScopedEconomicActions(city: CityState | undefined, currentTurn: number): void {
+    if (!city) return;
+    if (city.didSellTurn !== undefined && city.didSellTurn !== currentTurn)
+      city.didSellTurn = undefined;
+    if (city.didBuyTurn !== undefined && city.didBuyTurn !== currentTurn)
+      city.didBuyTurn = undefined;
   }
 
   // === PUBLIC TESTING METHODS (delegating to services) ===
@@ -1170,7 +1225,49 @@ export class CityManager {
     return true;
   }
 
+  async setCityRallyPoint(
+    cityId: string,
+    playerId: string,
+    rallyPoint: CityRallyPoint | null
+  ): Promise<CityRallyPoint | undefined> {
+    const city = this.cities.get(cityId);
+    if (!city || city.playerId !== playerId) throw new Error('City does not belong to player');
+    if (
+      rallyPoint &&
+      (!Number.isInteger(rallyPoint.x) ||
+        !Number.isInteger(rallyPoint.y) ||
+        !this.mapManager?.isValidPosition(rallyPoint.x, rallyPoint.y))
+    ) {
+      throw new Error('Rally point is outside the map');
+    }
+    city.rallyPoint = rallyPoint
+      ? { x: rallyPoint.x, y: rallyPoint.y, persistent: Boolean(rallyPoint.persistent) }
+      : undefined;
+    await this.saveCityToDatabase(city);
+    return city.rallyPoint;
+  }
+
+  async consumeCityRallyPoint(cityId: string): Promise<CityRallyPoint | undefined> {
+    const city = this.cities.get(cityId);
+    if (!city?.rallyPoint) return undefined;
+    const rallyPoint = { ...city.rallyPoint };
+    if (!rallyPoint.persistent) {
+      city.rallyPoint = undefined;
+      await this.saveCityToDatabase(city);
+    }
+    return rallyPoint;
+  }
+
   // === DATABASE OPERATIONS ===
+
+  private normalizeRallyPoint(value: unknown): CityRallyPoint | undefined {
+    if (!value || typeof value !== 'object') return undefined;
+    const point = value as Partial<CityRallyPoint>;
+    if (!Number.isInteger(point.x) || !Number.isInteger(point.y)) return undefined;
+    const x = point.x as number;
+    const y = point.y as number;
+    return { x, y, persistent: Boolean(point.persistent) };
+  }
 
   async loadCities(): Promise<void> {
     try {
@@ -1186,6 +1283,7 @@ export class CityManager {
           x: record.x,
           y: record.y,
           playerId: record.playerId,
+          originalOwnerId: record.originalOwnerId ?? record.playerId,
           population: record.population,
           size: record.population,
           cityRadius: CITY_MAP_DEFAULT_RADIUS,
@@ -1216,6 +1314,7 @@ export class CityManager {
           },
           tradeRoutes: (record.tradeRoutes as TradeRoute[]) || [],
           governor: (record.governor as CityGovernor | null) ?? undefined,
+          rallyPoint: this.normalizeRallyPoint(record.rallyPoint),
           happiness: {
             happy: 0,
             content: Math.max(0, record.population - 1),
@@ -1225,6 +1324,10 @@ export class CityManager {
           worklist: (record.productionQueue as ProductionItem[]) || [],
           defenseStrength: record.defenseStrength || 1,
           airliftUsedTurn: record.airliftUsedTurn ?? undefined,
+          isCapital: record.isCapital,
+          didSellTurn: record.didSellTurn ?? undefined,
+          didBuyTurn: record.didBuyTurn ?? undefined,
+          espionageThefts: (record.espionageThefts as Record<string, number>) || {},
         };
 
         this.cities.set(city.id, city);
@@ -1264,6 +1367,7 @@ export class CityManager {
         playerId: city.playerId,
         population: city.population,
         foundedTurn: city.founded || 1,
+        originalOwnerId: city.originalOwnerId ?? city.playerId,
         currentProduction: city.currentProduction,
         food: city.foodStock || 0,
         foodPerTurn: city.foodPerTurn || 0,
@@ -1276,6 +1380,7 @@ export class CityManager {
         pollution: city.pollution || 0,
         tradeRoutes: city.tradeRoutes,
         governor: city.governor ?? null,
+        rallyPoint: city.rallyPoint ?? null,
         culturePerTurn: 0, // Will be calculated
         faithPerTurn: 0, // Will be calculated
         history: city.history || 0, // Culture history
@@ -1287,9 +1392,12 @@ export class CityManager {
         disorderTurns: city.disorderTurns ?? 0,
         defenseStrength: city.defenseStrength || 1,
         airliftUsedTurn: city.airliftUsedTurn ?? null,
+        didSellTurn: city.didSellTurn ?? null,
+        didBuyTurn: city.didBuyTurn ?? null,
+        espionageThefts: city.espionageThefts,
         // Default values for other required fields
         health: 100,
-        isCapital: false,
+        isCapital: city.isCapital ?? city.buildings.includes('palace'),
         isPuppet: false,
         isOccupied: false,
         wallsLevel: 0,
@@ -1783,9 +1891,18 @@ export class CityManager {
     if (!building || building.genus !== 'Improvement') {
       return { success: false, goldReceived: 0, reason: 'Building cannot be sold' };
     }
+    const currentTurn = this.currentTurnProvider?.() ?? city.founded;
+    if (city.didSellTurn === currentTurn) {
+      return {
+        success: false,
+        goldReceived: 0,
+        reason: 'City has already sold an improvement this turn',
+      };
+    }
     if (!(await this.sellBuilding(cityId, buildingId))) {
       return { success: false, goldReceived: 0, reason: 'Building not present' };
     }
+    city.didSellTurn = currentTurn;
     // Classic uses shieldbox=100, so impr_sell_gold() returns build cost.
     // @reference reference/freeciv/common/improvement.c:331-337
     const goldReceived = Math.max(building.cost, 1);
@@ -1897,7 +2014,33 @@ export class CityManager {
   ): Promise<{ success: boolean; goldSpent: number; completed: boolean; reason?: string }> {
     if (!this.productionService)
       return { success: false, goldSpent: 0, completed: false, reason: 'Service not available' };
-    return this.productionService.buyProduction(cityId, playerId);
+    const city = this.cities.get(cityId);
+    if (!city || city.playerId !== playerId) {
+      return { success: false, goldSpent: 0, completed: false, reason: 'City not owned by player' };
+    }
+    const currentTurn = this.currentTurnProvider?.() ?? city.founded;
+    if (city.founded === currentTurn) {
+      return {
+        success: false,
+        goldSpent: 0,
+        completed: false,
+        reason: 'Cannot rush production in a newly founded city',
+      };
+    }
+    if (city.didBuyTurn === currentTurn) {
+      return {
+        success: false,
+        goldSpent: 0,
+        completed: false,
+        reason: 'City has already rushed production this turn',
+      };
+    }
+    const result = await this.productionService.buyProduction(cityId, playerId);
+    if (result.success) {
+      city.didBuyTurn = currentTurn;
+      await this.saveCityToDatabase(city);
+    }
+    return result;
   }
 
   // Delegate to governor service
@@ -1949,6 +2092,7 @@ export class CityManager {
       };
     const cityBeforeCapture = this.cities.get(cityId);
     const oldPlayerId = cityBeforeCapture?.playerId ?? '';
+    const lostCapital = cityBeforeCapture?.buildings.includes('palace') ?? false;
     const result = await this.captureService.captureCity(
       cityId,
       conquerorPlayerId,
@@ -1961,6 +2105,16 @@ export class CityManager {
 
     const city = this.cities.get(cityId);
     if (result.success && city) {
+      await this.callbacks.onCityOwnershipChanged?.(
+        city,
+        oldPlayerId,
+        conquerorPlayerId,
+        'conquest'
+      );
+      if (lostCapital && !result.cityDestroyed) {
+        await this.handleCapitalLoss(oldPlayerId, cityId);
+      }
+      city.rallyPoint = undefined;
       this.calculateCityOutputs(cityId);
       this.applyCityHappiness(cityId);
       await this.saveCityToDatabase(city);
@@ -1976,6 +2130,8 @@ export class CityManager {
     const oldPlayerId = city.playerId;
     const transferred = await this.captureService.transferCity(cityId, newPlayerId);
     if (transferred && oldPlayerId !== newPlayerId) {
+      await this.callbacks.onCityOwnershipChanged?.(city, oldPlayerId, newPlayerId, 'transfer');
+      city.rallyPoint = undefined;
       this.calculateCityOutputs(cityId);
       this.applyCityHappiness(cityId);
       await this.saveCityToDatabase(city);
@@ -2047,6 +2203,10 @@ export class CityManager {
     const city = this.cities.get(cityId);
     if (!city) return false;
 
+    if (city.buildings.includes('palace')) {
+      await this.handleCapitalLoss(city.playerId, cityId);
+    }
+
     if (this.tradeRouteService) {
       await this.tradeRouteService.updateTradeRoutesOnCityDestruction(cityId);
     }
@@ -2074,6 +2234,16 @@ export class CityManager {
     }
 
     return true;
+  }
+
+  private async handleCapitalLoss(playerId: string, lostCityId: string): Promise<void> {
+    const replacement = this.getCitiesByPlayer(playerId).find(city => city.id !== lostCityId);
+    if (replacement && !replacement.buildings.includes('palace')) {
+      replacement.buildings.push('palace');
+      replacement.isCapital = true;
+      await this.saveCityToDatabase(replacement);
+    }
+    await this.callbacks.onCapitalLost?.(playerId);
   }
 
   async disbandCity(
@@ -2145,13 +2315,26 @@ export class CityManager {
     const city = this.cities.get(cityId);
     if (!city) throw new Error('Target city not found');
     if (city.playerId === actingPlayerId) throw new Error('Cannot sabotage your own city');
-    const target = [...city.buildings].filter(building => building !== 'palace').sort()[0];
+    const candidates = [...city.buildings].filter(building => building !== 'palace');
+    const target = candidates[randomInt(this.random, candidates.length)] ?? null;
     if (!target) return null;
     city.buildings = city.buildings.filter(building => building !== target);
     this.calculateCityOutputs(city.id);
     this.applyCityHappiness(city.id);
     await this.saveCityToDatabase(city);
     return target;
+  }
+
+  public getEspionageTheftCount(cityId: string, playerId: string): number {
+    return this.cities.get(cityId)?.espionageThefts?.[playerId] ?? 0;
+  }
+
+  public async recordEspionageTheft(cityId: string, playerId: string): Promise<void> {
+    const city = this.cities.get(cityId);
+    if (!city) return;
+    city.espionageThefts ??= {};
+    city.espionageThefts[playerId] = (city.espionageThefts[playerId] ?? 0) + 1;
+    await this.saveCityToDatabase(city);
   }
 
   /**

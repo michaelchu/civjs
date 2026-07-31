@@ -303,6 +303,11 @@ export class GameClient {
       }
       this.requestDiplomacy();
     });
+    this.socket.on('hut_event', data => {
+      if (typeof data?.message === 'string') {
+        useGameStore.getState().addNotification({ message: data.message, tone: 'info' });
+      }
+    });
 
     // Handle production completion events
     this.socket.on('production:completed', data => {
@@ -923,9 +928,16 @@ export class GameClient {
     unitId: string,
     actionType: string,
     targetX?: number,
-    targetY?: number
+    targetY?: number,
+    declareWarIfNeeded = false
   ): Promise<ActionResult> {
-    console.log('GameClient.executeUnitAction called:', { unitId, actionType, targetX, targetY });
+    console.log('GameClient.executeUnitAction called:', {
+      unitId,
+      actionType,
+      targetX,
+      targetY,
+      declareWarIfNeeded,
+    });
 
     return new Promise((resolve, reject) => {
       if (!this.socket) {
@@ -934,23 +946,21 @@ export class GameClient {
         return;
       }
 
-      this.socket.emit(
-        'unit_action',
-        {
-          unitId,
-          actionType,
-          targetX,
-          targetY,
-        },
-        (response: any) => {
-          console.log('GameClient.executeUnitAction response:', response);
-          if (response.success) {
-            resolve(response.result ?? { success: true });
-          } else {
-            reject(new Error(response.error || 'Action failed'));
-          }
+      const actionPayload = {
+        unitId,
+        actionType,
+        targetX,
+        targetY,
+        ...(declareWarIfNeeded ? { declareWarIfNeeded: true } : {}),
+      };
+      this.socket.emit('unit_action', actionPayload, (response: any) => {
+        console.log('GameClient.executeUnitAction response:', response);
+        if (response.success) {
+          resolve(response.result ?? { success: true });
+        } else {
+          reject(new Error(response.error || 'Action failed'));
         }
-      );
+      });
     });
   }
 
@@ -1955,6 +1965,18 @@ export class GameClient {
         },
       });
     }
+  }
+
+  async setCityRallyPoint(
+    cityId: string,
+    rallyPoint: { x: number; y: number; persistent: boolean } | null
+  ): Promise<void> {
+    const response = await this.requestSocketEvent<{
+      success: boolean;
+      rallyPoint?: { x: number; y: number; persistent: boolean };
+      error?: string;
+    }>('city:setRallyPoint', { cityId, rallyPoint });
+    if (!response.success) throw new Error(response.error || 'Failed to set rally point');
   }
 
   async optimizeCityCitizens(cityId: string): Promise<void> {

@@ -60,6 +60,7 @@ import {
   FreecivRandom,
   generateFreecivGameSeed,
   isFreecivRandomState,
+  randomInt,
 } from '@game/random/FreecivRandom';
 import {
   FREECIV_IDENTITY_NUMBER_SKIP,
@@ -488,6 +489,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
               city.y,
               city.id
             );
+            const rallyPoint = await cityManager.consumeCityRallyPoint(city.id);
+            if (rallyPoint) await unitManager.applyRallyPoint(unit, rallyPoint);
             this.logger.info(`Unit ${item.value} created at city ${city.name}`, {
               cityId: city.id,
               playerId: city.playerId,
@@ -541,6 +544,16 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
           }
         }
       },
+      onCapitalLost: async playerId => {
+        const player = players.get(playerId);
+        if (!player) return;
+        player.spaceshipState = normalizeSpaceshipState(undefined);
+        await this.databaseProvider
+          .getDatabase()
+          .update(playerRecords)
+          .set({ spaceshipState: player.spaceshipState })
+          .where(eq(playerRecords.id, playerId));
+      },
       onCityFounded: city => {
         borderManager.addCityBorderSource(city);
 
@@ -555,6 +568,40 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         borderManager.removeBorderSource(city.x, city.y);
         borderManager.addCityBorderSource(city);
         this.onBroadcastMapData?.(gameId, mapManager.getMapData());
+      },
+      onCityOwnershipChanged: async (city, oldPlayerId, newPlayerId, reason) => {
+        await unitManager.reconcileCityOwnership(city, oldPlayerId, newPlayerId);
+        if (reason !== 'conquest' || city.originalOwnerId !== oldPlayerId) return;
+        const loser = players.get(oldPlayerId);
+        if (!loser || loser.nation === 'barbarian' || loser.civilization.startsWith('barbarian')) {
+          return;
+        }
+        const playerTechs = new Set(researchManager.getResearchedTechs(oldPlayerId));
+        const worldTechs = new Set<string>();
+        for (const player of players.values()) {
+          for (const technology of researchManager.getResearchedTechs(player.id)) {
+            worldTechs.add(technology);
+          }
+        }
+        const inspire = effectsManager.calculateEffect(EffectType.INSPIRE_PARTISANS, {
+          playerId: oldPlayerId,
+          government: governmentManager.getPlayerGovernment(oldPlayerId)?.currentGovernment,
+          playerTechs,
+          worldTechs,
+        });
+        if (inspire.value <= 0) return;
+        const count = randomInt(random, 2 + Math.floor((city.size + 1) / 2)) + 1;
+        const partisans = await unitManager.createPartisans(
+          oldPlayerId,
+          city,
+          Math.min(8, count),
+          city.cityRadius
+        );
+        if (partisans.length > 0) {
+          const message = `The loss of ${city.name} has inspired partisans!`;
+          this.io.to(`player:${oldPlayerId}`).emit('diplomacy_event', { message });
+          this.io.to(`player:${newPlayerId}`).emit('diplomacy_event', { message });
+        }
       },
       onCityGrowth: (city, oldSize) => {
         this.logger.info(`City ${city.name} grew from size ${oldSize} to ${city.size}`, {
@@ -660,6 +707,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     return {
       isAwayFromHome: unit.x !== city.x || unit.y !== city.y,
       isMilitaryUnit: (unitType?.attack ?? 0) > 0,
+      isFieldUnit: unitType?.flags?.includes('FieldUnit') === true,
     };
   }
 
@@ -1443,6 +1491,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         },
         captureCity: async (cityId, playerId, unitId) =>
           (await cityManager.captureCity(cityId, playerId, unitId)).success,
+        broadcastHutEvent: (changedGameId, playerId, message) =>
+          this.io.to(`player:${playerId}`).emit('hut_event', { gameId: changedGameId, message }),
         broadcastMapChanged: (changedGameId, mapData) =>
           this.onBroadcastMapData?.(changedGameId, mapData),
       },

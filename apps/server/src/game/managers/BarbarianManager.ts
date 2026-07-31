@@ -177,6 +177,41 @@ export class BarbarianManager {
   }
 
   /**
+   * Unleash a hut horde at the hut tile. Protected huts remain harmless.
+   * @reference reference/freeciv/data/default/default.lua:103-130
+   */
+  async unleashBarbariansAt(x: number, y: number): Promise<boolean> {
+    if (this.config.rate === 0) return true;
+    const map = this.mapManager.getMapData();
+    if (!map) return true;
+    const tile = map?.tiles.flat().find(candidate => candidate.x === x && candidate.y === y);
+    if (!tile) return true;
+
+    const cityTiles = map.tiles.flat().filter(candidate => candidate.cityId);
+    if (cityTiles.some(city => this.mapManager.getDistance(x, y, city.x, city.y) <= 2)) {
+      return true;
+    }
+
+    const location: BarbarianSpawnLocation = {
+      x,
+      y,
+      tileId: `${x},${y}`,
+      terrain: String(tile.terrain),
+      isLand: tile.continentId > 0,
+      isSea: tile.continentId === 0,
+      distanceToNearestCity:
+        cityTiles.length === 0
+          ? this.config.maxDistanceFromCity
+          : Math.min(...cityTiles.map(city => this.mapManager.getDistance(x, y, city.x, city.y))),
+    };
+    const type = location.isLand ? BarbarianType.LAND_BARBARIAN : BarbarianType.SEA_BARBARIAN;
+    const barbarianPlayerId = await this.getOrCreateBarbarianPlayer(type);
+    if (!barbarianPlayerId) return true;
+    const unitIds = await this.spawnBarbarianUnits(barbarianPlayerId, location, type);
+    return unitIds.length > 0;
+  }
+
+  /**
    * Existing uprisings remain aggressive even on turns where no new group is
    * summoned. Land units pillage first, then attack adjacent foreigners, then
    * advance toward the nearest city; leaders stay with their stack.

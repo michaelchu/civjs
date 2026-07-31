@@ -100,6 +100,10 @@ interface CityInfoOverlayProps {
   ) => Promise<void>;
   onOptimizeCitizens?: (cityId: string) => Promise<void>;
   onBuyProduction?: (cityId: string) => Promise<void>;
+  onSetRallyPoint?: (
+    cityId: string,
+    rallyPoint: { x: number; y: number; persistent: boolean } | null
+  ) => Promise<void>;
 }
 
 /**
@@ -139,6 +143,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
   onGovernorChange,
   onOptimizeCitizens,
   onBuyProduction,
+  onSetRallyPoint,
 }) => {
   const [activeTab, setActiveTab] = useState('main');
   const [governorEnabled, setGovernorEnabled] = useState(city?.governor?.isEnabled ?? false);
@@ -146,6 +151,9 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
   const [managementMessage, setManagementMessage] = useState<string | null>(null);
   const [cityName, setCityName] = useState(city?.name ?? '');
   const [confirmDisband, setConfirmDisband] = useState(false);
+  const [rallyX, setRallyX] = useState('');
+  const [rallyY, setRallyY] = useState('');
+  const [rallyPersistent, setRallyPersistent] = useState(false);
 
   useEffect(() => {
     setGovernorEnabled(city?.governor?.isEnabled ?? false);
@@ -153,6 +161,9 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
     setManagementMessage(null);
     setCityName(city?.name ?? '');
     setConfirmDisband(false);
+    setRallyX(city?.rallyPoint ? String(city.rallyPoint.x) : '');
+    setRallyY(city?.rallyPoint ? String(city.rallyPoint.y) : '');
+    setRallyPersistent(city?.rallyPoint?.persistent ?? false);
   }, [city?.id, city?.name, city?.governor?.isEnabled, city?.governor?.priority]);
 
   if (!city) {
@@ -1102,6 +1113,82 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
                   )}
                 </div>
               )}
+            </div>
+
+            <div className="rounded-lg border p-4">
+              <h3 className="mb-1 font-medium">Rally point</h3>
+              <p className="mb-3 text-xs text-muted-foreground">
+                Newly produced units will receive a Go To order to this tile.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  aria-label="Rally point X"
+                  className="w-20 rounded border border-slate-700 bg-slate-950 p-2 text-sm text-white"
+                  inputMode="numeric"
+                  placeholder="X"
+                  value={rallyX}
+                  onChange={event => setRallyX(event.target.value)}
+                />
+                <input
+                  aria-label="Rally point Y"
+                  className="w-20 rounded border border-slate-700 bg-slate-950 p-2 text-sm text-white"
+                  inputMode="numeric"
+                  placeholder="Y"
+                  value={rallyY}
+                  onChange={event => setRallyY(event.target.value)}
+                />
+                <label className="flex items-center gap-2 text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={rallyPersistent}
+                    onChange={event => setRallyPersistent(event.target.checked)}
+                  />
+                  Persistent
+                </label>
+                <Button
+                  variant="outline"
+                  disabled={
+                    !onSetRallyPoint ||
+                    !Number.isInteger(Number(rallyX)) ||
+                    !Number.isInteger(Number(rallyY))
+                  }
+                  onClick={() => {
+                    void onSetRallyPoint?.(city.id, {
+                      x: Number(rallyX),
+                      y: Number(rallyY),
+                      persistent: rallyPersistent,
+                    })
+                      .then(() => setManagementMessage('Rally point saved'))
+                      .catch(error =>
+                        setManagementMessage(
+                          error instanceof Error ? error.message : 'Rally point update failed'
+                        )
+                      );
+                  }}
+                >
+                  Set
+                </Button>
+                {cityData.rallyPoint && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      void onSetRallyPoint?.(city.id, null)
+                        .then(() => {
+                          setRallyX('');
+                          setRallyY('');
+                          setManagementMessage('Rally point cleared');
+                        })
+                        .catch(error =>
+                          setManagementMessage(
+                            error instanceof Error ? error.message : 'Rally point update failed'
+                          )
+                        );
+                    }}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="rounded-lg border p-4">

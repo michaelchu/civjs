@@ -29,6 +29,7 @@ import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { FreecivRandom, generateFreecivGameSeed } from '@game/random/FreecivRandom';
 import { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAllocator';
+import { ClimateManager } from '@game/services/ClimateManager';
 
 export interface TurnEvent {
   type: 'unit_move' | 'city_production' | 'research_complete' | 'diplomacy' | 'combat';
@@ -120,6 +121,7 @@ export class TurnManager {
   private unitManager: UnitManager;
   private researchManager: ResearchManager;
   private effectsManager: EffectsManager;
+  private climateManager?: ClimateManager;
 
   constructor(
     gameId: string,
@@ -199,6 +201,24 @@ export class TurnManager {
             getDistance: (x1: number, y1: number, x2: number, y2: number) =>
               Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2)),
           };
+    if (
+      typeof mapManager?.getMapData === 'function' &&
+      typeof mapManager?.updateTileProperty === 'function'
+    ) {
+      this.climateManager = new ClimateManager(
+        gameId,
+        mapManager,
+        databaseProvider,
+        rulesetName,
+        (changedGameId, mapData) => this.broadcastManager.broadcastMapData(changedGameId, mapData),
+        (changedGameId, event, transformedTiles) =>
+          this.io.to(`game:${changedGameId}`).emit('climate_event', {
+            gameId: changedGameId,
+            event,
+            transformedTiles,
+          })
+      );
+    }
     const barbarianManager = new BarbarianManager(
       gameId,
       {
@@ -216,6 +236,9 @@ export class TurnManager {
       broadcastManager,
       databaseProvider,
       random
+    );
+    unitManager.setHutBarbarianProvider?.((_playerId, x, y) =>
+      barbarianManager.unleashBarbariansAt(x, y)
     );
     const randomEventsManager = new RandomEventsManager(
       gameId,
@@ -346,6 +369,7 @@ export class TurnManager {
 
         await this.processGovernmentTurns(playerIds);
         await this.diplomacyProcessor?.();
+        await this.climateManager?.processTurn();
 
         await this.completeTurnRecord(phaseResult);
         if (await this.endGameEvaluator?.(this.currentTurn, this.currentYear)) {

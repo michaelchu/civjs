@@ -775,6 +775,7 @@ export const CitiesPanel: React.FC = () => {
             `Spent ${result.goldSpent} gold${result.completed ? '; production completed' : ''}`
           );
         }}
+        onSetRallyPoint={(cityId, rallyPoint) => gameClient.setCityRallyPoint(cityId, rallyPoint)}
       />
     </section>
   );

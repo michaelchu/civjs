@@ -108,7 +108,10 @@ const NationCard: React.FC<{
   }
 
   return (
-    <article id={`nation-card-${nation.id}`} className="rounded-lg border border-gray-700 bg-gray-800 p-5">
+    <article
+      id={`nation-card-${nation.id}`}
+      className="rounded-lg border border-gray-700 bg-gray-800 p-5"
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold capitalize">{nation.civilization}</h3>

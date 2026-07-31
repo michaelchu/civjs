@@ -152,6 +152,17 @@ describe('EffectsManager classic requirement evaluation', () => {
     ).toBe(true);
   });
 
+  it('evaluates world technology requirements against the shared world set', () => {
+    const effects = new EffectsManager();
+
+    expect(
+      effects.evaluateRequirements([{ type: 'Tech', name: 'Guerilla Warfare', range: 'World' }], {
+        playerTechs: new Set(),
+        worldTechs: new Set(['guerilla_warfare']),
+      }).satisfied
+    ).toBe(true);
+  });
+
   it('fails closed for unsupported requirements', () => {
     const effects = new EffectsManager();
     mockedRulesetLoader.getEffects.mockReturnValueOnce({

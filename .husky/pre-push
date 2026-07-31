@@ -1,3 +1,6 @@
-echo "🔍 Running full lint before push..."
+echo "🔍 Running formatting check before push..."
+npm run format:check
+
+echo "🧹 Running full lint before push..."
 npm run lint
 echo "✅ Full lint passed!"

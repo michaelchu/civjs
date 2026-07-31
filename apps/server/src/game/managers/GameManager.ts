@@ -728,15 +728,21 @@ export class GameManager {
         message: `${city.name}: size ${city.size}, ${city.buildings.length} improvements, ${city.productionPerTurn ?? 0} shields/turn`,
       };
     } else if (actionType === ActionType.STEAL_TECH) {
+      const previousThefts = game.cityManager.getEspionageTheftCount?.(city.id, playerId) ?? 0;
+      if (!unitFlags.includes('Spy') && previousThefts > 0) {
+        return { success: false, message: 'This city has already been targeted by this diplomat' };
+      }
       const known = new Set(game.researchManager.getResearchedTechs(playerId));
-      const stolenTech = game.researchManager
+      const availableTechs = game.researchManager
         .getResearchedTechs(city.playerId)
         .filter(tech => !known.has(tech))
-        .sort()[0];
+        .sort();
+      const stolenTech = availableTechs[Math.floor(Math.random() * availableTechs.length)];
       if (!stolenTech) return { success: false, message: 'No technology is available to steal' };
       const failure = await attemptMission();
       if (failure) return failure;
       await game.researchManager.grantTechnology(playerId, stolenTech);
+      await game.cityManager.recordEspionageTheft?.(city.id, playerId);
       result = { success: true, message: `Stole ${stolenTech} from ${city.name}` };
     } else if (actionType === ActionType.SABOTAGE_CITY) {
       if (!unitFlags.includes('Spy')) {
@@ -749,6 +755,7 @@ export class GameManager {
       if (failure) return failure;
       const building = await game.cityManager.sabotageCityBuilding(city.id, playerId);
       if (!building) return { success: false, message: 'No eligible improvement to sabotage' };
+      await game.cityManager.recordEspionageTheft?.(city.id, playerId);
       this.gameBroadcastManager.broadcastCityData(gameId);
       result = { success: true, message: `Sabotaged ${building} in ${city.name}` };
     } else if (actionType === ActionType.POISON_WATER) {
@@ -1186,6 +1193,15 @@ export class GameManager {
     gameInstance.unitManager.setHostilePlayersProvider(
       playerId => this.hostilePlayersByGame.get(gameId)?.get(playerId) ?? new Set()
     );
+    gameInstance.cityManager.setTileOccupancyProvider((city, tile) => {
+      const hostilePlayers = this.hostilePlayersByGame.get(gameId)?.get(city.playerId);
+      if (!hostilePlayers?.size) return false;
+      return gameInstance.unitManager.getUnitsAt(tile.x, tile.y).some(unit => {
+        const unitType = gameInstance.unitManager.getUnitType(unit.unitTypeId);
+        return hostilePlayers.has(unit.playerId) && !unitType?.flags?.includes('DoesntOccupyTile');
+      });
+    });
+    gameInstance.cityManager.refreshAllTileOccupancy();
     gameInstance.unitManager.setAlliedPlayersProvider(
       playerId => this.alliedPlayersByGame.get(gameId)?.get(playerId) ?? new Set()
     );
@@ -1207,9 +1223,16 @@ export class GameManager {
       const player = gameInstance.players.get(playerId);
       return player?.isAI ? createAIProfile(player.aiLevel, player.aiTraits).scienceCost : 100;
     });
-    gameInstance.unitManager.setUnitLifecycleObserver(event =>
-      this.aiOrchestrator.onUnitLifecycle(gameId, gameInstance, event)
-    );
+    gameInstance.unitManager.setUnitLifecycleObserver(event => {
+      if (event.type === 'moved') {
+        gameInstance.cityManager.refreshTileOccupancy(event.previousX, event.previousY);
+      }
+      gameInstance.cityManager.refreshTileOccupancy(event.unit.x, event.unit.y);
+      if (event.type === 'created' || event.type === 'moved' || event.type === 'owner_changed') {
+        void gameInstance.unitManager.wakeSentriesForUnit(event.unit);
+      }
+      this.aiOrchestrator.onUnitLifecycle(gameId, gameInstance, event);
+    });
     gameInstance.unitManager.setDiplomatActionExecutor(
       (playerId, unitId, actionType, targetX, targetY) =>
         this.executeDiplomatAction(gameId, playerId, unitId, actionType, targetX, targetY)
@@ -2239,6 +2262,9 @@ export class GameManager {
       // Handle the case where pathResult might have unexpected structure
       const tiles = Array.isArray(pathResult.path) ? pathResult.path : [];
       const isValid = pathResult.valid && tiles.length > 0;
+      const error = isValid
+        ? undefined
+        : await this.getPathFailureReason(gameInstance, unit, targetX, targetY);
 
       return {
         success: isValid,
@@ -2253,7 +2279,7 @@ export class GameManager {
               valid: isValid,
             }
           : undefined,
-        error: isValid ? undefined : 'No valid path found',
+        error,
       };
     } catch (error) {
       logger.error('Error processing pathfinding request', {
@@ -2266,6 +2292,32 @@ export class GameManager {
 
       return { success: false, error: 'Internal server error' };
     }
+  }
+
+  private async getPathFailureReason(
+    game: GameInstance,
+    unit: Unit,
+    targetX: number,
+    targetY: number
+  ): Promise<string> {
+    const unitType = this.getGameUnitType(game, unit.unitTypeId);
+    const isMilitary = !unitType?.flags?.includes('NonMil') && (unitType?.attack ?? 0) > 0;
+    if (!isMilitary) return 'No valid path found';
+
+    const city = game.cityManager.getCityAt(targetX, targetY);
+    const targetUnit = game.unitManager
+      .getUnitsAt(targetX, targetY)
+      .find(candidate => candidate.playerId !== unit.playerId);
+    const targetOwner = city?.playerId ?? targetUnit?.playerId;
+    if (!targetOwner || targetOwner === unit.playerId) return 'No valid path found';
+
+    const relation = await this.getDiplomaticState(game.id, unit.playerId, targetOwner);
+    if (relation === 'war' || relation === 'alliance' || relation === 'team') {
+      return 'No valid path found';
+    }
+    return city
+      ? 'Cannot attack unless you declare war first.'
+      : `Cannot invade unless you break peace with ${targetOwner} first.`;
   }
 
   /** Return the authoritative movement range for a player's unit. */

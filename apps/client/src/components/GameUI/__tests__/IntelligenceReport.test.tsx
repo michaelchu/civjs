@@ -5,19 +5,40 @@ import { IntelligenceReport } from '../IntelligenceReport';
 
 const players: Record<string, Player> = {
   'player-1': {
-    id: 'player-1', name: 'Player One', nation: 'Romans', color: '#67e8f9', gold: 20,
-    science: 10, history: 0, government: 'despotism', isHuman: true, isActive: true,
+    id: 'player-1',
+    name: 'Player One',
+    nation: 'Romans',
+    color: '#67e8f9',
+    gold: 20,
+    science: 10,
+    history: 0,
+    government: 'despotism',
+    isHuman: true,
+    isActive: true,
   },
   'player-2': {
-    id: 'player-2', name: 'Player Two', nation: 'Greeks', color: '#c4b5fd', gold: 8,
-    science: 5, history: 0, government: 'despotism', isHuman: false, isActive: true,
+    id: 'player-2',
+    name: 'Player Two',
+    nation: 'Greeks',
+    color: '#c4b5fd',
+    gold: 8,
+    science: 5,
+    history: 0,
+    government: 'despotism',
+    isHuman: false,
+    isActive: true,
   },
 };
 
 const diplomacy = {
   nations: [
     {
-      id: 'player-2', civilization: 'Greeks', leaderName: 'Pericles', isAlive: true, isAI: true, known: true,
+      id: 'player-2',
+      civilization: 'Greeks',
+      leaderName: 'Pericles',
+      isAlive: true,
+      isAI: true,
+      known: true,
       relation: { state: 'peace', sinceTurn: 3, embassy: true, sharedVision: false },
     },
   ],
@@ -103,7 +124,9 @@ describe('IntelligenceReport', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /focus known unit for player two/i }));
-    expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'center-map-on-tile' }));
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'center-map-on-tile' })
+    );
     dispatchSpy.mockRestore();
   });
 });

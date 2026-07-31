@@ -91,20 +91,22 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, on
   const progressInfo = getProgressInfo();
 
   return (
-    <div className="absolute top-4 right-4 w-80 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl z-50">
+    <div className="hud-surface-opaque absolute top-4 right-4 z-50 w-80 rounded-xl border border-white/10 text-slate-100 shadow-2xl">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-600">
-        <h3 className="text-lg font-bold text-white">{tech.name}</h3>
+      <div className="flex items-center justify-between border-b border-white/10 p-4">
+        <h3 className="text-lg font-bold text-slate-100">{tech.name}</h3>
         <button
+          type="button"
           onClick={onClose}
-          className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-white"
+          className="rounded p-1 text-slate-400 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
+          aria-label="Close technology details"
         >
           <X size={20} />
         </button>
       </div>
 
       {/* Content */}
-      <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
+      <div className="max-h-96 space-y-4 overflow-y-auto p-4">
         {requestState.error && (
           <div
             role="alert"
@@ -116,18 +118,18 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, on
         {/* Status */}
         <div className="flex items-center space-x-2">
           {isResearched && (
-            <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-700 text-white rounded">
+            <span className="inline-flex items-center rounded border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-xs font-medium text-emerald-200">
               ✓ Researched
             </span>
           )}
           {isCurrent && (
-            <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded">
+            <span className="inline-flex items-center rounded border border-cyan-300/20 bg-cyan-400/10 px-2 py-1 text-xs font-medium text-cyan-200">
               <Zap size={12} className="mr-1" />
               Current
             </span>
           )}
           {isGoal && (
-            <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-purple-600 text-white rounded">
+            <span className="inline-flex items-center rounded border border-violet-300/20 bg-violet-400/10 px-2 py-1 text-xs font-medium text-violet-200">
               <Target size={12} className="mr-1" />
               Goal
             </span>
@@ -137,17 +139,17 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, on
         {/* Progress (if current research) */}
         {progressInfo && (
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm text-gray-300">
+            <div className="flex items-center justify-between text-sm text-slate-300">
               <span>Research Progress</span>
               <span>{progressInfo.progress}%</span>
             </div>
-            <div className="w-full bg-gray-700 rounded-full h-2">
+            <div className="h-2 w-full rounded-full bg-white/10">
               <div
-                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                className="h-2 rounded-full bg-gradient-to-r from-cyan-400 to-violet-400 transition-all duration-300"
                 style={{ width: `${progressInfo.progress}%` }}
               />
             </div>
-            <div className="flex items-center justify-between text-xs text-gray-400">
+            <div className="flex items-center justify-between text-xs text-slate-400">
               <span>
                 {researchState?.bulbsAccumulated} / {tech.cost} bulbs
               </span>
@@ -163,22 +165,22 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, on
 
         {/* Description */}
         <div>
-          <h4 className="text-sm font-semibold text-gray-300 mb-2">Description</h4>
-          <p className="text-sm text-gray-400 leading-relaxed">
+          <h4 className="mb-2 text-sm font-semibold text-slate-300">Description</h4>
+          <p className="text-sm leading-relaxed text-slate-400">
             {tech.description || 'No ruleset description is available.'}
           </p>
         </div>
 
         {/* Cost */}
         <div>
-          <h4 className="text-sm font-semibold text-gray-300 mb-1">Research Cost</h4>
-          <p className="text-sm text-gray-400">{tech.cost} research points</p>
+          <h4 className="mb-1 text-sm font-semibold text-slate-300">Research Cost</h4>
+          <p className="text-sm text-slate-400">{tech.cost} research points</p>
         </div>
 
         {/* Requirements */}
         {tech.requirements.length > 0 && (
           <div>
-            <h4 className="text-sm font-semibold text-gray-300 mb-2">Prerequisites</h4>
+            <h4 className="mb-2 text-sm font-semibold text-slate-300">Prerequisites</h4>
             <div className="space-y-1">
               {tech.requirements.map(reqId => {
                 const isReqResearched = researchState?.researchedTechs.has(reqId) || false;
@@ -186,8 +188,10 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, on
                   <div
                     key={reqId}
                     className={cn(
-                      'text-sm px-2 py-1 rounded',
-                      isReqResearched ? 'bg-green-900 text-green-200' : 'bg-red-900 text-red-200'
+                      'rounded px-2 py-1 text-sm',
+                      isReqResearched
+                        ? 'border border-emerald-300/20 bg-emerald-400/10 text-emerald-200'
+                        : 'border border-rose-300/20 bg-rose-400/10 text-rose-200'
                     )}
                   >
                     {isReqResearched ? '✓' : '✗'} {getRequirementText(reqId)}
@@ -201,12 +205,12 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, on
         {/* Special flags */}
         {(tech.flags?.length ?? 0) > 0 && (
           <div>
-            <h4 className="text-sm font-semibold text-gray-300 mb-2">Special Properties</h4>
+            <h4 className="mb-2 text-sm font-semibold text-slate-300">Special Properties</h4>
             <div className="space-y-1">
               {tech.flags?.map(flag => (
                 <span
                   key={flag}
-                  className="inline-block text-xs px-2 py-1 bg-yellow-900 text-yellow-200 rounded mr-2"
+                  className="mr-2 inline-block rounded border border-amber-300/20 bg-amber-400/10 px-2 py-1 text-xs text-amber-200"
                 >
                   {flag.toLowerCase() === 'bonus_tech' && 'Grants free technology: '}
                   {flag.toLowerCase() === 'bridge' && 'Enables bridge building: '}
@@ -218,16 +222,17 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, on
         )}
 
         {/* Action buttons */}
-        <div className="flex space-x-2 pt-2 border-t border-gray-600">
+        <div className="flex space-x-2 border-t border-white/10 pt-2">
           {canResearch && !isResearched && (
             <button
+              type="button"
               onClick={() => void handleSetCurrentResearch()}
               disabled={requestState.pending || isCurrent}
               className={cn(
-                'flex-1 px-3 py-2 text-sm font-medium rounded transition-colors',
+                'flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70',
                 isCurrent
-                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  ? 'cursor-not-allowed bg-white/10 text-slate-500'
+                  : 'bg-cyan-400/20 text-cyan-100 hover:bg-cyan-400/30'
               )}
             >
               {isCurrent ? 'Currently Researching' : 'Research Now'}
@@ -236,13 +241,14 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, on
 
           {!isResearched && (
             <button
+              type="button"
               onClick={() => void handleSetResearchGoal()}
               disabled={requestState.pending || isGoal}
               className={cn(
-                'flex-1 px-3 py-2 text-sm font-medium rounded transition-colors',
+                'flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/70',
                 isGoal
-                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                  : 'bg-purple-600 hover:bg-purple-700 text-white'
+                  ? 'cursor-not-allowed bg-white/10 text-slate-500'
+                  : 'bg-violet-400/20 text-violet-100 hover:bg-violet-400/30'
               )}
             >
               {isGoal ? 'Current Goal' : 'Set as Goal'}
@@ -250,9 +256,11 @@ export const TechnologyDetails: React.FC<TechnologyDetailsProps> = ({ techId, on
           )}
 
           <button
+            type="button"
             onClick={handleWikipediaClick}
-            className="px-3 py-2 text-sm font-medium bg-gray-600 hover:bg-gray-700 text-white rounded transition-colors"
+            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
             title="View on Wikipedia"
+            aria-label={`View ${tech.name} on Wikipedia`}
           >
             <ExternalLink size={16} />
           </button>

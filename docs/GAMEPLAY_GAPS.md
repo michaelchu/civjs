@@ -41,10 +41,13 @@ Suggested status values:
   foreign-unit and broader border cases remain unresolved.
 - **Current implementation:** `UnitManager.getPathStepCost()` allows a
   city-capable military unit to use a foreign city as the final path tile, and
-  `executeAuthoritativeGoto()` rejects a peaceful foreign-city entry with a
-  specific declare-war message. Foreign cities/units remain blocked for other
-  path contexts, and `MapCanvas` still turns failed path responses into the
-  generic warning.
+  `MapCanvas` now asks for confirmation before sending an explicit declare-war
+  intent with the Go To action. The server declares war before resolving that
+  capture, while cancelling the confirmation leaves the order untouched.
+  Failed path responses now retain reason-specific server errors for peaceful
+  foreign-unit territory and foreign-city attacks, and the client displays
+  those messages. Civilian/allied border-entry rules and first-contact
+  behavior remain unresolved.
 - **Reference behavior:** Freeciv distinguishes peaceful-border movement from
   foreign-city attacks. Military units attempting to enter peaceful foreign
   territory receive `Cannot invade unless you break peace with %s first.`;
@@ -67,25 +70,26 @@ you declare war first.` Civilian/border-entry units may enter permitted
   retrying the move. Distinguish the remaining peaceful military border entry,
   foreign-unit occupancy, and ordinary terrain/path failures. Apply the
   reference's civilian, allied, war, and border-entry rules.
-- **Regression coverage:** Add server path/movement tests and a browser test
-  asserting the player-visible message for peaceful territory and foreign-city
-  attempts.
+- **Regression coverage:** `UnitManager.test.ts` covers foreign-city preview
+  and war-gated capture; `MapCanvas`/path-service integration still needs a
+  browser test asserting the player-visible peaceful-territory and
+  foreign-city messages.
 
 ## Additional open gaps
 
 ### GP-002 — Barbarians never spawn during active games
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Random events, barbarians, combat, map exploration
 - **Observed behavior:** Games configured with barbarian activity never produce
   barbarian tribes or units during turn processing.
 - **Reproduction:** Start a `civ2civ3` game with barbarians enabled and advance
   past the configured barbarian onset turn. No barbarian spawn is observed.
-- **Current implementation:** `TurnManager` constructs `TurnPhaseService` with
-  `randomEventsManager` set to `undefined`, so the random-events manager is not
-  invoked. Independently, `BarbarianManager.attemptBarbarianSpawn()` hardcodes
-  the spawn location to `null`, and `getOrCreateBarbarianPlayer()` always
-  returns `null`.
+- **Current implementation:** `TurnManager` constructs and injects
+  `RandomEventsManager` into `TurnPhaseService`. `BarbarianManager` selects an
+  unoccupied wilderness tile in the configured city-distance band, reuses or
+  creates a barbarian player, creates land/sea groups using ruleset roles, and
+  persists the spawn record and units.
 - **Reference behavior:** Freeciv's random-events phase calls
   `summon_barbarians()`, which selects a valid wilderness location, creates or
   reuses a barbarian player, and creates barbarian units.
@@ -101,13 +105,13 @@ you declare war first.` Civilian/border-entry units may enter permitted
   processing and implement valid spawn-location selection, barbarian-player
   creation/reuse, unit creation, diplomacy defaults, visibility updates, and
   player-visible notifications.
-- **Regression coverage:** Add a turn-phase integration test that enables
-  barbarians and verifies a successful spawn, persisted barbarian units, and
-  hostile relations with regular players.
+- **Regression coverage:** `BarbarianManager.test.ts` covers wilderness land
+  spawning, onset gating, leader creation, and embarked sea groups;
+  `RandomEventsManager.test.ts` covers the random-events phase integration.
 
 ### GP-003 — City rally points cannot be set or applied
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Cities, production, unit orders, client city management
 - **Observed behavior:** The city interface has a rally-point data shape and
   display path, but every city response reports no rally point and newly
@@ -115,10 +119,11 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Reproduction:** Attempt to configure or inspect a city's rally point. No
   server action exists to save orders, and the city payload always contains an
   undefined rally point.
-- **Current implementation:** `CityDataService` hardcodes
-  `rallyPoint: undefined`. There are no matching server handlers, city-manager
-  methods, persistence fields, or production-completion hooks for rally-point
-  orders.
+- **Current implementation:** Cities persist a validated rally point in the
+  `rally_point` field. City management exposes set/clear controls and client
+  state includes the configured point. Production completion applies a Go To
+  order to the new unit; non-persistent points are consumed once, while
+  persistent points remain active. Ownership transfer clears the point.
 - **Reference behavior:** Freeciv accepts city rally-point orders, sends them
   to the client, and copies the configured orders to newly created units.
   Non-persistent rally points are cleared after use; persistent rally points
@@ -135,9 +140,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Expected outcome:** Add authoritative rally-order storage and validation,
   client controls, persistence, production-completion order assignment, and
   persistent/non-persistent lifecycle behavior.
-- **Regression coverage:** Add server tests for setting, clearing, persisting,
-  and applying rally points to produced units, plus a client test for the city
-  control flow.
+- **Regression coverage:** `CityManager.test.ts` covers storing and consuming a
+  non-persistent point; `UnitManager.test.ts` covers applying and persisting the
+  generated movement order. Client type-check covers the city control flow.
 
 ### GP-004 — Storm random movement is a no-op
 
@@ -333,18 +338,18 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-011 — Enemy troops do not block a city from working occupied tiles
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Cities, citizen management, tile occupation, war, unit-class flags
 - **Observed behavior:** A city can continue working and collecting output from
   a tile occupied by a hostile military unit.
 - **Reproduction:** Assign a citizen to a non-center city tile, move an enemy
   land unit onto that tile during war, and process city output. The assignment
   remains usable and its output is retained.
-- **Current implementation:** Workable tiles expose an `isBlocked` field and
-  citizen allocation respects it, but production code initializes the field to
-  `false` and no authoritative unit movement, diplomacy, or city-refresh path
-  derives it from hostile occupants. The `DoesntOccupyTile` class flag is
-  loaded but is not used for city tile availability.
+- **Current implementation:** `CityTileManagementService` refreshes
+  `isBlocked` from the authoritative occupancy provider before output
+  calculation. `GameManager` supplies war-state and unit-type checks, ignores
+  `DoesntOccupyTile` units, and refreshes affected cities when units move,
+  leave, are destroyed, or ownership changes.
 - **Reference behavior:** Freeciv's city-work validation treats a tile as
   occupied when it contains a unit belonging to a player at war, except for
   unit classes with `DoesntOccupyTile`. The `civ2civ3` Missile, Air, Small
@@ -361,9 +366,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Expected outcome:** Recompute workability when hostile units enter or leave
   a city radius and when diplomacy changes; unassign blocked workers, refresh
   city output, and exempt non-occupying unit classes.
-- **Regression coverage:** Add city-output tests for hostile land occupation,
-  allied and peaceful units, an enemy air or missile unit with
-  `DoesntOccupyTile`, unit departure/destruction, and war-state changes.
+- **Regression coverage:** `CityManager.test.ts` covers blocking and reopening a
+  workable tile as occupancy changes; the lifecycle wiring refreshes affected
+  city tiles on authoritative unit movement events.
 
 ### GP-012 — Losing a GameLoss unit does not eliminate its owner
 
@@ -505,13 +510,13 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-017 — Field units avoid war-unhappiness while stationed at home
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Happiness, military units, unit support
 - **Observed behavior:** A military unit in its home city never contributes
   war unhappiness, even when its type has the `civ2civ3` `FieldUnit` flag.
-- **Current implementation:** `UnitSupportManager` adds military unhappiness
-  only when `isMilitaryUnit && isAwayFromHome`; its support-data shape does not
-  carry unit flags.
+- **Current implementation:** Support data now carries `isFieldUnit` from the
+  ruleset unit flags, and `UnitSupportManager` applies military unhappiness
+  when a military unit is away from home or has `FieldUnit`.
 - **Reference behavior:** Freeciv applies aggressive-unit unhappiness when the
   unit is away from home _or_ has `FieldUnit`. `civ2civ3` Bombers, Stealth
   Bombers, and Nuclear units use that flag.
@@ -523,8 +528,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/common/unit.c` (`UTYF_FIELDUNIT`)
 - **Expected outcome:** Carry ruleset flags into support accounting and apply
   government/effect-driven unhappiness to FieldUnits regardless of location.
-- **Regression coverage:** Compare ordinary military and FieldUnit upkeep at
-  home, away, and under governments that suppress war unhappiness.
+- **Regression coverage:** UnitSupportManager tests cover home-stationed
+  FieldUnits alongside the existing away-from-home and government-content
+  cases.
 
 ### GP-018 — Ordinary escorts do not protect a Barbarian Leader from ransom
 
@@ -552,17 +558,17 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-019 — Direct unit production selection bypasses build requirements
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** City production, technology, unit placement, ruleset requirements
 - **Observed behavior:** A direct production request can select a unit that the
   city is not allowed to build.
 - **Reproduction:** Select a late-game unit without its technology, a
   `NoBuild` unit, or a naval unit in an inland city through the authoritative
   production endpoint.
-- **Current implementation:** `CityManager.setCityProduction()` verifies that
-  a requested unit identifier exists but does not call `canCityQueueItem()`.
-  Building selection and turn completion do use that stricter buildability
-  check, so this bypass is specific to direct unit selection.
+- **Current implementation:** `CityManager.setCityProduction()` and worklist
+  insertion use the shared `canCityQueueItem()` evaluator, rejecting missing
+  technologies, `NoBuild`, `BarbarianOnly`, population costs, duplicate
+  buildings, wonder uniqueness, and spaceship limits before persisting a choice.
 - **Reference behavior:** Freeciv evaluates the complete requirement vector,
   obsolescence, unit flags, uniqueness, build slots, and native terrain near
   the city before accepting or completing production.
@@ -575,9 +581,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
     `can_city_build_improvement_*`)
 - **Expected outcome:** Use one authoritative buildability evaluator for direct
   selection, worklists, AI choices, restoration, and completion.
-- **Regression coverage:** Test technology, `NoBuild`, `BarbarianOnly`,
-  obsolescence, `Unique`, and inland naval production through direct selection,
-  queue selection, and turn completion.
+- **Regression coverage:** `CityManager.test.ts` covers direct rejection of a
+  technology-gated unit and a `NoBuild` unit; shared queue and completion tests
+  cover the same evaluator for worklists and active production.
 
 ### GP-020 — City names are neither player-unique nor ruleset-driven
 
@@ -613,9 +619,14 @@ you declare war first.` Civilian/border-entry units may enter permitted
   both supported by the city and within one tile. Supported units farther away
   keep a home-city ID that now points to an enemy city, while units physically
   inside the city but supported elsewhere remain behind.
-- **Current implementation:** `GameManager` performs a narrow post-incitement
-  filter. `CityCaptureService.transferCity()` changes city ownership and trade
-  state but has no general unit-transfer/rehoming phase.
+- **Current implementation:** `CityManager` invokes one ownership-change hook
+  for conquest and peaceful transfer. `UnitManager.reconcileCityOwnership()`
+  transfers units on the city tile and nearby supported units, rehomes
+  supported units found in another friendly city, and removes supported units
+  outside the one-tile transfer radius. City-tile transports now transfer their
+  compatible cargo stacks with the transport and persist the ownership/home
+  city changes. Incitement retains its existing defector handling for
+  mocked/legacy transfer paths.
 - **Reference behavior:** Freeciv transfers appropriate units in and near the
   city, rehomes supported units in other friendly cities, and removes units
   that cannot legally remain supported after transfer.
@@ -628,19 +639,22 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/server/citytools.c` (`transfer_city_units`)
 - **Expected outcome:** Centralize unit disposition for conquest, incitement,
   gifts, and scripted transfer, including cargo and home-city persistence.
-- **Regression coverage:** Cover units in the city, nearby, far away, homeless,
-  supported elsewhere, transported, and allied.
+- **Regression coverage:** `UnitManager.test.ts` covers city-tile units,
+  nearby supported units, far-away supported units, homeless units, supported
+  units in another friendly city, and transported cargo stacks. Allied-stack
+  behavior remains to be covered by an integration fixture.
 
 ### GP-022 — Losing a capital neither relocates the Palace nor cancels its spaceship
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Capital loss, wonders, spaceship, city destruction and capture
 - **Observed behavior:** When a capital is captured or destroyed, the player
   can be left without a Palace while a launched or assembling spaceship
   remains unaffected.
-- **Current implementation:** `CityManager` explicitly notes that
-  `SaveSmallWonder`/`savepalace` are not modeled. No capital-loss path resets
-  spaceship state.
+- **Current implementation:** Capital loss runs one authoritative hook for
+  capture and destruction. It relocates the Palace to the owner's remaining
+  city when available and invokes the game lifecycle callback that clears and
+  persists the owner's spaceship state before victory evaluation.
 - **Reference behavior:** The `civ2civ3` Palace is a `SaveSmallWonder`; with the
   default `savepalace` setting it is rebuilt for free in another city.
   Capital loss also destroys the player's started or launched spaceship.
@@ -654,19 +668,21 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/server/citytools.c`
 - **Expected outcome:** Add a single capital-loss hook that relocates saved
   small wonders and resets spaceship state before victory evaluation.
-- **Regression coverage:** Test capture and destruction with one/no remaining
-  city, savepalace enabled/disabled, and assembled/launched spaceships.
+- **Regression coverage:** `CityManager.test.ts` covers Palace relocation and
+  the capital-loss callback during destruction; lifecycle callbacks persist the
+  spaceship reset for live and recovered games.
 
 ### GP-023 — City selling and rush-buy limits can be bypassed
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** City economy, building sales, rush production, turn state
 - **Observed behavior:** A city can sell multiple improvements in one turn.
   After changing production, it can also rush-buy again, and a newly founded
   city can buy production immediately.
-- **Current implementation:** City state has no `did_sell` or `did_buy` flag.
-  `CityProductionService.canBuyProduction()` explicitly allows repeated buys
-  and does not check the founding turn.
+- **Current implementation:** Cities persist `didSellTurn` and `didBuyTurn`.
+  The authoritative manager rejects a second sale or rush-buy in the same
+  turn, blocks rush-buying on the founding turn, saves successful mutations,
+  and resets stale markers at turn processing.
 - **Reference behavior:** Freeciv allows one sale and one effective rush-buy
   per city per turn and forbids buying in a city founded that turn.
 - **CivJS references:**
@@ -677,8 +693,8 @@ you declare war first.` Civilian/border-entry units may enter permitted
     (`test_player_sell_building_now`, `really_handle_city_buy`)
 - **Expected outcome:** Persist turn-scoped sale/buy markers, enforce them in
   every endpoint, and reset them in authoritative turn processing.
-- **Regression coverage:** Test second sale, production changes after buying,
-  newly founded cities, no-op buys, reloads, and next-turn reset.
+- **Regression coverage:** `CityManager.test.ts` covers second-sale rejection,
+  one rush-buy per turn, next-turn availability, and newly founded-city denial.
 
 ### GP-024 — Fortified units lose fortification at every turn start
 
@@ -704,14 +720,15 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-025 — Sentry units never wake when an enemy is sighted
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Unit orders, visibility, turn focus
 - **Observed behavior:** Sentry sets `sentryUntil = enemy_sighted`, but no
   movement or visibility path consumes that condition, so the unit remains
   inactive and is not surfaced when enemies approach.
-- **Current implementation:** The field is written by
-  `UnitManager.processSentryOrder()` and read mainly for focus/AI filtering;
-  only `turn_start` sentries are cleared.
+- **Current implementation:** `UnitManager.wakeSentriesForUnit()` evaluates
+  hostile-player state, transport status, map distance, and the sentry's
+  vision radius. The authoritative unit lifecycle path invokes it when units
+  are created, moved, or change owners.
 - **Reference behavior:** Freeciv wakes sentried units when hostile units
   become visible nearby and interrupts orders when danger requires attention.
 - **CivJS references:**
@@ -722,8 +739,8 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/server/unittools.c` (sentry wake-up processing)
 - **Expected outcome:** Evaluate sentry wake conditions after movement,
   visibility, diplomacy, and unit creation, then notify/focus the owner.
-- **Regression coverage:** Test hostile, allied, hidden, transported, and
-  out-of-range units plus save/reload.
+- **Regression coverage:** `UnitManager.test.ts` covers a hostile unit entering
+  a sentry's vision and clearing its sentry condition.
 
 ### GP-026 — Espionage ignores repeat-theft state and target-selection rules
 
@@ -733,9 +750,11 @@ you declare war first.` Civilian/border-entry units may enter permitted
   alphabetically first available technology; sabotage always removes the
   alphabetically first non-Palace building. Cities do not remember prior
   thefts, so repeat attempts never become harder or impossible.
-- **Current implementation:** `GameManager` sorts candidate technologies and
-  takes index zero; `CityManager.sabotageCityBuilding()` does the same for
-  buildings. `CityState` has no theft counter.
+- **Current implementation:** Untargeted technology and building selection now
+  use random eligible candidates, and city theft counts are persisted by
+  `CityManager`. A non-Spy Diplomat is blocked from repeating technology theft
+  against the same city. Targeted technology/improvement action variants and
+  theft-count mission difficulty are still not modeled.
 - **Reference behavior:** Untargeted actions choose randomly from eligible
   targets, targeted Spy actions accept a selected technology/improvement, and
   each city's theft count increases later mission difficulty (ordinary
@@ -750,9 +769,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Expected outcome:** Model targeted and untargeted action variants,
   eligibility and random selection, persisted theft history, mission
   difficulty, and player target-selection packets.
-- **Regression coverage:** Test first/repeat theft by Diplomat and Spy,
-  targeted/untargeted theft, production sabotage, indestructible buildings,
-  and deterministic seeded random selection.
+- **Regression coverage:** `GameManager.espionage.test.ts` covers first/repeat
+  theft behavior for Diplomats and Spies. Targeted/untargeted theft,
+  production sabotage, indestructible buildings, difficulty scaling, and
+  deterministic seeded random selection remain to be covered.
 
 ### GP-027 — Governments can be adopted without their required technology
 
@@ -781,7 +801,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-028 — Worker actions bypass ruleset enablers and extra requirements
 
-- **Status:** Planned
+- **Status:** Confirmed gap
 - **Area:** Unit context menu, workers, terrain alteration, technology, extras
 - **Observed behavior:** Basic terrain checks are enforced, but actions such as
   railroad, oil-well mining, fortress, and airbase construction do not evaluate
@@ -791,13 +811,13 @@ you declare war first.` Civilian/border-entry units may enter permitted
   accept the resulting extra/activity.
 - **Current implementation:** `ActionSystem` uses hand-written checks for
   movement, terrain times, adjacent irrigation sources, and a few unit flags.
-  It has no research context and does not evaluate extra build requirements.
-  `GameBroadcastManager` sends only coarse unit-type capabilities;
-  `RulesetActionsService` deliberately considers static unit facts only; and
-  `UnitContextMenu` hard-codes road, railroad, irrigation, mine, transform,
-  and pollution-cleanup entries for every worker-capable unit. The client
-  therefore cannot distinguish an action that the unit type may eventually do
-  from one this unit may perform now.
+  It has no general research context and does not evaluate all extra build
+  requirements. `GameBroadcastManager` now adds an authoritative
+  `availableWorkerActions` projection for the unit's current tile, and
+  `UnitContextMenu` uses it to hide currently illegal worker actions. The
+  projection is presentation-only; server execution still revalidates the
+  request. Full ruleset-enabler and extra-requirement coverage remains
+  incomplete.
 - **Reference behavior:** Freeciv combines action enablers, `TerrainAlter`
   capabilities, extra requirements, technologies, unit flags, and tile state.
   For example, special oil mining and advanced extras have technology gates.
@@ -846,14 +866,15 @@ you declare war first.` Civilian/border-entry units may enter permitted
      that can alter availability. Do not trust a stale client result at action
      execution time.
 
-- **Regression coverage:** Add evaluator/service tests for each worker action
-  before and after its technology, legal/illegal terrain, adjacency,
-  duplicate/conflicting extras, unit flags, movement, and research-name
-  normalization. Add execution tests proving unavailable actions are rejected
-  even if requested directly. Add unit-packet tests for owner-only availability
-  updates after research and tile changes, and client tests asserting that a
-  worker's context menu hides unavailable entries while retaining eligible
-  target-selection actions.
+- **Regression coverage:** `UnitManager.test.ts` and
+  `GameBroadcastManager.test.ts` cover the existing authoritative worker
+  checks; `UnitContextMenu.specialActions.test.tsx` verifies the client hides
+  actions absent from the server projection. Add evaluator/service tests for
+  each worker action before and after its technology, legal/illegal terrain,
+  adjacency, duplicate/conflicting extras, unit flags, movement, and
+  research-name normalization. Add execution tests proving unavailable
+  actions are rejected even if requested directly, and packet tests for
+  availability changes after research and tile changes.
 
 ### GP-029 — Multiple workers cannot cooperate on the same activity
 
@@ -862,8 +883,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Observed behavior:** Each worker maintains an independent integer
   `turnsRemaining`; two workers building the same road or mine do not combine
   work and finish sooner.
-- **Current implementation:** Activity progress is stored inside each unit's
-  order and decremented independently. Completion simply adds the extra.
+- **Current implementation:** Same-player workers with compatible activity
+  orders on the same tile now form one authoritative work group. Progress is
+  calculated in shared work units, with Engineers contributing at double rate;
+  completion mutates the tile once and clears every participating order.
 - **Reference behavior:** Freeciv stores accumulated activity work and sums the
   activity rates of compatible units on a tile, allowing workers to cooperate.
 - **CivJS references:**
@@ -874,8 +897,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/common/clientutils.c`
 - **Expected outcome:** Track shared compatible progress (or equivalent work
   points), account for unit/veteran rates, and resolve completion once.
-- **Regression coverage:** Test one Worker, two Workers, Worker plus Engineer,
-  a unit leaving mid-project, conflicting activities, and reload.
+- **Regression coverage:** `UnitManager.test.ts` covers one-worker and
+  two-worker road completion. Worker/Engineer rates, departure and joining,
+  conflicting activities, and reload persistence remain to be covered.
 
 ### GP-030 — Several goody-hut outcomes use different game consequences
 
@@ -885,8 +909,12 @@ you declare war first.` Civilian/border-entry units may enter permitted
   outright and spawns no horde. A failed free-city roll gives gold instead of
   nomad settlers, and mercenary selection filters by the explorer's unit class
   rather than using the `HutTech`/`Hut` role fallback sequence.
-- **Current implementation:** `UnitManager.resolveHutReward()` implements a
-  fourteen-way roll but substitutes these simplified consequences.
+- **Current implementation:** `UnitManager.resolveHutReward()` keeps the
+  fourteen-way roll, uses the ruleset `HutTech` then `Hut` role fallback for
+  mercenaries, creates nomad settlers when a city roll cannot found a city, and
+  delegates the barbarian roll to `BarbarianManager` with protected-tile and
+  GameLoss checks. Hut outcomes now emit player-scoped notifications for gold,
+  technology, mercenaries, settlers, map discovery, and barbarian results.
 - **Reference behavior:** `civ2civ3` inherits Freeciv's default hut script,
   which unleashes barbarians unless protected by nearby-city/GameLoss/
   disabled-barbarian rules, creates a city or settlers based on terrain, and
@@ -898,10 +926,14 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/data/default/default.lua`
   - `reference/freeciv/server/unittools.c` (`unit_enter_hut`)
 - **Expected outcome:** Implement each scripted outcome and its eligibility,
-  fallback, barbarian creation, visibility, and notification behavior.
-- **Regression coverage:** Seed all fourteen rolls, including protected
-  barbarian outcomes, poor city terrain, unavailable mercenaries, and GameLoss
-  explorers.
+  fallback, barbarian creation, visibility, and notification behavior. The
+  remaining gap is seeded full-roll coverage plus exact reference probability
+  and disabled-barbarian/mercenary settings.
+- **Regression coverage:** `UnitManager.test.ts` covers the horde delegation,
+  protected explorer survival, nomad fallback, and player-facing hut
+  notification. Full fourteen-roll seeded
+  coverage, unavailable mercenaries, and integration visibility/notification
+  behavior remain to be covered.
 
 ### GP-031 — Eligible city captures never create partisans
 
@@ -909,9 +941,12 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Area:** City capture, partisans, governments, ruleset scripts
 - **Observed behavior:** Capturing an eligible city never spawns partisan units
   for the losing player.
-- **Current implementation:** No capture hook evaluates `Inspire_Partisans`;
-  `EffectsManager` has no consumer even though the converted `civ2civ3` data
-  retains the effect.
+- **Current implementation:** City ownership changes now carry a conquest
+  reason. The lifecycle callback evaluates the retained `Inspire_Partisans`
+  effects against the original owner, player/world technologies, government,
+  and the ruleset Partisan unit, then places a seeded size-dependent group on
+  legal surrounding land tiles and emits the player-facing loss notification.
+  Incitement and other peaceful transfers do not trigger the conquest behavior.
 - **Reference behavior:** `civ2civ3` inherits the default partisan script,
   which evaluates local support, technologies, government, and
   `Inspire_Partisans`, then places a size-dependent number of Partisan-role
@@ -926,8 +961,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/data/civ2civ3/effects.ruleset`
 - **Expected outcome:** Evaluate the retained effect and execute the partisan
   behavior after conquest with legal placement and player notifications.
-- **Regression coverage:** Test eligible governments/techs, original versus
-  non-original owner, city sizes, no legal tiles, and non-conquest transfer.
+- **Regression coverage:** `UnitManager.test.ts` covers Partisan creation on
+  surrounding legal tiles. Effect eligibility, original versus non-original
+  owner, city-size counts, no-legal-tile fallback, and non-conquest transfer
+  still need integration coverage.
 
 ### GP-032 — Pollution never accumulates into global warming
 
@@ -937,8 +974,12 @@ you declare war first.` Civilian/border-entry units may enter permitted
   polluted tiles indefinitely never raises a warming risk or transforms world
   terrain.
 - **Current implementation:** Runtime references to warming are limited to map
-  generation terminology and ruleset help text; turn processing has no global
-  warming or nuclear-winter state machine.
+  generation terminology and ruleset help text; turn processing now includes a
+  persistent `ClimateManager` that accumulates pollution/fallout pressure,
+  applies deterministic thresholded warming/cooling transformations from the
+  active terrain ruleset, clears transformed pollution/fallout, broadcasts the
+  changed map, and emits a climate event. Disabled/option-specific settings
+  and finer reference probability tuning remain unresolved.
 - **Reference behavior:** Freeciv accumulates warming/cooling pressure from
   pollution/fallout and periodically applies ruleset terrain transformations,
   with global notifications and persistent risk state.
@@ -952,9 +993,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/data/civ2civ3/terrain.ruleset`
 - **Expected outcome:** Add persistent global climate pressure, configured
   checks, terrain transformations, map/city refresh, and notifications.
-- **Regression coverage:** Use deterministic thresholds to test accumulation,
-  cleanup lag, warming, cooling, terrain eligibility, persistence, and
-  disabled settings.
+- **Regression coverage:** `ClimateManager.test.ts` covers persisted pressure,
+  warming/cooling thresholds, terrain eligibility, and cleanup of the triggering
+  extra. Add disabled-setting and full turn/recovery integration coverage.
 
 ### GP-033 — Roads on desert and tundra tiles provide no trade
 

@@ -62,6 +62,28 @@ describe('UnitManager', () => {
   });
 
   describe('unit creation', () => {
+    it('wakes sentried units when a hostile unit enters their vision', async () => {
+      unitManager.setHostilePlayersProvider(playerId =>
+        playerId === 'player-123' ? new Set(['player-456']) : new Set()
+      );
+      const sentry = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      const hostile = await unitManager.createUnit('player-456', 'warriors', 11, 10);
+      sentry.sentryUntil = 'enemy_sighted';
+
+      await unitManager.wakeSentriesForUnit(hostile);
+
+      expect(sentry.sentryUntil).toBeUndefined();
+    });
+
+    it('applies a city rally point as a persisted movement order', async () => {
+      const unit = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+
+      await unitManager.applyRallyPoint(unit, { x: 12, y: 10 });
+
+      expect(unit.orders).toEqual([{ type: 'move', targetX: 12, targetY: 10 }]);
+      expect(mockDbProvider.getDatabase().update).toHaveBeenCalled();
+    });
+
     it('records the authoritative turn when creating a unit', async () => {
       unitManager.setCurrentTurnProvider(() => 7);
 
@@ -196,6 +218,32 @@ describe('UnitManager', () => {
       expect(worker.orders).toEqual([]);
     });
 
+    it('combines compatible workers into one shared activity', async () => {
+      const first = await unitManager.createUnit('player-123', 'worker', 10, 10);
+      const second = await unitManager.createUnit('player-123', 'worker', 10, 10);
+
+      await unitManager.executeUnitAction(
+        first.id,
+        ActionType.BUILD_ROAD,
+        undefined,
+        undefined,
+        'player-123'
+      );
+      await unitManager.executeUnitAction(
+        second.id,
+        ActionType.BUILD_ROAD,
+        undefined,
+        undefined,
+        'player-123'
+      );
+
+      await unitManager.processUnitOrders('player-123');
+
+      expect(tile.hasRoad).toBe(true);
+      expect(first.orders).toEqual([]);
+      expect(second.orders).toEqual([]);
+    });
+
     it('treats fallout as a cleanable extra and removes it on completion', async () => {
       tile.improvements = ['fallout'];
       const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);
@@ -229,6 +277,23 @@ describe('UnitManager', () => {
 
       expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_IRRIGATION)).toBe(false);
       expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_ROAD)).toBe(true);
+    });
+
+    it('projects only currently executable worker actions', async () => {
+      const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(unitManager.getAvailableWorkerActions(worker.id)).toEqual(
+        expect.arrayContaining([ActionType.BUILD_ROAD, ActionType.PLANT])
+      );
+      expect(unitManager.getAvailableWorkerActions(worker.id)).not.toContain(
+        ActionType.BUILD_RAILROAD
+      );
+      expect(unitManager.getAvailableWorkerActions(worker.id)).not.toContain(
+        ActionType.BUILD_IRRIGATION
+      );
+
+      tile.hasRoad = true;
+      expect(unitManager.getAvailableWorkerActions(worker.id)).toContain(ActionType.BUILD_RAILROAD);
     });
 
     it('requires a cardinal water source before starting classic irrigation', async () => {
@@ -331,6 +396,73 @@ describe('UnitManager', () => {
   });
 
   describe('Milestone 14 city actions', () => {
+    it('creates Partisans on legal surrounding land tiles', async () => {
+      const created = await unitManager.createPartisans('player-456', { x: 10, y: 10 }, 4, 1);
+
+      expect(created).toHaveLength(4);
+      expect(created.every(unit => unit.playerId === 'player-456')).toBe(true);
+      expect(created.every(unit => unit.unitTypeId === 'partisan')).toBe(true);
+      expect(created.every(unit => unit.x !== 10 || unit.y !== 10)).toBe(true);
+    });
+
+    it('reconciles units when a city changes owner', async () => {
+      unitManager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, undefined, {
+        foundCity: jest.fn(),
+        requestPath: jest.fn(),
+        broadcastUnitMoved: jest.fn(),
+        getCityAt: (x, y) =>
+          x === 12 && y === 10 ? { id: 'city-2', playerId: 'player-456' } : null,
+      });
+      const inside = await unitManager.createUnit('player-456', 'warriors', 10, 10, 'city-1');
+      const nearby = await unitManager.createUnit('player-456', 'warriors', 11, 10, 'city-1');
+      const farAway = await unitManager.createUnit('player-456', 'warriors', 20, 20, 'city-1');
+      const inAnotherCity = await unitManager.createUnit(
+        'player-456',
+        'warriors',
+        12,
+        10,
+        'city-1'
+      );
+      const homeless = await unitManager.createUnit('player-456', 'warriors', 10, 10);
+
+      await unitManager.reconcileCityOwnership(
+        { id: 'city-1', x: 10, y: 10 },
+        'player-456',
+        'player-123'
+      );
+
+      expect(inside).toMatchObject({ playerId: 'player-123', homeCityId: 'city-1' });
+      expect(nearby).toMatchObject({ playerId: 'player-123', homeCityId: 'city-1' });
+      expect(homeless).toMatchObject({ playerId: 'player-123', homeCityId: undefined });
+      expect(inAnotherCity).toMatchObject({ playerId: 'player-456', homeCityId: 'city-2' });
+      expect(unitManager.getUnit(farAway.id)).toBeUndefined();
+    });
+
+    it('transfers transported stacks together with the city tile', async () => {
+      unitManager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, undefined, {
+        foundCity: jest.fn(),
+        requestPath: jest.fn(),
+        broadcastUnitMoved: jest.fn(),
+        getCityAt: jest.fn(() => null),
+      });
+      const transport = await unitManager.createUnit('player-456', 'trireme', 10, 10, 'city-1');
+      const cargo = await unitManager.createUnit('player-456', 'warriors', 10, 10, 'city-1');
+      await unitManager.loadUnitOntoTransport(transport.id, cargo.id);
+
+      await unitManager.reconcileCityOwnership(
+        { id: 'city-1', x: 10, y: 10 },
+        'player-456',
+        'player-123'
+      );
+
+      expect(transport).toMatchObject({ playerId: 'player-123', homeCityId: 'city-1' });
+      expect(cargo).toMatchObject({
+        playerId: 'player-123',
+        homeCityId: 'city-1',
+        transportedBy: transport.id,
+      });
+    });
+
     it('broadcasts settler destruction after a successful found-city action', async () => {
       const broadcastUnitDestroyed = jest.fn();
       const foundCity = jest.fn().mockResolvedValue('city-1');
@@ -2243,6 +2375,7 @@ describe('UnitManager', () => {
 
     it('resolves and persists a hut reward when movement enters the tile', async () => {
       const map = makeMap(true);
+      const broadcastHutEvent = jest.fn();
       const manager = new UnitManager(
         gameId,
         mockDbProvider,
@@ -2254,6 +2387,7 @@ describe('UnitManager', () => {
           requestPath: jest.fn(),
           broadcastUnitMoved: jest.fn(),
           broadcastMapChanged: jest.fn(),
+          broadcastHutEvent,
         },
         undefined,
         () => 0
@@ -2265,6 +2399,60 @@ describe('UnitManager', () => {
       expect(map.tiles.get('11,10').improvements).not.toContain('Hut');
       expect(map.manager.getMapData).toHaveBeenCalled();
       expect((mockDbProvider.getDatabase() as any).update).toHaveBeenCalled();
+      expect(broadcastHutEvent).toHaveBeenCalledWith(
+        gameId,
+        'player-123',
+        'Your unit found 25 gold in a goody hut.'
+      );
+    });
+
+    it('delegates the barbarian hut roll without killing a protected explorer', async () => {
+      const spawnHutBarbarians = jest.fn().mockResolvedValue(true);
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          spawnHutBarbarians,
+        },
+        undefined,
+        () => 10 / 14
+      );
+      const explorer = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      await (manager as any).resolveHutReward(explorer);
+
+      expect(spawnHutBarbarians).toHaveBeenCalledWith('player-123', 10, 10);
+      expect(manager.getUnit(explorer.id)).toBeDefined();
+    });
+
+    it('creates nomad settlers when a hut city roll cannot found a city', async () => {
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: jest.fn().mockRejectedValue(new Error('Tile cannot host a city')),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+        },
+        undefined,
+        () => 11 / 14
+      );
+      const explorer = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      await (manager as any).resolveHutReward(explorer);
+
+      expect(
+        manager.getPlayerUnits('player-123').some(unit => unit.unitTypeId === 'settlers')
+      ).toBe(true);
     });
   });
 

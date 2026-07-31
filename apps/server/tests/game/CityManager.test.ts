@@ -348,6 +348,18 @@ describe('CityManager', () => {
       });
     });
 
+    it('relocates the Palace and notifies the owner when a capital is destroyed', async () => {
+      const capitalLoss = jest.fn();
+      cityManager.setCallbacks({ onCapitalLost: capitalLoss });
+      const capital = await cityManager.foundCity(10, 10, 'Capital', 'player-123');
+      const replacement = await cityManager.foundCity(20, 20, 'Second', 'player-123');
+
+      await expect(cityManager.destroyCity(capital.id)).resolves.toBe(true);
+
+      expect(replacement.buildings).toContain('palace');
+      expect(capitalLoss).toHaveBeenCalledWith('player-123');
+    });
+
     it('sells improvements for the classic shield cost and credits the treasury', async () => {
       const city = await cityManager.foundCity(10, 10, 'Capital', 'player-123');
       city.buildings.push('granary');
@@ -359,6 +371,54 @@ describe('CityManager', () => {
       ).resolves.toEqual({ success: true, goldReceived: 40 });
       expect(addGold).toHaveBeenCalledWith('player-123', 40);
       expect(city.buildings).not.toContain('granary');
+
+      city.buildings.push('temple', 'granary');
+      await expect(
+        cityManager.sellBuildingForPlayer(city.id, 'temple', 'player-123')
+      ).resolves.toEqual(
+        expect.objectContaining({
+          success: false,
+          reason: 'City has already sold an improvement this turn',
+        })
+      );
+    });
+
+    it('allows only one rush buy per city turn and blocks newly founded cities', async () => {
+      let turn = 2;
+      cityManager.setCurrentTurnProvider(() => turn);
+      const city = await cityManager.foundCity(10, 10, 'Capital', 'player-123');
+      city.currentProduction = 'warriors';
+      city.productionType = 'unit';
+      city.productionStock = 1;
+      city.founded = 1;
+      cityManager.setTreasuryProviders(
+        async () => 1000,
+        async () => true
+      );
+
+      await expect(cityManager.buyProduction(city.id, 'player-123')).resolves.toMatchObject({
+        success: true,
+      });
+      await expect(cityManager.buyProduction(city.id, 'player-123')).resolves.toMatchObject({
+        success: false,
+        reason: 'City has already rushed production this turn',
+      });
+
+      turn = 3;
+      city.currentProduction = 'granary';
+      city.productionType = 'building';
+      city.productionStock = 1;
+      await expect(cityManager.buyProduction(city.id, 'player-123')).resolves.toMatchObject({
+        success: true,
+      });
+
+      const newCity = await cityManager.foundCity(20, 20, 'New City', 'player-123');
+      newCity.currentProduction = 'warriors';
+      newCity.productionType = 'unit';
+      newCity.productionStock = 1;
+      expect((await cityManager.buyProduction(newCity.id, 'player-123')).reason).toBe(
+        'Cannot rush production in a newly founded city'
+      );
     });
 
     it('rejects a city two tiles from another player city', async () => {
@@ -504,6 +564,31 @@ describe('CityManager', () => {
       const updatedCity = cityManager.getCity(city.id);
       expect(updatedCity!.currentProduction).toBe('granary');
       expect(updatedCity!.productionType).toBe('building');
+    });
+
+    it('rejects direct unit production when ruleset requirements are unmet', async () => {
+      await expect(
+        cityManager.setCityProduction(city.id, 'unit', 'riflemen', 'player-123')
+      ).rejects.toThrow('Unit is not currently available: riflemen');
+      await expect(
+        cityManager.setCityProduction(city.id, 'unit', 'diplomat', 'player-123')
+      ).rejects.toThrow('Unit is not currently available: diplomat');
+    });
+
+    it('stores rally points and consumes non-persistent orders once', async () => {
+      await cityManager.setCityRallyPoint(city.id, 'player-123', {
+        x: 12,
+        y: 10,
+        persistent: false,
+      });
+
+      expect(city.rallyPoint).toEqual({ x: 12, y: 10, persistent: false });
+      await expect(cityManager.consumeCityRallyPoint(city.id)).resolves.toEqual({
+        x: 12,
+        y: 10,
+        persistent: false,
+      });
+      expect(city.rallyPoint).toBeUndefined();
     });
 
     it('should process city turns', async () => {
@@ -672,6 +757,27 @@ describe('CityManager', () => {
   });
 
   describe('services access', () => {
+    it('blocks and reopens workable tiles when enemy occupancy changes', async () => {
+      const city = await cityManager.foundCity(10, 10, 'Target', 'player-123');
+      const tile = cityManager.getWorkableTiles(city.id)?.find(candidate => !candidate.isCenter);
+      expect(tile).toBeDefined();
+
+      let occupied = true;
+      cityManager.setTileOccupancyProvider((candidateCity, candidateTile) =>
+        candidateCity.id === city.id && candidateTile.x === tile!.x && candidateTile.y === tile!.y
+          ? occupied
+          : false
+      );
+
+      cityManager.calculateCityOutputs(city.id);
+      expect(tile?.isBlocked).toBe(true);
+      expect(tile?.isWorked).toBe(false);
+
+      occupied = false;
+      cityManager.refreshTileOccupancy(tile!.x, tile!.y);
+      expect(tile?.isBlocked).toBe(false);
+    });
+
     it('should provide access to specialized services', async () => {
       expect(cityManager.getTileManagementService()).toBeDefined();
       expect(cityManager.getBuildingService()).toBeDefined();

@@ -23,6 +23,8 @@ import type { MapManager } from '@game/managers/MapManager';
 interface CityAtLocation {
   id: string;
   playerId: string;
+  x?: number;
+  y?: number;
   buildings?: string[];
   population?: number;
 }
@@ -243,6 +245,8 @@ export class UnitManager {
     ) => Promise<string[]>;
     grantHutTechnology?: (playerId: string) => Promise<string | null>;
     revealHutMap?: (playerId: string, x: number, y: number) => string[];
+    spawnHutBarbarians?: (playerId: string, x: number, y: number) => Promise<boolean>;
+    broadcastHutEvent?: (gameId: string, playerId: string, message: string) => void;
     broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
   };
   private playerTechsProvider: (playerId: string) => Set<string> = () => new Set();
@@ -332,6 +336,8 @@ export class UnitManager {
       ) => Promise<string[]>;
       grantHutTechnology?: (playerId: string) => Promise<string | null>;
       revealHutMap?: (playerId: string, x: number, y: number) => string[];
+      spawnHutBarbarians?: (playerId: string, x: number, y: number) => Promise<boolean>;
+      broadcastHutEvent?: (gameId: string, playerId: string, message: string) => void;
       broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
     },
     effectsManager?: EffectsManager,
@@ -434,6 +440,29 @@ export class UnitManager {
     this.alliedPlayersProvider = provider;
   }
 
+  /** Wake sentried units when a hostile unit enters their visible area. */
+  public async wakeSentriesForUnit(unit: Unit): Promise<void> {
+    if (!this.hostilePlayersProvider || unit.transportedBy) return;
+    const topology = (this.mapManager as Partial<MapManager> | undefined)?.getTopology?.();
+    for (const sentry of this.units.values()) {
+      if (
+        sentry.sentryUntil !== 'enemy_sighted' ||
+        sentry.transportedBy ||
+        !this.hostilePlayersProvider(sentry.playerId).has(unit.playerId)
+      ) {
+        continue;
+      }
+      const distance = topology
+        ? topology.mapDistance(sentry.x, sentry.y, unit.x, unit.y)
+        : Math.max(Math.abs(sentry.x - unit.x), Math.abs(sentry.y - unit.y));
+      const visionRadiusSq = this.unitTypes[sentry.unitTypeId]?.vision_radius_sq ?? 1;
+      if (distance * distance > visionRadiusSq) continue;
+
+      sentry.sentryUntil = undefined;
+      logger.info(`Unit ${sentry.id} woke from sentry duty after sighting ${unit.id}`);
+    }
+  }
+
   public setTileExtrasChangedCallback(
     callback: (change: {
       x: number;
@@ -460,6 +489,12 @@ export class UnitManager {
     provider: (playerId: string, x: number, y: number) => string[]
   ): void {
     if (this.gameManagerCallback) this.gameManagerCallback.revealHutMap = provider;
+  }
+
+  public setHutBarbarianProvider(
+    provider: (playerId: string, x: number, y: number) => Promise<boolean>
+  ): void {
+    if (this.gameManagerCallback) this.gameManagerCallback.spawnHutBarbarians = provider;
   }
 
   /**
@@ -552,6 +587,15 @@ export class UnitManager {
     logger.info(`Created unit ${unit.id} at (${x}, ${y})`);
 
     return unit;
+  }
+
+  async applyRallyPoint(unit: Unit, rallyPoint: { x: number; y: number }): Promise<void> {
+    unit.orders = [{ type: 'move', targetX: rallyPoint.x, targetY: rallyPoint.y }];
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ isAutomated: true, orders: unit.orders, currentOrder: 'move' })
+      .where(eq(units.id, unit.id));
   }
 
   private resolveTransportForCreation(
@@ -802,7 +846,7 @@ export class UnitManager {
     if (chance <= 4) return this.resolveHutGold(unit, chance);
     if (chance <= 7) return this.resolveHutTechnology(unit);
     if (chance <= 9) return this.resolveHutMercenary(unit);
-    if (chance === 10) return this.destroyUnit(unit.id);
+    if (chance === 10) return this.resolveHutBarbarians(unit);
     if (chance === 11 && this.gameManagerCallback?.foundCity) {
       return this.resolveHutSettlement(unit);
     }
@@ -812,23 +856,89 @@ export class UnitManager {
   private async resolveHutGold(unit: Unit, chance: number): Promise<void> {
     const gold = chance === 0 ? 25 : chance <= 3 ? 50 : 100;
     await this.changePlayerGold(unit.playerId, gold);
+    this.gameManagerCallback?.broadcastHutEvent?.(
+      this.gameId,
+      unit.playerId,
+      `Your unit found ${gold} gold in a goody hut.`
+    );
   }
 
   private async resolveHutTechnology(unit: Unit): Promise<void> {
     const technology = await this.gameManagerCallback?.grantHutTechnology?.(unit.playerId);
-    if (!technology) await this.changePlayerGold(unit.playerId, 25);
+    if (technology) {
+      this.gameManagerCallback?.broadcastHutEvent?.(
+        this.gameId,
+        unit.playerId,
+        `Your unit discovered the technology ${technology} in a goody hut.`
+      );
+    } else {
+      await this.changePlayerGold(unit.playerId, 25);
+      this.gameManagerCallback?.broadcastHutEvent?.(
+        this.gameId,
+        unit.playerId,
+        'The goody hut had no new technology; your unit found 25 gold instead.'
+      );
+    }
   }
 
   private async resolveHutMercenary(unit: Unit): Promise<void> {
-    const unitType = this.unitTypes[unit.unitTypeId];
-    const mercenary = Object.values(this.unitTypes).find(
-      type => type.roles?.includes('Hut') && type.rulesetUnitClass === unitType.rulesetUnitClass
-    );
+    const terrain = this.getTerrainAt(unit.x, unit.y);
+    const techs = this.playerTechsProvider(unit.playerId);
+    const canExist = (type: UnitType): boolean =>
+      getTerrainMovementCost(terrain, type.id) >= 0 &&
+      (!type.requiredTech ||
+        [...techs].some(tech => tech.toLowerCase() === type.requiredTech!.toLowerCase()));
+    const mercenary =
+      Object.values(this.unitTypes).find(
+        type => type.roles?.includes('HutTech') && canExist(type)
+      ) ??
+      Object.values(this.unitTypes).find(type => type.roles?.includes('Hut') && canExist(type));
     if (mercenary) {
       await this.createUnit(unit.playerId, mercenary.id, unit.x, unit.y, unit.homeCityId);
+      this.gameManagerCallback?.broadcastHutEvent?.(
+        this.gameId,
+        unit.playerId,
+        `Your unit found a ${mercenary.name ?? mercenary.id} in a goody hut.`
+      );
       return;
     }
     await this.changePlayerGold(unit.playerId, 25);
+    this.gameManagerCallback?.broadcastHutEvent?.(
+      this.gameId,
+      unit.playerId,
+      'No mercenary was available; your unit found 25 gold instead.'
+    );
+  }
+
+  private async resolveHutBarbarians(unit: Unit): Promise<void> {
+    const isGameLoss = this.unitTypes[unit.unitTypeId]?.rulesetUnitClassFlags.includes('GameLoss');
+    if (isGameLoss) return;
+    const alive = await this.gameManagerCallback?.spawnHutBarbarians?.(
+      unit.playerId,
+      unit.x,
+      unit.y
+    );
+    if (alive === undefined) {
+      await this.changePlayerGold(unit.playerId, 25);
+      this.gameManagerCallback?.broadcastHutEvent?.(
+        this.gameId,
+        unit.playerId,
+        'The goody hut was quiet; your unit found 25 gold instead.'
+      );
+    } else if (!alive && this.units.has(unit.id)) {
+      await this.destroyUnit(unit.id);
+      this.gameManagerCallback?.broadcastHutEvent?.(
+        this.gameId,
+        unit.playerId,
+        'Barbarians emerged from the goody hut and destroyed your unit.'
+      );
+    } else {
+      this.gameManagerCallback?.broadcastHutEvent?.(
+        this.gameId,
+        unit.playerId,
+        'Barbarians emerged from the goody hut.'
+      );
+    }
   }
 
   private async resolveHutSettlement(unit: Unit): Promise<void> {
@@ -841,7 +951,26 @@ export class UnitManager {
         unit.y
       );
     } catch {
-      await this.changePlayerGold(unit.playerId, 25);
+      const settlers = Object.values(this.unitTypes).find(
+        type =>
+          (type.canFoundCity || type.rulesetUnitClassFlags.includes('Cities')) &&
+          getTerrainMovementCost(this.getTerrainAt(unit.x, unit.y), type.id) >= 0
+      );
+      if (settlers) {
+        await this.createUnit(unit.playerId, settlers.id, unit.x, unit.y, unit.homeCityId);
+        this.gameManagerCallback?.broadcastHutEvent?.(
+          this.gameId,
+          unit.playerId,
+          'Your unit found nomad settlers in a goody hut.'
+        );
+      } else {
+        await this.changePlayerGold(unit.playerId, 25);
+        this.gameManagerCallback?.broadcastHutEvent?.(
+          this.gameId,
+          unit.playerId,
+          'The goody hut could not provide settlers; your unit found 25 gold instead.'
+        );
+      }
     }
   }
 
@@ -849,6 +978,11 @@ export class UnitManager {
     const exploredTiles = this.gameManagerCallback?.revealHutMap?.(unit.playerId, unit.x, unit.y);
     if (!exploredTiles) {
       await this.changePlayerGold(unit.playerId, 25);
+      this.gameManagerCallback?.broadcastHutEvent?.(
+        this.gameId,
+        unit.playerId,
+        'The goody hut revealed nothing; your unit found 25 gold instead.'
+      );
       return;
     }
     await this.databaseProvider
@@ -856,6 +990,11 @@ export class UnitManager {
       .update(players)
       .set({ exploredTiles })
       .where(and(eq(players.id, unit.playerId), eq(players.gameId, this.gameId)));
+    this.gameManagerCallback?.broadcastHutEvent?.(
+      this.gameId,
+      unit.playerId,
+      'Your unit discovered a map in a goody hut.'
+    );
   }
 
   private async changePlayerGold(playerId: string, amount: number): Promise<void> {
@@ -1742,6 +1881,104 @@ export class UnitManager {
    */
   getPlayerUnits(playerId: string): Unit[] {
     return Array.from(this.units.values()).filter(u => u.playerId === playerId);
+  }
+
+  /**
+   * Reconcile units when a city changes owner.
+   *
+   * @reference reference/freeciv/server/citytools.c:721-820
+   * Units on the transferred city tile change owner. Units supported by the
+   * city are rehomed when they are in another friendly city, transferred when
+   * they are nearby, and removed when they are outside the transfer radius.
+   */
+  async reconcileCityOwnership(
+    city: { id: string; x: number; y: number },
+    oldPlayerId: string,
+    newPlayerId: string
+  ): Promise<void> {
+    if (oldPlayerId === newPlayerId) return;
+
+    const candidates = this.getPlayerUnits(oldPlayerId).filter(
+      unit => (unit.x === city.x && unit.y === city.y) || unit.homeCityId === city.id
+    );
+    const tileUnits = candidates
+      .filter(unit => unit.x === city.x && unit.y === city.y)
+      .sort(
+        (left, right) => Number(Boolean(left.transportedBy)) - Number(Boolean(right.transportedBy))
+      );
+
+    for (const unit of tileUnits) {
+      if (!this.units.has(unit.id) || unit.playerId !== oldPlayerId) continue;
+      await this.bribeUnit(unit.id, newPlayerId, unit.homeCityId ? city.id : undefined);
+      for (const cargoId of unit.cargoUnits ?? []) {
+        const cargo = this.units.get(cargoId);
+        if (!cargo || cargo.playerId !== oldPlayerId) continue;
+        await this.bribeUnit(cargo.id, newPlayerId, cargo.homeCityId ? city.id : undefined);
+      }
+    }
+
+    for (const unit of candidates) {
+      if (!this.units.has(unit.id) || unit.playerId !== oldPlayerId) continue;
+      if (unit.homeCityId !== city.id) continue;
+
+      const localCity = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
+      if (localCity && localCity.id !== city.id && localCity.playerId === oldPlayerId) {
+        await this.rehomeUnit(unit, localCity.id);
+        continue;
+      }
+
+      if (this.getRealDistance(unit.x, unit.y, city.x, city.y) <= 1) {
+        await this.bribeUnit(unit.id, newPlayerId, city.id);
+      } else {
+        await this.removeUnit(unit.id);
+      }
+    }
+  }
+
+  /** Place ruleset Partisan units around a conquered city. */
+  async createPartisans(
+    playerId: string,
+    city: { x: number; y: number },
+    count: number,
+    radius: number
+  ): Promise<Unit[]> {
+    const partisanType = this.unitTypes.partisan;
+    if (!partisanType || count <= 0) return [];
+
+    const candidates: Array<{ x: number; y: number }> = [];
+    for (let y = city.y - radius; y <= city.y + radius; y += 1) {
+      for (let x = city.x - radius; x <= city.x + radius; x += 1) {
+        if ((x === city.x && y === city.y) || !this.isValidPosition(x, y)) continue;
+        if (getTerrainMovementCost(this.getTerrainAt(x, y), partisanType.id) < 0) continue;
+        if (this.gameManagerCallback?.getCityAt?.(x, y)) continue;
+        candidates.push({ x, y });
+      }
+    }
+
+    const created: Unit[] = [];
+    while (created.length < count && candidates.length > 0) {
+      const index = randomInt(this.random, candidates.length);
+      const [position] = candidates.splice(index, 1);
+      if (!position) break;
+      created.push(await this.createUnit(playerId, partisanType.id, position.x, position.y));
+    }
+    return created;
+  }
+
+  private async rehomeUnit(unit: Unit, homeCityId: string): Promise<void> {
+    unit.homeCityId = homeCityId;
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ homeCityId })
+      .where(eq(units.id, unit.id));
+  }
+
+  private getRealDistance(x1: number, y1: number, x2: number, y2: number): number {
+    return (
+      this.mapManager?.getTopology?.().realDistance(x1, y1, x2, y2) ??
+      Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2))
+    );
   }
 
   /**
@@ -2747,6 +2984,30 @@ export class UnitManager {
    */
   getAllUnits(): Map<string, Unit> {
     return this.units;
+  }
+
+  /**
+   * Return worker actions that are executable at the unit's current tile.
+   * The client uses this as a presentation projection only; executeUnitAction
+   * still re-evaluates the action against authoritative state.
+   */
+  getAvailableWorkerActions(unitId: string): ActionType[] {
+    const worker = this.units.get(unitId);
+    if (!worker) return [];
+
+    const workerActions = [
+      ActionType.BUILD_ROAD,
+      ActionType.BUILD_RAILROAD,
+      ActionType.BUILD_IRRIGATION,
+      ActionType.BUILD_MINE,
+      ActionType.CULTIVATE,
+      ActionType.PLANT,
+      ActionType.BUILD_FORTRESS,
+      ActionType.BUILD_AIRBASE,
+      ActionType.TRANSFORM_TERRAIN,
+      ActionType.CLEAN_POLLUTION,
+    ];
+    return workerActions.filter(action => this.canUnitPerformAction(unitId, action));
   }
 
   /**
@@ -4262,8 +4523,113 @@ export class UnitManager {
       })),
     });
 
+    const processedActivities = new Set<string>();
     for (const unit of this.units.values()) {
+      if (unit.playerId !== playerId || !unit.orders?.[0]) continue;
+      const order = unit.orders[0];
+      if (this.isActivityOrderType(order.type)) {
+        const key = `${playerId}:${unit.x}:${unit.y}:${order.type}`;
+        if (processedActivities.has(key)) continue;
+        const group = [...this.units.values()].filter(
+          candidate =>
+            candidate.playerId === playerId &&
+            candidate.x === unit.x &&
+            candidate.y === unit.y &&
+            candidate.orders?.[0]?.type === order.type
+        );
+        await this.processActivityGroup(group);
+        processedActivities.add(key);
+        continue;
+      }
       await this.processUnitOrder(unit, playerId);
+    }
+  }
+
+  private isActivityOrderType(orderType: UnitOrder['type']): boolean {
+    return new Set<UnitOrder['type']>([
+      'road',
+      'railroad',
+      'irrigate',
+      'mine',
+      'cultivate',
+      'plant',
+      'fortress',
+      'airbase',
+      'transform',
+      'pillage',
+      'cleanPollution',
+    ]).has(orderType);
+  }
+
+  private getActivityWorkRate(unit: Unit): number {
+    return unit.unitTypeId === 'engineers' ? 2 : 1;
+  }
+
+  private async processActivityGroup(group: Unit[]): Promise<void> {
+    if (group.length === 0) return;
+    const orderType = group[0]!.orders![0]!.type;
+
+    for (const unit of group) {
+      const order = unit.orders![0]!;
+      if (!order.activity || order.activity.type === 'idle') {
+        const turnsRequired = this.getActivityDuration(orderType, unit);
+        order.activity = {
+          type: this.getActivityTypeFromOrder(orderType),
+          turnsRemaining: turnsRequired,
+          totalTurns: turnsRequired,
+          target: { x: unit.x, y: unit.y },
+        };
+      }
+    }
+
+    const requiredWork = Math.max(
+      ...group.map(unit => this.getActivityWorkRate(unit) * unit.orders![0]!.activity!.totalTurns)
+    );
+    const previousWork = Math.max(
+      ...group.map(unit => {
+        const activity = unit.orders![0]!.activity!;
+        return (activity.totalTurns - activity.turnsRemaining) * this.getActivityWorkRate(unit);
+      })
+    );
+    const currentWork =
+      previousWork + group.reduce((sum, unit) => sum + this.getActivityWorkRate(unit), 0);
+
+    if (currentWork >= requiredWork) {
+      await this.completeActivity(group[0]!, group[0]!.orders![0]!);
+      for (const unit of group) {
+        unit.activity = { type: 'idle', turnsRemaining: 0, totalTurns: 0 };
+        this.removeCurrentOrder(unit);
+        unit.movementLeft = 0;
+        await this.databaseProvider
+          .getDatabase()
+          .update(units)
+          .set({
+            movementPoints: '0',
+            orders: unit.orders ?? [],
+            currentOrder: unit.orders?.[0]?.type ?? null,
+          })
+          .where(eq(units.id, unit.id));
+      }
+      return;
+    }
+
+    for (const unit of group) {
+      const order = unit.orders![0]!;
+      const activity = order.activity!;
+      const rate = this.getActivityWorkRate(unit);
+      activity.totalTurns = Math.ceil(requiredWork / rate);
+      activity.turnsRemaining = Math.ceil((requiredWork - currentWork) / rate);
+      unit.activity = activity;
+      unit.movementLeft = 0;
+      await this.databaseProvider
+        .getDatabase()
+        .update(units)
+        .set({
+          movementPoints: '0',
+          orders: unit.orders ?? [],
+          currentOrder: unit.orders?.[0]?.type ?? null,
+        })
+        .where(eq(units.id, unit.id));
     }
   }
 

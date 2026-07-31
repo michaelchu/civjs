@@ -229,6 +229,88 @@ describe('GameManager classic espionage actions', () => {
     expect(economicManager.spendPlayerGold).not.toHaveBeenCalled();
   });
 
+  it('prevents a Diplomat from stealing repeatedly from the same city', async () => {
+    const city = {
+      id: 'city-1',
+      name: 'Target',
+      playerId: targetPlayerId,
+      x: 5,
+      y: 5,
+      size: 3,
+      buildings: [],
+    };
+    const thefts = new Map<string, number>();
+    const { game } = installGame('diplomat', {
+      cityManager: {
+        getCityAt: jest.fn().mockReturnValue(city),
+        getPlayerCities: jest.fn().mockReturnValue([]),
+        getEspionageTheftCount: jest.fn(
+          (cityId: string, playerId: string) => thefts.get(`${cityId}:${playerId}`) ?? 0
+        ),
+        recordEspionageTheft: jest.fn(async (cityId: string, playerId: string) => {
+          const key = `${cityId}:${playerId}`;
+          thefts.set(key, (thefts.get(key) ?? 0) + 1);
+        }),
+        poisonCity: jest.fn(),
+        sabotageCityBuilding: jest.fn(),
+        transferCity: jest.fn(),
+      },
+      researchManager: {
+        getResearchedTechs: jest.fn((playerId: string) =>
+          playerId === targetPlayerId ? ['alphabet'] : []
+        ),
+        grantTechnology: jest.fn(),
+      },
+    });
+
+    await expect(
+      manager.executeDiplomatAction(gameId, actorPlayerId, 'actor', ActionType.STEAL_TECH, 5, 5)
+    ).resolves.toMatchObject({ success: true });
+    await expect(
+      manager.executeDiplomatAction(gameId, actorPlayerId, 'actor', ActionType.STEAL_TECH, 5, 5)
+    ).resolves.toMatchObject({
+      success: false,
+      message: 'This city has already been targeted by this diplomat',
+    });
+    expect(game.researchManager.grantTechnology).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows a Spy to make a repeat technology theft attempt', async () => {
+    const city = {
+      id: 'city-1',
+      name: 'Target',
+      playerId: targetPlayerId,
+      x: 5,
+      y: 5,
+      size: 3,
+      buildings: [],
+    };
+    const theftCount = jest.fn().mockReturnValue(1);
+    const { game } = installGame('spy', {
+      cityManager: {
+        getCityAt: jest.fn().mockReturnValue(city),
+        getPlayerCities: jest.fn().mockReturnValue([]),
+        getEspionageTheftCount: theftCount,
+        recordEspionageTheft: jest.fn(),
+        poisonCity: jest.fn(),
+        sabotageCityBuilding: jest.fn(),
+        transferCity: jest.fn(),
+      },
+      researchManager: {
+        getResearchedTechs: jest.fn((playerId: string) =>
+          playerId === targetPlayerId ? ['alphabet'] : []
+        ),
+        grantTechnology: jest.fn(),
+      },
+    });
+
+    await expect(
+      manager.executeDiplomatAction(gameId, actorPlayerId, 'actor', ActionType.STEAL_TECH, 5, 5)
+    ).resolves.toMatchObject({ success: true });
+    expect(theftCount).toHaveBeenCalledWith(city.id, actorPlayerId);
+    expect(game.researchManager.grantTechnology).toHaveBeenCalledTimes(1);
+  });
+
   it('sabotages a lone unit for half its remaining health', async () => {
     const target = {
       id: 'target',

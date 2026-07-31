@@ -16,6 +16,7 @@ import { EffectsManager, EffectType, OutputType } from '@game/managers/EffectsMa
  */
 export class CityTileManagementService extends BaseGameService {
   private playerGovernmentProvider: (playerId: string) => string = () => 'despotism';
+  private tileOccupancyProvider: (city: CityState, tile: WorkableTile) => boolean = () => false;
 
   constructor(
     private cities: Map<string, CityState>,
@@ -38,6 +39,10 @@ export class CityTileManagementService extends BaseGameService {
 
   setPlayerGovernmentProvider(provider: (playerId: string) => string): void {
     this.playerGovernmentProvider = provider;
+  }
+
+  setTileOccupancyProvider(provider: (city: CityState, tile: WorkableTile) => boolean): void {
+    this.tileOccupancyProvider = provider;
   }
 
   /**
@@ -172,6 +177,22 @@ export class CityTileManagementService extends BaseGameService {
    */
   public reassignCitizensAfterGrowth(city: CityState): void {
     this.autoAssignCitizensToTiles(city);
+  }
+
+  /** Refresh enemy occupancy before citizen allocation/output calculation. */
+  public refreshBlockedTiles(city: CityState): boolean {
+    if (!city.workableTiles) return false;
+    let changed = false;
+    for (const tile of city.workableTiles) {
+      const blocked = !tile.isCenter && this.tileOccupancyProvider(city, tile);
+      if (tile.isBlocked !== blocked) {
+        tile.isBlocked = blocked;
+        if (blocked) tile.isWorked = false;
+        changed = true;
+      }
+    }
+    if (changed) this.autoAssignCitizensToTiles(city);
+    return changed;
   }
 
   /**
@@ -420,6 +441,8 @@ export class CityTileManagementService extends BaseGameService {
     if (!city || !city.workableTiles) {
       return { food: 0, shields: 0, trade: 0 };
     }
+
+    this.refreshBlockedTiles(city);
 
     let food = 0;
     let shields = 0;

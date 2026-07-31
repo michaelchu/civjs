@@ -13,6 +13,7 @@ function makeUnit(overrides?: Partial<UnitSupportData>): UnitSupportData {
     upkeep: overrides?.upkeep ?? { food: 1, shield: 1, gold: 0 },
     isAwayFromHome: overrides?.isAwayFromHome ?? false,
     isMilitaryUnit: overrides?.isMilitaryUnit ?? true,
+    isFieldUnit: overrides?.isFieldUnit ?? false,
   };
 }
 
@@ -57,6 +58,18 @@ describe('UnitSupportManager.calculateCityUnitSupport', () => {
     ];
 
     const res = mgr.calculateCityUnitSupport('city-3', 'p1', 'republic', 1, units) as any;
+
+    expect(res.happinessEffect).toBe(1);
+  });
+
+  test('field units cause war unhappiness even while stationed at home', () => {
+    const mgr = new UnitSupportManager('g1');
+    const units: UnitSupportData[] = [
+      makeUnit({ isFieldUnit: true }),
+      makeUnit({ isFieldUnit: true }),
+    ];
+
+    const res = mgr.calculateCityUnitSupport('city-field', 'p1', 'republic', 1, units) as any;
 
     expect(res.happinessEffect).toBe(1);
   });

@@ -134,40 +134,47 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
       actions.push({ separator: true });
 
       // Build submenu for workers
+      const availableWorkerActions = unit.capabilities?.availableWorkerActions;
+      const actionIsAvailable = (action: ActionType): boolean =>
+        !availableWorkerActions || availableWorkerActions.includes(action);
       const buildActions: UnitActionInfo[] = [
-        {
-          action: ActionType.BUILD_ROAD,
-          name: 'Build Road',
-          icon: Route,
-          hotkey: 'R',
-        },
-        {
-          action: ActionType.BUILD_RAILROAD,
-          name: 'Build Railroad',
-          icon: Route,
-        },
-        {
-          action: ActionType.BUILD_IRRIGATION,
-          name: 'Build Irrigation',
-          icon: Zap,
-          hotkey: 'I',
-        },
-        {
-          action: ActionType.BUILD_MINE,
-          name: 'Build Mine',
-          icon: Pickaxe,
-          hotkey: 'M',
-        },
-        ...(unitActions.has(ActionType.CULTIVATE)
+        ...(actionIsAvailable(ActionType.BUILD_ROAD)
+          ? [
+              {
+                action: ActionType.BUILD_ROAD,
+                name: 'Build Road',
+                icon: Route,
+                hotkey: 'R',
+              },
+            ]
+          : []),
+        ...(actionIsAvailable(ActionType.BUILD_RAILROAD)
+          ? [{ action: ActionType.BUILD_RAILROAD, name: 'Build Railroad', icon: Route }]
+          : []),
+        ...(actionIsAvailable(ActionType.BUILD_IRRIGATION)
+          ? [
+              {
+                action: ActionType.BUILD_IRRIGATION,
+                name: 'Build Irrigation',
+                icon: Zap,
+                hotkey: 'I',
+              },
+            ]
+          : []),
+        ...(actionIsAvailable(ActionType.BUILD_MINE)
+          ? [{ action: ActionType.BUILD_MINE, name: 'Build Mine', icon: Pickaxe, hotkey: 'M' }]
+          : []),
+        ...(actionIsAvailable(ActionType.CULTIVATE) && unitActions.has(ActionType.CULTIVATE)
           ? [{ action: ActionType.CULTIVATE, name: 'Cultivate Terrain', icon: Zap }]
           : []),
-        ...(unitActions.has(ActionType.PLANT)
+        ...(actionIsAvailable(ActionType.PLANT) && unitActions.has(ActionType.PLANT)
           ? [{ action: ActionType.PLANT, name: 'Plant Terrain', icon: Mountain }]
           : []),
-        ...(unitActions.has(ActionType.BUILD_FORTRESS)
+        ...(actionIsAvailable(ActionType.BUILD_FORTRESS) &&
+        unitActions.has(ActionType.BUILD_FORTRESS)
           ? [{ action: ActionType.BUILD_FORTRESS, name: 'Build Fortress', icon: Shield }]
           : []),
-        ...(unitActions.has(ActionType.BUILD_AIRBASE)
+        ...(actionIsAvailable(ActionType.BUILD_AIRBASE) && unitActions.has(ActionType.BUILD_AIRBASE)
           ? [
               {
                 action: ActionType.BUILD_AIRBASE,
@@ -176,18 +183,26 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
               },
             ]
           : []),
-        {
-          action: ActionType.TRANSFORM_TERRAIN,
-          name: 'Transform Terrain',
-          icon: Mountain,
-          hotkey: 'O',
-        },
-        {
-          action: ActionType.CLEAN_POLLUTION,
-          name: 'Clean Pollution',
-          icon: Zap,
-          hotkey: 'C',
-        },
+        ...(actionIsAvailable(ActionType.TRANSFORM_TERRAIN)
+          ? [
+              {
+                action: ActionType.TRANSFORM_TERRAIN,
+                name: 'Transform Terrain',
+                icon: Mountain,
+                hotkey: 'O',
+              },
+            ]
+          : []),
+        ...(actionIsAvailable(ActionType.CLEAN_POLLUTION)
+          ? [
+              {
+                action: ActionType.CLEAN_POLLUTION,
+                name: 'Clean Pollution',
+                icon: Zap,
+                hotkey: 'C',
+              },
+            ]
+          : []),
       ];
 
       actions.push({

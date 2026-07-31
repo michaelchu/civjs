@@ -57,6 +57,7 @@ export interface Unit {
     canTrade: boolean;
     diplomatActions?: string[];
     unitActions?: string[];
+    availableWorkerActions?: string[];
   };
 }
 

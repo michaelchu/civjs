@@ -52,6 +52,7 @@ export interface UnitSupportData {
   upkeep: UnitUpkeep;
   isAwayFromHome: boolean;
   isMilitaryUnit: boolean;
+  isFieldUnit: boolean;
 }
 
 /**
@@ -320,7 +321,7 @@ export class UnitSupportManager {
       if (unit.upkeep.shield > 0) shieldUnitsRequiringSupport++;
       if (unit.upkeep.food > 0) foodUnitsRequiringSupport++;
       if (unit.upkeep.gold > 0 && cityPaysGold) goldUnitsRequiringSupport++;
-      if (unit.isMilitaryUnit && unit.isAwayFromHome) {
+      if (unit.isMilitaryUnit && (unit.isAwayFromHome || unit.isFieldUnit)) {
         militaryUnhappiness += this.calculateMilitaryUnhappiness(context, unit.unitType);
       }
     }
@@ -513,6 +514,7 @@ export class UnitSupportManager {
       upkeep: { food: 1, shield: 1, gold: 0 },
       isAwayFromHome: false,
       isMilitaryUnit: true,
+      isFieldUnit: false,
     };
   }
 

@@ -111,6 +111,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const cities = useGameStore(state => state.cities);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
   const currentGameId = useGameStore(state => state.currentGameId);
+  const diplomacy = useGameStore(state => state.diplomacy);
   const focusedUnits = useGameStore(state => state.focusedUnits);
   const selectedUnitId = useGameStore(state => state.selectedUnitId);
   const mapData = useGameStore(state => state.mapData);
@@ -552,7 +553,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       console.log(`Requesting path for unit ${gotoMode.unit.id} to (${targetX}, ${targetY})`);
 
       try {
-        const path = await pathfindingService.requestPath(gotoMode.unit.id, targetX, targetY);
+        const pathResult = await pathfindingService.requestPathResult(
+          gotoMode.unit.id,
+          targetX,
+          targetY
+        );
+        const path = pathResult.path;
 
         if (path) {
           setGotoMode(prev => ({
@@ -562,7 +568,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           }));
           console.log('Path received:', path);
         } else {
-          console.warn('No valid path found');
+          const message = pathResult.error ?? 'No valid path found';
+          console.warn(message);
+          setActionFeedback({ success: false, message });
           setGotoMode(prev => ({
             ...prev,
             targetTile: { x: targetX, y: targetY },
@@ -581,6 +589,27 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     async (targetX: number, targetY: number) => {
       if (!gotoMode.unit) return;
 
+      const targetCity = Object.values(cities).find(
+        city => city.x === targetX && city.y === targetY
+      );
+      const targetRelation = targetCity
+        ? diplomacy?.nations.find(nation => nation.id === targetCity.playerId)?.relation.state
+        : undefined;
+      const willDeclareWar = Boolean(
+        targetCity &&
+          targetCity.playerId !== currentPlayerId &&
+          targetRelation !== 'war' &&
+          targetRelation !== 'alliance' &&
+          targetRelation !== 'team'
+      );
+
+      if (willDeclareWar) {
+        const confirmed = window.confirm(
+          `Entering ${targetCity!.name} will declare war on its owner. Continue?`
+        );
+        if (!confirmed) return;
+      }
+
       console.log(`Executing goto for unit ${gotoMode.unit.id} to (${targetX}, ${targetY})`);
 
       try {
@@ -588,7 +617,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           gotoMode.unit.id,
           ActionType.GOTO,
           targetX,
-          targetY
+          targetY,
+          willDeclareWar
         );
 
         setActionFeedback({
@@ -609,7 +639,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         setSelectedUnit(null);
       }
     },
-    [gotoMode.unit, deactivateGotoMode, selectUnit]
+    [cities, currentPlayerId, diplomacy, gotoMode.unit, deactivateGotoMode, selectUnit]
   );
 
   const executeTargetAction = useCallback(
@@ -1566,6 +1596,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
             }`,
           });
         }}
+        onSetRallyPoint={(cityId, rallyPoint) => gameClient.setCityRallyPoint(cityId, rallyPoint)}
       />
     </div>
   );
