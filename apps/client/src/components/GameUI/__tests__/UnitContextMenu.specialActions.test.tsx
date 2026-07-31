@@ -113,4 +113,27 @@ describe('UnitContextMenu classic special actions', () => {
     fireEvent.click(screen.getByText('Suicide Attack'));
     expect(onActionSelect).toHaveBeenCalledWith(ActionType.SUICIDE_ATTACK);
   });
+
+  it('uses the authoritative worker availability projection for the build menu', () => {
+    render(
+      <UnitContextMenu
+        unit={{
+          ...unit,
+          capabilities: {
+            ...unit.capabilities!,
+            canBuildImprovements: true,
+            availableWorkerActions: [ActionType.BUILD_ROAD],
+          },
+        }}
+        position={{ x: 10, y: 10 }}
+        onClose={vi.fn()}
+        onActionSelect={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByText('Build'));
+    expect(screen.getByText('Build Road')).toBeInTheDocument();
+    expect(screen.queryByText('Build Railroad')).not.toBeInTheDocument();
+    expect(screen.queryByText('Build Irrigation')).not.toBeInTheDocument();
+  });
 });

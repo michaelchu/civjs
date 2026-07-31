@@ -2916,6 +2916,30 @@ export class UnitManager {
   }
 
   /**
+   * Return worker actions that are executable at the unit's current tile.
+   * The client uses this as a presentation projection only; executeUnitAction
+   * still re-evaluates the action against authoritative state.
+   */
+  getAvailableWorkerActions(unitId: string): ActionType[] {
+    const worker = this.units.get(unitId);
+    if (!worker) return [];
+
+    const workerActions = [
+      ActionType.BUILD_ROAD,
+      ActionType.BUILD_RAILROAD,
+      ActionType.BUILD_IRRIGATION,
+      ActionType.BUILD_MINE,
+      ActionType.CULTIVATE,
+      ActionType.PLANT,
+      ActionType.BUILD_FORTRESS,
+      ActionType.BUILD_AIRBASE,
+      ActionType.TRANSFORM_TERRAIN,
+      ActionType.CLEAN_POLLUTION,
+    ];
+    return workerActions.filter(action => this.canUnitPerformAction(unitId, action));
+  }
+
+  /**
    * Return units whose ruleset class requires random movement processing.
    * @reference reference/freeciv/common/unit.c:unit_type_has_flag
    */

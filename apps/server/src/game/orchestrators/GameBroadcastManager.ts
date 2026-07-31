@@ -874,7 +874,10 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       orders: this.unitValue(unit.orders, null),
       transportedBy: unit.transportedBy,
       cargoUnits: this.unitValue(unit.cargoUnits, []),
-      capabilities: this.getUnitCapabilities(unitType),
+      capabilities: this.getUnitCapabilities(
+        unitType,
+        unitManager.getAvailableWorkerActions?.(unit.id)
+      ),
       nationality: this.unitValue(unit.nationality, unit.playerId),
       upkeep: [
         this.unitValue(unitType?.uk_food, 0),
@@ -911,7 +914,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     return value === undefined || value === null ? fallback : value;
   }
 
-  private getUnitCapabilities(unitType: any): any {
+  private getUnitCapabilities(unitType: any, availableWorkerActions?: string[]): any {
     const flags = unitType?.rulesetUnitClassFlags ?? [];
     return {
       canFortify: this.canFortify(unitType, flags),
@@ -921,6 +924,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       canTrade: Boolean(unitType?.flags?.includes('TradeRoute')),
       diplomatActions: this.getDiplomatActions(unitType),
       unitActions: this.getUnitActions(unitType),
+      availableWorkerActions,
     };
   }
 

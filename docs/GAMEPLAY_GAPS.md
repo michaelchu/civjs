@@ -795,7 +795,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-028 — Worker actions bypass ruleset enablers and extra requirements
 
-- **Status:** Planned
+- **Status:** Confirmed gap
 - **Area:** Unit context menu, workers, terrain alteration, technology, extras
 - **Observed behavior:** Basic terrain checks are enforced, but actions such as
   railroad, oil-well mining, fortress, and airbase construction do not evaluate
@@ -805,13 +805,13 @@ you declare war first.` Civilian/border-entry units may enter permitted
   accept the resulting extra/activity.
 - **Current implementation:** `ActionSystem` uses hand-written checks for
   movement, terrain times, adjacent irrigation sources, and a few unit flags.
-  It has no research context and does not evaluate extra build requirements.
-  `GameBroadcastManager` sends only coarse unit-type capabilities;
-  `RulesetActionsService` deliberately considers static unit facts only; and
-  `UnitContextMenu` hard-codes road, railroad, irrigation, mine, transform,
-  and pollution-cleanup entries for every worker-capable unit. The client
-  therefore cannot distinguish an action that the unit type may eventually do
-  from one this unit may perform now.
+  It has no general research context and does not evaluate all extra build
+  requirements. `GameBroadcastManager` now adds an authoritative
+  `availableWorkerActions` projection for the unit's current tile, and
+  `UnitContextMenu` uses it to hide currently illegal worker actions. The
+  projection is presentation-only; server execution still revalidates the
+  request. Full ruleset-enabler and extra-requirement coverage remains
+  incomplete.
 - **Reference behavior:** Freeciv combines action enablers, `TerrainAlter`
   capabilities, extra requirements, technologies, unit flags, and tile state.
   For example, special oil mining and advanced extras have technology gates.
@@ -860,14 +860,15 @@ you declare war first.` Civilian/border-entry units may enter permitted
      that can alter availability. Do not trust a stale client result at action
      execution time.
 
-- **Regression coverage:** Add evaluator/service tests for each worker action
-  before and after its technology, legal/illegal terrain, adjacency,
-  duplicate/conflicting extras, unit flags, movement, and research-name
-  normalization. Add execution tests proving unavailable actions are rejected
-  even if requested directly. Add unit-packet tests for owner-only availability
-  updates after research and tile changes, and client tests asserting that a
-  worker's context menu hides unavailable entries while retaining eligible
-  target-selection actions.
+- **Regression coverage:** `UnitManager.test.ts` and
+  `GameBroadcastManager.test.ts` cover the existing authoritative worker
+  checks; `UnitContextMenu.specialActions.test.tsx` verifies the client hides
+  actions absent from the server projection. Add evaluator/service tests for
+  each worker action before and after its technology, legal/illegal terrain,
+  adjacency, duplicate/conflicting extras, unit flags, movement, and
+  research-name normalization. Add execution tests proving unavailable
+  actions are rejected even if requested directly, and packet tests for
+  availability changes after research and tile changes.
 
 ### GP-029 — Multiple workers cannot cooperate on the same activity
 

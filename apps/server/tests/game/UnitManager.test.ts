@@ -279,6 +279,23 @@ describe('UnitManager', () => {
       expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_ROAD)).toBe(true);
     });
 
+    it('projects only currently executable worker actions', async () => {
+      const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(unitManager.getAvailableWorkerActions(worker.id)).toEqual(
+        expect.arrayContaining([ActionType.BUILD_ROAD, ActionType.PLANT])
+      );
+      expect(unitManager.getAvailableWorkerActions(worker.id)).not.toContain(
+        ActionType.BUILD_RAILROAD
+      );
+      expect(unitManager.getAvailableWorkerActions(worker.id)).not.toContain(
+        ActionType.BUILD_IRRIGATION
+      );
+
+      tile.hasRoad = true;
+      expect(unitManager.getAvailableWorkerActions(worker.id)).toContain(ActionType.BUILD_RAILROAD);
+    });
+
     it('requires a cardinal water source before starting classic irrigation', async () => {
       const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);
 
