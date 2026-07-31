@@ -892,10 +892,11 @@ you declare war first.` Civilian/border-entry units may enter permitted
   for each worker action before and after its technology, legal/illegal terrain,
   adjacency, duplicate/conflicting extras, unit flags, movement, and
   research-name normalization; the UnitManager civ2civ3 fixture now verifies
-  technology-gated railroad availability. `GameBroadcastManager.test.ts`
-  verifies that the owner-only worker-action projection refreshes when
-  authoritative availability changes; broader cross-ruleset and target-state
-  fixtures remain open.
+  technology-gated railroad availability, prerequisite-road and illegal-ocean
+  target state. `GameBroadcastManager.test.ts` verifies that the owner-only
+  worker-action projection refreshes when authoritative availability changes;
+  the remaining fixture work is limited to the less common ruleset action
+  variants and research-name normalization.
 
 ### GP-029 — Multiple workers cannot cooperate on the same activity
 

@@ -491,6 +491,12 @@ describe('UnitManager', () => {
       expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_RAILROAD)).toBe(false);
       unitManager.setPlayerTechsProvider(() => new Set(['railroad']));
       expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_RAILROAD)).toBe(true);
+
+      tile.hasRoad = false;
+      expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_RAILROAD)).toBe(false);
+      tile.terrain = 'ocean';
+      tile.hasRoad = true;
+      expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_ROAD)).toBe(false);
     });
   });
 
