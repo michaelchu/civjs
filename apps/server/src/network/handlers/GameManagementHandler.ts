@@ -522,19 +522,8 @@ export class GameManagementHandler extends BaseSocketHandler {
    * the persisted map before sending the initial map packets to this socket.
    */
   private async sendGameSnapshot(gameId: string, socket: Socket, playerId?: string): Promise<void> {
-    let gameInstance = this.gameManager.getGameInstance(gameId);
-    if (!gameInstance) {
-      gameInstance = await this.gameManager.recoverGameInstance(gameId);
-    }
-
-    if (!gameInstance) {
-      throw new Error('Unable to recover active game');
-    }
-
-    const mapData = gameInstance.mapManager.getMapData();
-    if (!mapData) {
-      throw new Error('Recovered game has no map data');
-    }
+    const gameInstance = await this.getSnapshotGameInstance(gameId);
+    const mapData = this.getSnapshotMapData(gameInstance);
 
     const { visibleTiles, exploredTiles, rememberedTiles } = this.getSnapshotVisibility(
       gameInstance,
@@ -542,35 +531,8 @@ export class GameManagementHandler extends BaseSocketHandler {
       mapData
     );
 
-    // The player snapshot can arrive before the normal turn broadcast during a
-    // refresh/reconnect. Send the calendar with the snapshot so the HUD never
-    // renders a player/turn pair without its corresponding year.
-    const snapshotTurn =
-      gameInstance.turnManager?.getCurrentTurn?.() ?? gameInstance.currentTurn ?? 0;
-    const snapshotYear = gameInstance.turnManager?.getCurrentYear?.();
-    socket.emit('packet', {
-      version: PROTOCOL_VERSION,
-      type: PacketType.NEW_YEAR,
-      data: {
-        turn: snapshotTurn,
-        year: snapshotYear,
-        fragments: 0,
-      },
-      timestamp: Date.now(),
-    });
-    this.emitSnapshotPlayers(gameInstance, socket);
-
-    socket.emit('packet', {
-      version: PROTOCOL_VERSION,
-      type: PacketType.MAP_INFO,
-      data: {
-        xsize: mapData.width,
-        ysize: mapData.height,
-        wrap_id: mapData.wrapId ?? 0,
-        topology_id: mapData.topologyId ?? 0,
-      },
-      timestamp: Date.now(),
-    });
+    this.emitSnapshotCalendar(gameInstance, socket);
+    this.emitSnapshotMapInfo(mapData, socket);
 
     const tiles = this.buildSnapshotTiles(
       mapData,
@@ -582,8 +544,74 @@ export class GameManagementHandler extends BaseSocketHandler {
 
     this.emitSnapshotTileBatches(socket, tiles);
 
-    const sourceUnits = this.getSnapshotUnits(gameInstance, playerId, visibleTiles);
-    const units = sourceUnits.map((unit: any) => {
+    const units = this.getSnapshotUnitPresentations(gameInstance, playerId, visibleTiles);
+    this.emitSnapshotUnits(units, socket);
+
+    const cities = this.getSnapshotCities(gameInstance, playerId, exploredTiles);
+    this.emitSnapshotCities(gameId, gameInstance, playerId, cities, socket);
+    this.emitSnapshotBorders(gameInstance, playerId, exploredTiles, socket);
+
+    logger.info('Sent recovered game snapshot', {
+      gameId,
+      playerId,
+      role: playerId ? 'player' : 'spectator',
+      mapSize: `${mapData.width}x${mapData.height}`,
+      tiles: tiles.length,
+      units: units.length,
+      cities: cities.length,
+      totalCities: gameInstance.cityManager.getAllCities().length,
+    });
+  }
+
+  private async getSnapshotGameInstance(gameId: string): Promise<any> {
+    const existing = this.gameManager.getGameInstance(gameId);
+    const gameInstance = existing ?? (await this.gameManager.recoverGameInstance(gameId));
+    if (!gameInstance) throw new Error('Unable to recover active game');
+    return gameInstance;
+  }
+
+  private getSnapshotMapData(gameInstance: any): any {
+    const mapData = gameInstance.mapManager.getMapData();
+    if (!mapData) throw new Error('Recovered game has no map data');
+    return mapData;
+  }
+
+  private emitSnapshotCalendar(gameInstance: any, socket: Socket): void {
+    const snapshotTurn =
+      gameInstance.turnManager?.getCurrentTurn?.() ?? gameInstance.currentTurn ?? 0;
+    socket.emit('packet', {
+      version: PROTOCOL_VERSION,
+      type: PacketType.NEW_YEAR,
+      data: {
+        turn: snapshotTurn,
+        year: gameInstance.turnManager?.getCurrentYear?.(),
+        fragments: 0,
+      },
+      timestamp: Date.now(),
+    });
+    this.emitSnapshotPlayers(gameInstance, socket);
+  }
+
+  private emitSnapshotMapInfo(mapData: any, socket: Socket): void {
+    socket.emit('packet', {
+      version: PROTOCOL_VERSION,
+      type: PacketType.MAP_INFO,
+      data: {
+        xsize: mapData.width,
+        ysize: mapData.height,
+        wrap_id: mapData.wrapId ?? 0,
+        topology_id: mapData.topologyId ?? 0,
+      },
+      timestamp: Date.now(),
+    });
+  }
+
+  private getSnapshotUnitPresentations(
+    gameInstance: any,
+    playerId: string | undefined,
+    visibleTiles: Set<string>
+  ): any[] {
+    return this.getSnapshotUnits(gameInstance, playerId, visibleTiles).map((unit: any) => {
       const unitType = gameInstance.unitManager.getUnitType?.(unit.unitTypeId);
       return {
         id: unit.id,
@@ -599,16 +627,34 @@ export class GameManagementHandler extends BaseSocketHandler {
         veteran: unit.veteranLevel,
       };
     });
+  }
+
+  private emitSnapshotUnits(units: any[], socket: Socket): void {
     socket.emit('packet', {
       version: PROTOCOL_VERSION,
       type: PacketType.UNIT_INFO,
       data: { units, fullSnapshot: true },
       timestamp: Date.now(),
     });
+  }
 
-    const cities = gameInstance.cityManager
+  private getSnapshotCities(
+    gameInstance: any,
+    playerId: string | undefined,
+    exploredTiles: Set<string>
+  ): any[] {
+    return gameInstance.cityManager
       .getAllCities()
       .filter((city: any) => this.isSnapshotCityVisible(city, playerId, exploredTiles));
+  }
+
+  private emitSnapshotCities(
+    gameId: string,
+    gameInstance: any,
+    playerId: string | undefined,
+    cities: any[],
+    socket: Socket
+  ): void {
     const cityPresentations = resolveCityPresentations(
       cities,
       gameInstance.players,
@@ -626,40 +672,28 @@ export class GameManagementHandler extends BaseSocketHandler {
       ),
       timestamp: Date.now(),
     });
+  }
 
+  private emitSnapshotBorders(
+    gameInstance: any,
+    playerId: string | undefined,
+    exploredTiles: Set<string>,
+    socket: Socket
+  ): void {
+    const tiles = gameInstance.borderManager
+      .getAllTileOwnership()
+      .filter((ownership: any) => this.isSnapshotBorderVisible(ownership, playerId, exploredTiles))
+      .map((ownership: any) => ({
+        x: ownership.x,
+        y: ownership.y,
+        owner: ownership.playerId,
+        strength: ownership.strength,
+      }));
     socket.emit('packet', {
       version: PROTOCOL_VERSION,
       type: PacketType.BORDER_UPDATE,
-      data: {
-        type: 'border_update',
-        updateType: 'full_update',
-        // @reference reference/freeciv/server/maphand.c:442-613
-        // A player may always inspect their own territory. Previously
-        // discovered foreign borders remain on the fogged map after reload.
-        tiles: gameInstance.borderManager
-          .getAllTileOwnership()
-          .filter((ownership: any) =>
-            this.isSnapshotBorderVisible(ownership, playerId, exploredTiles)
-          )
-          .map((ownership: any) => ({
-            x: ownership.x,
-            y: ownership.y,
-            owner: ownership.playerId,
-            strength: ownership.strength,
-          })),
-      },
+      data: { type: 'border_update', updateType: 'full_update', tiles },
       timestamp: Date.now(),
-    });
-
-    logger.info('Sent recovered game snapshot', {
-      gameId,
-      playerId,
-      role: playerId ? 'player' : 'spectator',
-      mapSize: `${mapData.width}x${mapData.height}`,
-      tiles: tiles.length,
-      units: units.length,
-      cities: cities.length,
-      totalCities: gameInstance.cityManager.getAllCities().length,
     });
   }
 

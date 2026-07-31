@@ -305,38 +305,12 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       // @reference reference/freeciv/server/maphand.c:442-613
       // Map knowledge is player-specific: explored tiles retain terrain, while
       // resources and units are sent only while currently visible.
-      gameInstance.visibilityManager.updatePlayerVisibility(playerId);
-      const debugVisibility = this.isDebugVisibilityEnabled(gameId, playerId);
-      const allTilesSet = debugVisibility ? this.getAllTileKeys(mapData) : undefined;
-      const visibleTilesSet =
-        allTilesSet ?? gameInstance.visibilityManager.getVisibleTiles(playerId);
-      const exploredTilesSet =
-        allTilesSet ?? gameInstance.visibilityManager.getExploredTiles(playerId);
-      const rememberedTiles = this.getRememberedTiles(
+      const visibility = this.getPlayerMapVisibility(gameInstance, gameId, playerId, mapData);
+      const formattedUnits = this.getVisibleUnitsForPlayer(
         gameInstance,
         playerId,
-        mapData,
-        exploredTilesSet
-      );
-      const visibleTiles = this.processMapTilesForPlayer(
-        mapData,
-        visibleTilesSet,
-        exploredTilesSet,
-        rememberedTiles,
-        gameInstance.config.ruleset ?? 'classic',
-        new Set(gameInstance.researchManager.getResearchedTechs(playerId))
-      );
-
-      // Get units visible to this player (delegate to UnitManager)
-      const visibleUnits = debugVisibility
-        ? Array.from(gameInstance.unitManager.getAllUnits().values())
-        : gameInstance.unitManager.getVisibleUnits(
-            playerId,
-            visibleTilesSet,
-            gameInstance.visibilityManager.getDetectionTiles?.(playerId)
-          );
-      const formattedUnits = visibleUnits.map((unit: any) =>
-        this.formatUnitForClient(unit, gameInstance.unitManager)
+        visibility.visibleTiles,
+        visibility.debug
       );
 
       // Send MAP_INFO packet first (like original code)
@@ -349,7 +323,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       this.sendPacketToPlayer(gameInstance, playerId, PacketType.MAP_INFO, mapInfoPacket);
 
       // Send tiles in batches like original code
-      this.sendTileDataInBatches(gameInstance, playerId, visibleTiles);
+      this.sendTileDataInBatches(gameInstance, playerId, visibility.tiles);
 
       this.sendPacketToPlayer(gameInstance, playerId, PacketType.UNIT_INFO, {
         units: formattedUnits,
@@ -359,9 +333,9 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       this.logger.debug('Sent player-specific map data', {
         gameId,
         playerId,
-        tilesCount: visibleTiles.length,
+        tilesCount: visibility.tiles.length,
         unitsCount: formattedUnits.length,
-        batches: Math.ceil(visibleTiles.length / 100),
+        batches: Math.ceil(visibility.tiles.length / 100),
       });
     } catch (error) {
       this.logger.error('Error sending map data to player:', {
@@ -370,6 +344,50 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         playerId,
       });
     }
+  }
+
+  private getPlayerMapVisibility(
+    gameInstance: any,
+    gameId: string,
+    playerId: string,
+    mapData: any
+  ): { tiles: any[]; visibleTiles: Set<string>; debug: boolean } {
+    gameInstance.visibilityManager.updatePlayerVisibility(playerId);
+    const debug = this.isDebugVisibilityEnabled(gameId, playerId);
+    const allTiles = debug ? this.getAllTileKeys(mapData) : undefined;
+    const visibleTiles = allTiles ?? gameInstance.visibilityManager.getVisibleTiles(playerId);
+    const exploredTiles = allTiles ?? gameInstance.visibilityManager.getExploredTiles(playerId);
+    const rememberedTiles = this.getRememberedTiles(gameInstance, playerId, mapData, exploredTiles);
+
+    return {
+      tiles: this.processMapTilesForPlayer(
+        mapData,
+        visibleTiles,
+        exploredTiles,
+        rememberedTiles,
+        gameInstance.config.ruleset ?? 'classic',
+        new Set(gameInstance.researchManager.getResearchedTechs(playerId))
+      ),
+      visibleTiles,
+      debug,
+    };
+  }
+
+  private getVisibleUnitsForPlayer(
+    gameInstance: any,
+    playerId: string,
+    visibleTiles: Set<string>,
+    debug: boolean
+  ): any[] {
+    const units = debug
+      ? Array.from(gameInstance.unitManager.getAllUnits().values())
+      : gameInstance.unitManager.getVisibleUnits(
+          playerId,
+          visibleTiles,
+          gameInstance.visibilityManager.getDetectionTiles?.(playerId)
+        );
+
+    return units.map((unit: any) => this.formatUnitForClient(unit, gameInstance.unitManager));
   }
 
   private sendPlayerInfoSnapshot(gameInstance: GameInstance, recipientPlayerId: string): void {
