@@ -3127,7 +3127,8 @@ export class UnitManager {
   resolveDiplomatAction(
     actorId: string,
     actionType: ActionType,
-    defenderId?: string
+    defenderId?: string,
+    theftCount = 0
   ): DiplomatActionResolution {
     const actor = this.units.get(actorId);
     if (!actor) {
@@ -3135,7 +3136,7 @@ export class UnitManager {
     }
 
     const defender = defenderId ? this.units.get(defenderId) : undefined;
-    const odds = this.calculateDiplomatActionOdds(actor, actionType, defender);
+    const odds = this.calculateDiplomatActionOdds(actor, actionType, defender, theftCount);
     const success = randomInt(this.random, 100) < odds.successChance * 100;
     const actorSurvives =
       success && odds.escapeChance > 0 && randomInt(this.random, 100) < odds.escapeChance * 100;
@@ -3155,7 +3156,8 @@ export class UnitManager {
   calculateDiplomatActionOdds(
     actor: Unit,
     actionType: ActionType,
-    defender?: Unit
+    defender?: Unit,
+    theftCount = 0
   ): { successChance: number; escapeChance: number } {
     const actorType = this.unitTypes[actor.unitTypeId];
     const isSpy = actorType.flags?.includes('Spy') ?? false;
@@ -3181,6 +3183,10 @@ export class UnitManager {
         successChance -= 20 + defender.veteranLevel * 5;
       }
     }
+    // Freeciv makes repeated missions against the same city progressively
+    // harder. Keep the penalty deterministic and bounded so spies remain
+    // useful while repeated thefts are not free attempts.
+    successChance -= Math.max(0, theftCount) * 10;
     successChance = Math.max(5, Math.min(100, successChance));
     if (defenderIsSuperSpy) successChance = 0;
     const escapeActions = new Set([

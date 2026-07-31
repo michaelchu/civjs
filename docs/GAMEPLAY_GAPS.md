@@ -758,8 +758,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
   against the same city. `executeDiplomatAction()` now accepts validated
   technology and improvement IDs, uses the authoritative game random stream
   for untargeted technology selection, and passes targeted improvements through
-  `CityManager`. Theft-count mission difficulty and a dedicated client target
-  picker/target-options packet are still not modeled.
+  `CityManager`. Repeated covert missions now apply a bounded theft-count
+  success penalty. A dedicated client target picker/target-options packet is
+  still not modeled.
 - **Reference behavior:** Untargeted actions choose randomly from eligible
   targets, targeted Spy actions accept a selected technology/improvement, and
   each city's theft count increases later mission difficulty (ordinary
@@ -776,8 +777,8 @@ you declare war first.` Civilian/border-entry units may enter permitted
   difficulty, and player target-selection packets.
 - **Regression coverage:** `GameManager.espionage.test.ts` covers first/repeat
   theft behavior for Diplomats and Spies, validated targeted technology and
-  improvement selection, and untargeted fallback behavior. Theft-count
-  difficulty scaling, production sabotage, indestructible buildings, and a
+  improvement selection, untargeted fallback behavior, and theft-count
+  difficulty scaling. Production sabotage, indestructible buildings, and a
   dedicated client target picker/target-options packet remain to be covered.
 
 ### GP-027 — Governments can be adopted without their required technology

@@ -696,6 +696,8 @@ export class GameManager {
     const targetOwnerId = city.playerId;
     await this.diplomacyManager.establishContact(gameId, playerId, targetOwnerId);
     const relation = await this.getDiplomaticState(gameId, playerId, targetOwnerId);
+    const theftCount =
+      game.cityManager.getEspionageTheftCount?.(city.id, playerId) ?? 0;
 
     let result: ActionResult;
     let actorSurvives = unitFlags.includes('Spy');
@@ -709,16 +711,16 @@ export class GameManager {
           !candidate.transportedBy
         );
       });
-      const resolution = game.unitManager.resolveDiplomatAction?.(
-        unit.id,
-        actionType,
-        defender?.id
-      ) ?? {
+      const resolution =
+        theftCount > 0
+          ? game.unitManager.resolveDiplomatAction?.(unit.id, actionType, defender?.id, theftCount)
+          : game.unitManager.resolveDiplomatAction?.(unit.id, actionType, defender?.id);
+      const resolved = resolution ?? {
         success: true,
         actorSurvives: unitFlags.includes('Spy'),
       };
-      actorSurvives = resolution.actorSurvives;
-      if (resolution.success) return null;
+      actorSurvives = resolved.actorSurvives;
+      if (resolved.success) return null;
       await game.unitManager.removeUnit(unit.id);
       return {
         success: false,

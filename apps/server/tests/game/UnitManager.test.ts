@@ -1644,8 +1644,20 @@ describe('UnitManager', () => {
           superSpyAttacker,
           ActionType.SABOTAGE_CITY,
           diplomat
-        ).successChance
+      ).successChance
       ).toBe(1);
+    });
+
+    it('reduces repeated covert mission odds using persisted theft count', async () => {
+      const spy = await unitManager.createUnit('player-123', 'spy', 10, 10);
+      expect(
+        unitManager.calculateDiplomatActionOdds(spy, ActionType.STEAL_TECH, undefined, 0)
+          .successChance
+      ).toBe(0.75);
+      expect(
+        unitManager.calculateDiplomatActionOdds(spy, ActionType.STEAL_TECH, undefined, 2)
+          .successChance
+      ).toBe(0.55);
     });
   });
 
