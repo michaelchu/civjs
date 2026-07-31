@@ -150,6 +150,50 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
     return () => document.removeEventListener('open-report', handleOpenReport);
   }, []);
 
+  // Keep the classic function-key navigation available while reports are
+  // presented as dialogs rather than full-screen tabs.
+  useEffect(() => {
+    const closeReports = () => {
+      setGovernmentReportOpen(false);
+      setResearchReportOpen(false);
+      setDiplomacyReportOpen(false);
+      setEmpireReportOpen(false);
+      setActiveTab('map');
+    };
+
+    const handleFunctionKey = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey || !/^F[1-6]$/.test(event.key)) {
+        return;
+      }
+
+      event.preventDefault();
+      closeReports();
+
+      switch (event.key) {
+        case 'F2':
+          setGovernmentReportOpen(true);
+          break;
+        case 'F3':
+          setResearchReportOpen(true);
+          break;
+        case 'F4':
+          setDiplomacyReportOpen(true);
+          break;
+        case 'F5':
+          setEmpireReportOpen(true);
+          break;
+        case 'F6':
+          setActiveTab('options');
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleFunctionKey);
+    return () => window.removeEventListener('keydown', handleFunctionKey);
+  }, [setActiveTab]);
+
   if (clientState === 'initial' || clientState === 'connecting') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">

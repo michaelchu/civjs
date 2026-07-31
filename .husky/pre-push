@@ -4,3 +4,7 @@ npm run format:check
 echo "🧹 Running full lint before push..."
 npm run lint
 echo "✅ Full lint passed!"
+
+echo "🧪 Running end-to-end tests..."
+npm run test:e2e
+echo "✅ End-to-end tests passed!"

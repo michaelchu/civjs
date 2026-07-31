@@ -28,7 +28,7 @@ test('renders the authoritative classic presentation and supported game screens'
   });
   expect(pixels).toBeGreaterThan(1000);
 
-  await page.getByRole('button', { name: /Cities screen/ }).click();
+  await page.getByRole('button', { name: /Empire report/ }).click();
   await expect(page.getByText('Kyoto')).toBeVisible();
   await page.keyboard.press('F6');
   await expect(page.getByRole('heading', { name: 'Game information' })).toBeVisible();
@@ -46,7 +46,9 @@ test('renders the authoritative classic presentation and supported game screens'
 test('supports keyboard navigation across the player-visible surface', async ({ page }) => {
   await page.goto('/test/browser-parity');
   await page.keyboard.press('F2');
-  await expect(page.getByRole('heading', { name: 'Government' })).toBeVisible();
+  await expect(
+    page.getByRole('dialog').getByRole('heading', { name: 'Government' }).first()
+  ).toBeVisible();
   await expect(
     page.getByText('Representative government with strong trade and limited corruption.')
   ).toBeVisible();
