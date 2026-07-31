@@ -4389,8 +4389,113 @@ export class UnitManager {
       })),
     });
 
+    const processedActivities = new Set<string>();
     for (const unit of this.units.values()) {
+      if (unit.playerId !== playerId || !unit.orders?.[0]) continue;
+      const order = unit.orders[0];
+      if (this.isActivityOrderType(order.type)) {
+        const key = `${playerId}:${unit.x}:${unit.y}:${order.type}`;
+        if (processedActivities.has(key)) continue;
+        const group = [...this.units.values()].filter(
+          candidate =>
+            candidate.playerId === playerId &&
+            candidate.x === unit.x &&
+            candidate.y === unit.y &&
+            candidate.orders?.[0]?.type === order.type
+        );
+        await this.processActivityGroup(group);
+        processedActivities.add(key);
+        continue;
+      }
       await this.processUnitOrder(unit, playerId);
+    }
+  }
+
+  private isActivityOrderType(orderType: UnitOrder['type']): boolean {
+    return new Set<UnitOrder['type']>([
+      'road',
+      'railroad',
+      'irrigate',
+      'mine',
+      'cultivate',
+      'plant',
+      'fortress',
+      'airbase',
+      'transform',
+      'pillage',
+      'cleanPollution',
+    ]).has(orderType);
+  }
+
+  private getActivityWorkRate(unit: Unit): number {
+    return unit.unitTypeId === 'engineers' ? 2 : 1;
+  }
+
+  private async processActivityGroup(group: Unit[]): Promise<void> {
+    if (group.length === 0) return;
+    const orderType = group[0]!.orders![0]!.type;
+
+    for (const unit of group) {
+      const order = unit.orders![0]!;
+      if (!order.activity || order.activity.type === 'idle') {
+        const turnsRequired = this.getActivityDuration(orderType, unit);
+        order.activity = {
+          type: this.getActivityTypeFromOrder(orderType),
+          turnsRemaining: turnsRequired,
+          totalTurns: turnsRequired,
+          target: { x: unit.x, y: unit.y },
+        };
+      }
+    }
+
+    const requiredWork = Math.max(
+      ...group.map(unit => this.getActivityWorkRate(unit) * unit.orders![0]!.activity!.totalTurns)
+    );
+    const previousWork = Math.max(
+      ...group.map(unit => {
+        const activity = unit.orders![0]!.activity!;
+        return (activity.totalTurns - activity.turnsRemaining) * this.getActivityWorkRate(unit);
+      })
+    );
+    const currentWork =
+      previousWork + group.reduce((sum, unit) => sum + this.getActivityWorkRate(unit), 0);
+
+    if (currentWork >= requiredWork) {
+      await this.completeActivity(group[0]!, group[0]!.orders![0]!);
+      for (const unit of group) {
+        unit.activity = { type: 'idle', turnsRemaining: 0, totalTurns: 0 };
+        this.removeCurrentOrder(unit);
+        unit.movementLeft = 0;
+        await this.databaseProvider
+          .getDatabase()
+          .update(units)
+          .set({
+            movementPoints: '0',
+            orders: unit.orders ?? [],
+            currentOrder: unit.orders?.[0]?.type ?? null,
+          })
+          .where(eq(units.id, unit.id));
+      }
+      return;
+    }
+
+    for (const unit of group) {
+      const order = unit.orders![0]!;
+      const activity = order.activity!;
+      const rate = this.getActivityWorkRate(unit);
+      activity.totalTurns = Math.ceil(requiredWork / rate);
+      activity.turnsRemaining = Math.ceil((requiredWork - currentWork) / rate);
+      unit.activity = activity;
+      unit.movementLeft = 0;
+      await this.databaseProvider
+        .getDatabase()
+        .update(units)
+        .set({
+          movementPoints: '0',
+          orders: unit.orders ?? [],
+          currentOrder: unit.orders?.[0]?.type ?? null,
+        })
+        .where(eq(units.id, unit.id));
     }
   }
 

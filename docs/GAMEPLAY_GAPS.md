@@ -876,8 +876,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Observed behavior:** Each worker maintains an independent integer
   `turnsRemaining`; two workers building the same road or mine do not combine
   work and finish sooner.
-- **Current implementation:** Activity progress is stored inside each unit's
-  order and decremented independently. Completion simply adds the extra.
+- **Current implementation:** Same-player workers with compatible activity
+  orders on the same tile now form one authoritative work group. Progress is
+  calculated in shared work units, with Engineers contributing at double rate;
+  completion mutates the tile once and clears every participating order.
 - **Reference behavior:** Freeciv stores accumulated activity work and sums the
   activity rates of compatible units on a tile, allowing workers to cooperate.
 - **CivJS references:**
@@ -888,8 +890,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/common/clientutils.c`
 - **Expected outcome:** Track shared compatible progress (or equivalent work
   points), account for unit/veteran rates, and resolve completion once.
-- **Regression coverage:** Test one Worker, two Workers, Worker plus Engineer,
-  a unit leaving mid-project, conflicting activities, and reload.
+- **Regression coverage:** `UnitManager.test.ts` covers one-worker and
+  two-worker road completion. Worker/Engineer rates, departure and joining,
+  conflicting activities, and reload persistence remain to be covered.
 
 ### GP-030 — Several goody-hut outcomes use different game consequences
 

@@ -218,6 +218,32 @@ describe('UnitManager', () => {
       expect(worker.orders).toEqual([]);
     });
 
+    it('combines compatible workers into one shared activity', async () => {
+      const first = await unitManager.createUnit('player-123', 'worker', 10, 10);
+      const second = await unitManager.createUnit('player-123', 'worker', 10, 10);
+
+      await unitManager.executeUnitAction(
+        first.id,
+        ActionType.BUILD_ROAD,
+        undefined,
+        undefined,
+        'player-123'
+      );
+      await unitManager.executeUnitAction(
+        second.id,
+        ActionType.BUILD_ROAD,
+        undefined,
+        undefined,
+        'player-123'
+      );
+
+      await unitManager.processUnitOrders('player-123');
+
+      expect(tile.hasRoad).toBe(true);
+      expect(first.orders).toEqual([]);
+      expect(second.orders).toEqual([]);
+    });
+
     it('treats fallout as a cleanable extra and removes it on completion', async () => {
       tile.improvements = ['fallout'];
       const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);
