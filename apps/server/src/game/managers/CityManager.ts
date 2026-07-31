@@ -299,7 +299,7 @@ export interface CityManagerCallbacks {
   onCityFounded?: (city: CityState) => void;
   onCityGrowth?: (city: CityState, oldSize: number) => void;
   onCityProductionComplete?: (city: CityState, item: ProductionItem) => void | Promise<void>;
-  onCityDestroyed?: (city: CityState) => void;
+  onCityDestroyed?: (city: CityState) => void | Promise<void>;
   onCityCaptured?: (city: CityState, oldPlayerId: string) => void;
   onCityOwnershipChanged?: (
     city: CityState,
@@ -2259,9 +2259,7 @@ export class CityManager {
     }
 
     // Trigger callback
-    if (this.callbacks.onCityDestroyed) {
-      this.callbacks.onCityDestroyed(city);
-    }
+    await this.callbacks.onCityDestroyed?.(city);
 
     return true;
   }

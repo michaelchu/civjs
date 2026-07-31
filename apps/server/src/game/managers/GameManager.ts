@@ -1341,7 +1341,10 @@ export class GameManager {
         this.executeDiplomatAction(gameId, playerId, unitId, actionType, targetX, targetY)
     );
     gameInstance.cityManager.setCallbacks({
-      onCityDestroyed: city => this.aiOrchestrator.onCityInvalidated(gameId, gameInstance, city.id),
+      onCityDestroyed: async city => {
+        this.aiOrchestrator.onCityInvalidated(gameId, gameInstance, city.id);
+        await gameInstance.turnManager.evaluateEndGameNow();
+      },
       onCityCaptured: city => this.aiOrchestrator.onCityInvalidated(gameId, gameInstance, city.id),
     });
     gameInstance.turnManager.setAIProcessor(() =>

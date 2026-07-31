@@ -389,6 +389,18 @@ describe('CityManager', () => {
       expect(capitalLoss).toHaveBeenCalledWith('player-123');
     });
 
+    it('awaits city-destruction callbacks so last-city elimination can end the game immediately', async () => {
+      const destroyed = jest.fn().mockImplementation(async city => {
+        expect(cityManager.getCity(city.id)).toBeUndefined();
+      });
+      cityManager.setCallbacks({ onCityDestroyed: destroyed });
+      const city = await cityManager.foundCity(10, 10, 'Last City', 'player-123');
+
+      await expect(cityManager.destroyCity(city.id)).resolves.toBe(true);
+
+      expect(destroyed).toHaveBeenCalledWith(city);
+    });
+
     it('sells improvements for the classic shield cost and credits the treasury', async () => {
       const city = await cityManager.foundCity(10, 10, 'Capital', 'player-123');
       city.buildings.push('granary');
