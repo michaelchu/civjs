@@ -14,9 +14,11 @@ describe('GameBroadcastManager visibility sync', () => {
   const userTwo = 'user-2';
   let emitted: Array<{ room: string; event: string; data: any }>;
   let manager: GameBroadcastManager;
+  let availableWorkerActions: string[];
 
   beforeEach(() => {
     emitted = [];
+    availableWorkerActions = [];
     const io = {
       to: jest.fn((room: string) => ({
         emit: (event: string, data: any) => emitted.push({ room, event, data }),
@@ -76,6 +78,7 @@ describe('GameBroadcastManager visibility sync', () => {
         getExploredTiles: (playerId: string) => explored.get(playerId),
       },
       unitManager: {
+        getAvailableWorkerActions: () => availableWorkerActions,
         getVisibleUnits: (playerId: string) =>
           playerId === playerOne
             ? [
@@ -126,6 +129,36 @@ describe('GameBroadcastManager visibility sync', () => {
       },
     };
     manager.setGamesReference(new Map([[gameId, game as any]]));
+  });
+
+  it('refreshes the owner-only worker action projection when authoritative state changes', () => {
+    availableWorkerActions = ['build_road'];
+    manager.broadcastVisibilityState(gameId);
+
+    const firstUnitPacket = emitted.find(
+      emission =>
+        emission.room === `player:${userOne}` &&
+        emission.event === 'packet' &&
+        emission.data.type === PacketType.UNIT_INFO
+    );
+    expect(firstUnitPacket?.data.data.units[0].capabilities.availableWorkerActions).toEqual([
+      'build_road',
+    ]);
+
+    emitted = [];
+    availableWorkerActions = ['build_road', 'build_railroad'];
+    manager.broadcastVisibilityState(gameId);
+
+    const refreshedUnitPacket = emitted.find(
+      emission =>
+        emission.room === `player:${userOne}` &&
+        emission.event === 'packet' &&
+        emission.data.type === PacketType.UNIT_INFO
+    );
+    expect(refreshedUnitPacket?.data.data.units[0].capabilities.availableWorkerActions).toEqual([
+      'build_road',
+      'build_railroad',
+    ]);
   });
 
   it('broadcasts lobby connection events without warning about a missing runtime instance', () => {
