@@ -643,8 +643,8 @@ you declare war first.` Civilian/border-entry units may enter permitted
   gifts, and scripted transfer, including cargo and home-city persistence.
 - **Regression coverage:** `UnitManager.test.ts` covers city-tile units,
   nearby supported units, far-away supported units, homeless units, supported
-  units in another friendly city, and transported cargo stacks. Allied-stack
-  behavior remains to be covered by an integration fixture.
+  units in another friendly city, transported cargo stacks, and allied units
+  occupying the transferred tile.
 
 ### GP-022 — Losing a capital neither relocates the Palace nor cancels its spaceship
 
@@ -909,7 +909,7 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Regression coverage:** `UnitManager.test.ts` covers one-worker and
   two-worker road completion, Engineer double-rate completion, a worker joining
   an activity in progress, and conflicting same-tile activities. Reload
-  persistence remains to be covered.
+  persistence is also covered for an in-progress worker activity.
 
 ### GP-030 — Several goody-hut outcomes use different game consequences
 

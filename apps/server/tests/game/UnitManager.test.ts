@@ -547,6 +547,20 @@ describe('UnitManager', () => {
       });
     });
 
+    it('leaves allied units occupying a transferred city untouched', async () => {
+      const allied = await unitManager.createUnit('player-789', 'warriors', 10, 10, 'ally-city');
+      const formerOwner = await unitManager.createUnit('player-456', 'warriors', 10, 10, 'city-1');
+
+      await unitManager.reconcileCityOwnership(
+        { id: 'city-1', x: 10, y: 10 },
+        'player-456',
+        'player-123'
+      );
+
+      expect(allied).toMatchObject({ playerId: 'player-789', homeCityId: 'ally-city' });
+      expect(formerOwner).toMatchObject({ playerId: 'player-123', homeCityId: 'city-1' });
+    });
+
     it('broadcasts settler destruction after a successful found-city action', async () => {
       const broadcastUnitDestroyed = jest.fn();
       const foundCity = jest.fn().mockResolvedValue('city-1');
@@ -2323,6 +2337,52 @@ describe('UnitManager', () => {
       expect(unitManager.getUnit('automated-unit')).toMatchObject({
         automation: 'explore',
         orders: [{ type: 'autoExplore' }],
+      });
+    });
+
+    it('recovers persisted cooperative worker activity progress', async () => {
+      const db = mockDbProvider.getDatabase() as any;
+      db.where.mockResolvedValueOnce([
+        {
+          id: 'persisted-worker',
+          gameId,
+          playerId: 'player-123',
+          unitType: 'worker',
+          x: 10,
+          y: 10,
+          movementPoints: '0',
+          health: 100,
+          veteranLevel: 0,
+          experience: 0,
+          isFortified: false,
+          isAutomated: false,
+          orders: [
+            {
+              type: 'road',
+              activity: {
+                type: 'building_road',
+                turnsRemaining: 1,
+                totalTurns: 2,
+                target: { x: 10, y: 10 },
+              },
+            },
+          ],
+          currentOrder: 'road',
+          transportedBy: null,
+          cargoUnits: [],
+          homeCityId: null,
+        },
+      ]);
+
+      await unitManager.loadUnits();
+
+      expect(unitManager.getUnit('persisted-worker')).toMatchObject({
+        orders: [
+          expect.objectContaining({
+            type: 'road',
+            activity: expect.objectContaining({ turnsRemaining: 1, totalTurns: 2 }),
+          }),
+        ],
       });
     });
   });
