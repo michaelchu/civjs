@@ -164,6 +164,15 @@ export class SocketCoordinator {
   }
 
   private async findPlayerId(gameId: string, userId: string): Promise<string | undefined> {
+    const gameInstance = this.gameManager.getGameInstance?.(gameId);
+    if (gameInstance?.players) {
+      const players =
+        gameInstance.players instanceof Map
+          ? Array.from(gameInstance.players.values())
+          : gameInstance.players;
+      return players.find((player: any) => player.userId === userId)?.id;
+    }
+
     const game = await this.gameManager.getGame(gameId);
     if (!game?.players) return undefined;
     // Handle both Map (from gameInstance) and array (from database) formats.

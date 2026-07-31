@@ -10,6 +10,7 @@ describe('TurnPhaseService recovery checkpoints', () => {
       sendProcessingStepPacket: jest.fn(),
       sendFreezeClientPacket: jest.fn(),
       sendTurnProcessingError: jest.fn(),
+      sendThawClientPacket: jest.fn(),
     };
     const events = {
       registerEventHandler: jest.fn(),
@@ -69,6 +70,7 @@ describe('TurnPhaseService recovery checkpoints', () => {
         sendProcessingStepPacket: jest.fn(),
         sendFreezeClientPacket: jest.fn(),
         sendTurnProcessingError: jest.fn(),
+        sendThawClientPacket: jest.fn(),
       } as any,
       events as any,
       undefined,
@@ -99,5 +101,41 @@ describe('TurnPhaseService recovery checkpoints', () => {
     expect(random.getState()).toEqual(checkpointSource.getState());
     expect(random.next(1000)).toBe(checkpointSource.next(1000));
     expect(identities.getState()).toBe(200 + Object.values(TurnPhase).length - 1);
+  });
+
+  it('thaws clients when a phase fails before the normal end-turn phase', async () => {
+    const packets = {
+      sendProcessingStepPacket: jest.fn(),
+      sendFreezeClientPacket: jest.fn(),
+      sendTurnProcessingError: jest.fn(),
+      sendThawClientPacket: jest.fn(),
+    };
+    const service = new TurnPhaseService(
+      'game-1',
+      {} as any,
+      {} as any,
+      packets as any,
+      {
+        registerEventHandler: jest.fn(),
+        emitEvent: jest.fn(),
+        processQueuedEvents: jest
+          .fn()
+          .mockResolvedValue({ eventsProcessed: 0, achievementsUnlocked: 0 }),
+      } as any
+    );
+    (service as any).getOrCreatePhaseRecord = jest.fn().mockResolvedValue({ id: 'phase-1' });
+    (service as any).executePhase = jest.fn().mockResolvedValue({
+      phase: TurnPhase.PHASE_BEGIN_TURN,
+      success: false,
+      duration: 1,
+      playersProcessed: 0,
+      itemsProcessed: 0,
+      errors: ['database unavailable'],
+    });
+
+    const result = await service.executePhaseProcessing(3, -3920, ['player-1']);
+
+    expect(result.success).toBe(false);
+    expect(packets.sendThawClientPacket).toHaveBeenCalledWith('Turn processing failed');
   });
 });

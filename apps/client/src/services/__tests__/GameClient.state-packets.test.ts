@@ -92,6 +92,38 @@ describe('GameClient state-bearing packets', () => {
     expect(useGameStore.getState().turnProcessingState).toBe('idle');
   });
 
+  it('clears the optimistic processing state when the server rejects ending the turn', () => {
+    useGameStore.getState().startTurnProcessing();
+
+    handlePacket({
+      type: PacketType.TURN_END_REPLY,
+      data: { success: false, message: 'Database temporarily unavailable' },
+    });
+
+    expect(useGameStore.getState().turnProcessingState).toBe('idle');
+    expect(useGameStore.getState().turnProcessingSteps).toEqual([]);
+    expect(useGameStore.getState().notifications.at(-1)).toMatchObject({
+      message: 'Turn processing failed: Database temporarily unavailable',
+      tone: 'error',
+    });
+  });
+
+  it('clears the processing state when a turn phase reports an error', () => {
+    useGameStore.getState().startTurnProcessing();
+
+    handlePacket({
+      type: PacketType.TURN_PROCESSING_STEP,
+      data: {
+        step: 'unit_activities',
+        label: 'Error in unit activities: database unavailable',
+        error: true,
+      },
+    });
+
+    expect(useGameStore.getState().turnProcessingState).toBe('idle');
+    expect(useGameStore.getState().notifications.at(-1)?.tone).toBe('error');
+  });
+
   it('applies map, visibility, extras, and border ownership packets', () => {
     handlePacket({
       type: PacketType.MAP_INFO,

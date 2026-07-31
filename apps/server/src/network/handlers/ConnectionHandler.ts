@@ -132,10 +132,19 @@ export class ConnectionHandler extends BaseSocketHandler {
 
     const connection = this.activeConnections.get(socket.id);
     if (connection?.userId) {
-      await this.database
-        .update(users)
-        .set({ lastSeen: new Date() })
-        .where(eq(users.id, connection.userId));
+      try {
+        await this.database
+          .update(users)
+          .set({ lastSeen: new Date() })
+          .where(eq(users.id, connection.userId));
+      } catch (error) {
+        // Disconnect cleanup is best-effort. A database outage must not turn
+        // an otherwise normal socket disconnect into an unhandled rejection.
+        logger.warn('Unable to persist user last-seen timestamp during disconnect', {
+          userId: connection.userId,
+          error: error instanceof Error ? error.message : error,
+        });
+      }
 
       if (connection.gameId) {
         // Emit disconnect message to game room

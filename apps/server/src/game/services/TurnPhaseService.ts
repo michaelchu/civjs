@@ -431,6 +431,10 @@ export class TurnPhaseService {
             phase,
             errors: phaseResult.errors,
           });
+          // The begin-turn phase freezes clients before later phases run. If
+          // any phase fails, the normal end-turn phase is skipped, so thaw
+          // explicitly or clients can remain stuck in the processing overlay.
+          this.turnPacketService.sendThawClientPacket('Turn processing failed');
           break;
         }
 
@@ -478,6 +482,10 @@ export class TurnPhaseService {
       result.success = false;
       result.errors.push(error instanceof Error ? error.message : String(error));
       result.totalDuration = Date.now() - context.startTime;
+
+      // A failure before PHASE_END_TURN still needs to release the client
+      // freeze. This is also safe when the failure occurred before freezing.
+      this.turnPacketService.sendThawClientPacket('Turn processing failed');
 
       logger.error('Critical error in turn phase processing', {
         gameId: this.gameId,

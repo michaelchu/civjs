@@ -54,4 +54,22 @@ describe('turn phase packet contracts', () => {
       jest.useRealTimers();
     }
   });
+
+  it('resolves an end-turn player from the mounted game without a database read', async () => {
+    const players = new Map([['player-1', { id: 'player-1', userId: 'user-1' }]]);
+    const gameManager = {
+      getGameInstance: jest.fn().mockReturnValue({ players }),
+      getAllGames: jest.fn().mockRejectedValue(new Error('database unavailable')),
+    };
+    const handler = new TurnManagementHandler(new Map(), gameManager as never);
+
+    const playerId = await (
+      handler as unknown as {
+        resolvePlayerIdForTurn: (connection: unknown) => Promise<string | null>;
+      }
+    ).resolvePlayerIdForTurn({ gameId: 'game-1', userId: 'user-1' });
+
+    expect(playerId).toBe('player-1');
+    expect(gameManager.getAllGames).not.toHaveBeenCalled();
+  });
 });

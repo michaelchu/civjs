@@ -672,7 +672,7 @@ export class GameClient {
 
       case PacketType.TURN_END_REPLY:
         if (!packet.data.success) {
-          console.error('Turn end failed:', packet.data.message);
+          this.handleTurnProcessingFailure(packet.data.message || 'Failed to end turn');
         }
         break;
 
@@ -1592,6 +1592,11 @@ export class GameClient {
   private handleTurnProcessingStep(data: any) {
     const gameStore = useGameStore.getState();
 
+    if (data.error) {
+      this.handleTurnProcessingFailure(data.label || 'Turn processing failed');
+      return;
+    }
+
     // Handle completion step
     if (data.step === 'complete') {
       gameStore.completeTurnProcessing();
@@ -1658,6 +1663,15 @@ export class GameClient {
     });
 
     freshGameStore.updateTurnProcessingSteps(updatedSteps);
+  }
+
+  private handleTurnProcessingFailure(message: string): void {
+    const gameStore = useGameStore.getState();
+    gameStore.resetTurnProcessing();
+    gameStore.addNotification({
+      message: `Turn processing failed: ${message}`,
+      tone: 'error',
+    });
   }
 
   disconnect() {

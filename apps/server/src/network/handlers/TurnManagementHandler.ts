@@ -52,7 +52,13 @@ export class TurnManagementHandler extends BaseSocketHandler {
 
     try {
       const playerId = await this.resolvePlayerIdForTurn(connection);
-      if (!playerId) return;
+      if (!playerId) {
+        handler.send(socket, PacketType.TURN_END_REPLY, {
+          success: false,
+          message: 'Unable to resolve the player for this game',
+        });
+        return;
+      }
 
       const turnAdvanced = await this.gameManager.endTurn(playerId);
 
@@ -80,6 +86,20 @@ export class TurnManagementHandler extends BaseSocketHandler {
   }
 
   private async resolvePlayerIdForTurn(connection: any): Promise<string | null> {
+    // Prefer the authoritative in-memory game. This keeps a transient
+    // database outage from turning an end-turn request into a silent no-op.
+    const gameInstance = this.gameManager.getGameInstance?.(connection.gameId);
+    if (gameInstance?.players) {
+      const players =
+        gameInstance.players instanceof Map
+          ? Array.from(gameInstance.players.values())
+          : gameInstance.players;
+      const activePlayer = players.find((player: any) => player.userId === connection.userId);
+      if (activePlayer?.id) return activePlayer.id;
+    }
+
+    // Fall back to the database-backed lobby view for connections whose game
+    // has not been mounted in this server process yet.
     for (const game of await this.gameManager.getAllGames()) {
       const player = game.players.find((p: any) => p.userId === connection.userId) as any;
       if (player) return player.id;
