@@ -64,6 +64,7 @@ export const cities = pgTable('cities', {
   airliftUsedTurn: integer('airlift_used_turn'),
   didSellTurn: integer('did_sell_turn'),
   didBuyTurn: integer('did_buy_turn'),
+  espionageThefts: jsonb('espionage_thefts').default({}).notNull(),
 
   // Timestamps
   foundedTurn: integer('founded_turn').notNull(),

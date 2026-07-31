@@ -28,7 +28,13 @@ import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 // Type definitions for culture calculations
 export type CityWithBuildings = Omit<
   DatabaseCity,
-  'buildings' | 'airliftUsedTurn' | 'disorderTurns' | 'rallyPoint' | 'didSellTurn' | 'didBuyTurn'
+  | 'buildings'
+  | 'airliftUsedTurn'
+  | 'disorderTurns'
+  | 'rallyPoint'
+  | 'didSellTurn'
+  | 'didBuyTurn'
+  | 'espionageThefts'
 > & {
   buildings: string[]; // Building IDs in the city
   airliftUsedTurn?: number | null;

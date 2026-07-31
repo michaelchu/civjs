@@ -739,9 +739,11 @@ you declare war first.` Civilian/border-entry units may enter permitted
   alphabetically first available technology; sabotage always removes the
   alphabetically first non-Palace building. Cities do not remember prior
   thefts, so repeat attempts never become harder or impossible.
-- **Current implementation:** `GameManager` sorts candidate technologies and
-  takes index zero; `CityManager.sabotageCityBuilding()` does the same for
-  buildings. `CityState` has no theft counter.
+- **Current implementation:** Untargeted technology and building selection now
+  use random eligible candidates, and city theft counts are persisted by
+  `CityManager`. A non-Spy Diplomat is blocked from repeating technology theft
+  against the same city. Targeted technology/improvement action variants and
+  theft-count mission difficulty are still not modeled.
 - **Reference behavior:** Untargeted actions choose randomly from eligible
   targets, targeted Spy actions accept a selected technology/improvement, and
   each city's theft count increases later mission difficulty (ordinary
@@ -756,9 +758,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Expected outcome:** Model targeted and untargeted action variants,
   eligibility and random selection, persisted theft history, mission
   difficulty, and player target-selection packets.
-- **Regression coverage:** Test first/repeat theft by Diplomat and Spy,
-  targeted/untargeted theft, production sabotage, indestructible buildings,
-  and deterministic seeded random selection.
+- **Regression coverage:** `GameManager.espionage.test.ts` covers first/repeat
+  theft behavior for Diplomats and Spies. Targeted/untargeted theft,
+  production sabotage, indestructible buildings, difficulty scaling, and
+  deterministic seeded random selection remain to be covered.
 
 ### GP-027 — Governments can be adopted without their required technology
 

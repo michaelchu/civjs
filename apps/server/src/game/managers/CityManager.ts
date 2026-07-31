@@ -241,6 +241,7 @@ export interface CityState {
   airliftUsedTurn?: number;
   didSellTurn?: number;
   didBuyTurn?: number;
+  espionageThefts?: Record<string, number>;
 }
 
 export interface CityWorkerTaskRequest {
@@ -798,6 +799,7 @@ export class CityManager {
         [SpecialistType.MERCHANT]: 0,
       },
       tradeRoutes: [],
+      espionageThefts: {},
       happiness: {
         happy: 0,
         content: 1,
@@ -1316,6 +1318,7 @@ export class CityManager {
           isCapital: record.isCapital,
           didSellTurn: record.didSellTurn ?? undefined,
           didBuyTurn: record.didBuyTurn ?? undefined,
+          espionageThefts: (record.espionageThefts as Record<string, number>) || {},
         };
 
         this.cities.set(city.id, city);
@@ -1381,6 +1384,7 @@ export class CityManager {
         airliftUsedTurn: city.airliftUsedTurn ?? null,
         didSellTurn: city.didSellTurn ?? null,
         didBuyTurn: city.didBuyTurn ?? null,
+        espionageThefts: city.espionageThefts,
         // Default values for other required fields
         health: 100,
         isCapital: city.isCapital ?? city.buildings.includes('palace'),
@@ -2294,13 +2298,26 @@ export class CityManager {
     const city = this.cities.get(cityId);
     if (!city) throw new Error('Target city not found');
     if (city.playerId === actingPlayerId) throw new Error('Cannot sabotage your own city');
-    const target = [...city.buildings].filter(building => building !== 'palace').sort()[0];
+    const candidates = [...city.buildings].filter(building => building !== 'palace');
+    const target = candidates[randomInt(this.random, candidates.length)] ?? null;
     if (!target) return null;
     city.buildings = city.buildings.filter(building => building !== target);
     this.calculateCityOutputs(city.id);
     this.applyCityHappiness(city.id);
     await this.saveCityToDatabase(city);
     return target;
+  }
+
+  public getEspionageTheftCount(cityId: string, playerId: string): number {
+    return this.cities.get(cityId)?.espionageThefts?.[playerId] ?? 0;
+  }
+
+  public async recordEspionageTheft(cityId: string, playerId: string): Promise<void> {
+    const city = this.cities.get(cityId);
+    if (!city) return;
+    city.espionageThefts ??= {};
+    city.espionageThefts[playerId] = (city.espionageThefts[playerId] ?? 0) + 1;
+    await this.saveCityToDatabase(city);
   }
 
   /**
