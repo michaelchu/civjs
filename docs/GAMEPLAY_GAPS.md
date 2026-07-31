@@ -367,17 +367,20 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-012 — Losing a GameLoss unit does not eliminate its owner
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Unit loss, player elimination, scenarios, victory conditions
 - **Observed behavior:** A unit carrying the `civ2civ3` `GameLoss` flag can be
   destroyed like an ordinary unit while its owner remains alive.
 - **Reproduction:** Create a `civ2civ3` Leader for a player through a scenario or
   start-unit setup, destroy it in combat, and observe that the player remains
   active.
-- **Current implementation:** `UnitManager.destroyUnit()` removes cargo and the
-  unit record and emits a lifecycle notification, but does not inspect
-  `GameLoss` or mark the owner eliminated. AI targeting recognizes the flag,
-  so the AI values these targets without the corresponding game consequence.
+- **Current implementation:** Authoritative unit removal now recognizes
+  `GameLoss` on unit-class or unit-type flags and invokes the game instance's
+  elimination handler after persistence and lifecycle notification. The owner
+  is marked not alive in memory and the database, then end-game evaluation runs.
+  The selected `civ2civ3` ruleset has an empty `gameloss_style`, and CivJS has
+  no editor-removal API, so there are no configured post-loss consequences or
+  editor exemption to apply.
 - **Reference behavior:** Freeciv marks the owner as dying whenever a
   `GameLoss` unit is removed outside the editor, then processes player death
   and the ruleset's optional civil-war, barbarian, or loot consequences. The
@@ -398,9 +401,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
   `GameLoss` handling, eliminate the owner except for explicitly exempt editor
   removal, trigger end-game evaluation, and implement or deliberately scope
   the configured post-loss consequences.
-- **Regression coverage:** Add tests for combat loss, disband/removal,
-  transport loss, exempt editor removal, player elimination, end-game
-  evaluation, and configured game-loss consequence styles.
+- **Regression coverage:** UnitManager coverage exercises GameLoss cargo
+  prioritization, direct removal, and destruction-handler dispatch; the fresh
+  and recovered game wiring uses the same authoritative elimination callback.
 
 ### GP-013 — Every attack consumes all of the attacker's movement
 

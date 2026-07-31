@@ -460,6 +460,17 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         ? (game.gameState as { barbarianRate?: number }).barbarianRate
         : undefined
     );
+    unitManager.setGameLossHandler(async playerId => {
+      const player = players.get(playerId);
+      if (!player || player.isAlive === false) return;
+      player.isAlive = false;
+      await this.databaseProvider
+        .getDatabase()
+        .update(playerRecords)
+        .set({ isAlive: false, eliminatedAt: new Date() })
+        .where(eq(playerRecords.id, playerId));
+      await turnManager.evaluateEndGameNow();
+    });
     // @reference reference/freeciv/server/techtools.c:665-719
     // Research completion belongs to the active authoritative turn.
     researchManager.setCurrentTurnProvider(() => turnManager.getCurrentTurn());

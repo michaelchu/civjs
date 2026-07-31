@@ -185,6 +185,7 @@ export class UnitManager {
   private actionSystem: ActionSystem;
   private effectsManager?: EffectsManager;
   private currentTurnProvider?: () => number;
+  private gameLossHandler?: (playerId: string) => Promise<void>;
   private gameManagerCallback?: {
     foundCity: (
       gameId: string,
@@ -407,6 +408,10 @@ export class UnitManager {
 
   public setCurrentTurnProvider(provider: () => number): void {
     this.currentTurnProvider = provider;
+  }
+
+  public setGameLossHandler(handler: (playerId: string) => Promise<void>): void {
+    this.gameLossHandler = handler;
   }
 
   public setHostilityProvider(
@@ -2499,7 +2504,15 @@ export class UnitManager {
     // pass through this method. Notify once here so clients and AI lifecycle
     // state cannot miss a path or receive duplicate path-specific events.
     this.notifyUnitLifecycle({ type: 'destroyed', unit });
+    if (this.isGameLossUnit(unit)) await this.gameLossHandler?.(unit.playerId);
     logger.info(`Unit ${unitId} destroyed`);
+  }
+
+  private isGameLossUnit(unit: Unit): boolean {
+    const unitType = this.unitTypes[unit.unitTypeId];
+    return Boolean(
+      unitType?.rulesetUnitClassFlags.includes('GameLoss') || unitType?.flags?.includes('GameLoss')
+    );
   }
 
   private async resolveTransportLoss(transport: Unit, cargo: Unit[]): Promise<void> {

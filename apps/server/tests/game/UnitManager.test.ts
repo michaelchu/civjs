@@ -949,6 +949,17 @@ describe('UnitManager', () => {
       expect(result.attackerDestroyed || result.defenderDestroyed).toBe(true);
     });
 
+    it('invokes the GameLoss handler when a GameLoss unit is removed', async () => {
+      const gameLossHandler = jest.fn().mockResolvedValue(undefined);
+      unitManager.setGameLossHandler(gameLossHandler);
+      const leader = await unitManager.createUnit('player-123', 'leader', 10, 10);
+
+      await unitManager.removeUnit(leader.id);
+
+      expect(gameLossHandler).toHaveBeenCalledTimes(1);
+      expect(gameLossHandler).toHaveBeenCalledWith('player-123');
+    });
+
     it('uses attack versus defense and resolves classic combat until one unit dies', async () => {
       const deterministicManager = new UnitManager(
         gameId,

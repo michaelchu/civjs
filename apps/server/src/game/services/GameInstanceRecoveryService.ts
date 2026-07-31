@@ -560,6 +560,17 @@ export class GameInstanceRecoveryService extends BaseGameService {
       createTurnRecord: false,
       broadcastTurnStart: false,
     });
+    unitManager.setGameLossHandler(async playerId => {
+      const player = players.get(playerId);
+      if (!player || player.isAlive === false) return;
+      player.isAlive = false;
+      await this.databaseProvider
+        .getDatabase()
+        .update(playerRecords)
+        .set({ isAlive: false, eliminatedAt: new Date() })
+        .where(eq(playerRecords.id, playerId));
+      await turnManager.evaluateEndGameNow();
+    });
     // @reference reference/freeciv/server/unittools.c:1215-1280
     unitManager.setCurrentTurnProvider(() => turnManager.getCurrentTurn());
     // @reference reference/freeciv/server/citytools.c:639-690
