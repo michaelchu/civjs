@@ -3,6 +3,8 @@ import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { EffectsManager } from '@game/managers/EffectsManager';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 import { ActionType } from '@app-types/shared/actions';
+import { MapTopology } from '@game/map/MapTopology';
+import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
 
 describe('UnitManager', () => {
   let unitManager: UnitManager;
@@ -502,6 +504,37 @@ describe('UnitManager', () => {
 
       expect((manager as any).getPathStepCost(warrior, 10, 10, 11, 10, true)).toBe(3);
       expect((manager as any).getPathStepCost(warrior, 10, 10, 11, 10, false)).toBe(-1);
+    });
+
+    it('moves RandomMovement units to a legal adjacent tile during random events', async () => {
+      const topology = new MapTopology(20, 20);
+      const mapManager = {
+        getTopology: () => topology,
+        getMapData: () => ({ width: 20, height: 20, tiles: [] }),
+        getTile: () => ({ terrain: 'ocean', improvements: [] }),
+      };
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        20,
+        20,
+        mapManager,
+        undefined,
+        undefined,
+        undefined,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      const storm = await manager.createUnit('player-123', 'storm', 10, 10);
+
+      expect(manager.getUnitsWithRandomMovement('player-123')).toEqual([storm]);
+      const result = await manager.executeRandomMovement(storm.id);
+
+      expect(result).toMatchObject({
+        success: true,
+        fromTile: { x: 10, y: 10 },
+        movementPointsUsed: 3,
+      });
+      expect(storm.x !== 10 || storm.y !== 10).toBe(true);
     });
 
     it('should reject move to invalid position', async () => {

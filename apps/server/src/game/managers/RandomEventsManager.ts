@@ -65,7 +65,7 @@ export class RandomEventsManager {
   private config: RandomEventConfig;
   private barbarianManager: BarbarianManager;
   private disasterManager: DisasterManager;
-  // private unitManager: UnitManager; // Placeholder for future use
+  private unitManager: UnitManager;
   // private mapManager: MapManager; // Placeholder for future use
   // private broadcastManager: GameBroadcastManager; // Placeholder for future use
 
@@ -74,7 +74,7 @@ export class RandomEventsManager {
     config: RandomEventConfig,
     barbarianManager: BarbarianManager,
     disasterManager: DisasterManager,
-    _unitManager: UnitManager,
+    unitManager: UnitManager,
     _mapManager: MapManager,
     _broadcastManager: GameBroadcastManager
   ) {
@@ -82,7 +82,7 @@ export class RandomEventsManager {
     this.config = config;
     this.barbarianManager = barbarianManager;
     this.disasterManager = disasterManager;
-    // this.unitManager = unitManager; // Placeholder for future use
+    this.unitManager = unitManager;
     // this.mapManager = mapManager; // Placeholder for future use
     // this.broadcastManager = broadcastManager; // Placeholder for future use
   }
@@ -189,16 +189,10 @@ export class RandomEventsManager {
 
     for (const playerId of playerIds) {
       try {
-        // Get units with random movement flag (placeholder implementation)
-        const randomUnits: any[] = []; // await this.unitManager.getUnitsWithRandomMovement(playerId);
+        const randomUnits = this.unitManager.getUnitsWithRandomMovement(playerId);
 
         for (const unit of randomUnits) {
-          const moveResult = {
-            success: false,
-            fromTile: null,
-            toTile: null,
-            movementPointsUsed: 0,
-          }; // await this.unitManager.executeRandomMovement(unit.id);
+          const moveResult = await this.unitManager.executeRandomMovement(unit.id);
 
           if (moveResult.success) {
             movementsProcessed++;
@@ -209,20 +203,13 @@ export class RandomEventsManager {
               playersAffected: [playerId],
               details: {
                 unitId: unit.id,
-                unitType: unit.type,
+                unitType: unit.unitTypeId,
                 fromTile: moveResult.fromTile,
                 toTile: moveResult.toTile,
                 movementPoints: moveResult.movementPointsUsed,
               },
               timestamp: Date.now(),
             });
-
-            // Notify player of random movement (placeholder)
-            // this.broadcastManager.sendPacketToPlayer(playerId, {
-            //   type: 'unit_random_movement',
-            //   unitId: unit.id,
-            //   newPosition: moveResult.toTile,
-            // });
           }
         }
       } catch (error) {

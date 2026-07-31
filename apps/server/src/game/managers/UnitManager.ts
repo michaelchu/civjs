@@ -2245,7 +2245,20 @@ export class UnitManager {
   ): number {
     const destinationTerrain = this.getTerrainAt(toX, toY);
     const unitType = this.unitTypes[unit.unitTypeId];
-    const movementCost = getTerrainMovementCost(destinationTerrain, unit.unitTypeId);
+    let movementCost = getTerrainMovementCost(destinationTerrain, unit.unitTypeId);
+    // MovementConstants defaults to the classic catalogue. Games may load a
+    // different ruleset (including civ2civ3's Storm), so recover the terrain
+    // cost from the unit's authoritative class and selected ruleset when the
+    // compatibility lookup cannot classify the unit id.
+    if (movementCost < 0 && unitType) {
+      const terrain = rulesetLoader.getTerrain(destinationTerrain, this.getRulesetName());
+      const isWater = ['ocean', 'deep_ocean', 'coast', 'lake'].includes(destinationTerrain);
+      const isSeaUnit = ['Sea', 'Trireme'].includes(unitType.rulesetUnitClass ?? '');
+      const isAirUnit = unitType.rulesetUnitClass === 'Air';
+      if ((isSeaUnit && isWater) || (isAirUnit && !isWater) || (!isSeaUnit && !isWater)) {
+        movementCost = isAirUnit ? SINGLE_MOVE : (terrain.moveCost ?? 1) * SINGLE_MOVE;
+      }
+    }
     if (movementCost < 0) return movementCost;
 
     const fromTile = this.mapManager?.getTile(fromX, fromY);
@@ -2512,6 +2525,64 @@ export class UnitManager {
    */
   getAllUnits(): Map<string, Unit> {
     return this.units;
+  }
+
+  /**
+   * Return units whose ruleset class requires random movement processing.
+   * @reference reference/freeciv/common/unit.c:unit_type_has_flag
+   */
+  getUnitsWithRandomMovement(playerId: string): Unit[] {
+    return [...this.units.values()].filter(unit => {
+      if (unit.playerId !== playerId || unit.transportedBy || unit.movementLeft <= 0) {
+        return false;
+      }
+      return this.unitTypes[unit.unitTypeId]?.flags?.includes('RandomMovement') ?? false;
+    });
+  }
+
+  /**
+   * Move one random-movement unit to a legal adjacent tile.
+   * @reference reference/freeciv/server/srv_main.c:random_movements
+   */
+  async executeRandomMovement(unitId: string): Promise<{
+    success: boolean;
+    fromTile: { x: number; y: number };
+    toTile?: { x: number; y: number };
+    movementPointsUsed: number;
+  }> {
+    const unit = this.units.get(unitId);
+    const fromTile = unit ? { x: unit.x, y: unit.y } : { x: 0, y: 0 };
+    if (
+      !unit ||
+      !this.getUnitsWithRandomMovement(unit.playerId).some(candidate => candidate.id === unitId)
+    ) {
+      return { success: false, fromTile, movementPointsUsed: 0 };
+    }
+
+    const candidates = this.getMapTopology().getNeighbors(unit.x, unit.y);
+    for (let index = candidates.length - 1; index > 0; index--) {
+      const randomIndex = randomInt(this.random, index + 1);
+      [candidates[index], candidates[randomIndex]] = [candidates[randomIndex]!, candidates[index]!];
+    }
+
+    for (const candidate of candidates) {
+      const stepCost = this.getPathStepCost(unit, unit.x, unit.y, candidate.x, candidate.y, true);
+      if (stepCost < 0 || stepCost > unit.movementLeft) continue;
+      try {
+        await this.moveUnit(unit.id, candidate.x, candidate.y);
+        return {
+          success: true,
+          fromTile,
+          toTile: { x: unit.x, y: unit.y },
+          movementPointsUsed: fromTile.x === unit.x && fromTile.y === unit.y ? 0 : stepCost,
+        };
+      } catch {
+        // A candidate can become illegal after a preceding unit moves; try the
+        // next legal neighbor rather than aborting the random-events phase.
+      }
+    }
+
+    return { success: false, fromTile, movementPointsUsed: 0 };
   }
 
   /** The immutable unit catalogue selected for this game instance. */

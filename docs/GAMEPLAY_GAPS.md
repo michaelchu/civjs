@@ -141,15 +141,17 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-004 — Storm random movement is a no-op
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Random events, units
 - **Observed behavior:** The `civ2civ3` Storm unit has `RandomMovement`, but
-  random-event processing never moves it.
+  random-event processing never moved it.
 - **Reproduction:** Create a Storm in a `civ2civ3` game and advance turns. The
   Storm remains stationary unless another system moves it.
-- **Current implementation:** Random unit processing assigns `randomUnits` to
-  an empty array and never calls `UnitManager`. The `RandomEventsManager` is
-  also not currently injected by `TurnManager`.
+- **Current implementation:** `RandomEventsManager` now queries
+  `UnitManager.getUnitsWithRandomMovement()` and executes a legal shuffled
+  adjacent move for each eligible unit. `TurnManager` enables random movement
+  processing for active games; movement persistence and lifecycle broadcasts
+  use the normal authoritative movement path.
 - **Reference behavior:** Freeciv processes random unit movement during the
   random-events phase. The `civ2civ3` Storm is explicitly flagged
   `RandomMovement`.

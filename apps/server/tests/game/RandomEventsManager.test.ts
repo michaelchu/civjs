@@ -1,0 +1,54 @@
+import { RandomEventsManager } from '@game/managers/RandomEventsManager';
+
+describe('RandomEventsManager', () => {
+  it('processes random-movement units during the random-events phase', async () => {
+    const unit = { id: 'storm-1', unitTypeId: 'storm' };
+    const unitManager = {
+      getUnitsWithRandomMovement: jest.fn().mockReturnValue([unit]),
+      executeRandomMovement: jest.fn().mockResolvedValue({
+        success: true,
+        fromTile: { x: 2, y: 2 },
+        toTile: { x: 3, y: 2 },
+        movementPointsUsed: 3,
+      }),
+    };
+    const barbarianManager = { spawnBarbarians: jest.fn() };
+    const disasterManager = { checkPlayerDisasters: jest.fn() };
+    const manager = new RandomEventsManager(
+      'game-1',
+      {
+        barbarianRate: 0,
+        onsetBarbarian: 60,
+        disastersEnabled: false,
+        disasterFrequency: 0,
+        randomMovementsEnabled: true,
+        resourceChangesEnabled: false,
+        resourceChangeFrequency: 0,
+        goodyHutsEnabled: false,
+        barbarianHutChance: 0,
+      },
+      barbarianManager as any,
+      disasterManager as any,
+      unitManager as any,
+      {} as any,
+      {} as any
+    );
+
+    const result = await manager.processRandomEvents(60, -3900, ['player-1']);
+
+    expect(result.unitMovements).toBe(1);
+    expect(result.results).toEqual([
+      expect.objectContaining({
+        eventType: 'random_unit_movement',
+        playersAffected: ['player-1'],
+        details: expect.objectContaining({
+          unitId: 'storm-1',
+          unitType: 'storm',
+          fromTile: { x: 2, y: 2 },
+          toTile: { x: 3, y: 2 },
+        }),
+      }),
+    ]);
+    expect(unitManager.executeRandomMovement).toHaveBeenCalledWith('storm-1');
+  });
+});

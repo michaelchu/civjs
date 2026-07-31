@@ -224,7 +224,7 @@ export class TurnManager {
         onsetBarbarian,
         disastersEnabled: false,
         disasterFrequency: 0,
-        randomMovementsEnabled: false,
+        randomMovementsEnabled: true,
         resourceChangesEnabled: false,
         resourceChangeFrequency: 0,
         goodyHutsEnabled: false,
