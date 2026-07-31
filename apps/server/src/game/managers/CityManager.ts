@@ -238,6 +238,8 @@ export interface CityState {
 
   // A classic airport may participate in one airlift per turn.
   airliftUsedTurn?: number;
+  didSellTurn?: number;
+  didBuyTurn?: number;
 }
 
 export interface CityWorkerTaskRequest {
@@ -937,8 +939,17 @@ export class CityManager {
       return;
     }
 
+    this.resetTurnScopedEconomicActions(this.cities.get(cityId), currentTurn);
     // Delegate to CityTurnProcessingService for comprehensive turn processing
     await this.turnProcessingService.processCityTurn(cityId, currentTurn);
+  }
+
+  private resetTurnScopedEconomicActions(city: CityState | undefined, currentTurn: number): void {
+    if (!city) return;
+    if (city.didSellTurn !== undefined && city.didSellTurn !== currentTurn)
+      city.didSellTurn = undefined;
+    if (city.didBuyTurn !== undefined && city.didBuyTurn !== currentTurn)
+      city.didBuyTurn = undefined;
   }
 
   // === PUBLIC TESTING METHODS (delegating to services) ===
@@ -1298,6 +1309,8 @@ export class CityManager {
           worklist: (record.productionQueue as ProductionItem[]) || [],
           defenseStrength: record.defenseStrength || 1,
           airliftUsedTurn: record.airliftUsedTurn ?? undefined,
+          didSellTurn: record.didSellTurn ?? undefined,
+          didBuyTurn: record.didBuyTurn ?? undefined,
         };
 
         this.cities.set(city.id, city);
@@ -1361,6 +1374,8 @@ export class CityManager {
         disorderTurns: city.disorderTurns ?? 0,
         defenseStrength: city.defenseStrength || 1,
         airliftUsedTurn: city.airliftUsedTurn ?? null,
+        didSellTurn: city.didSellTurn ?? null,
+        didBuyTurn: city.didBuyTurn ?? null,
         // Default values for other required fields
         health: 100,
         isCapital: false,
@@ -1857,9 +1872,18 @@ export class CityManager {
     if (!building || building.genus !== 'Improvement') {
       return { success: false, goldReceived: 0, reason: 'Building cannot be sold' };
     }
+    const currentTurn = this.currentTurnProvider?.() ?? city.founded;
+    if (city.didSellTurn === currentTurn) {
+      return {
+        success: false,
+        goldReceived: 0,
+        reason: 'City has already sold an improvement this turn',
+      };
+    }
     if (!(await this.sellBuilding(cityId, buildingId))) {
       return { success: false, goldReceived: 0, reason: 'Building not present' };
     }
+    city.didSellTurn = currentTurn;
     // Classic uses shieldbox=100, so impr_sell_gold() returns build cost.
     // @reference reference/freeciv/common/improvement.c:331-337
     const goldReceived = Math.max(building.cost, 1);
@@ -1971,7 +1995,33 @@ export class CityManager {
   ): Promise<{ success: boolean; goldSpent: number; completed: boolean; reason?: string }> {
     if (!this.productionService)
       return { success: false, goldSpent: 0, completed: false, reason: 'Service not available' };
-    return this.productionService.buyProduction(cityId, playerId);
+    const city = this.cities.get(cityId);
+    if (!city || city.playerId !== playerId) {
+      return { success: false, goldSpent: 0, completed: false, reason: 'City not owned by player' };
+    }
+    const currentTurn = this.currentTurnProvider?.() ?? city.founded;
+    if (city.founded === currentTurn) {
+      return {
+        success: false,
+        goldSpent: 0,
+        completed: false,
+        reason: 'Cannot rush production in a newly founded city',
+      };
+    }
+    if (city.didBuyTurn === currentTurn) {
+      return {
+        success: false,
+        goldSpent: 0,
+        completed: false,
+        reason: 'City has already rushed production this turn',
+      };
+    }
+    const result = await this.productionService.buyProduction(cityId, playerId);
+    if (result.success) {
+      city.didBuyTurn = currentTurn;
+      await this.saveCityToDatabase(city);
+    }
+    return result;
   }
 
   // Delegate to governor service

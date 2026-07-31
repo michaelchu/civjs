@@ -359,6 +359,54 @@ describe('CityManager', () => {
       ).resolves.toEqual({ success: true, goldReceived: 40 });
       expect(addGold).toHaveBeenCalledWith('player-123', 40);
       expect(city.buildings).not.toContain('granary');
+
+      city.buildings.push('temple', 'granary');
+      await expect(
+        cityManager.sellBuildingForPlayer(city.id, 'temple', 'player-123')
+      ).resolves.toEqual(
+        expect.objectContaining({
+          success: false,
+          reason: 'City has already sold an improvement this turn',
+        })
+      );
+    });
+
+    it('allows only one rush buy per city turn and blocks newly founded cities', async () => {
+      let turn = 2;
+      cityManager.setCurrentTurnProvider(() => turn);
+      const city = await cityManager.foundCity(10, 10, 'Capital', 'player-123');
+      city.currentProduction = 'warriors';
+      city.productionType = 'unit';
+      city.productionStock = 1;
+      city.founded = 1;
+      cityManager.setTreasuryProviders(
+        async () => 1000,
+        async () => true
+      );
+
+      await expect(cityManager.buyProduction(city.id, 'player-123')).resolves.toMatchObject({
+        success: true,
+      });
+      await expect(cityManager.buyProduction(city.id, 'player-123')).resolves.toMatchObject({
+        success: false,
+        reason: 'City has already rushed production this turn',
+      });
+
+      turn = 3;
+      city.currentProduction = 'granary';
+      city.productionType = 'building';
+      city.productionStock = 1;
+      await expect(cityManager.buyProduction(city.id, 'player-123')).resolves.toMatchObject({
+        success: true,
+      });
+
+      const newCity = await cityManager.foundCity(20, 20, 'New City', 'player-123');
+      newCity.currentProduction = 'warriors';
+      newCity.productionType = 'unit';
+      newCity.productionStock = 1;
+      expect((await cityManager.buyProduction(newCity.id, 'player-123')).reason).toBe(
+        'Cannot rush production in a newly founded city'
+      );
     });
 
     it('rejects a city two tiles from another player city', async () => {

@@ -661,14 +661,15 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-023 — City selling and rush-buy limits can be bypassed
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** City economy, building sales, rush production, turn state
 - **Observed behavior:** A city can sell multiple improvements in one turn.
   After changing production, it can also rush-buy again, and a newly founded
   city can buy production immediately.
-- **Current implementation:** City state has no `did_sell` or `did_buy` flag.
-  `CityProductionService.canBuyProduction()` explicitly allows repeated buys
-  and does not check the founding turn.
+- **Current implementation:** Cities persist `didSellTurn` and `didBuyTurn`.
+  The authoritative manager rejects a second sale or rush-buy in the same
+  turn, blocks rush-buying on the founding turn, saves successful mutations,
+  and resets stale markers at turn processing.
 - **Reference behavior:** Freeciv allows one sale and one effective rush-buy
   per city per turn and forbids buying in a city founded that turn.
 - **CivJS references:**
@@ -679,8 +680,8 @@ you declare war first.` Civilian/border-entry units may enter permitted
     (`test_player_sell_building_now`, `really_handle_city_buy`)
 - **Expected outcome:** Persist turn-scoped sale/buy markers, enforce them in
   every endpoint, and reset them in authoritative turn processing.
-- **Regression coverage:** Test second sale, production changes after buying,
-  newly founded cities, no-op buys, reloads, and next-turn reset.
+- **Regression coverage:** `CityManager.test.ts` covers second-sale rejection,
+  one rush-buy per turn, next-turn availability, and newly founded-city denial.
 
 ### GP-024 — Fortified units lose fortification at every turn start
 
