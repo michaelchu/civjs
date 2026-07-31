@@ -647,7 +647,9 @@ export class GameManager {
     unitId: string,
     actionType: ActionType,
     targetX: number,
-    targetY: number
+    targetY: number,
+    requestedTechnologyId?: string,
+    requestedBuildingId?: string
   ): Promise<ActionResult> {
     const game = this.games.get(gameId);
     if (!game) return { success: false, message: 'Game not found' };
@@ -740,7 +742,14 @@ export class GameManager {
         .getResearchedTechs(city.playerId)
         .filter(tech => !known.has(tech))
         .sort();
-      const stolenTech = availableTechs[Math.floor(Math.random() * availableTechs.length)];
+      if (
+        requestedTechnologyId !== undefined &&
+        !availableTechs.includes(requestedTechnologyId)
+      ) {
+        return { success: false, message: 'That technology is not available to steal' };
+      }
+      const stolenTech =
+        requestedTechnologyId ?? availableTechs[game.random.next(availableTechs.length)];
       if (!stolenTech) return { success: false, message: 'No technology is available to steal' };
       const failure = await attemptMission();
       if (failure) return failure;
@@ -756,7 +765,17 @@ export class GameManager {
       }
       const failure = await attemptMission();
       if (failure) return failure;
-      const building = await game.cityManager.sabotageCityBuilding(city.id, playerId);
+      if (
+        requestedBuildingId !== undefined &&
+        !city.buildings.includes(requestedBuildingId)
+      ) {
+        return { success: false, message: 'That improvement is not present in the target city' };
+      }
+      const building = await game.cityManager.sabotageCityBuilding(
+        city.id,
+        playerId,
+        requestedBuildingId
+      );
       if (!building) return { success: false, message: 'No eligible improvement to sabotage' };
       await game.cityManager.recordEspionageTheft?.(city.id, playerId);
       this.gameBroadcastManager.broadcastCityData(gameId);

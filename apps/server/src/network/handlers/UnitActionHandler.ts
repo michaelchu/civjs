@@ -558,7 +558,9 @@ export class UnitActionHandler extends BaseSocketHandler {
           data.unitId,
           data.actionType,
           data.targetX,
-          data.targetY
+          data.targetY,
+          data.technologyId,
+          data.buildingId
         )
       : await gameInstance.unitManager.executeUnitAction(
           data.unitId,

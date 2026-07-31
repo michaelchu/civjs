@@ -2310,13 +2310,18 @@ export class CityManager {
 
   public async sabotageCityBuilding(
     cityId: string,
-    actingPlayerId: string
+    actingPlayerId: string,
+    requestedBuildingId?: string
   ): Promise<string | null> {
     const city = this.cities.get(cityId);
     if (!city) throw new Error('Target city not found');
     if (city.playerId === actingPlayerId) throw new Error('Cannot sabotage your own city');
     const candidates = [...city.buildings].filter(building => building !== 'palace');
-    const target = candidates[randomInt(this.random, candidates.length)] ?? null;
+    if (requestedBuildingId !== undefined && !candidates.includes(requestedBuildingId)) {
+      return null;
+    }
+    const target =
+      requestedBuildingId ?? candidates[randomInt(this.random, candidates.length)] ?? null;
     if (!target) return null;
     city.buildings = city.buildings.filter(building => building !== target);
     this.calculateCityOutputs(city.id);
