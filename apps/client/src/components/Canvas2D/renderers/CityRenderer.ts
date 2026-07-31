@@ -2,6 +2,7 @@ import type { City, MapViewport } from '../../../types';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
 import type { CityStyle, NationStyle } from '../../../services/RulesetService';
 import { resolveCityGraphic } from '../../../services/PresentationResolver';
+import { getContrastingTextColor } from '../../../utils/playerColors';
 
 /**
  * CityRenderer - Authentic Freeciv-compliant city sprite rendering
@@ -413,7 +414,7 @@ export class CityRenderer extends BaseRenderer {
     this.ctx.fillText(cityPop, popCenterX + 1, popCenterY + 1);
 
     // Main population text (contrasting color for readability)
-    this.ctx.fillStyle = 'white';
+    this.ctx.fillStyle = getContrastingTextColor(playerColor);
     this.ctx.fillText(cityPop, popCenterX, popCenterY);
 
     // Draw city name (top right section)

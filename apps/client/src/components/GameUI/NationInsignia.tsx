@@ -1,5 +1,6 @@
 import React from 'react';
 import { cn } from '../../lib/utils';
+import { getContrastingTextColor } from '../../utils/playerColors';
 
 export interface NationInsigniaProps {
   color?: string;
@@ -38,7 +39,7 @@ export const NationInsignia: React.FC<NationInsigniaProps> = ({
       shape === 'dot' ? 'rounded-full' : 'rounded-md text-[9px]',
       className
     )}
-    style={{ backgroundColor: color }}
+    style={{ backgroundColor: color, color: getContrastingTextColor(color) }}
     aria-hidden="true"
   >
     {shape === 'badge' && size !== 'sm' ? initialsFor(name) : null}

@@ -23,4 +23,10 @@ describe('NationInsignia', () => {
     expect(insignia).toHaveClass('h-2', 'w-2', 'rounded-full');
     expect(insignia).toHaveTextContent('');
   });
+
+  it('uses dark text on light nation colors', () => {
+    const { container } = render(<NationInsignia color="#fef08a" name="Yellow Nation" size="lg" />);
+
+    expect(container.firstElementChild).toHaveStyle({ color: '#0f172a' });
+  });
 });
