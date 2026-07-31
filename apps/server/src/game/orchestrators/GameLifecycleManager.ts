@@ -568,6 +568,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         borderManager.addCityBorderSource(city);
         this.onBroadcastMapData?.(gameId, mapManager.getMapData());
       },
+      onCityOwnershipChanged: (city, oldPlayerId, newPlayerId) =>
+        unitManager.reconcileCityOwnership(city, oldPlayerId, newPlayerId),
       onCityGrowth: (city, oldSize) => {
         this.logger.info(`City ${city.name} grew from size ${oldSize} to ${city.size}`, {
           cityId: city.id,

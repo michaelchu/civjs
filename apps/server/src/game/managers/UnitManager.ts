@@ -23,6 +23,8 @@ import type { MapManager } from '@game/managers/MapManager';
 interface CityAtLocation {
   id: string;
   playerId: string;
+  x?: number;
+  y?: number;
   buildings?: string[];
   population?: number;
 }
@@ -1774,6 +1776,69 @@ export class UnitManager {
    */
   getPlayerUnits(playerId: string): Unit[] {
     return Array.from(this.units.values()).filter(u => u.playerId === playerId);
+  }
+
+  /**
+   * Reconcile units when a city changes owner.
+   *
+   * @reference reference/freeciv/server/citytools.c:721-820
+   * Units on the transferred city tile change owner. Units supported by the
+   * city are rehomed when they are in another friendly city, transferred when
+   * they are nearby, and removed when they are outside the transfer radius.
+   */
+  async reconcileCityOwnership(
+    city: { id: string; x: number; y: number },
+    oldPlayerId: string,
+    newPlayerId: string
+  ): Promise<void> {
+    if (oldPlayerId === newPlayerId) return;
+
+    const candidates = this.getPlayerUnits(oldPlayerId).filter(
+      unit => (unit.x === city.x && unit.y === city.y) || unit.homeCityId === city.id
+    );
+    const tileUnits = candidates
+      .filter(unit => unit.x === city.x && unit.y === city.y)
+      .sort(
+        (left, right) => Number(Boolean(left.transportedBy)) - Number(Boolean(right.transportedBy))
+      );
+
+    for (const unit of tileUnits) {
+      if (!this.units.has(unit.id) || unit.playerId !== oldPlayerId) continue;
+      await this.bribeUnit(unit.id, newPlayerId, unit.homeCityId ? city.id : undefined);
+    }
+
+    for (const unit of candidates) {
+      if (!this.units.has(unit.id) || unit.playerId !== oldPlayerId) continue;
+      if (unit.homeCityId !== city.id) continue;
+
+      const localCity = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
+      if (localCity && localCity.id !== city.id && localCity.playerId === oldPlayerId) {
+        await this.rehomeUnit(unit, localCity.id);
+        continue;
+      }
+
+      if (this.getRealDistance(unit.x, unit.y, city.x, city.y) <= 1) {
+        await this.bribeUnit(unit.id, newPlayerId, city.id);
+      } else {
+        await this.removeUnit(unit.id);
+      }
+    }
+  }
+
+  private async rehomeUnit(unit: Unit, homeCityId: string): Promise<void> {
+    unit.homeCityId = homeCityId;
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ homeCityId })
+      .where(eq(units.id, unit.id));
+  }
+
+  private getRealDistance(x1: number, y1: number, x2: number, y2: number): number {
+    return (
+      this.mapManager?.getTopology?.().realDistance(x1, y1, x2, y2) ??
+      Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2))
+    );
   }
 
   /**

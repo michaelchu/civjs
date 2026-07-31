@@ -457,6 +457,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
           .set({ spaceshipState: player.spaceshipState })
           .where(eq(playerRecords.id, playerId));
       },
+      onCityOwnershipChanged: (city, oldPlayerId, newPlayerId) =>
+        unitManager.reconcileCityOwnership(city, oldPlayerId, newPlayerId),
     });
     cityManager.setUnitSupportProvider(city => this.getUnitSupport(city, unitManager, cityManager));
 

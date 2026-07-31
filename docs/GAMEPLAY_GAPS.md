@@ -615,9 +615,12 @@ you declare war first.` Civilian/border-entry units may enter permitted
   both supported by the city and within one tile. Supported units farther away
   keep a home-city ID that now points to an enemy city, while units physically
   inside the city but supported elsewhere remain behind.
-- **Current implementation:** `GameManager` performs a narrow post-incitement
-  filter. `CityCaptureService.transferCity()` changes city ownership and trade
-  state but has no general unit-transfer/rehoming phase.
+- **Current implementation:** `CityManager` invokes one ownership-change hook
+  for conquest and peaceful transfer. `UnitManager.reconcileCityOwnership()`
+  transfers units on the city tile and nearby supported units, rehomes
+  supported units found in another friendly city, and removes supported units
+  outside the one-tile transfer radius. Incitement retains its existing
+  defector handling for mocked/legacy transfer paths.
 - **Reference behavior:** Freeciv transfers appropriate units in and near the
   city, rehomes supported units in other friendly cities, and removes units
   that cannot legally remain supported after transfer.
@@ -630,8 +633,10 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/server/citytools.c` (`transfer_city_units`)
 - **Expected outcome:** Centralize unit disposition for conquest, incitement,
   gifts, and scripted transfer, including cargo and home-city persistence.
-- **Regression coverage:** Cover units in the city, nearby, far away, homeless,
-  supported elsewhere, transported, and allied.
+- **Regression coverage:** `UnitManager.test.ts` covers city-tile units,
+  nearby supported units, far-away supported units, homeless units, and
+  supported units in another friendly city. Transported and allied stacks
+  remain to be covered by an integration fixture.
 
 ### GP-022 — Losing a capital neither relocates the Palace nor cancels its spaceship
 

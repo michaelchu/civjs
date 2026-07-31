@@ -299,6 +299,11 @@ export interface CityManagerCallbacks {
   onCityProductionComplete?: (city: CityState, item: ProductionItem) => void | Promise<void>;
   onCityDestroyed?: (city: CityState) => void;
   onCityCaptured?: (city: CityState, oldPlayerId: string) => void;
+  onCityOwnershipChanged?: (
+    city: CityState,
+    oldPlayerId: string,
+    newPlayerId: string
+  ) => void | Promise<void>;
   onCityTurnProcessed?: (city: CityState) => void;
   onCapitalLost?: (playerId: string) => void | Promise<void>;
 }
@@ -2095,6 +2100,7 @@ export class CityManager {
 
     const city = this.cities.get(cityId);
     if (result.success && city) {
+      await this.callbacks.onCityOwnershipChanged?.(city, oldPlayerId, conquerorPlayerId);
       if (lostCapital && !result.cityDestroyed) {
         await this.handleCapitalLoss(oldPlayerId, cityId);
       }
@@ -2114,6 +2120,7 @@ export class CityManager {
     const oldPlayerId = city.playerId;
     const transferred = await this.captureService.transferCity(cityId, newPlayerId);
     if (transferred && oldPlayerId !== newPlayerId) {
+      await this.callbacks.onCityOwnershipChanged?.(city, oldPlayerId, newPlayerId);
       city.rallyPoint = undefined;
       this.calculateCityOutputs(cityId);
       this.applyCityHappiness(cityId);

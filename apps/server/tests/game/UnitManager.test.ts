@@ -353,6 +353,39 @@ describe('UnitManager', () => {
   });
 
   describe('Milestone 14 city actions', () => {
+    it('reconciles units when a city changes owner', async () => {
+      unitManager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, undefined, {
+        foundCity: jest.fn(),
+        requestPath: jest.fn(),
+        broadcastUnitMoved: jest.fn(),
+        getCityAt: (x, y) =>
+          x === 12 && y === 10 ? { id: 'city-2', playerId: 'player-456' } : null,
+      });
+      const inside = await unitManager.createUnit('player-456', 'warriors', 10, 10, 'city-1');
+      const nearby = await unitManager.createUnit('player-456', 'warriors', 11, 10, 'city-1');
+      const farAway = await unitManager.createUnit('player-456', 'warriors', 20, 20, 'city-1');
+      const inAnotherCity = await unitManager.createUnit(
+        'player-456',
+        'warriors',
+        12,
+        10,
+        'city-1'
+      );
+      const homeless = await unitManager.createUnit('player-456', 'warriors', 10, 10);
+
+      await unitManager.reconcileCityOwnership(
+        { id: 'city-1', x: 10, y: 10 },
+        'player-456',
+        'player-123'
+      );
+
+      expect(inside).toMatchObject({ playerId: 'player-123', homeCityId: 'city-1' });
+      expect(nearby).toMatchObject({ playerId: 'player-123', homeCityId: 'city-1' });
+      expect(homeless).toMatchObject({ playerId: 'player-123', homeCityId: undefined });
+      expect(inAnotherCity).toMatchObject({ playerId: 'player-456', homeCityId: 'city-2' });
+      expect(unitManager.getUnit(farAway.id)).toBeUndefined();
+    });
+
     it('broadcasts settler destruction after a successful found-city action', async () => {
       const broadcastUnitDestroyed = jest.fn();
       const foundCity = jest.fn().mockResolvedValue('city-1');
