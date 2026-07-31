@@ -679,6 +679,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
     return {
       isAwayFromHome: unit.x !== city.x || unit.y !== city.y,
       isMilitaryUnit: (type?.attack ?? 0) > 0,
+      isFieldUnit: type?.flags?.includes('FieldUnit') === true,
     };
   }
 

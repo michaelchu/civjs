@@ -505,13 +505,13 @@ you declare war first.` Civilian/border-entry units may enter permitted
 
 ### GP-017 — Field units avoid war-unhappiness while stationed at home
 
-- **Status:** Confirmed gap
+- **Status:** Resolved
 - **Area:** Happiness, military units, unit support
 - **Observed behavior:** A military unit in its home city never contributes
   war unhappiness, even when its type has the `civ2civ3` `FieldUnit` flag.
-- **Current implementation:** `UnitSupportManager` adds military unhappiness
-  only when `isMilitaryUnit && isAwayFromHome`; its support-data shape does not
-  carry unit flags.
+- **Current implementation:** Support data now carries `isFieldUnit` from the
+  ruleset unit flags, and `UnitSupportManager` applies military unhappiness
+  when a military unit is away from home or has `FieldUnit`.
 - **Reference behavior:** Freeciv applies aggressive-unit unhappiness when the
   unit is away from home _or_ has `FieldUnit`. `civ2civ3` Bombers, Stealth
   Bombers, and Nuclear units use that flag.
@@ -523,8 +523,9 @@ you declare war first.` Civilian/border-entry units may enter permitted
   - `reference/freeciv/common/unit.c` (`UTYF_FIELDUNIT`)
 - **Expected outcome:** Carry ruleset flags into support accounting and apply
   government/effect-driven unhappiness to FieldUnits regardless of location.
-- **Regression coverage:** Compare ordinary military and FieldUnit upkeep at
-  home, away, and under governments that suppress war unhappiness.
+- **Regression coverage:** UnitSupportManager tests cover home-stationed
+  FieldUnits alongside the existing away-from-home and government-content
+  cases.
 
 ### GP-018 — Ordinary escorts do not protect a Barbarian Leader from ransom
 

@@ -660,6 +660,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     return {
       isAwayFromHome: unit.x !== city.x || unit.y !== city.y,
       isMilitaryUnit: (unitType?.attack ?? 0) > 0,
+      isFieldUnit: unitType?.flags?.includes('FieldUnit') === true,
     };
   }
 
