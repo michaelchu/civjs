@@ -568,6 +568,7 @@ export class UnitActionHandler extends BaseSocketHandler {
       ActionType.INVESTIGATE_CITY,
       ActionType.STEAL_TECH,
       ActionType.SABOTAGE_CITY,
+      ActionType.SABOTAGE_CITY_PRODUCTION,
       ActionType.BRIBE_UNIT,
       ActionType.INCITE_CITY,
       ActionType.POISON_WATER,

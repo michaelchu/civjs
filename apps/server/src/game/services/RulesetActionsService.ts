@@ -18,12 +18,11 @@ const CLIENT_ACTIONS: ReadonlyArray<{ id: string; upstream: readonly string[] }>
   { id: 'incite_city', upstream: ['Incite City', 'Incite City Escape'] },
   {
     id: 'sabotage_city',
-    upstream: [
-      'Sabotage City',
-      'Sabotage City Escape',
-      'Targeted Sabotage City Escape',
-      'Sabotage City Production Escape',
-    ],
+    upstream: ['Sabotage City', 'Sabotage City Escape', 'Targeted Sabotage City Escape'],
+  },
+  {
+    id: 'sabotage_city_production',
+    upstream: ['Sabotage City Production Escape'],
   },
   { id: 'poison_water', upstream: ['Poison City Escape'] },
   { id: 'sabotage_unit', upstream: ['Sabotage Unit Escape'] },

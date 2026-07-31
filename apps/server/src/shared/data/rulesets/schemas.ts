@@ -297,6 +297,7 @@ export const BuildingTypeRulesetSchema = z
     genus: BuildingGenusSchema.optional().default('Improvement'),
     cost: z.number().positive(),
     upkeep: z.number().min(0),
+    sabotage: z.number().min(0).optional(),
     requiredTech: z.string().optional(),
     requires: z.array(z.string()).optional(),
     cultureRequirements: z.array(BuildingCultureRequirementSchema).optional(),

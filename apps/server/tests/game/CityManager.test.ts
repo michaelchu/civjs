@@ -208,6 +208,26 @@ describe('CityManager', () => {
       expect(city.population).toBe(5);
       expect(city.size).toBe(5);
     });
+
+    it('protects indestructible buildings and clears city production sabotage', async () => {
+      const city = await cityManager.foundCity(10, 10, 'Target', 'player-456');
+      city.buildings.push('granary', 'apollo_program');
+      city.currentProduction = 'factory';
+      city.productionStock = 42;
+
+      expect(cityManager.getSabotageableBuildings(city.id)).toContain('granary');
+      expect(cityManager.getSabotageableBuildings(city.id)).not.toContain('apollo_program');
+      await expect(
+        cityManager.sabotageCityBuilding(city.id, 'player-123', 'apollo_program')
+      ).resolves.toBeNull();
+      expect(city.buildings).toContain('apollo_program');
+
+      await expect(cityManager.sabotageCityProduction(city.id, 'player-123')).resolves.toBe(
+        'factory'
+      );
+      expect(city.productionStock).toBe(0);
+      expect(city.currentProduction).toBe('factory');
+    });
   });
 
   describe('airport airlift usage', () => {

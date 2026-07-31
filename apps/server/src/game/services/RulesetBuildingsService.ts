@@ -7,6 +7,7 @@ export interface RulesetBuildingType {
   genus: 'Improvement' | 'SmallWonder' | 'GreatWonder' | 'Special' | 'Convert';
   cost: number;
   upkeep: number;
+  sabotage?: number;
   requiredTech?: string;
   requires?: string[];
   cultureRequirements?: BuildingCultureRequirement[];
@@ -51,6 +52,7 @@ export class RulesetBuildingsService {
           genus: building.genus,
           cost: building.cost,
           upkeep: building.upkeep,
+          sabotage: building.sabotage,
           requiredTech: building.requiredTech,
           requires: building.requires,
           cultureRequirements: building.cultureRequirements,

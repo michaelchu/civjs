@@ -51,6 +51,7 @@ export enum ActionType {
 
   // Spy actions
   SABOTAGE_CITY = 'sabotage_city',
+  SABOTAGE_CITY_PRODUCTION = 'sabotage_city_production',
   SABOTAGE_UNIT = 'sabotage_unit',
   POISON_WATER = 'poison_water',
   SPREAD_PLAGUE = 'spread_plague',

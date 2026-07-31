@@ -443,6 +443,43 @@ describe('GameManager classic espionage actions', () => {
     });
   });
 
+  it('sabotages a target city production stock with a spy', async () => {
+    const city = {
+      id: 'city-1',
+      name: 'Target',
+      playerId: targetPlayerId,
+      x: 5,
+      y: 5,
+      size: 3,
+      buildings: ['palace'],
+      currentProduction: 'factory',
+      productionStock: 42,
+    };
+    const sabotageCityProduction = jest.fn().mockResolvedValue('factory');
+    const { game } = installGame('spy', {
+      cityManager: {
+        getCityAt: jest.fn().mockReturnValue(city),
+        getPlayerCities: jest.fn().mockReturnValue([]),
+        sabotageCityProduction,
+        recordEspionageTheft: jest.fn(),
+        transferCity: jest.fn(),
+      },
+    });
+
+    await expect(
+      manager.executeDiplomatAction(
+        gameId,
+        actorPlayerId,
+        'actor',
+        ActionType.SABOTAGE_CITY_PRODUCTION,
+        5,
+        5
+      )
+    ).resolves.toMatchObject({ success: true, message: expect.stringContaining('factory') });
+    expect(sabotageCityProduction).toHaveBeenCalledWith(city.id, actorPlayerId);
+    expect(game.cityManager.recordEspionageTheft).toHaveBeenCalledWith(city.id, actorPlayerId);
+  });
+
   it('sabotages a lone unit for half its remaining health', async () => {
     const target = {
       id: 'target',

@@ -242,6 +242,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
         [ActionType.INVESTIGATE_CITY]: 'Investigate City',
         [ActionType.STEAL_TECH]: 'Steal Technology',
         [ActionType.SABOTAGE_CITY]: 'Sabotage City',
+        [ActionType.SABOTAGE_CITY_PRODUCTION]: 'Sabotage Production',
         [ActionType.BRIBE_UNIT]: 'Bribe Unit',
         [ActionType.INCITE_CITY]: 'Incite Revolt',
         [ActionType.POISON_WATER]: 'Poison City',

@@ -69,6 +69,7 @@ import type { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAlloc
 const AI_INCIDENT_SEVERITY: Partial<Record<ActionType, number>> = {
   [ActionType.STEAL_TECH]: 143,
   [ActionType.SABOTAGE_CITY]: 143,
+  [ActionType.SABOTAGE_CITY_PRODUCTION]: 143,
   [ActionType.POISON_WATER]: 143,
   [ActionType.INCITE_CITY]: 286,
   [ActionType.BRIBE_UNIT]: 143,
@@ -760,16 +761,34 @@ export class GameManager {
       await game.researchManager.grantTechnology(playerId, stolenTech);
       await game.cityManager.recordEspionageTheft?.(city.id, playerId);
       result = { success: true, message: `Stole ${stolenTech} from ${city.name}` };
+    } else if (actionType === ActionType.SABOTAGE_CITY_PRODUCTION) {
+      if (!unitFlags.includes('Spy')) {
+        return { success: false, message: 'Only spies can sabotage city production' };
+      }
+      if (!city.currentProduction) {
+        return { success: false, message: 'The target city has no active production' };
+      }
+      const failure = await attemptMission();
+      if (failure) return failure;
+      const production = await game.cityManager.sabotageCityProduction?.(city.id, playerId);
+      if (!production)
+        return { success: false, message: 'The target city has no active production' };
+      await game.cityManager.recordEspionageTheft?.(city.id, playerId);
+      this.gameBroadcastManager.broadcastCityData(gameId);
+      result = { success: true, message: `Sabotaged production of ${production} in ${city.name}` };
     } else if (actionType === ActionType.SABOTAGE_CITY) {
       if (!unitFlags.includes('Spy')) {
         return { success: false, message: 'Only spies can sabotage a city' };
       }
-      if (!city.buildings.some(building => building !== 'palace')) {
+      const eligibleBuildings =
+        game.cityManager.getSabotageableBuildings?.(city.id) ??
+        city.buildings.filter(building => building !== 'palace');
+      if (eligibleBuildings.length === 0) {
         return { success: false, message: 'No eligible improvement to sabotage' };
       }
       const failure = await attemptMission();
       if (failure) return failure;
-      if (requestedBuildingId !== undefined && !city.buildings.includes(requestedBuildingId)) {
+      if (requestedBuildingId !== undefined && !eligibleBuildings.includes(requestedBuildingId)) {
         return { success: false, message: 'That improvement is not present in the target city' };
       }
       const building = await game.cityManager.sabotageCityBuilding(
@@ -856,6 +875,7 @@ export class GameManager {
       [
         ActionType.STEAL_TECH,
         ActionType.SABOTAGE_CITY,
+        ActionType.SABOTAGE_CITY_PRODUCTION,
         ActionType.POISON_WATER,
         ActionType.INCITE_CITY,
       ].includes(actionType)
@@ -928,11 +948,12 @@ export class GameManager {
     if (!unitType.flags?.includes('Spy')) {
       return { success: false, message: 'Only spies can sabotage a city' };
     }
+    const eligibleBuildings =
+      game.cityManager.getSabotageableBuildings?.(city.id) ??
+      city.buildings.filter(buildingId => buildingId.toLowerCase() !== 'palace');
     return {
       success: true,
-      options: city.buildings
-        .filter(buildingId => buildingId.toLowerCase() !== 'palace')
-        .map(buildingId => ({ id: buildingId, label: buildingId })),
+      options: eligibleBuildings.map(buildingId => ({ id: buildingId, label: buildingId })),
     };
   }
 

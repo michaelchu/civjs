@@ -268,6 +268,7 @@ export interface BuildingType {
   name: string;
   genus: 'Improvement' | 'SmallWonder' | 'GreatWonder' | 'Special' | 'Convert';
   cost: number;
+  sabotage?: number;
   requiredTech?: string;
   requires?: string[]; // Required buildings
   cultureRequirements?: BuildingCultureRequirement[];
@@ -2316,7 +2317,9 @@ export class CityManager {
     const city = this.cities.get(cityId);
     if (!city) throw new Error('Target city not found');
     if (city.playerId === actingPlayerId) throw new Error('Cannot sabotage your own city');
-    const candidates = [...city.buildings].filter(building => building !== 'palace');
+    const candidates = [...city.buildings].filter(
+      building => building !== 'palace' && (this.buildingTypes[building]?.sabotage ?? 100) > 0
+    );
     if (requestedBuildingId !== undefined && !candidates.includes(requestedBuildingId)) {
       return null;
     }
@@ -2328,6 +2331,26 @@ export class CityManager {
     this.applyCityHappiness(city.id);
     await this.saveCityToDatabase(city);
     return target;
+  }
+
+  public getSabotageableBuildings(cityId: string): string[] {
+    const city = this.cities.get(cityId);
+    if (!city) return [];
+    return city.buildings.filter(
+      building => building !== 'palace' && (this.buildingTypes[building]?.sabotage ?? 100) > 0
+    );
+  }
+
+  public async sabotageCityProduction(
+    cityId: string,
+    actingPlayerId: string
+  ): Promise<string | null> {
+    const city = this.cities.get(cityId);
+    if (!city || city.playerId === actingPlayerId || !city.currentProduction) return null;
+    const production = city.currentProduction;
+    city.productionStock = 0;
+    await this.saveCityToDatabase(city);
+    return production;
   }
 
   public getEspionageTheftCount(cityId: string, playerId: string): number {

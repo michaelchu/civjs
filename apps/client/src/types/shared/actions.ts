@@ -51,6 +51,7 @@ export enum ActionType {
 
   // Spy actions
   SABOTAGE_CITY = 'sabotage_city',
+  SABOTAGE_CITY_PRODUCTION = 'sabotage_city_production',
   SABOTAGE_UNIT = 'sabotage_unit',
   POISON_WATER = 'poison_water',
   SPREAD_PLAGUE = 'spread_plague',
@@ -123,13 +124,7 @@ export enum ActionMovesActor {
 
 export interface ActionRequirement {
   type:
-    | 'unit_type'
-    | 'unit_flag'
-    | 'terrain'
-    | 'tech'
-    | 'building'
-    | 'government'
-    | 'diplomatic_state';
+    'unit_type' | 'unit_flag' | 'terrain' | 'tech' | 'building' | 'government' | 'diplomatic_state';
   value: string | string[];
   present: boolean; // true if requirement must be present, false if must be absent
   range?: 'local' | 'tile' | 'adjacent' | 'city' | 'continent' | 'player' | 'world';
