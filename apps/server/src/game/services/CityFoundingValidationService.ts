@@ -32,6 +32,8 @@ export interface CityFoundingValidationResult {
   errorCode?: CityFoundingErrorCode;
 }
 
+export type TileExplorationProvider = (playerId: string, x: number, y: number) => boolean;
+
 export enum CityFoundingErrorCode {
   TERRAIN_NO_CITIES = 'TERRAIN_NO_CITIES',
   CITYMINDIST_VIOLATION = 'CITYMINDIST_VIOLATION',
@@ -56,6 +58,7 @@ export class CityFoundingValidationService {
   private citymindist: number;
   private rulesetName: string;
   private foundingRules: CityFoundingRules;
+  private tileExplorationProvider?: TileExplorationProvider;
 
   constructor(
     mapManager: MapManager,
@@ -67,6 +70,15 @@ export class CityFoundingValidationService {
     this.rulesetName = rulesetName;
     this.foundingRules = rulesetLoader.getCityFoundingRules(rulesetName);
     logger.debug(`CityFoundingValidationService initialized with ruleset: ${rulesetName}`);
+  }
+
+  /**
+   * Use the authoritative player-scoped exploration state when available.
+   * MapTile.isExplored is retained as a compatibility fallback for callers
+   * that use this validator without a VisibilityManager.
+   */
+  public setTileExplorationProvider(provider: TileExplorationProvider): void {
+    this.tileExplorationProvider = provider;
   }
 
   /**
@@ -361,7 +373,7 @@ export class CityFoundingValidationService {
   private validateTileExploration(
     x: number,
     y: number,
-    _playerId: string
+    playerId: string
   ): CityFoundingValidationResult {
     // Skip exploration check if ruleset doesn't require it
     if (this.foundingRules.exploration_requirement === 0) {
@@ -379,7 +391,10 @@ export class CityFoundingValidationService {
 
     // Check exploration requirement level
     // 1 = tile must be seen, 2 = tile must be explored
-    if (this.foundingRules.exploration_requirement >= 1 && !tile.isExplored) {
+    const isExplored = this.tileExplorationProvider
+      ? this.tileExplorationProvider(playerId, x, y)
+      : tile.isExplored ?? true;
+    if (this.foundingRules.exploration_requirement >= 1 && !isExplored) {
       return {
         canFound: false,
         errorMessage: `Cannot found city at (${x}, ${y}) - tile has not been explored`,

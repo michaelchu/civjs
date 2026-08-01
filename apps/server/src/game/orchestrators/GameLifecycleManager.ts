@@ -469,6 +469,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     visibilityManager.setCityVisionProvider(playerId =>
       cityManager.getCitiesByPlayer(playerId).map(city => ({ x: city.x, y: city.y }))
     );
+    cityManager.setTileExplorationProvider((playerId, x, y) =>
+      visibilityManager.isTileExplored(playerId, x, y)
+    );
     unitManager.setHutMapRevealProvider((playerId, x, y) => [
       ...visibilityManager.revealArea(playerId, x, y, 30),
     ]);

@@ -22,6 +22,7 @@ import {
   CityFoundingValidationService,
   CityFoundingValidationResult,
   CityFoundingErrorCode,
+  type TileExplorationProvider,
 } from '@game/services/CityFoundingValidationService';
 import type { MapManager } from '@game/managers/MapManager';
 import { Server as SocketServer } from 'socket.io';
@@ -337,6 +338,7 @@ export class CityManager {
   private mapManager?: MapManager;
   private io?: SocketServer; // Socket.IO server for emitting events
   private validationService?: CityFoundingValidationService;
+  private tileExplorationProvider?: TileExplorationProvider;
   private unitProvider: () => Map<string, Unit> = () => new Map();
   private currentTurnProvider?: () => number;
   /**
@@ -468,6 +470,12 @@ export class CityManager {
   /** Provide authoritative unit state for city-founding occupancy validation. */
   public setUnitProvider(provider: () => Map<string, Unit>): void {
     this.unitProvider = provider;
+  }
+
+  /** Provide player-scoped exploration state for city founding validation. */
+  public setTileExplorationProvider(provider: TileExplorationProvider): void {
+    this.tileExplorationProvider = provider;
+    this.validationService?.setTileExplorationProvider(provider);
   }
 
   public setTileOccupancyProvider(
@@ -655,6 +663,9 @@ export class CityManager {
       GAME_DEFAULT_CITYMINDIST,
       this.effectsManager.getRulesetName()
     );
+    if (this.tileExplorationProvider) {
+      this.validationService.setTileExplorationProvider(this.tileExplorationProvider);
+    }
     if (this.playerGovernmentProvider) {
       this.tileManagementService.setPlayerGovernmentProvider(this.playerGovernmentProvider);
     }

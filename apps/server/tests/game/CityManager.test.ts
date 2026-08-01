@@ -872,6 +872,43 @@ describe('CityManager', () => {
   });
 
   describe('services access', () => {
+    it('founds a city when the player has explored the tile through visibility state', async () => {
+      const targetTile = {
+        x: 10,
+        y: 10,
+        terrain: 'grassland',
+        resource: null,
+        city: null,
+        unitIds: [],
+        isVisible: true,
+        // The legacy map flag is stale; the player-scoped provider is authoritative.
+        isExplored: false,
+      };
+      mockMapManager.getTile = jest.fn().mockReturnValue(targetTile);
+      const settler = {
+        id: 'settler-unit',
+        playerId: 'player-123',
+        unitTypeId: 'settlers',
+        x: 10,
+        y: 10,
+        movementLeft: 3,
+      } as any;
+      cityManager.setUnitProvider(() => new Map([[settler.id, settler]]));
+      const isTileExplored = jest.fn().mockReturnValue(true);
+      cityManager.setTileExplorationProvider(isTileExplored);
+
+      const city = await cityManager.foundCity(
+        10,
+        10,
+        'Visibility City',
+        'player-123',
+        settler.id
+      );
+
+      expect(city.name).toBe('Visibility City');
+      expect(isTileExplored).toHaveBeenCalledWith('player-123', 10, 10);
+    });
+
     it('uses the founding unit and authoritative tile occupancy checks', async () => {
       const targetTile = {
         x: 10,

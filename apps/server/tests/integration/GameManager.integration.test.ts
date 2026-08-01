@@ -393,6 +393,54 @@ describe('GameManager - Integration Tests with Real Database', () => {
       expect(dbCities[0].name).toBe('TestCity');
     });
 
+    it('founds a city on a tile explored through the recovered game visibility state', async () => {
+      const game = gameManager.getGameInstance(gameId)!;
+      const candidate: { x: number; y: number } | undefined = (() => {
+        for (let x = 0; x < (game.config.mapWidth ?? 20); x += 1) {
+          for (let y = 0; y < (game.config.mapHeight ?? 20); y += 1) {
+            const tile = game.mapManager.getTile(x, y);
+            if (
+              tile &&
+              tile.terrain !== 'ocean' &&
+              !tile.cityId &&
+              tile.unitIds.length === 0 &&
+              game.cityManager.canFoundCityAt(x, y, playerId)
+            ) {
+              return { x, y };
+            }
+          }
+        }
+        return undefined;
+      })();
+
+      expect(candidate).toBeDefined();
+      const unitId = await gameManager.createUnit(
+        gameId,
+        playerId,
+        'settlers',
+        candidate!.x,
+        candidate!.y
+      );
+
+      expect(game.visibilityManager.isTileExplored(playerId, candidate!.x, candidate!.y)).toBe(
+        true
+      );
+
+      // Reproduce the stale legacy flag that caused the original regression.
+      game.mapManager.getTile(candidate!.x, candidate!.y)!.isExplored = false;
+
+      const cityId = await gameManager.foundCity(
+        gameId,
+        playerId,
+        'Recovered Visibility City',
+        candidate!.x,
+        candidate!.y,
+        unitId
+      );
+
+      expect(game.cityManager.getCity(cityId)?.name).toBe('Recovered Visibility City');
+    });
+
     // TODO: Fix in separate PR - visibility system not working after DI refactoring
     // TODO: Fix in separate PR - visibility system integration
     it('should create units and update visibility', async () => {
