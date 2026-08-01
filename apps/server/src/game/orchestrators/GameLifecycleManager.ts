@@ -1327,7 +1327,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   }
 
   private getLandPercent(value: string | undefined): number {
-    return value === 'sparse' ? 30 : value === 'dense' ? 70 : 50;
+    // Freeciv defaults landmass to 30%; keep presets centered on that value.
+    return value === 'sparse' ? 20 : value === 'dense' ? 50 : 30;
   }
 
   private getResourceRichness(value: string | undefined): number {
@@ -1413,7 +1414,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       random,
       identities,
       barbarianRate,
-      climateSettings
+      climateSettings,
+      players
     );
     const playerIds = Array.from(players.keys());
     await tm.initializeTurn(playerIds);

@@ -3,20 +3,20 @@
  * Advanced height map generation using diamond-square algorithm and fracture maps
  * @reference freeciv/server/generator/height_map.c and fracture_map.c
  */
+import { MapStartpos } from './MapTypes';
 import { MapTopology, type MapTopologyOptions, WrapFlag } from './MapTopology';
+import {
+  getMapSqSize,
+  getPseudoFractalExtraDivisions,
+  getRandomSmoothPasses,
+} from './MapGenerationUtils';
+import { TemperatureMap, getIceBaseLevel } from './TemperatureMap';
 
 // Height map constants from freeciv reference
 const HMAP_MAX_LEVEL = 1000; // Maximum height value (freeciv: hmap_max_level)
 // Shore level is now calculated dynamically based on land percentage
 const DEFAULT_STEEPNESS = 30; // Terrain steepness parameter 0-100 (freeciv: wld.map.server.steepness)
 const DEFAULT_FLATPOLES = 100; // Pole flattening parameter 0-100 (freeciv: wld.map.server.flatpoles)
-
-/**
- * Climate constants ported from freeciv reference
- * @reference freeciv/server/generator/temperature_map.h and mapgen_topology.h
- */
-const MAX_COLATITUDE = 1000; // Normalized maximum colatitude (freeciv: MAP_MAX_LATITUDE)
-const ICE_BASE_LEVEL = 20; // Classic separate-poles default at temperature 50
 
 // Constants for height generation
 
@@ -36,6 +36,8 @@ export class FractalHeightGenerator {
   private flatpoles: number;
   private topology: MapTopology;
   private readonly landPercent: number;
+  private readonly iceBaseLevel: number;
+  private readonly colatitudeMap: TemperatureMap;
 
   constructor(
     width: number,
@@ -45,7 +47,9 @@ export class FractalHeightGenerator {
     flatpoles: number = DEFAULT_FLATPOLES,
     generator: string = 'random',
     topologyOptions: MapTopologyOptions = {},
-    landPercent: number = 30
+    landPercent: number = 30,
+    temperature: number = 50,
+    separatePoles: boolean = true
   ) {
     this.width = width;
     this.height = height;
@@ -56,6 +60,14 @@ export class FractalHeightGenerator {
     this.flatpoles = flatpoles;
     this.topology = new MapTopology(width, height, topologyOptions);
     this.landPercent = Math.max(1, Math.min(99, landPercent));
+    this.iceBaseLevel = getIceBaseLevel(temperature, getMapSqSize(width, height), separatePoles);
+    this.colatitudeMap = new TemperatureMap(
+      width,
+      height,
+      temperature,
+      topologyOptions,
+      separatePoles
+    );
 
     // Calculate shore level based on land percentage (like freeciv make_land())
     this.shoreLevel = Math.floor((HMAP_MAX_LEVEL * (100 - this.landPercent)) / 100);
@@ -86,7 +98,10 @@ export class FractalHeightGenerator {
    */
   private setHeight(x: number, y: number, value: number): void {
     if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
-      this.heightMap[y * this.width + x] = Math.max(0, Math.min(HMAP_MAX_LEVEL, value));
+      // Pseudofractal generation intentionally creates negative intermediate
+      // values. Freeciv clamps only when adjust_int_map() normalizes the
+      // completed field.
+      this.heightMap[y * this.width + x] = value;
     }
   }
 
@@ -105,12 +120,12 @@ export class FractalHeightGenerator {
     } else if (this.flatpoles > 0) {
       // Linear ramp down from 100% at 2.5*ICE_BASE_LEVEL to (100-flatpoles) %
       // at the poles
-      factor = 1 - ((1 - colatitude / (2.5 * ICE_BASE_LEVEL)) * this.flatpoles) / 100;
+      factor = 1 - ((1 - colatitude / (2.5 * this.iceBaseLevel)) * this.flatpoles) / 100;
     }
 
     // A band of low height to try to separate the pole (this function is
     // only assumed to be called <= 2.5*ICE_BASE_LEVEL)
-    if (colatitude >= 2 * ICE_BASE_LEVEL) {
+    if (colatitude >= 2 * this.iceBaseLevel) {
       factor = Math.min(factor, 0.1);
     }
 
@@ -118,9 +133,8 @@ export class FractalHeightGenerator {
   }
 
   /** Calculate Freeciv colatitude: zero at a pole, maximum at the equator. */
-  private getColatitude(_x: number, y: number): number {
-    const latitudeFactor = Math.abs(y - this.height / 2) / (this.height / 2);
-    return (1 - latitudeFactor) * MAX_COLATITUDE;
+  private getColatitude(x: number, y: number): number {
+    return this.colatitudeMap.mapColatitude(x, y);
   }
 
   /**
@@ -154,8 +168,8 @@ export class FractalHeightGenerator {
     }
 
     // Handle map wrapping for edge coordinates
-    const x1wrap = xr >= this.width ? 0 : xr;
-    const y1wrap = yb >= this.height ? 0 : yb;
+    const x1wrap = xr === this.width && this.topology.hasWrapFlag(WrapFlag.X) ? 0 : xr;
+    const y1wrap = yb === this.height && this.topology.hasWrapFlag(WrapFlag.Y) ? 0 : yb;
 
     // Get corner values
     const val = [
@@ -198,7 +212,7 @@ export class FractalHeightGenerator {
     let value = baseValue + randomVariation;
 
     // Apply pole flattening for realistic world geometry
-    if (colatitude <= ICE_BASE_LEVEL / 2) {
+    if (colatitude <= this.iceBaseLevel / 2) {
       value = (value * (100 - this.flatpoles)) / 100;
     } else if (this.isNearMapEdge(x, y) || this.getHeight(x, y) !== 0) {
       // Don't overwrite existing values or map edges
@@ -212,11 +226,11 @@ export class FractalHeightGenerator {
    * Generate initial random height map (similar to MAPGEN_RANDOM approach)
    * @reference freeciv/server/generator/height_map.c make_random_hmap()
    */
-  public generateRandomHeightMap(playerCount: number = 4): void {
-    // Calculate smooth parameter like freeciv: MAX(1, 1 + get_sqsize() - player_count() / 4)
-    // get_sqsize() ≈ sqrt(map_area) / 10 in freeciv
-    const sqSize = Math.floor(Math.sqrt(this.width * this.height) / 10);
-    const smooth = Math.max(1, 1 + sqSize - Math.floor(playerCount / 4));
+  public generateRandomHeightMap(
+    playerCount: number = 4,
+    startPosMode: MapStartpos = MapStartpos.DEFAULT
+  ): void {
+    const smooth = getRandomSmoothPasses(this.width, this.height, playerCount, startPosMode);
 
     // CRITICAL: Initialize each tile with a DIFFERENT random value (like freeciv INITIALIZE_ARRAY)
     // The freeciv macro evaluates fc_rand(1000 * smooth) for EACH array element
@@ -236,28 +250,38 @@ export class FractalHeightGenerator {
    * Generate fractal height map using proper grid-based approach
    * @reference freeciv/server/generator/height_map.c make_pseudofractal1_hmap()
    */
-  public generatePseudoFractalHeightMap(): void {
+  public generatePseudoFractalHeightMap(extraDiv: number = 1): void {
     // CRITICAL: Initialize to ZEROS first (like freeciv does)
     this.heightMap.fill(0);
 
     // Create grid of seed points for fractal generation
-    const xdiv = 5;
-    const ydiv = 5;
+    const xdiv = 5 + Math.max(0, extraDiv);
+    const ydiv = 5 + Math.max(0, extraDiv);
+    const xNoWrap = !this.topology.hasWrapFlag(WrapFlag.X);
+    const yNoWrap = !this.topology.hasWrapFlag(WrapFlag.Y);
+    const xdiv2 = xdiv + (xNoWrap ? 1 : 0);
+    const ydiv2 = ydiv + (yNoWrap ? 1 : 0);
+    const xmax = this.width - (xNoWrap ? 1 : 0);
+    const ymax = this.height - (yNoWrap ? 1 : 0);
+    const step = this.width + this.height;
+    const avoidedge = ((100 - this.landPercent) * step) / 100 + Math.floor(step / 3);
 
     // Set initial seed points in a grid pattern
-    for (let x = 0; x < xdiv + 1; x++) {
-      for (let y = 0; y < ydiv + 1; y++) {
-        const px = Math.floor((x * this.width) / xdiv);
-        const py = Math.floor((y * this.height) / ydiv);
+    for (let x = 0; x < xdiv2; x++) {
+      for (let y = 0; y < ydiv2; y++) {
+        const px = Math.floor((x * xmax) / xdiv);
+        const py = Math.floor((y * ymax) / ydiv);
 
         // Create varied elevations for seed points (use step-based range like freeciv)
-        const step = this.width + this.height;
         let seedHeight = Math.floor(this.random() * (2 * step)) - step;
 
         // Avoid edges (reduce land near map edges)
         if (this.isNearMapEdge(px, py)) {
-          const avoidedge = ((100 - this.landPercent) * step) / 100 + Math.floor(step / 3);
           seedHeight -= avoidedge;
+        }
+
+        if (this.getColatitude(px, py) <= this.iceBaseLevel / 2) {
+          seedHeight -= Math.floor(this.random() * ((avoidedge * this.flatpoles) / 100));
         }
 
         this.setHeight(px, py, seedHeight);
@@ -265,16 +289,20 @@ export class FractalHeightGenerator {
     }
 
     // Apply fractal subdivision to each grid cell
-    const step = this.width + this.height; // Use freeciv step calculation
     for (let x = 0; x < xdiv; x++) {
       for (let y = 0; y < ydiv; y++) {
-        const x1 = Math.floor((x * this.width) / xdiv);
-        const y1 = Math.floor((y * this.height) / ydiv);
-        const x2 = Math.floor(((x + 1) * this.width) / xdiv);
-        const y2 = Math.floor(((y + 1) * this.height) / ydiv);
+        const x1 = Math.floor((x * xmax) / xdiv);
+        const y1 = Math.floor((y * ymax) / ydiv);
+        const x2 = Math.floor(((x + 1) * xmax) / xdiv);
+        const y2 = Math.floor(((y + 1) * ymax) / ydiv);
 
         this.diamondSquareRecursive(step, x1, y1, x2, y2);
       }
+    }
+
+    // Freeciv adds small random fuzz before adjust_int_map().
+    for (let i = 0; i < this.heightMap.length; i++) {
+      this.heightMap[i] = 8 * this.heightMap[i] + Math.floor(this.random() * 4) - 2;
     }
 
     // Adjust to proper height range, then classify the final distribution.
@@ -286,43 +314,38 @@ export class FractalHeightGenerator {
    * Generate height map using different algorithms based on generator type
    * Following freeciv reference implementation choices
    */
-  public generateHeightMap(): void {
+  public generateHeightMap(
+    playerCount: number = 4,
+    startPosMode: MapStartpos = MapStartpos.DEFAULT
+  ): void {
     // Choose generation algorithm based on generator type
     switch (this.generator) {
       case 'random':
         // MAPGEN_RANDOM approach: fully random heights with smoothing
-        this.generateRandomHeightMap();
+        this.generateRandomHeightMap(playerCount, startPosMode);
         break;
       case 'fractal':
         // MAPGEN_FRACTAL approach: pseudofractal with grid-based seeds
-        this.generatePseudoFractalHeightMap();
+        this.generatePseudoFractalHeightMap(
+          getPseudoFractalExtraDivisions(playerCount, startPosMode)
+        );
         break;
       case 'island':
       case 'fair':
         // Island services own land placement; their shared height utility uses
         // the same pseudofractal substrate as Freeciv's height-map generator.
-        this.generatePseudoFractalHeightMap();
+        this.generatePseudoFractalHeightMap(
+          getPseudoFractalExtraDivisions(playerCount, startPosMode)
+        );
         break;
       default:
         // Default to random (freeciv default)
-        this.generateRandomHeightMap();
+        this.generateRandomHeightMap(playerCount, startPosMode);
         break;
     }
 
-    // Apply pole normalization (must come after height generation)
-    this.normalizeHeightMapPoles();
-
-    // Add final random variation for natural detail
-    for (let i = 0; i < this.heightMap.length; i++) {
-      const fuzz = Math.floor(this.random() * 8) - 4;
-      this.heightMap[i] = Math.max(0, Math.min(HMAP_MAX_LEVEL, this.heightMap[i] + fuzz));
-    }
-
-    // Normalize to final height range
-    this.normalizeHeightMap();
-    // Pole normalization and final fuzz change the distribution, so derive the
-    // classification threshold from the final values used by terrain creation.
-    this.setShoreLevel();
+    // Pole normalization is performed once by makeLand(), matching Freeciv's
+    // make_land() sequence.
   }
 
   /**
@@ -336,7 +359,7 @@ export class FractalHeightGenerator {
       for (let y = 0; y < this.height; y++) {
         const colatitude = this.getColatitude(x, y);
 
-        if (colatitude <= 2.5 * ICE_BASE_LEVEL) {
+        if (colatitude <= 2.5 * this.iceBaseLevel) {
           const currentHeight = this.getHeight(x, y);
           const poleFactor = this.getPoleFactor(x, y);
           this.setHeight(x, y, currentHeight * poleFactor);
@@ -364,7 +387,7 @@ export class FractalHeightGenerator {
         }
 
         const colatitude = this.getColatitude(x, y);
-        if (colatitude <= 2.5 * ICE_BASE_LEVEL) {
+        if (colatitude <= 2.5 * this.iceBaseLevel) {
           const poleFactor = this.getPoleFactor(x, y);
 
           if (poleFactor > 0) {
@@ -381,8 +404,8 @@ export class FractalHeightGenerator {
    */
   private normalizeHeightMap(): void {
     // Find current min/max heights
-    let minHeight = HMAP_MAX_LEVEL;
-    let maxHeight = 0;
+    let minHeight = Number.POSITIVE_INFINITY;
+    let maxHeight = Number.NEGATIVE_INFINITY;
 
     for (const height of this.heightMap) {
       minHeight = Math.min(minHeight, height);
@@ -563,10 +586,9 @@ export class FractalHeightGenerator {
   ): void {
     // Gaussian kernel weights from freeciv reference
     const weightStandard = [0.13, 0.19, 0.37, 0.19, 0.13];
-    // const weightIsometric = [0.15, 0.21, 0.29, 0.21, 0.15]; // For future isometric support
+    const weightIsometric = [0.15, 0.21, 0.29, 0.21, 0.15];
 
-    // Use standard weights (could be configurable for isometric maps in future)
-    const weight = weightStandard;
+    let weight = weightStandard;
 
     // Create temporary map for two-pass algorithm
     const altIntMap = new Array(width * height);
@@ -585,13 +607,10 @@ export class FractalHeightGenerator {
           // Apply 5-point kernel in current axis direction
           const smoothingResult = this.applySmoothingKernel(
             i => {
-              if (axe) {
-                const nx = x + i;
-                return nx >= 0 && nx < width ? y * width + nx : -1;
-              } else {
-                const ny = y + i;
-                return ny >= 0 && ny < height ? ny * width + x : -1;
-              }
+              const position = axe
+                ? this.topology.normalize(x + i, y)
+                : this.topology.normalize(x, y + i);
+              return position ? position.y * width + position.x : -1;
             },
             sourceMap,
             weight
@@ -611,6 +630,10 @@ export class FractalHeightGenerator {
 
       // Switch axis for next pass
       axe = !axe;
+
+      if (!axe && this.topology.isIsometric()) {
+        weight = weightIsometric;
+      }
 
       // Swap source and target maps
       const temp = sourceMap;

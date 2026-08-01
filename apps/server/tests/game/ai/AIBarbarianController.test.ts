@@ -87,23 +87,41 @@ describe('Freeciv barbarian AI', () => {
       y: 0,
       movementLeft: 3,
     };
+    const farGuard = {
+      id: 'barbarian-far-guard',
+      playerId: 'barbarian',
+      unitTypeId: 'warriors',
+      x: 10,
+      y: 0,
+      movementLeft: 3,
+    };
     const enemy = {
-      id: 'enemy',
+      id: 'enemy-a',
       playerId: 'foreign',
       unitTypeId: 'warriors',
       x: 3,
       y: 0,
       movementLeft: 3,
     };
+    const farEnemy = {
+      id: 'enemy-b',
+      playerId: 'foreign',
+      unitTypeId: 'warriors',
+      x: 11,
+      y: 0,
+      movementLeft: 3,
+    };
     const units = new Map([
       [leader.id, leader],
       [guard.id, guard],
+      [farGuard.id, farGuard],
       [enemy.id, enemy],
+      [farEnemy.id, farEnemy],
     ]);
     const game = {
       currentTurn: 12,
       unitManager: {
-        getPlayerUnits: () => [leader, guard],
+        getPlayerUnits: () => [leader, guard, farGuard],
         getAllUnits: () => units,
         getUnit: (id: string) => units.get(id),
         getUnitType: (id: string) =>
@@ -125,7 +143,7 @@ describe('Freeciv barbarian AI', () => {
       createAIState()
     );
 
-    expect(actions).toBe(2);
+    expect(actions).toBe(3);
     expect(executeUnitAction).toHaveBeenCalledWith(
       leader.id,
       ActionType.GOTO,
@@ -134,6 +152,7 @@ describe('Freeciv barbarian AI', () => {
       'barbarian'
     );
     expect(attackUnit).toHaveBeenCalledWith(guard.id, enemy.id);
+    expect(attackUnit).toHaveBeenCalledWith(farGuard.id, farEnemy.id);
   });
 
   it('sentries a co-located leader and sends a warrior toward the nearest city', async () => {

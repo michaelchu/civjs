@@ -20,7 +20,7 @@ export const TerrainSettingsDialog: React.FC = () => {
   // Validate form data after store hydrates
   useEffect(() => {
     if (_hasHydrated) {
-      if (!formData.playerName || !formData.gameName) {
+      if (!formData.gameName) {
         navigate('/create-game', { replace: true });
       } else {
         setIsValidating(false);
@@ -28,7 +28,7 @@ export const TerrainSettingsDialog: React.FC = () => {
     } else {
       // If not hydrated yet, wait a bit more
       const timer = setTimeout(() => {
-        if (!formData.playerName || !formData.gameName) {
+        if (!formData.gameName) {
           navigate('/create-game', { replace: true });
         } else {
           setIsValidating(false);
@@ -37,7 +37,7 @@ export const TerrainSettingsDialog: React.FC = () => {
 
       return () => clearTimeout(timer);
     }
-  }, [_hasHydrated, formData.playerName, formData.gameName, navigate]);
+  }, [_hasHydrated, formData.gameName, navigate]);
 
   // Show loading while validating
   if (isValidating) {
@@ -66,7 +66,6 @@ export const TerrainSettingsDialog: React.FC = () => {
 
       const gameId = await gameClient.createGame({
         gameName: formData.gameName,
-        playerName: formData.playerName,
         gameType: formData.gameType,
         maxPlayers: formData.maxPlayers,
         mapSize: formData.mapSize,
@@ -106,9 +105,9 @@ export const TerrainSettingsDialog: React.FC = () => {
   };
 
   const landmassOptions = [
-    { value: 'sparse', label: 'Sparse (30%)' },
-    { value: 'normal', label: 'Normal (50%)' },
-    { value: 'dense', label: 'Dense (70%)' },
+    { value: 'sparse', label: 'Sparse (20%)' },
+    { value: 'normal', label: 'Normal (30%)' },
+    { value: 'dense', label: 'Dense (50%)' },
   ];
 
   const landmassDescriptions = {

@@ -38,7 +38,6 @@ export const GameCreationDialog: React.FC = () => {
 
   // Destructure form data for easier access
   const {
-    playerName,
     gameName,
     gameType,
     maxPlayers,
@@ -57,11 +56,6 @@ export const GameCreationDialog: React.FC = () => {
   const handleNext = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!playerName.trim()) {
-      setError('Please enter a player name');
-      return;
-    }
-
     if (!gameName.trim()) {
       setError('Please enter a game name');
       return;
@@ -74,7 +68,6 @@ export const GameCreationDialog: React.FC = () => {
 
     // Update the store with final values before navigation
     updateFormData({
-      playerName: playerName.trim(),
       gameName: gameName.trim(),
       gameType,
       maxPlayers: gameType === 'single' ? 1 : maxPlayers,
@@ -160,23 +153,6 @@ export const GameCreationDialog: React.FC = () => {
           <CardContent>
             <form id="create-game-form" onSubmit={handleNext} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                <div>
-                  <label
-                    htmlFor="playerName"
-                    className="block text-sm font-medium text-foreground mb-2"
-                  >
-                    Your Name
-                  </label>
-                  <Input
-                    id="playerName"
-                    type="text"
-                    value={playerName}
-                    onChange={e => updateFormData({ playerName: e.target.value })}
-                    placeholder="Enter your player name"
-                    maxLength={32}
-                  />
-                </div>
-
                 <div>
                   <label
                     htmlFor="gameName"
@@ -329,9 +305,7 @@ export const GameCreationDialog: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={
-                    !playerName.trim() || !gameName.trim() || !selectedNation || nationsLoading
-                  }
+                  disabled={!gameName.trim() || !selectedNation || nationsLoading}
                   className="flex-1 py-3 px-4 bg-primary hover:bg-primary/90 disabled:bg-primary/50 disabled:text-primary-foreground/50 text-primary-foreground font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-sm"
                 >
                   Next
@@ -352,9 +326,7 @@ export const GameCreationDialog: React.FC = () => {
               <button
                 type="submit"
                 form="create-game-form"
-                disabled={
-                  !playerName.trim() || !gameName.trim() || !selectedNation || nationsLoading
-                }
+                disabled={!gameName.trim() || !selectedNation || nationsLoading}
                 className="flex-1 py-3 px-4 bg-primary hover:bg-primary/90 disabled:bg-primary/50 disabled:text-primary-foreground/50 text-primary-foreground font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-sm"
               >
                 Next

@@ -6,7 +6,7 @@ test('game creation is responsive and reports ruleset loading failures', async (
   await page.goto('/');
   await page.getByRole('button', { name: /Start New Game/ }).click();
   await expect(page.getByText('Create New Game', { exact: true })).toBeVisible();
-  await expect(page.getByLabel('Your Name')).toBeVisible();
+  await expect(page.getByLabel('Your Name')).toHaveCount(0);
   await expect(page.getByLabel('Game Name')).toBeVisible();
 });
 

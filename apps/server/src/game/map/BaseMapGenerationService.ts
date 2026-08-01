@@ -9,7 +9,7 @@ import { ResourceGenerator } from './ResourceGenerator';
 import { StartingPositionGenerator } from './StartingPositionGenerator';
 import { TerrainGenerator } from './TerrainGenerator';
 import { MapValidator, ValidationResult } from './MapValidator';
-import { createBaseTile } from './TerrainUtils';
+import { createBaseTile, isLandTile } from './TerrainUtils';
 import { MapTopology, type MapTopologyOptions } from './MapTopology';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
@@ -94,19 +94,22 @@ export abstract class BaseMapGenerationService {
       this.generationOptions.flatPoles,
       this.generator,
       topologyOptions,
-      this.generationOptions.landPercent
+      this.generationOptions.landPercent,
+      this.generationOptions.temperature,
+      this.generationOptions.separatePoles
     );
     this.temperatureMap = new TemperatureMap(
       width,
       height,
       this.generationOptions.temperature,
-      topologyOptions
+      topologyOptions,
+      this.generationOptions.separatePoles
     );
     this.islandGenerator = new IslandGenerator(
       width,
       height,
       this.random,
-      undefined,
+      this.temperatureMap,
       topologyOptions
     );
     this.riverGenerator = new RiverGenerator(width, height, this.random, topologyOptions);
@@ -122,7 +125,12 @@ export abstract class BaseMapGenerationService {
       height,
       this.random,
       this.generator,
-      topologyOptions
+      topologyOptions,
+      {
+        temperature: this.generationOptions.temperature,
+        separatePoles: this.generationOptions.separatePoles,
+        flatPoles: this.generationOptions.flatPoles,
+      }
     );
     const terrainParams = this.terrainGenerator.adjustTerrainParam(
       this.generationOptions.landPercent,
@@ -284,7 +292,7 @@ export abstract class BaseMapGenerationService {
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         totalTiles++;
-        if (mapTiles[x][y].terrain !== 'ocean') {
+        if (isLandTile(mapTiles[x][y].terrain)) {
           landTiles++;
         }
       }

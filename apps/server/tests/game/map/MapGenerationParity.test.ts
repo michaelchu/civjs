@@ -3,10 +3,18 @@ import { MapManager, type MapGeneratorType } from '@game/managers/MapManager';
 import { PlayerState } from '@game/managers/GameManager';
 import { MapStartpos, TemperatureType } from '@game/map/MapTypes';
 import { ContinentProcessor } from '@game/map/terrain/ContinentProcessor';
-import { createBaseTile } from '@game/map/TerrainUtils';
+import { createBaseTile, isFrozenTerrain, isLandTile } from '@game/map/TerrainUtils';
 import { TopologyFlag, WrapFlag } from '@game/map/MapTopology';
 import { StartingPositionGenerator } from '@game/map/StartingPositionGenerator';
 import { FreecivScenarioLoader } from '@game/map/FreecivScenarioLoader';
+import { HeightBasedMapService } from '@game/map/HeightBasedMapService';
+import { MapAccessService } from '@game/map/MapAccessService';
+import {
+  getMapSqSize,
+  getPseudoFractalExtraDivisions,
+  getRandomSmoothPasses,
+} from '@game/map/MapGenerationUtils';
+import { TemperatureMap, getIceBaseLevel } from '@game/map/TemperatureMap';
 
 const players = new Map<string, PlayerState>([
   [
@@ -62,6 +70,30 @@ function digest(manager: MapManager): string {
 }
 
 describe('map generation parity contracts', () => {
+  it('uses Freeciv map-size and start-position scaling formulas', () => {
+    expect(getMapSqSize(40, 25)).toBe(1);
+    expect(getMapSqSize(80, 50)).toBe(2);
+    expect(getRandomSmoothPasses(40, 25, 4, MapStartpos.DEFAULT)).toBe(2);
+    expect(getRandomSmoothPasses(80, 50, 4, MapStartpos.DEFAULT)).toBe(3);
+    expect(getRandomSmoothPasses(40, 25, 4, MapStartpos.SINGLE)).toBe(1);
+    expect(getPseudoFractalExtraDivisions(4, MapStartpos.DEFAULT)).toBe(1);
+    expect(getPseudoFractalExtraDivisions(4, MapStartpos.VARIABLE)).toBe(5);
+    expect(getIceBaseLevel(70, 2, true)).toBe(10);
+    expect(getIceBaseLevel(70, 2, false)).toBe(20);
+  });
+
+  it('calculates symmetric colatitude using the configured wrap topology', () => {
+    const earth = new TemperatureMap(80, 50);
+    expect(earth.mapColatitude(0, 0)).toBe(0);
+    expect(earth.mapColatitude(0, 49)).toBe(0);
+    expect(earth.mapColatitude(0, 24)).toBe(earth.mapColatitude(0, 25));
+
+    const sideways = new TemperatureMap(80, 50, 50, { wrapId: WrapFlag.Y });
+    expect(sideways.mapColatitude(0, 25)).toBe(0);
+    expect(sideways.mapColatitude(79, 25)).toBe(0);
+    expect(sideways.mapColatitude(39, 25)).toBe(sideways.mapColatitude(40, 25));
+  });
+
   it.each<MapGeneratorType>(['RANDOM', 'FRACTAL', 'FRACTURE', 'ISLAND', 'FAIR'])(
     '%s generation is reproducible and produces one valid start per player',
     async generator => {
@@ -87,6 +119,106 @@ describe('map generation parity contracts', () => {
       expect(first.getMapData()!.startingPositions).toHaveLength(players.size);
     }
   );
+
+  it.each<MapGeneratorType>(['RANDOM', 'FRACTURE'])(
+    '%s does not synthesize glacier strips along the map edges',
+    async generator => {
+      const manager = new MapManager(
+        80,
+        50,
+        `polar-land-disabled-${generator}`,
+        generator.toLowerCase(),
+        generator
+      );
+
+      await manager.generateMap(players, generator);
+
+      const map = manager.getMapData()!;
+      const edgeTiles = [
+        ...map.tiles.map(column => column[0]),
+        ...map.tiles.map(column => column[49]),
+      ];
+      expect(edgeTiles).not.toContainEqual(expect.objectContaining({ terrain: 'glacier' }));
+    }
+  );
+
+  it('generates real ISLAND maps without invoking the height-map fallback', async () => {
+    const fallback = jest.spyOn(HeightBasedMapService.prototype, 'generateMap');
+    const fourPlayers = new Map(players);
+    fourPlayers.set('player-3', { ...players.get('player-1')!, id: 'player-3', playerNumber: 3 });
+    fourPlayers.set('player-4', { ...players.get('player-2')!, id: 'player-4', playerNumber: 4 });
+    const manager = new MapManager(
+      80,
+      50,
+      'island-no-fallback',
+      'island',
+      'ISLAND',
+      MapStartpos.ALL,
+      false,
+      50,
+      {},
+      'earth-small',
+      { landPercent: 30 }
+    );
+
+    await manager.generateMap(fourPlayers, 'ISLAND');
+
+    const map = manager.getMapData()!;
+    const land = map.tiles.flat().filter(tile => isLandTile(tile.terrain));
+    const fallbackCallCount = fallback.mock.calls.length;
+    fallback.mockRestore();
+    expect(fallbackCallCount).toBe(0);
+    expect(new Set(land.map(tile => tile.continentId)).size).toBeGreaterThanOrEqual(4);
+    expect(land.length / (map.width * map.height)).toBeGreaterThan(0.15);
+    expect(land.length / (map.width * map.height)).toBeLessThan(0.4);
+  });
+
+  it('rejects dominant-continent RANDOM results before returning a quick map', async () => {
+    const manager = new MapManager(
+      40,
+      25,
+      'quick-quality-gate',
+      'random',
+      'RANDOM',
+      MapStartpos.DEFAULT,
+      false,
+      50,
+      {},
+      'earth-small',
+      { landPercent: 30 }
+    );
+
+    await manager.generateMap(players, 'RANDOM');
+
+    const land = manager
+      .getMapData()!
+      .tiles.flat()
+      .filter(tile => isLandTile(tile.terrain));
+    const continentSizes = Object.values(
+      land.reduce<Record<number, number>>((sizes, tile) => {
+        sizes[tile.continentId] = (sizes[tile.continentId] ?? 0) + 1;
+        return sizes;
+      }, {})
+    );
+    expect(Math.max(...continentSizes) / land.length).toBeLessThanOrEqual(0.8);
+  });
+
+  it('classifies all water variants consistently in map metrics', () => {
+    const tiles = Array.from({ length: 4 }, (_, x) =>
+      Array.from({ length: 3 }, (_, y) => {
+        const tile = createBaseTile(x, y);
+        tile.terrain = 'deep_ocean';
+        return tile;
+      })
+    );
+    tiles[0][0].terrain = 'coast';
+    tiles[1][0].terrain = 'lake';
+    tiles[2][0].terrain = 'grassland';
+
+    expect(new MapAccessService(4, 3).getLandPercent(tiles)).toBeCloseTo(100 / 12);
+    expect(isFrozenTerrain('glacier')).toBe(true);
+    expect(isFrozenTerrain('tundra')).toBe(false);
+  });
 
   it('can route SCENARIO through an explicitly installed future provider', async () => {
     const manager = new MapManager(
@@ -187,6 +319,12 @@ describe('map generation parity contracts', () => {
       new Set(map.startingPositions.map(start => map.tiles[start.x][start.y].continentId)).size
     ).toBe(fourPlayers.size);
     expect(new Set(signatures).size).toBe(1);
+    expect(
+      map.tiles
+        .flat()
+        .filter(tile => !isLandTile(tile.terrain))
+        .every(tile => tile.continentId === 0)
+    ).toBe(true);
   });
 
   it.each([

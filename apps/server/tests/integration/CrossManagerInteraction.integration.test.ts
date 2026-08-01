@@ -1,7 +1,12 @@
 import { GameManager } from '@game/managers/GameManager';
 import { getTestDatabase } from '../utils/testDatabase';
 import { TestGameScenario } from '../fixtures/gameFixtures';
-import { setupGameManagerWithScenario, cleanupGameManager } from '../utils/gameTestUtils';
+import {
+  setupGameManagerWithScenario,
+  cleanupGameManager,
+  findPassableUnitSites,
+  findValidCitySites,
+} from '../utils/gameTestUtils';
 import { getTerrainMovementCost } from '@game/constants/MovementConstants';
 
 function findPassableStep(game: NonNullable<ReturnType<GameManager['getGameInstance']>>): {
@@ -72,7 +77,8 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
 
       // Found a city for production using the game instance's city manager
       const game = gameManager.getGameInstance(gameId)!;
-      const city = await game.cityManager.foundCity(5, 5, 'ProductionCity', playerId);
+      const [site] = findValidCitySites(game, playerId, 1);
+      const city = await game.cityManager.foundCity(site.x, site.y, 'ProductionCity', playerId);
       cityId = city!.id;
     });
 
@@ -257,7 +263,8 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       await game.researchManager.addResearchPoints(playerId, 1000);
 
       // Found a city for production
-      const cityId = await gameManager.foundCity(gameId, playerId, 'TechCity', 7, 7);
+      const [site] = findValidCitySites(game, playerId, 1);
+      const cityId = await gameManager.foundCity(gameId, playerId, 'TechCity', site.x, site.y);
 
       // Research completion leaves the city production system available.
       await expect(
@@ -294,7 +301,8 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       const initialTurn = game.turnManager.getCurrentTurn();
 
       // Create some game state to process
-      const cityId = await gameManager.foundCity(gameId, playerId1, 'TurnCity', 6, 6);
+      const [site] = findValidCitySites(game, playerId1, 1);
+      const cityId = await gameManager.foundCity(gameId, playerId1, 'TurnCity', site.x, site.y);
       const step = findPassableStep(game);
       const unitId = await gameManager.createUnit(
         gameId,
@@ -387,7 +395,8 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       const game = gameManager.getGameInstance(gameId)!;
 
       // Found a city
-      const cityId = await gameManager.foundCity(gameId, playerId, 'GrowthCity', 12, 7);
+      const [site] = findValidCitySites(game, playerId, 1);
+      const cityId = await gameManager.foundCity(gameId, playerId, 'GrowthCity', site.x, site.y);
 
       // Set up city for growth
       const city = game.cityManager.getCity(cityId)!;
@@ -434,13 +443,15 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
 
     it('should maintain data consistency during complex game operations', async () => {
       const game = gameManager.getGameInstance(gameId)!;
+      const citySites = findValidCitySites(game, playerId, 2);
+      const unitSites = findPassableUnitSites(game, 'warriors', 2, citySites);
 
       // Perform multiple concurrent operations
       const operations = await Promise.all([
-        gameManager.foundCity(gameId, playerId, 'City1', 5, 5),
-        gameManager.foundCity(gameId, playerId, 'City2', 18, 18), // Avoid conflict with Athens at 15,15
-        gameManager.createUnit(gameId, playerId, 'warriors', 6, 6),
-        gameManager.createUnit(gameId, playerId, 'settlers', 16, 16),
+        gameManager.foundCity(gameId, playerId, 'City1', citySites[0].x, citySites[0].y),
+        gameManager.foundCity(gameId, playerId, 'City2', citySites[1].x, citySites[1].y),
+        gameManager.createUnit(gameId, playerId, 'warriors', unitSites[0].x, unitSites[0].y),
+        gameManager.createUnit(gameId, playerId, 'settlers', unitSites[1].x, unitSites[1].y),
         gameManager.setPlayerResearch(gameId, playerId, 'pottery'),
       ]);
 

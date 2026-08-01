@@ -4,6 +4,7 @@ import { MapData, MapTile } from './MapTypes';
 import { MapValidator, ValidationResult } from './MapValidator';
 import { getTerrainMovementCost } from '@game/constants/MovementConstants';
 import { MapTopology, type MapTopologyOptions } from './MapTopology';
+import { isLandTile } from './TerrainUtils';
 
 /**
  * Map access and utility service
@@ -340,7 +341,7 @@ export class MapAccessService {
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         totalTiles++;
-        if (mapTiles[x][y].terrain !== 'ocean') {
+        if (isLandTile(mapTiles[x][y].terrain)) {
           landTiles++;
         }
       }

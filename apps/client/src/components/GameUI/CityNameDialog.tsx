@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -30,46 +30,14 @@ export const CityNameDialog: React.FC<CityNameDialogProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Generate a default city name based on location
-  const generateDefaultName = useCallback((): string => {
-    if (!unit) return 'New City';
-
-    const cityNames = [
-      'New Rome',
-      'Alexandria',
-      'Byzantium',
-      'Carthage',
-      'Babylon',
-      'Memphis',
-      'Thebes',
-      'Damascus',
-      'Antioch',
-      'Palmyra',
-      'New Athens',
-      'Corinth',
-      'Sparta',
-      'Troy',
-      'Marathon',
-      'New York',
-      'Boston',
-      'Philadelphia',
-      'Charleston',
-      'Savannah',
-    ];
-
-    // Use position to semi-deterministically pick a name
-    const index = (unit.x + unit.y * 17) % cityNames.length;
-    return cityNames[index];
-  }, [unit]);
-
   // Reset form when dialog opens
   useEffect(() => {
     if (isOpen) {
-      setCityName(suggestedName || generateDefaultName());
+      setCityName(suggestedName || 'New City');
       setIsLoading(false);
       setErrorMessage(null);
     }
-  }, [isOpen, suggestedName, generateDefaultName]);
+  }, [isOpen, suggestedName]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

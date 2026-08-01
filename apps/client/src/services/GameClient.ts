@@ -6,7 +6,7 @@ import { PacketType, PACKET_NAMES, PROTOCOL_VERSION, type Packet } from '../type
 import { ActionType, type ActionResult } from '../types/shared/actions';
 import { pathfindingService } from './PathfindingService';
 import { playerColorToHex } from '../utils/playerColors';
-import { storeUsername } from '../utils/gameSession';
+import { getOrCreateUsername, storeUsername } from '../utils/gameSession';
 import type {
   City,
   DiplomacyState,
@@ -1239,7 +1239,6 @@ export class GameClient {
 
   async createGame(gameData: {
     gameName: string;
-    playerName: string;
     gameType?: 'single' | 'multiplayer';
     maxPlayers: number;
     mapSize: string;
@@ -1260,7 +1259,8 @@ export class GameClient {
       scenarioId?: string;
     };
   }): Promise<string> {
-    await this.authenticatePlayer(gameData.playerName);
+    const playerName = getOrCreateUsername();
+    await this.authenticatePlayer(playerName);
 
     return new Promise((resolve, reject) => {
       if (!this.socket) {
@@ -1316,11 +1316,11 @@ export class GameClient {
           clearTimeout(timeout);
           if (replyPacket.data.success) {
             this.currentGameId = replyPacket.data.gameId;
-            this.applyJoinedPlayer(replyPacket.data, gameData.playerName, gameData.selectedNation);
+            this.applyJoinedPlayer(replyPacket.data, gameData.selectedNation);
             const operation = this.session.begin({
               role: 'player',
               gameId: replyPacket.data.gameId,
-              playerName: gameData.playerName,
+              playerName,
               selectedNation: gameData.selectedNation,
             });
             this.session.ready(operation);
@@ -1393,7 +1393,7 @@ export class GameClient {
           }
           if (response.success) {
             this.currentGameId = gameId;
-            this.applyJoinedPlayer(response, playerName, selectedNation);
+            this.applyJoinedPlayer(response, selectedNation);
             this.session.ready(operation);
             resolve();
           } else {
@@ -1438,7 +1438,7 @@ export class GameClient {
     }
   }
 
-  private applyJoinedPlayer(response: any, playerName: string, selectedNation: string): void {
+  private applyJoinedPlayer(response: any, selectedNation: string): void {
     if (!response.playerId) return;
     const currentState = useGameStore.getState();
     const existingPlayers = currentState.players ?? {};
@@ -1455,7 +1455,8 @@ export class GameClient {
         ...existingPlayers,
         [response.playerId]: {
           id: response.playerId,
-          name: playerName,
+          // The server selects the leader; the account username is never used here.
+          name: response.leaderName ?? finalNation,
           nation: finalNation,
           color: response.assignedColor
             ? playerColorToHex(response.assignedColor)

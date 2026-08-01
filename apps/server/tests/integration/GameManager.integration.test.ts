@@ -7,7 +7,12 @@ import {
   createTestGameAndPlayer,
 } from '../utils/testDatabase';
 import { createBasicGameScenario } from '../fixtures/gameFixtures';
-import { createMockSocketServer } from '../utils/gameTestUtils';
+import {
+  createMockSocketServer,
+  findPassableUnitSites,
+  findValidCitySites,
+} from '../utils/gameTestUtils';
+import { getTerrainMovementCost } from '@game/constants/MovementConstants';
 import * as schema from '@database/schema';
 
 describe('GameManager - Integration Tests with Real Database', () => {
@@ -374,13 +379,14 @@ describe('GameManager - Integration Tests with Real Database', () => {
     });
 
     it('should create cities and persist across managers', async () => {
-      const cityId = await gameManager.foundCity(gameId, playerId, 'TestCity', 5, 5);
+      const game = gameManager.getGameInstance(gameId)!;
+      const [site] = findValidCitySites(game, playerId, 1);
+      const cityId = await gameManager.foundCity(gameId, playerId, 'TestCity', site.x, site.y);
 
       expect(cityId).toBeTruthy();
 
       // Verify city exists in city manager
-      const game = gameManager.getGameInstance(gameId);
-      const city = game!.cityManager.getCity(cityId);
+      const city = game.cityManager.getCity(cityId);
       expect(city).toBeDefined();
       expect(city!.name).toBe('TestCity');
 
@@ -401,7 +407,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
             const tile = game.mapManager.getTile(x, y);
             if (
               tile &&
-              tile.terrain !== 'ocean' &&
+              getTerrainMovementCost(tile.terrain, 'settlers') >= 0 &&
               !tile.cityId &&
               tile.unitIds.length === 0 &&
               game.cityManager.canFoundCityAt(x, y, playerId)
@@ -564,8 +570,23 @@ describe('GameManager - Integration Tests with Real Database', () => {
       await gameManager.loadGame(gameId);
 
       // Make some changes
-      const cityId = await gameManager.foundCity(gameId, scenario.players[0].id, 'NewCity', 7, 7);
-      const unitId = await gameManager.createUnit(gameId, scenario.players[0].id, 'settlers', 9, 9);
+      const game = gameManager.getGameInstance(gameId)!;
+      const [citySite] = findValidCitySites(game, scenario.players[0].id, 1);
+      const [unitSite] = findPassableUnitSites(game, 'settlers', 1, [citySite]);
+      const cityId = await gameManager.foundCity(
+        gameId,
+        scenario.players[0].id,
+        'NewCity',
+        citySite.x,
+        citySite.y
+      );
+      const unitId = await gameManager.createUnit(
+        gameId,
+        scenario.players[0].id,
+        'settlers',
+        unitSite.x,
+        unitSite.y
+      );
 
       // Create new GameManager instance
       (GameManager as any).instance = null;
@@ -596,13 +617,20 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
       const player1Id = scenario.players[0].id;
       const player2Id = scenario.players[1].id;
+      const game = gameManager.getGameInstance(gameId)!;
+      const [city1Site] = findValidCitySites(game, player1Id, 1);
+      const [city2Site] = findValidCitySites(game, player2Id, 1, [city1Site]);
+      const [unit1Site, unit2Site] = findPassableUnitSites(game, 'warriors', 2, [
+        city1Site,
+        city2Site,
+      ]);
 
       // Simulate concurrent operations
       const operations = [
-        gameManager.foundCity(gameId, player1Id, 'City1', 7, 7),
-        gameManager.foundCity(gameId, player2Id, 'City2', 18, 18),
-        gameManager.createUnit(gameId, player1Id, 'warriors', 6, 7),
-        gameManager.createUnit(gameId, player2Id, 'warriors', 19, 18),
+        gameManager.foundCity(gameId, player1Id, 'City1', city1Site.x, city1Site.y),
+        gameManager.foundCity(gameId, player2Id, 'City2', city2Site.x, city2Site.y),
+        gameManager.createUnit(gameId, player1Id, 'warriors', unit1Site.x, unit1Site.y),
+        gameManager.createUnit(gameId, player2Id, 'warriors', unit2Site.x, unit2Site.y),
       ];
 
       const results = await Promise.all(operations);

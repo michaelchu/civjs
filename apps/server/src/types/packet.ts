@@ -612,6 +612,7 @@ export const GameCreateReplySchema = z.object({
   playerId: z.string().optional(),
   assignedNation: z.string().optional(),
   assignedColor: z.object({ r: z.number(), g: z.number(), b: z.number() }).optional(),
+  leaderName: z.string().optional(),
   maxPlayers: z.number().int().optional(),
   message: z.string().optional(),
   errorCode: z.string().optional(),
@@ -631,6 +632,7 @@ export const GameIdSchema = z.object({
 export const GameJoinReplySchema = z.object({
   success: z.boolean(),
   playerId: z.string().optional(),
+  leaderName: z.string().optional(),
   message: z.string().optional(),
 });
 

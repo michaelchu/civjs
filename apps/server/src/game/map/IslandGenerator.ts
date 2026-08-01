@@ -9,6 +9,7 @@ import {
 } from './MapTypes';
 import { pickTerrain, MapgenTerrainPropertyEnum } from './TerrainRuleset';
 import {
+  isLandTile,
   testWetnessCondition,
   WetnessCondition as TerrainUtilsWetnessCondition,
 } from './TerrainUtils';
@@ -242,7 +243,7 @@ export class IslandGenerator {
   /**
    * Initialize the world for island-based generation (port from initworld())
    */
-  public initializeWorldForIslands(tiles: MapTile[][]): IslandGeneratorState {
+  public initializeWorldForIslands(tiles: MapTile[][], totalMass: number): IslandGeneratorState {
     // Fill all tiles with deep ocean initially
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
@@ -254,7 +255,7 @@ export class IslandGenerator {
     // Initialize state
     const state: IslandGeneratorState = {
       isleIndex: 1,
-      totalMass: Math.floor((this.width * this.height * 30) / 100), // 30% land coverage
+      totalMass: Math.max(1, Math.floor(totalMass)),
       n: 0,
       s: this.height,
       e: this.width,
@@ -457,10 +458,8 @@ export class IslandGenerator {
       attempts--;
     }
 
-    // Apply the island to the actual tile map
-    this.applyIslandToMap(state, tiles);
-
-    return remainingMass <= 0;
+    if (remainingMass > 0) return false;
+    return this.placeIsland(state, tiles);
   }
 
   /**
@@ -537,19 +536,66 @@ export class IslandGenerator {
     return remainingMass;
   }
 
-  /**
-   * Apply the generated island to the real tile map
-   */
-  private applyIslandToMap(state: IslandGeneratorState, tiles: MapTile[][]): void {
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        if (state.heightMap[x][y] > 0) {
-          tiles[x][y].terrain = 'grassland';
-          tiles[x][y].continentId = state.isleIndex;
-          tiles[x][y].elevation = 128;
+  /** Place the generated center-relative shape at a random valid map position. */
+  private placeIsland(state: IslandGeneratorState, tiles: MapTile[][]): boolean {
+    const shape: Array<{ dx: number; dy: number }> = [];
+    for (let x = state.w; x < state.e; x++) {
+      for (let y = state.n; y < state.s; y++) {
+        if (state.heightMap[x]?.[y] === 1) {
+          shape.push({ dx: x - state.w, dy: y - state.n });
         }
       }
     }
+
+    const tries = Math.max(1, Math.floor((this.width * this.height) / 4));
+    for (let attempt = 0; attempt < tries; attempt++) {
+      const anchorX = Math.floor(this.random() * this.width);
+      const anchorY = Math.floor(this.random() * this.height);
+      const destinations: Array<{ x: number; y: number }> = [];
+      const destinationKeys = new Set<string>();
+      let valid = true;
+
+      for (const offset of shape) {
+        const position = this.topology.normalize(anchorX + offset.dx, anchorY + offset.dy);
+        if (!position) {
+          valid = false;
+          break;
+        }
+
+        const key = `${position.x},${position.y}`;
+        if (destinationKeys.has(key) || isLandTile(tiles[position.x][position.y].terrain)) {
+          valid = false;
+          break;
+        }
+        destinationKeys.add(key);
+        destinations.push(position);
+      }
+
+      if (!valid) continue;
+      if (
+        destinations.some(position =>
+          this.topology
+            .getNeighbors(position.x, position.y)
+            .some(neighbor => isLandTile(tiles[neighbor.x][neighbor.y].terrain))
+        )
+      ) {
+        continue;
+      }
+
+      for (const position of destinations) {
+        const tile = tiles[position.x][position.y];
+        tile.terrain = 'grassland';
+        tile.continentId = state.isleIndex;
+        tile.elevation = 128;
+      }
+      state.w = anchorX;
+      state.n = anchorY;
+      state.e = anchorX + (Math.max(...shape.map(offset => offset.dx)) + 1);
+      state.s = anchorY + (Math.max(...shape.map(offset => offset.dy)) + 1);
+      return destinations.length > 0;
+    }
+
+    return false;
   }
 
   /**
@@ -557,7 +603,7 @@ export class IslandGenerator {
    */
   private countAdjacentElevatedTiles(x: number, y: number, state: IslandGeneratorState): number {
     let count = 0;
-    for (const position of this.topology.getNeighbors(x, y)) {
+    for (const position of this.topology.getCardinalNeighbors(x, y)) {
       if (state.heightMap[position.x][position.y] > 0) {
         count++;
       }
@@ -616,10 +662,12 @@ export class IslandGenerator {
 
     while (i > 0 && attempts < failsafe) {
       // Get random position from island bounds
-      const x = Math.floor(this.random() * (state.e - state.w)) + state.w;
-      const y = Math.floor(this.random() * (state.s - state.n)) + state.n;
+      const rawX = Math.floor(this.random() * (state.e - state.w)) + state.w;
+      const rawY = Math.floor(this.random() * (state.s - state.n)) + state.n;
+      const position = this.topology.normalize(rawX, rawY);
 
-      if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+      if (position) {
+        const { x, y } = position;
         // Check if this is a land tile on our current continent
         if (tiles[x][y].continentId === state.isleIndex && !state.placedMap[x][y]) {
           // EXACT FREECIV TERRAIN SELECTION ALGORITHM

@@ -2,6 +2,7 @@ import { logger } from '@utils/logger';
 import { PlayerState } from '@game/managers/GameManager';
 import { MapData, MapTile } from './MapTypes';
 import { BaseMapGenerationService } from './BaseMapGenerationService';
+import { getMapSqSize } from './MapGenerationUtils';
 // import { assignFractureCircle } from './TerrainUtils'; // Not used in current implementation
 
 /**
@@ -63,7 +64,7 @@ export class HeightBasedMapService extends BaseMapGenerationService {
     const tiles = this.initializeTiles();
 
     // Generate height map
-    this.heightGenerator.generateHeightMap();
+    this.heightGenerator.generateHeightMap(players.size, this.defaultStartPosMode);
     const heightMap = this.heightGenerator.getHeightMap();
 
     // Apply height-based terrain generation
@@ -98,7 +99,7 @@ export class HeightBasedMapService extends BaseMapGenerationService {
       }
     );
 
-    this.heightGenerator.generateRandomHeightMap(players.size);
+    this.heightGenerator.generateRandomHeightMap(players.size, this.defaultStartPosMode);
     const heightMap = this.heightGenerator.getHeightMap();
 
     // Apply height-based terrain generation
@@ -126,7 +127,7 @@ export class HeightBasedMapService extends BaseMapGenerationService {
     const tiles = this.initializeTiles();
 
     // Implement fracture map algorithm based on freeciv make_fracture_map()
-    const numLandmass = 20 + 15 * Math.floor(Math.sqrt(this.width * this.height) / 10);
+    const numLandmass = 20 + 15 * getMapSqSize(this.width, this.height);
     const fracturePoints: Array<{ x: number; y: number }> = [];
     const insetX = Math.min(3, Math.floor((this.width - 1) / 2));
     const insetY = Math.min(3, Math.floor((this.height - 1) / 2));
@@ -136,13 +137,13 @@ export class HeightBasedMapService extends BaseMapGenerationService {
       fracturePoints.push({ x, y: insetY });
     }
     for (let x = insetX; x < this.width; x += 5) {
-      fracturePoints.push({ x, y: this.height - 1 - insetY });
+      fracturePoints.push({ x, y: this.height - insetY });
     }
     for (let y = insetY; y < this.height; y += 5) {
       fracturePoints.push({ x: insetX, y });
     }
     for (let y = insetY; y < this.height; y += 5) {
-      fracturePoints.push({ x: this.width - 1 - insetX, y });
+      fracturePoints.push({ x: this.width - insetX, y });
     }
 
     const borderPoints = fracturePoints.length;
@@ -234,6 +235,24 @@ export class HeightBasedMapService extends BaseMapGenerationService {
 
     // Validate generated map for quality assurance
     const validationResult = this.validateMap(tiles, players, mapData.startingPositions);
+    const dominantContinent = validationResult.issues.find(
+      issue =>
+        issue.category === 'continent' && issue.message === 'Single continent dominates the map'
+    );
+    // A dominant continent is expected at intentionally high land settings.
+    // Reject it only for sparse/normal worlds, where it indicates the small-
+    // and standard-map pangaea regression this guard is designed to catch.
+    if (
+      dominantContinent &&
+      this.width * this.height >= 1000 &&
+      this.generationOptions.landPercent <= 30
+    ) {
+      throw new Error(
+        `Map quality rejected: dominant continent (${String(
+          dominantContinent.details?.largestContinentRatio ?? 'unknown'
+        )}%)`
+      );
+    }
 
     logger.info(`${generatorType} map generation completed`, {
       width: this.width,
@@ -294,10 +313,8 @@ export class HeightBasedMapService extends BaseMapGenerationService {
       }
     }
 
-    const minHeight = Math.min(...rawHeightMap);
-    const maxHeight = Math.max(...rawHeightMap);
-    const range = Math.max(1, maxHeight - minHeight);
-    const heightMap = rawHeightMap.map(height => Math.floor(((height - minHeight) / range) * 255));
+    this.heightGenerator.adjustIntMapFiltered(rawHeightMap, 0, 255);
+    const heightMap = rawHeightMap;
 
     logger.debug('Generated fracture height map', {
       totalPoints: fracturePoints.length,

@@ -7,23 +7,41 @@
  * and height-based terrain processing algorithms from freeciv.
  */
 import { MapTile } from '@game/map/MapTypes';
-import { TemperatureMap } from '@game/map/TemperatureMap';
+import { TemperatureMap, getIceBaseLevel } from '@game/map/TemperatureMap';
+import { getMapSqSize } from '@game/map/MapGenerationUtils';
 import { MapTopology, type MapTopologyOptions, WrapFlag } from '@game/map/MapTopology';
 
 export class HeightMapProcessor {
   private width: number;
   private height: number;
   private topology: MapTopology;
+  private iceBaseLevel: number;
+  private flatPoles: number;
+  private colatitudeMap: TemperatureMap;
 
   constructor(
     width: number,
     height: number,
     _random: () => number,
-    topologyOptions: MapTopologyOptions = {}
+    topologyOptions: MapTopologyOptions = {},
+    climateOptions: { temperature?: number; separatePoles?: boolean; flatPoles?: number } = {}
   ) {
     this.width = width;
     this.height = height;
     this.topology = new MapTopology(width, height, topologyOptions);
+    this.iceBaseLevel = getIceBaseLevel(
+      climateOptions.temperature ?? 50,
+      getMapSqSize(width, height),
+      climateOptions.separatePoles ?? true
+    );
+    this.flatPoles = climateOptions.flatPoles ?? 100;
+    this.colatitudeMap = new TemperatureMap(
+      width,
+      height,
+      climateOptions.temperature ?? 50,
+      topologyOptions,
+      climateOptions.separatePoles ?? true
+    );
     // _random parameter kept for future extensibility but not currently used
   }
 
@@ -48,8 +66,12 @@ export class HeightMapProcessor {
    * @reference freeciv/server/generator/mapgen.c HAS_POLES macro
    */
   public hasPoles(): boolean {
-    // CivJS's generated world currently uses the classic two-pole latitude range.
-    return true;
+    // Freeciv clamps both natural dimensions to MAP_MIN_LINEAR_SIZE (16)
+    // before generation. CivJS also supports miniature maps below that
+    // reference domain; applying the polar ramp to a 5x5-style map can flatten
+    // every playable tile into ocean. Keep the extension narrowly scoped so
+    // normal CivJS maps continue to use the reference pole algorithm.
+    return this.width * this.height >= 100;
   }
 
   /**
@@ -58,16 +80,12 @@ export class HeightMapProcessor {
    * Exact copy of freeciv pole normalization algorithm
    */
   public normalizeHmapPoles(heightMap: number[], _tiles: MapTile[][]): void {
-    const ICE_BASE_LEVEL = 20;
-    const POLAR_THRESHOLD = 2.5 * ICE_BASE_LEVEL;
-
-    // Create TemperatureMap instance for colatitude calculation
-    const tempMap = new TemperatureMap(this.width, this.height);
+    const POLAR_THRESHOLD = 2.5 * this.iceBaseLevel;
 
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         const index = y * this.width + x;
-        const colatitude = tempMap.mapColatitude(x, y);
+        const colatitude = this.colatitudeMap.mapColatitude(x, y);
 
         if (colatitude <= POLAR_THRESHOLD) {
           // Apply pole factor to reduce height
@@ -89,11 +107,7 @@ export class HeightMapProcessor {
    * Exact copy of freeciv pole renormalization algorithm
    */
   public renormalizeHmapPoles(heightMap: number[], _tiles: MapTile[][]): void {
-    const ICE_BASE_LEVEL = 20;
-    const POLAR_THRESHOLD = 2.5 * ICE_BASE_LEVEL;
-
-    // Create TemperatureMap instance for colatitude calculation
-    const tempMap = new TemperatureMap(this.width, this.height);
+    const POLAR_THRESHOLD = 2.5 * this.iceBaseLevel;
 
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
@@ -105,7 +119,7 @@ export class HeightMapProcessor {
           continue;
         }
 
-        const colatitude = tempMap.mapColatitude(x, y);
+        const colatitude = this.colatitudeMap.mapColatitude(x, y);
 
         if (colatitude <= POLAR_THRESHOLD) {
           const factor = this.hmapPoleFactor(colatitude, x, y);
@@ -177,24 +191,22 @@ export class HeightMapProcessor {
    * Used internally by pole normalization methods
    */
   private hmapPoleFactor(colatitude: number, x: number, y: number): number {
-    const ICE_BASE_LEVEL = 20;
-    const POLAR_THRESHOLD = 2.5 * ICE_BASE_LEVEL;
-    const flatpoles = 100; // Default flatpoles parameter (0-100)
+    const POLAR_THRESHOLD = 2.5 * this.iceBaseLevel;
     let factor = 1.0;
 
     if (this.nearSingularity(x, y)) {
       // Map edge near pole: clamp to what linear ramp would give us at pole
       // @reference freeciv/server/generator/height_map.c:138-141
-      factor = (100 - flatpoles) / 100.0;
-    } else if (flatpoles > 0) {
+      factor = (100 - this.flatPoles) / 100.0;
+    } else if (this.flatPoles > 0) {
       // Linear ramp down from 100% at 2.5*ICE_BASE_LEVEL to (100-flatpoles) % at the poles
       // @reference freeciv/server/generator/height_map.c:142-145
-      factor = 1 - ((1 - colatitude / POLAR_THRESHOLD) * flatpoles) / 100;
+      factor = 1 - ((1 - colatitude / POLAR_THRESHOLD) * this.flatPoles) / 100;
     }
 
     // Separate-poles band from Freeciv's hmap_pole_factor().
     // @reference freeciv/server/generator/height_map.c:146-150
-    if (colatitude >= 2 * ICE_BASE_LEVEL) {
+    if (colatitude >= 2 * this.iceBaseLevel) {
       factor = Math.min(factor, 0.1);
     }
 

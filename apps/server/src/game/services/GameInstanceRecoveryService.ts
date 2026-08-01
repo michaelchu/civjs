@@ -57,6 +57,14 @@ function recoveredResearchPacing(game: any) {
   return researchPacingFromGameState(game.ruleset || DEFAULT_RULESET, game.gameState);
 }
 
+function recoveredUnitStatistics(dbPlayer: any) {
+  return {
+    unitsBuilt: dbPlayer.unitsBuilt ?? 0,
+    unitsKilled: dbPlayer.unitsKilled ?? 0,
+    unitsLost: dbPlayer.unitsLost ?? 0,
+  };
+}
+
 /**
  * GameInstanceRecoveryService - Extracted game recovery operations from GameManager
  * Handles all game instance recovery and restoration including:
@@ -184,6 +192,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
         science: dbPlayer.science,
         government: dbPlayer.government,
         history: dbPlayer.history ?? 0,
+        ...recoveredUnitStatistics(dbPlayer),
         teamId: dbPlayer.teamId ?? undefined,
         hasConceded: dbPlayer.hasConceded ?? false,
         spaceshipState: normalizeSpaceshipState(dbPlayer.spaceshipState),
@@ -642,7 +651,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       game.gameState && typeof game.gameState === 'object'
         ? (game.gameState as { barbarianRate?: number }).barbarianRate
         : undefined,
-      getClimateSettingsFromGameState(game.gameState)
+      getClimateSettingsFromGameState(game.gameState),
+      players
     );
 
     const playerIds = Array.from(players.keys());

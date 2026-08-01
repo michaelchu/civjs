@@ -187,11 +187,7 @@ export class MapManager {
         try {
           return await this.islandMapService.generateMap(players, MapStartpos.ALL);
         } catch (islandError) {
-          if (islandError instanceof Error && islandError.message === 'FALLBACK_TO_RANDOM') {
-            logger.info('Island fallback is infeasible, falling back to RANDOM');
-            return await this.generateHeightMapWithRetries(players, 'RANDOM');
-          }
-          throw islandError;
+          return this.generateIslandFallback(players, islandError);
         }
       }
       throw error;
@@ -207,11 +203,7 @@ export class MapManager {
         try {
           return await this.islandMapService.generateMap(players, this.defaultStartPosMode);
         } catch (error) {
-          if (error instanceof Error && error.message === 'FALLBACK_TO_RANDOM') {
-            logger.info('Island generation is infeasible, falling back to RANDOM');
-            return await this.heightBasedMapService.generateMap(players, 'RANDOM');
-          }
-          throw error;
+          return this.generateIslandFallback(players, error);
         }
       case 'RANDOM':
         return await this.generateHeightMapWithRetries(players, 'RANDOM');
@@ -225,6 +217,23 @@ export class MapManager {
     }
   }
 
+  private async generateIslandFallback(
+    players: Map<string, PlayerState>,
+    error: unknown
+  ): Promise<MapData> {
+    if (!(error instanceof Error)) throw error;
+    const fallback =
+      error.message === 'FALLBACK_TO_RANDOM'
+        ? 'RANDOM'
+        : error.message === 'FALLBACK_TO_FRACTAL'
+          ? 'FRACTAL'
+          : null;
+    if (!fallback) throw error;
+
+    logger.info(`Island generation is infeasible, falling back to ${fallback}`);
+    return this.generateHeightMapWithRetries(players, fallback);
+  }
+
   private async generateHeightMapWithRetries(
     players: Map<string, PlayerState>,
     requested: 'RANDOM' | 'FRACTAL' | 'FRACTURE'
@@ -236,7 +245,11 @@ export class MapManager {
         return await this.heightBasedMapService.generateMap(players, generator);
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        if (!/starting|city-capable|no land/i.test(lastError.message)) throw lastError;
+        if (
+          !/starting|city-capable|no land|map quality|dominant continent/i.test(lastError.message)
+        ) {
+          throw lastError;
+        }
         logger.warn('Map generation produced no playable starts; retrying', {
           requested,
           generator,

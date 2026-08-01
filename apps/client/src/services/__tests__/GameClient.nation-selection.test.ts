@@ -158,6 +158,7 @@ describe('GameClient - Nation Selection', () => {
             success: true,
             playerId: 'player-123',
             assignedNation,
+            leaderName: 'Mao Zedong',
           });
         }
       });
@@ -171,7 +172,7 @@ describe('GameClient - Nation Selection', () => {
         players: {
           'player-123': expect.objectContaining({
             nation: assignedNation,
-            name: playerName,
+            name: 'Mao Zedong',
           }),
         },
         governments: expect.any(Object),
@@ -239,6 +240,7 @@ describe('GameClient - Nation Selection', () => {
           callback({
             success: true,
             playerId: 'player-123',
+            leaderName: 'Napoléon Bonaparte',
             // No assignedNation in response
           });
         }
@@ -253,7 +255,7 @@ describe('GameClient - Nation Selection', () => {
         players: {
           'player-123': expect.objectContaining({
             nation: selectedNation, // Should fallback to selectedNation
-            name: playerName,
+            name: 'Napoléon Bonaparte',
           }),
         },
         governments: expect.any(Object),
@@ -282,6 +284,7 @@ describe('GameClient - Nation Selection', () => {
             success: true,
             playerId: 'player-123',
             assignedNation,
+            leaderName: 'Arminius',
           });
         }
       });
@@ -295,7 +298,7 @@ describe('GameClient - Nation Selection', () => {
         players: {
           'player-123': expect.objectContaining({
             nation: assignedNation, // Should use the randomly assigned nation
-            name: playerName,
+            name: 'Arminius',
           }),
         },
         governments: expect.any(Object),
@@ -310,7 +313,6 @@ describe('GameClient - Nation Selection', () => {
       // Arrange
       const gameData = {
         gameName: 'Test Game',
-        playerName: 'TestPlayer',
         gameType: 'single' as const,
         maxPlayers: 4,
         mapSize: 'standard',
@@ -342,6 +344,7 @@ describe('GameClient - Nation Selection', () => {
                       playerId: 'player-123',
                       assignedNation: 'japanese',
                       assignedColor: { r: 255, g: 0, b: 0 },
+                      leaderName: 'Jimmu',
                     },
                   }
             )
@@ -372,7 +375,7 @@ describe('GameClient - Nation Selection', () => {
         expect.objectContaining({
           currentPlayerId: 'player-123',
           players: {
-            'player-123': expect.objectContaining({ nation: 'japanese', name: 'TestPlayer' }),
+            'player-123': expect.objectContaining({ nation: 'japanese', name: 'Jimmu' }),
           },
         })
       );
