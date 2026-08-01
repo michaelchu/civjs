@@ -27,7 +27,7 @@ export interface PlayerConnectionService {
     civilization?: string
   ): Promise<{ playerId: string; assignedNation: string; assignedColor: PlayerColor }>;
   updatePlayerConnection(playerId: string, isConnected: boolean): Promise<void>;
-  ensureMinimumPlayers(gameId: string): Promise<void>;
+  ensureMinimumPlayers(gameId: string, minimumPlayers?: number): Promise<void>;
 }
 
 export class PlayerConnectionManager extends BaseGameService implements PlayerConnectionService {
@@ -235,7 +235,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
    * Ensure game has minimum players by adding AI players if needed
    * @reference Original GameManager.ts:290-351 ensureMinimumPlayers()
    */
-  async ensureMinimumPlayers(gameId: string): Promise<void> {
+  async ensureMinimumPlayers(gameId: string, minimumPlayers?: number): Promise<void> {
     // Get current game state
     const game = await this.databaseProvider.getDatabase().query.games.findFirst({
       where: eq(games.id, gameId),
@@ -248,7 +248,13 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     }
 
     const currentPlayerCount = game.players.length;
-    const minPlayers = serverConfig.game.minPlayersToStart;
+    const minPlayers = minimumPlayers ?? serverConfig.game.minPlayersToStart;
+    if (!Number.isInteger(minPlayers) || minPlayers < 1) {
+      throw new Error('Minimum player count must be a positive integer');
+    }
+    if (minPlayers > game.maxPlayers) {
+      throw new Error(`Minimum player count cannot exceed game capacity (${game.maxPlayers})`);
+    }
 
     if (currentPlayerCount >= minPlayers) {
       this.logger.debug('Game already has sufficient players', {

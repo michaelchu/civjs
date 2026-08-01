@@ -2,14 +2,18 @@
 
 ## Status
 
-Proposed implementation specification. This document defines two ordered
-capabilities and does not claim that either feature is currently implemented:
+Implementation specification. Phase 1 is implemented as the headless CLI and
+shared execution core described below; Phases 2 and 3 remain proposed:
 
-1. standard-game handover of a civilization between human and native AI control;
-2. full AI-versus-AI Simulation Game mode with authenticated spectators.
+1. a headless AI simulation runner for tests and AI-agent use;
+2. standard-game handover of a civilization between human and native AI control;
+3. a full AI-versus-AI Simulation Game mode with authenticated spectators.
 
-Phase 1 is the prerequisite for Phase 2 because it establishes the authoritative
-controller, reconnect, recovery, and turn-boundary contracts used by both modes.
+Phase 1 establishes the authoritative execution, deterministic seed, recovery,
+checkpoint, replay, and diagnostic contracts that the later live simulator must
+reuse. Phase 2 is intentionally completed before the browser/live simulator so
+human control transfer is proven before the regular simulation experience is
+introduced.
 
 The authoritative random-stream prerequisite described below is implemented.
 Simulation mode must reuse it rather than introduce a simulation-only random
@@ -17,9 +21,9 @@ source or deterministic keyed-decision scheme.
 
 ## Objective
 
-Deliver standard-game AI handover first, then add a first-class **Simulation
-Game** mode. Standard-game behavior must remain unchanged except for the
-explicit host handover capability.
+Deliver the headless simulator first, then standard-game AI handover, and then
+add a first-class live **Simulation Game** mode. Standard-game behavior must
+remain unchanged except for the explicit host handover capability.
 
 Add a first-class **Simulation Game** mode in which every civilization is
 controlled by the native CivJS AI and one or more authenticated users watch as
@@ -47,10 +51,19 @@ The initial release must:
   after the process exits;
 - expose a read-only, machine-readable diagnostic interface suitable for both
   the UI and an AI coding agent;
+- provide a first-class headless simulator that can be invoked from the CLI for
+  deterministic tests, regression runs, and AI-agent investigation without a
+  browser, Socket.IO connection, or spectator UI;
 - introduce a strategy-provider boundary so an LLM-backed strategic planner can
   be added later without replacing authoritative game execution.
 
 The native AI remains the only enabled strategy provider in this implementation.
+
+The headless simulator is an execution surface for the same `simulation` game
+mode, not a second game engine. It must use the same authoritative turn,
+random-stream, persistence, replay, diagnostics, and end-condition services as
+the server-owned live runner. It may omit inter-turn playback delays and UI
+broadcasts, but it must not omit turn-boundary persistence or validation.
 
 ## Non-goals
 
@@ -298,6 +311,92 @@ After successful creation:
 The browser must not be responsible for advancing turns. Closing every
 spectator browser must not stop a running simulation.
 
+### Headless simulation
+
+The repository must provide a CLI entry point for running an AI-only
+simulation without starting the client or connecting a spectator socket. The
+headless command is intended for automated tests, fixed-seed regression
+benchmarks, local debugging, and AI coding agents.
+
+Provide a command with equivalent behavior to:
+
+```sh
+npm run simulation:run -- \
+  --config ./simulation.json \
+  --seed 424242 \
+  --max-turns 100 \
+  --output ./artifacts/simulation-424242
+```
+
+The configuration file supplies the AI roster and map/game settings. Seeds may
+be supplied there or by the command line, but both must be explicit:
+
+```json
+{
+  "name": "fixed-seed regression",
+  "aiPlayerCount": 2,
+  "mapWidth": 20,
+  "mapHeight": 20,
+  "ruleset": "classic",
+  "aiLevel": "easy",
+  "maxTurns": 12,
+  "victoryConditions": ["max_turns"],
+  "seed": 424242,
+  "mapSeed": "map-424242"
+}
+```
+
+The command must:
+
+1. validate a standalone simulation configuration before creating any game;
+2. use an explicit map seed and authoritative gameplay seed, defaulting to
+   neither seed implicitly for a reproducibility-oriented run;
+3. create exactly the requested AI civilizations through the same application
+   service as live simulation creation;
+4. execute turns through the same authoritative turn-processing path and
+   durable checkpoint boundary as the live server runner;
+5. run without a browser, Socket.IO transport, spectator session, or
+   inter-turn wall-clock delay unless explicitly requested;
+6. stop at a selected victory condition, `maxTurns`, cancellation, timeout, or
+   a non-retryable turn failure;
+7. write a deterministic, schema-versioned run bundle to the requested output
+   directory; and
+8. return a stable exit code and concise machine-readable failure summary.
+
+Headless execution must be single-flight per run and must not install the
+normal timer-driven runner. It must still acquire the durable turn-processing
+lease, persist complete checkpoints, evaluate end-game conditions, and record
+the same AI summaries and diagnostics. A headless run may be persisted for
+later replay or use an explicitly isolated test database; it must never mutate
+a standard game or an unspecified database target.
+
+Human-readable progress belongs on stderr. stdout must be reserved for
+newline-delimited JSON records when `--jsonl` is requested, so an AI agent can
+consume progress without parsing prose. The final bundle must include the run
+manifest, normalized configuration, seeds, build identity, completed-turn
+range, end reason, standings, state hashes, AI summaries, diagnostics, and any
+failure/cancellation record. Credentials, database URLs, API keys, and
+unrestricted environment data must be redacted.
+
+The minimum CLI surface is:
+
+| Option                 | Requirement                                                              |
+| ---------------------- | ------------------------------------------------------------------------ |
+| `--config <path>`      | Load and validate a simulation configuration                             |
+| `--seed <value>`       | Set the authoritative gameplay seed explicitly                           |
+| `--map-seed <value>`   | Override the map seed when it differs from `--seed`                      |
+| `--max-turns <count>`  | Override the validated hard turn cap                                     |
+| `--output <directory>` | Write the deterministic run bundle                                       |
+| `--jsonl`              | Emit machine-readable progress records on stdout                         |
+| `--timeout-ms <ms>`    | Bound wall-clock execution and fail with a stable timeout code           |
+| `--no-persist`         | Use only an explicitly isolated test runtime/database; never a live game |
+| `--help`               | Print the command contract and exit without side effects                 |
+
+The CLI must document stable exit codes for invalid configuration, completed
+simulation, turn failure, timeout/cancellation, and output failure. Re-running
+the same normalized configuration, seeds, and build must produce semantically
+equivalent authoritative results and ordered diagnostic records.
+
 ### Runtime controls
 
 The simulation host can:
@@ -544,6 +643,7 @@ export type GameMode = 'standard' | 'simulation';
 export type SimulationSpeed = 'slow' | 'normal' | 'fast';
 export type SimulationRunState = 'running' | 'paused' | 'ended';
 export type SimulationDiagnosticLevel = 'standard' | 'verbose';
+export type SimulationExecutionMode = 'server' | 'headless';
 export type AIStrategyProviderId = 'native' | 'llm';
 export type SimulationVictoryCondition =
   'max_turns' | 'conquest' | 'science' | 'culture' | 'world_peace' | 'allied' | 'scenario';
@@ -600,6 +700,7 @@ interface SimulationRunManifest {
   mapSeed: string;
   authoritativeRandomSeed: number;
   normalizedConfig: SimulationConfig;
+  executionMode: SimulationExecutionMode;
   aiImplementationVersion: string;
   randomizationVersion: string;
 }
@@ -772,6 +873,36 @@ Integrate scheduling with the existing turn-advanced callback instead of
 installing a competing callback. Simulation games must skip normal human turn
 timer restoration/start; otherwise the normal timer and simulation runner can
 both attempt to advance the same turn.
+
+### Headless execution adapter
+
+Extract the authoritative per-turn lifecycle used by `SimulationRunner` into a
+shared application service. The live runner supplies scheduling and broadcast
+behavior; the headless adapter supplies a bounded sequential loop and artifact
+writing. Both paths must share:
+
+- simulation creation and configuration validation;
+- AI initialization and strategy-provider selection;
+- turn-processing lease acquisition and release;
+- random-stream and identity-counter restoration;
+- complete checkpoint persistence before the next turn;
+- end-game evaluation and score calculation;
+- replay-frame and AI-summary creation; and
+- diagnostic sequencing, redaction, and failure handling.
+
+The headless adapter must not call client code, emit Socket.IO packets, depend
+on a connected user, or use the normal inter-turn timer. It must expose a
+programmatic result for tests and a CLI wrapper for local/agent use. Cancellation
+must stop scheduling new turns, preserve the last complete checkpoint, record a
+structured cancellation result, and exit without treating cancellation as a
+successful simulation.
+
+The CLI must require an explicit output location for non-persisted runs and
+must reject ambiguous database selection. `--no-persist` is allowed only with
+an isolated test runtime/database selected by the test harness; it is not a
+shortcut for mutating the live game tables. Persisted headless runs must carry
+`executionMode: 'headless'` in the immutable run manifest and remain available
+to the existing replay and diagnostics interfaces.
 
 ### Recovery
 
@@ -1312,6 +1443,12 @@ preserving responsibilities.
   - atomic/idempotent creation and authorization orchestration.
 - `apps/server/src/game/services/SimulationRunner.ts`
   - scheduling, pause/resume/step/speed, cleanup, and recovery binding.
+- `apps/server/src/game/services/SimulationExecutionService.ts`
+  - shared authoritative creation, turn lifecycle, checkpoint, replay, score,
+    and diagnostic boundaries used by live and headless execution.
+- `apps/server/src/game/services/HeadlessSimulationRunner.ts`
+  - bounded sequential execution, cancellation/timeout handling, and
+    programmatic run results without timers or sockets.
 - `apps/server/src/game/services/SimulationReadService.ts`
   - typed spectator read model.
 - `apps/server/src/game/services/ScoreService.ts`
@@ -1347,6 +1484,11 @@ preserving responsibilities.
     separately validated immutable record.
 - `apps/server/src/scripts/export-simulation-diagnostics.ts`
   - read-only local/agent diagnostic bundle export.
+- `apps/server/src/scripts/run-headless-simulation.ts`
+  - CLI parsing, isolated-target checks, JSONL progress, exit codes, and
+    deterministic artifact output.
+- `package.json` and `apps/server/package.json`
+  - expose the documented `simulation:run` command without starting the client.
 - Drizzle migration and metadata
   - create run, summary, diagnostic tables, player score counters, and required
     indexes.
@@ -1355,7 +1497,30 @@ preserving responsibilities.
 
 Implement vertical slices in this order.
 
-### Phase 1: Standard-game AI handover
+### Phase 1: Headless simulator
+
+Build the authoritative simulation execution core before adding browser or
+standard-game control surfaces. This phase is the foundation for both the
+later human handoff tests and the regular live simulator.
+
+1. Extract the shared authoritative simulation execution service.
+2. Implement the bounded headless runner with no timer, browser, or socket
+   dependency.
+3. Add explicit configuration, map-seed, gameplay-seed, output, and isolated
+   database-target validation.
+4. Add deterministic JSONL progress, schema-versioned run bundles, and stable
+   exit codes.
+5. Add cancellation, timeout, turn-failure, and no-overlap protections.
+6. Verify fixed-seed repeatability for state hashes, standings, replay frames,
+   AI summaries, and ordered diagnostics.
+7. Verify persisted headless runs are replayable and queryable through the
+   diagnostic interfaces.
+
+Phase 1 is complete when an AI agent or automated test can invoke a bounded
+AI-only run from the CLI without starting the client or opening a socket, and
+receive a deterministic machine-readable result or failure bundle.
+
+### Phase 2: Standard-game AI handover
 
 1. Add host-facing takeover and resume-human-control UI using the existing
    `host:setPlayerAIControl` command. Render this through the standard-game
@@ -1376,22 +1541,26 @@ Implement vertical slices in this order.
 7. Keep takeover unavailable in Simulation Game mode and preserve existing
    standard-game creation/join behavior.
 
-Phase 1 is complete when a host can safely hand an alive civilization to the
+Phase 2 is complete when a host can safely hand an alive civilization to the
 native AI during a standard game, resume human control later, and recover the
 same ownership state after reconnect or server restart. This phase must not
 change standard game creation, joining, fog-of-war, or normal human turn
 behavior.
 
-### Phase 2: Full AI simulation mode
+### Phase 3: Full live AI simulation mode
 
-Simulation mode is delivered as one end-to-end capability. Its workstreams may
-be implemented as separate vertical slices, but they are all part of Phase 2.
-The first usable Phase 2 slice is AI-only creation, the server-owned turn
-runner, pause/resume/step, an authenticated omniscient observer, and safe
-restart recovery. Replay, diagnostics, score parity, and the strategy-provider
-seam must not be allowed to obscure or delay those runtime guarantees.
+The regular browser/live Simulation Game is delivered on top of the Phase 1
+headless execution core. Its workstreams may be implemented as separate
+vertical slices, but they are all part of Phase 3. Phase 2 handoff behavior
+must be complete before exposing the regular simulator workflow.
 
-#### 2.1 Contracts and persistence
+The first usable Phase 3 slice is live AI-only creation, the server-owned
+runner backed by the shared headless execution service, pause/resume/step, an
+authenticated omniscient observer, and safe restart recovery. Replay,
+diagnostics, score parity, and the strategy-provider seam must not be allowed
+to obscure or delay those runtime guarantees.
+
+#### 3.1 Contracts and persistence
 
 1. Reuse and validate the existing persisted authoritative random/identity
    state; do not add a simulation-specific RNG.
@@ -1402,7 +1571,7 @@ seam must not be allowed to obscure or delay those runtime guarantees.
 6. Extend AI state validation for personality and accepted strategic plan.
 7. Add focused score, codec, and recovery validation tests.
 
-#### 2.2 AI-only creation
+#### 3.2 AI-only creation
 
 1. Extract reusable exact-count AI creation.
 2. Add deterministic personality assignment.
@@ -1410,7 +1579,7 @@ seam must not be allowed to obscure or delay those runtime guarantees.
 4. Establish the host as spectator and send the full snapshot before reply.
 5. Add server handler and integration coverage.
 
-#### 2.3 Authoritative runner
+#### 3.3 Authoritative live runner
 
 1. Add runner scheduling and generation invalidation.
 2. Integrate with turn completion and end-game handling.
@@ -1418,7 +1587,7 @@ seam must not be allowed to obscure or delay those runtime guarantees.
 4. Add simulation-control authorization for pause, resume, step, and speed.
 5. Restore running/paused state after recovery.
 
-#### 2.4 Client creation and live observer
+#### 3.4 Client creation and live observer
 
 1. Add the home button and setup route.
 2. Add explicit authenticated simulation observer route.
@@ -1426,14 +1595,14 @@ seam must not be allowed to obscure or delay those runtime guarantees.
 4. Build the simulation header, controls, and omniscient map.
 5. Gate player-only controls and hooks.
 
-#### 2.5 Observer dashboards
+#### 3.5 Observer dashboards
 
 1. Add the simulation read model and broadcasts.
 2. Build Overview, Civilizations, Diplomacy, Timeline, and Diagnostics tabs.
 3. Add observer focus and map highlighting.
 4. Persist and display compact AI turn summaries.
 
-#### 2.6 Turn-level replay
+#### 3.6 Turn-level replay
 
 1. Add replay manifest/frame request contracts.
 2. Include events, phases, statistics, and AI summaries.
@@ -1442,7 +1611,7 @@ seam must not be allowed to obscure or delay those runtime guarantees.
 5. Link replay frames, telemetry, failures, AI summaries, and state hashes.
 6. Add **Watch Live** and **Watch Replay** lobby actions.
 
-#### 2.7 Diagnostic query and export
+#### 3.7 Diagnostic query and export
 
 1. Add the shared diagnostics query/redaction service.
 2. Add filtered packet queries for the Diagnostics tab and replay.
@@ -1450,7 +1619,7 @@ seam must not be allowed to obscure or delay those runtime guarantees.
 4. Add concise issue/agent diagnostic summaries.
 5. Verify degraded/missing telemetry is explicit and export ordering is stable.
 
-#### 2.8 Strategy-provider seam
+#### 3.8 Strategy-provider seam
 
 1. Add provider registry, native provider, and coordinator.
 2. Persist accepted plans and refresh cadence.
@@ -1460,7 +1629,32 @@ seam must not be allowed to obscure or delay those runtime guarantees.
 
 ## Acceptance criteria
 
-### Phase 1: Standard-game AI handover
+### Phase 1: Headless simulator
+
+- `npm run simulation:run -- --help` exits successfully without opening a
+  socket, creating a game, or writing state.
+- A valid explicit configuration and seed create the requested AI-only run
+  without starting the client or requiring a spectator session.
+- The headless runner executes the same authoritative turn path used by the
+  regular simulator, including leases, checkpoints, end-game evaluation,
+  replay frames, scores, AI summaries, and diagnostics.
+- A headless run advances without inter-turn delay by default and processes no
+  overlapping turns.
+- Repeating an unchanged headless invocation with the same build and seeds
+  produces semantically equivalent final state, standings, and ordered
+  diagnostic records.
+- `maxTurns`, victory conditions, timeout, cancellation, and non-retryable
+  failure all terminate the run within their documented bounds.
+- Invalid configuration, ambiguous database selection, missing output paths,
+  and attempts to target a standard game fail before simulation mutation.
+- `--jsonl` stdout contains only schema-versioned machine-readable records;
+  human-readable progress is sent to stderr.
+- Headless artifacts contain no credentials, database URLs, API keys, or
+  unrestricted environment data.
+- A persisted headless run can be inspected through the replay and diagnostics
+  interfaces and identifies `executionMode: 'headless'` in its manifest.
+
+### Phase 2: Standard-game AI handover
 
 - Standard game creation and joining remain unchanged.
 - A host can hand an alive standard-game civilization to native AI without
@@ -1489,7 +1683,7 @@ seam must not be allowed to obscure or delay those runtime guarantees.
   civilizations, and duplicate requests are prevented while awaiting the
   authoritative result.
 
-### Phase 2: Simulation creation and authority
+### Phase 3: Live simulation creation and authority
 
 - Creating a six-player simulation persists six AI players and zero human
   players.
@@ -1506,6 +1700,8 @@ seam must not be allowed to obscure or delay those runtime guarantees.
 
 ### Turn scheduling
 
+- The live runner is built on the Phase 1 headless execution service rather than
+  duplicating authoritative turn-processing logic.
 - A running simulation advances with no connected browser.
 - Only one turn processes at a time under repeated timer/control callbacks.
 - Pause prevents future automatic turns after an in-progress turn completes.
@@ -1640,6 +1836,14 @@ seam must not be allowed to obscure or delay those runtime guarantees.
 - canonical state hashing and unstable-field exclusion;
 - diagnostic sequence allocation, redaction, filtering, and completeness;
 - deterministic diagnostic export ordering.
+- headless runner executes without Socket.IO, browser state, or normal timers;
+- headless runner shares authoritative turn results with the live runner;
+- fixed-seed headless repeatability for state hashes, standings, and diagnostics;
+- CLI schema validation, stable exit codes, `--help`, JSONL output, and output
+  bundle contents;
+- timeout, cancellation, turn failure, and no-overlap behavior;
+- standard-game and ambiguous-database target rejection before mutation;
+- persisted headless run replay and diagnostic queries.
 
 ### Server integration tests
 
@@ -1715,6 +1919,8 @@ the diagnostic authority.
 Capture:
 
 - simulation created/started/paused/resumed/stepped/ended;
+- headless run requested/validated/completed/cancelled/timed out/failed, with
+  execution mode and CLI invocation metadata redacted as necessary;
 - run ID, build identity, ruleset hash, map seed, and diagnostic schema version;
 - scheduled turn delay and actual turn duration;
 - runner generation invalidation;
@@ -1751,4 +1957,6 @@ The implementation is complete when:
    player-visible features;
 7. a person and a local AI coding agent can diagnose a recorded failure using
    only the documented replay/diagnostic interfaces and exported bundle;
-8. no actual LLM provider is enabled.
+8. the headless CLI can run deterministic bounded simulations for tests and AI
+   agents without a browser or socket connection;
+9. no actual LLM provider is enabled.

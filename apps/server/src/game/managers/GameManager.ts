@@ -406,6 +406,21 @@ export class GameManager {
     await this.configureMultiplayerInstance(gameId);
   }
 
+  /**
+   * Start an AI-only game without installing the normal wall-clock turn timer.
+   * Headless execution still uses the same lifecycle initialization and turn
+   * processing callbacks as a browser-backed game.
+   */
+  public async startHeadlessGame(gameId: string, hostId: string): Promise<void> {
+    await this.gameLifecycleManager.startGame(gameId, hostId);
+    await this.configureMultiplayerInstance(gameId, { startTurnTimer: false });
+  }
+
+  /** Add native AI players for an application-owned simulation setup. */
+  public async ensureMinimumPlayers(gameId: string, minimumPlayers?: number): Promise<void> {
+    await this.playerConnectionManager.ensureMinimumPlayers(gameId, minimumPlayers);
+  }
+
   // Moved to GameBroadcastManager - this method is no longer used
   /*
   private broadcastMapData(gameId: string, mapData: any): void {
@@ -1271,7 +1286,10 @@ export class GameManager {
     return technology;
   }
 
-  private async configureMultiplayerInstance(gameId: string): Promise<void> {
+  private async configureMultiplayerInstance(
+    gameId: string,
+    { startTurnTimer = true }: { startTurnTimer?: boolean } = {}
+  ): Promise<void> {
     const gameInstance = this.games.get(gameId);
     if (!gameInstance) return;
     gameInstance.unitManager.setHostilityProvider((attackerPlayerId, defenderPlayerId) =>
@@ -1402,12 +1420,12 @@ export class GameManager {
       gameInstance.currentTurn = turn;
       for (const player of gameInstance.players.values()) player.hasEndedTurn = false;
       await this.gameBroadcastManager.broadcastPlayerInfo(gameId);
-      if (gameInstance.state === 'active') {
+      if (startTurnTimer && gameInstance.state === 'active') {
         gameInstance.turnManager.startTurnTimer(gameInstance.config.turnTimeLimit ?? 300);
       }
     });
     await this.refreshSharedVision(gameId);
-    if (gameInstance.state === 'active') {
+    if (startTurnTimer && gameInstance.state === 'active') {
       gameInstance.turnManager.restoreTurnTimer(
         gameInstance.turnDeadlineAt,
         gameInstance.pausedTimerSeconds,
