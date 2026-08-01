@@ -1081,6 +1081,40 @@ describe('FreecivAIOrchestrator', () => {
     });
   });
 
+  it('updates diplomacy memory in away mode without negotiating treaties', async () => {
+    const scenario = createScenario();
+    scenario.game.players.set('ai', {
+      id: 'ai',
+      isAI: true,
+      aiLevel: 'away',
+      aiTraits: { expansionist: 50, trader: 50, aggressive: 50, builder: 50 },
+      aiState: createAIState(),
+    } as any);
+    scenario.diplomacyManager.getSnapshot.mockResolvedValue({
+      nations: [
+        {
+          id: 'human',
+          known: true,
+          canMeet: true,
+          relation: {
+            state: 'peace',
+            attitude: 100,
+            reputation: 500,
+          },
+        },
+      ],
+    });
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect((scenario.game.players.get('ai') as any).aiState.diplomacy.human).toBeDefined();
+    expect(scenario.diplomacyManager.respondToTreaty).not.toHaveBeenCalled();
+    expect(scenario.diplomacyManager.proposeTreaty).not.toHaveBeenCalled();
+  });
+
   it('declares war when the persisted profitable-target countdown expires', async () => {
     const scenario = createScenario();
     scenario.units.delete('settler');

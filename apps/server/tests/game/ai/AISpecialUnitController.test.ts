@@ -163,6 +163,62 @@ describe('Freeciv AI special-unit controller air integration', () => {
     mockedInciteCost.mockResolvedValue(50);
   });
 
+  it('holds a refueling aircraft at its city base without issuing an action', async () => {
+    const bomber = unit('bomber', 'bomber', 0, 0);
+    bomber.fuel = 1;
+    const home = makeAICity({ id: 'home', name: 'Home', x: 0, y: 0 });
+    const units = new Map([[bomber.id, bomber]]);
+    const executeUnitAction = jest.fn();
+    const game = {
+      id: 'game',
+      currentTurn: 7,
+      players: new Map([['ai', { aiLevel: 'hard' }]]),
+      cityManager: {
+        getAllCities: jest.fn(() => [home]),
+        getCityAt: jest.fn(() => home),
+      },
+      unitManager: {
+        getPlayerUnits: jest.fn(() => [bomber]),
+        getAllUnits: jest.fn(() => units),
+        getUnitType: jest.fn((id: string) => types[id]),
+        calculateUnitHitpointRecovery: jest.fn(() => ({ gain: 10 })),
+        calculateUnitAttackRating: jest.fn(() => 100),
+        calculateUnitDefenseRating: jest.fn(() => 100),
+        canUnitTargetUnit: jest.fn(() => true),
+        executeUnitAction,
+      },
+      mapManager: {
+        getMapData: jest.fn(() => ({ tiles: [] })),
+        getDistance: jest.fn(() => 0),
+      },
+      visibilityManager: {},
+    } as any;
+    const hostility = {
+      getRelationPlayerIds: jest.fn().mockResolvedValue({
+        hostile: new Set(),
+        allied: new Set(),
+        unknown: new Set(),
+      }),
+    } as any;
+    const state = createAIState();
+
+    const actions = await new FreecivAISpecialUnitController(hostility).manageAirAndParadrops(
+      'game',
+      game,
+      'ai',
+      state
+    );
+
+    expect(actions).toBe(0);
+    expect(executeUnitAction).not.toHaveBeenCalled();
+    expect(state.unitTasks.bomber).toMatchObject({
+      role: 'air',
+      targetX: home.x,
+      targetY: home.y,
+      assignedTurn: 7,
+    });
+  });
+
   it.each([
     {
       label: 'loads after a successful carrier rebase',
