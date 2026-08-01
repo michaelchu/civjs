@@ -92,6 +92,117 @@ describe('City Population Growth Integration', () => {
       expect(afterTurn.foodStock).toBeLessThan(20); // Should be < 20 after growth consumed the granary
     });
 
+    it('uses the constrained citizen manager after human-city growth', async () => {
+      (mockMapManager.getTile as jest.Mock).mockImplementation((x: number, y: number) => ({
+        x,
+        y,
+        terrain:
+          x === 35 && y === 35
+            ? 'hills'
+            : (x === 34 && y === 35) || (x === 35 && y === 34)
+              ? 'forest'
+              : 'grassland',
+        improvements: [],
+        riverMask: 0,
+        units: [],
+        isVisible: true,
+      }));
+      const city = await cityManager.foundCity(35, 35, 'Constrained Growth', 'human');
+      city.foodStock = 19;
+
+      await cityManager.processCityTurn(city.id, 1);
+
+      expect(city.population).toBe(2);
+      expect(city.foodPerTurn).toBeGreaterThanOrEqual(1);
+      const assigned = city.workableTiles?.filter(tile => tile.isWorked && !tile.isCenter) ?? [];
+      expect(assigned).toHaveLength(2);
+      expect(assigned.every(tile => tile.terrain === 'grassland')).toBe(true);
+    });
+
+    it('uses the same post-growth reconciliation for equivalent human and easy-AI cities', async () => {
+      const createManager = async (isAI: boolean) => {
+        const manager = new CityManager(
+          isAI ? 'ai-growth-parity' : 'human-growth-parity',
+          createMockDatabaseProvider(),
+          new EffectsManager()
+        );
+        manager.setPlayerGovernmentProvider(() => 'despotism');
+        manager.setPlayerAIProvider(() => ({ isAI, aiLevel: 'easy' }));
+        await manager.initialize();
+        manager.setMapManager(mockMapManager);
+        return manager;
+      };
+      const humanManager = await createManager(false);
+      const aiManager = await createManager(true);
+      const human = await humanManager.foundCity(15, 15, 'Human City', 'human');
+      const ai = await aiManager.foundCity(15, 15, 'AI City', 'ai');
+      human.foodStock = 19;
+      ai.foodStock = 19;
+
+      await humanManager.processCityTurn(human.id, 1);
+      await aiManager.processCityTurn(ai.id, 1);
+
+      expect(ai.population).toBe(human.population);
+      expect(ai.foodStock).toBe(human.foodStock);
+      expect(ai.foodPerTurn).toBe(human.foodPerTurn);
+      expect(ai.workableTiles?.map(tile => tile.isWorked)).toEqual(
+        human.workableTiles?.map(tile => tile.isWorked)
+      );
+    });
+
+    it('retains civ2civ3 growth food using the pre-growth city size', async () => {
+      const civ2civ3Manager = new CityManager(
+        'civ2civ3-growth',
+        createMockDatabaseProvider(),
+        new EffectsManager('civ2civ3')
+      );
+      civ2civ3Manager.setPlayerGovernmentProvider(() => 'despotism');
+      await civ2civ3Manager.initialize();
+      civ2civ3Manager.setMapManager(mockMapManager);
+      const city = await civ2civ3Manager.foundCity(30, 30, 'Food Retention', 'human');
+      city.foodStock = 18;
+
+      await civ2civ3Manager.processFoodAndGrowth(city, 1);
+
+      expect(city.population).toBe(2);
+      expect(city.foodStock).toBe(10);
+    });
+
+    it('reconciles workers and retains food after civ2civ3 starvation', async () => {
+      const civ2civ3Manager = new CityManager(
+        'civ2civ3-starvation',
+        createMockDatabaseProvider(),
+        new EffectsManager('civ2civ3')
+      );
+      civ2civ3Manager.setPlayerGovernmentProvider(() => 'despotism');
+      await civ2civ3Manager.initialize();
+      civ2civ3Manager.setMapManager(mockMapManager);
+      const city = await civ2civ3Manager.foundCity(25, 25, 'Starvation Recovery', 'human');
+      await civ2civ3Manager.joinCity(city.id, city.playerId, 1);
+      city.foodStock = 0;
+      city.foodPerTurn = -1;
+
+      await civ2civ3Manager.processFoodAndGrowth(city, 1);
+
+      expect(city.population).toBe(1);
+      expect(city.foodStock).toBe(10);
+      expect(
+        (city.workableTiles?.filter(tile => tile.isWorked && !tile.isCenter).length ?? 0) +
+          Object.values(city.specialists).reduce((sum, count) => sum + count, 0)
+      ).toBe(1);
+      expect(city.foodPerTurn).toBeGreaterThanOrEqual(1);
+    });
+
+    it('destroys a size-one city that starves', async () => {
+      const city = await cityManager.foundCity(20, 20, 'Final Famine', 'human');
+      city.foodStock = 0;
+      city.foodPerTurn = -1;
+
+      await cityManager.processFoodAndGrowth(city, 1);
+
+      expect(cityManager.getCity(city.id)).toBeUndefined();
+    });
+
     it('should handle population growth and recalculate consumption correctly', async () => {
       const city = await cityManager.foundCity(40, 40, 'RecalcCity', 'player-123');
 

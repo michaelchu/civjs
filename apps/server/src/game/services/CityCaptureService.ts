@@ -36,7 +36,11 @@ export class CityCaptureService extends BaseGameService {
       'getBuildingTypes'
     > = rulesetBuildingsService,
     private readonly random: RandomSource = Math.random,
-    private readonly buildingTypes?: Readonly<Record<string, Pick<{ genus: string }, 'genus'>>>
+    private readonly buildingTypes?: Readonly<Record<string, Pick<{ genus: string }, 'genus'>>>,
+    private readonly reconcileCitizenAssignments?: (
+      cityId: string,
+      reason: string
+    ) => Promise<boolean>
   ) {
     super(logger);
   }
@@ -78,6 +82,8 @@ export class CityCaptureService extends BaseGameService {
     const originalBuildings = [...city.buildings];
     const originalProductionStock = city.productionStock;
     const originalGovernorEnabled = city.governor?.isEnabled;
+    const originalSpecialists = { ...city.specialists };
+    const originalWorked = city.workableTiles?.map(tile => tile.isWorked);
 
     logger.info('Starting city capture', {
       cityId,
@@ -107,6 +113,7 @@ export class CityCaptureService extends BaseGameService {
       // @reference reference/freeciv/server/citytools.c:2135-2142
       const populationLoss = 1;
       city.population -= populationLoss;
+      city.size = city.population;
 
       // Small wonders are removed during transfer. Great wonders and special
       // production targets survive; ordinary improvements use the classic
@@ -128,6 +135,7 @@ export class CityCaptureService extends BaseGameService {
 
       // Update trade routes
       await this.updateTradeRoutesOnPlayerChange(cityId, conquerorPlayerId, originalPlayerId);
+      await this.reconcileCapturedCity(cityId);
 
       logger.info('City capture completed', {
         cityId,
@@ -148,8 +156,13 @@ export class CityCaptureService extends BaseGameService {
     } catch (error) {
       city.playerId = originalPlayerId;
       city.population = originalPopulation;
+      city.size = originalPopulation;
       city.buildings = originalBuildings;
       city.productionStock = originalProductionStock;
+      city.specialists = originalSpecialists;
+      city.workableTiles?.forEach((tile, index) => {
+        tile.isWorked = originalWorked?.[index] ?? Boolean(tile.isCenter);
+      });
       if (city.governor && originalGovernorEnabled !== undefined) {
         city.governor.isEnabled = originalGovernorEnabled;
       }
@@ -167,6 +180,12 @@ export class CityCaptureService extends BaseGameService {
         reason: 'Capture operation failed',
       };
     }
+  }
+
+  private async reconcileCapturedCity(cityId: string): Promise<void> {
+    if (!this.reconcileCitizenAssignments) return;
+    if (await this.reconcileCitizenAssignments(cityId, 'conquest')) return;
+    throw new Error('Citizen reconciliation failed after conquest');
   }
 
   private destroyBuildings(city: CityState): string[] {

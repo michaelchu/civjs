@@ -20,6 +20,7 @@ export class CityTileManagementService extends BaseGameService {
     isAI: false,
   });
   private tileOccupancyProvider: (city: CityState, tile: WorkableTile) => boolean = () => false;
+  private citizenReconciliationRequested: (cityId: string) => void = () => {};
 
   constructor(
     private cities: Map<string, CityState>,
@@ -50,6 +51,10 @@ export class CityTileManagementService extends BaseGameService {
 
   setTileOccupancyProvider(provider: (city: CityState, tile: WorkableTile) => boolean): void {
     this.tileOccupancyProvider = provider;
+  }
+
+  setCitizenReconciliationRequested(provider: (cityId: string) => void): void {
+    this.citizenReconciliationRequested = provider;
   }
 
   /**
@@ -179,14 +184,6 @@ export class CityTileManagementService extends BaseGameService {
     ).flat();
   }
 
-  /**
-   * Reassign citizens after city growth
-   * Public method for CityManager to call when city grows
-   */
-  public reassignCitizensAfterGrowth(city: CityState): void {
-    this.autoAssignCitizensToTiles(city);
-  }
-
   /** Refresh enemy occupancy before citizen allocation/output calculation. */
   public refreshBlockedTiles(city: CityState): boolean {
     if (!city.workableTiles) return false;
@@ -195,11 +192,15 @@ export class CityTileManagementService extends BaseGameService {
       const blocked = !tile.isCenter && this.tileOccupancyProvider(city, tile);
       if (tile.isBlocked !== blocked) {
         tile.isBlocked = blocked;
-        if (blocked) tile.isWorked = false;
+        if (blocked && tile.isWorked) {
+          tile.isWorked = false;
+          city.specialists[SpecialistType.ENTERTAINER] =
+            (city.specialists[SpecialistType.ENTERTAINER] ?? 0) + 1;
+        }
         changed = true;
       }
     }
-    if (changed) this.autoAssignCitizensToTiles(city);
+    if (changed) this.citizenReconciliationRequested(city.id);
     return changed;
   }
 

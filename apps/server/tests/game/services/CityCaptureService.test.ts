@@ -43,11 +43,14 @@ describe('CityCaptureService classic conquest', () => {
   it('loses one citizen, removes small wonders, razes improvements, and preserves great wonders', async () => {
     const city = capturedCity(4);
     const updateRoutes = jest.fn().mockResolvedValue(undefined);
+    const reconcileCitizenAssignments = jest.fn().mockResolvedValue(true);
     const service = new CityCaptureService(
       new Map([[city.id, city]]),
       updateRoutes,
       buildings as any,
-      () => 0
+      () => 0,
+      undefined,
+      reconcileCitizenAssignments
     );
 
     await expect(service.captureCity(city.id, 'new-player', 'unit-1')).resolves.toEqual({
@@ -63,6 +66,31 @@ describe('CityCaptureService classic conquest', () => {
     expect(city.currentProduction).toBe('warriors');
     expect(city.specialists).toEqual({ 0: 1 });
     expect(updateRoutes).toHaveBeenCalledWith(city.id, 'new-player', 'old-player');
+    expect(reconcileCitizenAssignments).toHaveBeenCalledWith(city.id, 'conquest');
+  });
+
+  it('rolls capture back when citizen reconciliation fails', async () => {
+    const city = capturedCity(4);
+    const reconcileCitizenAssignments = jest.fn().mockResolvedValue(false);
+    const service = new CityCaptureService(
+      new Map([[city.id, city]]),
+      jest.fn().mockResolvedValue(undefined),
+      buildings as any,
+      () => 0,
+      undefined,
+      reconcileCitizenAssignments
+    );
+
+    await expect(service.captureCity(city.id, 'new-player', 'unit-1')).resolves.toEqual({
+      success: false,
+      populationLoss: 0,
+      buildingsDestroyed: [],
+      reason: 'Capture operation failed',
+    });
+    expect(city.playerId).toBe('old-player');
+    expect(city.population).toBe(4);
+    expect(city.size).toBe(4);
+    expect(city.buildings).toEqual(['palace', 'granary', 'great_library']);
   });
 
   it('signals authoritative destruction for a size-one city without partially transferring it', async () => {

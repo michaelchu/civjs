@@ -270,9 +270,6 @@ export class CitizenManagementService {
       });
     }
 
-    // Add idle citizen type (always available)
-    tileTypes.push(CitizenTileTypeFactory.createIdle());
-
     // Calculate fitness for all tile types
     tileTypes.forEach(tileType => {
       CitizenTileTypeUtils.updateFitness(tileType, parameters.factor);
@@ -498,7 +495,6 @@ export class CitizenManagementService {
   ): void {
     let workersCount = 0;
     let specialistsCount = 0;
-    let idleCount = 0;
 
     // Reset specialists
     Object.keys(result.specialists).forEach(key => {
@@ -508,11 +504,6 @@ export class CitizenManagementService {
     for (const [tileTypeId, count] of assignments) {
       const tileType = tileTypes.find(t => t.id === tileTypeId);
       if (!tileType || count === 0) continue;
-
-      if (tileType.id === 'idle') {
-        idleCount += count;
-        continue;
-      }
 
       if (tileType.is_specialist) {
         if (tileType.specialist_type !== undefined) {
@@ -529,7 +520,9 @@ export class CitizenManagementService {
 
     result.workers_count = workersCount;
     result.specialists_count = specialistsCount;
-    result.idle_count = idleCount;
+    // Freeciv requires every citizen to be represented by either a worked
+    // tile or a specialist. There is no persistent "idle citizen" state.
+    result.idle_count = 0;
 
     CitizenResultUtils.updateCounts(result);
   }
