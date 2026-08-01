@@ -24,7 +24,7 @@ interface CliOptions {
   databaseUrl?: string;
 }
 
-const usage = `Usage: npm run simulation:run -- [options]
+const usage = `Usage: npm run --silent simulation:run -- [options]
 
 Required:
   --config <path>          Load and validate a simulation configuration

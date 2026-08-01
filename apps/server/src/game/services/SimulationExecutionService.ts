@@ -48,15 +48,67 @@ export class SimulationExecutionService {
         );
       }
 
+      const turnAbortController = new AbortController();
+      const stopTurn = createTurnStopPromise(turnAbortController, options.signal, deadline);
       try {
-        await game.turnManager.processTurn();
+        await Promise.race([
+          game.turnManager.processTurn(turnAbortController.signal),
+          stopTurn.promise,
+        ]);
       } catch (error) {
+        if (error instanceof SimulationExecutionError) throw error;
         throw new SimulationExecutionError(
           'turn_failure',
           error instanceof Error ? error.message : String(error)
         );
+      } finally {
+        stopTurn.cleanup();
       }
-      await options.onTurnCompleted?.(game.turnManager.getCurrentTurn());
+      if (options.signal?.aborted) {
+        throw new SimulationExecutionError('cancelled', 'Simulation was cancelled');
+      }
+      if (deadline !== undefined && Date.now() >= deadline) {
+        throw new SimulationExecutionError('timeout', 'Simulation exceeded its timeout');
+      }
+      try {
+        await options.onTurnCompleted?.(game.turnManager.getCurrentTurn());
+      } catch (error) {
+        throw new SimulationExecutionError(
+          'turn_failure',
+          `Post-turn processing failed: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
     }
   }
+}
+
+function createTurnStopPromise(
+  turnAbortController: AbortController,
+  signal: AbortSignal | undefined,
+  deadline: number | undefined
+): { promise: Promise<never>; cleanup: () => void } {
+  let timeout: NodeJS.Timeout | undefined;
+  let rejectStop: (error: SimulationExecutionError) => void = () => undefined;
+  const promise = new Promise<never>((_resolve, reject) => {
+    rejectStop = reject;
+  });
+  const stop = (error: SimulationExecutionError) => {
+    rejectStop(error);
+    turnAbortController.abort(error);
+  };
+  const cancel = () => stop(new SimulationExecutionError('cancelled', 'Simulation was cancelled'));
+  signal?.addEventListener('abort', cancel, { once: true });
+  if (deadline !== undefined) {
+    timeout = setTimeout(
+      () => stop(new SimulationExecutionError('timeout', 'Simulation exceeded its timeout')),
+      Math.max(0, deadline - Date.now())
+    );
+  }
+  return {
+    promise,
+    cleanup: () => {
+      if (timeout) clearTimeout(timeout);
+      signal?.removeEventListener('abort', cancel);
+    },
+  };
 }

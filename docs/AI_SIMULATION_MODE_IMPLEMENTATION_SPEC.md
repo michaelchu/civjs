@@ -321,7 +321,7 @@ benchmarks, local debugging, and AI coding agents.
 Provide a command with equivalent behavior to:
 
 ```sh
-npm run simulation:run -- \
+npm run --silent simulation:run -- \
   --config ./simulation.json \
   --seed 424242 \
   --max-turns 100 \

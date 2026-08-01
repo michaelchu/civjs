@@ -114,6 +114,8 @@ export interface GameConfig {
   researchPacing?: Partial<ResearchPacingSettings>;
   /** Freeciv-compatible seed for the authoritative gameplay random stream. */
   randomSeed?: number;
+  /** Selects timer and recovery behavior for application-owned simulations. */
+  executionMode?: 'headless' | 'server';
   /** Optional barbarian frequency override for presets such as Quick Start. */
   barbarianRate?: number;
   /** Optional global warming/nuclear-winter settings. */
@@ -572,7 +574,7 @@ export class GameManager {
   // Game recovery methods - delegates to GameInstanceRecoveryService
   public async recoverGameInstance(gameId: string): Promise<GameInstance | null> {
     const instance = await this.gameInstanceRecoveryService.recoverGameInstance(gameId);
-    if (instance) await this.configureMultiplayerInstance(gameId);
+    if (instance) await this.configureRecoveredInstance(gameId, instance);
     return instance;
   }
 
@@ -1550,8 +1552,25 @@ export class GameManager {
 
   public async loadGame(gameId: string): Promise<GameInstance | null> {
     const instance = await this.gameInstanceRecoveryService.loadGame(gameId);
-    if (instance) await this.configureMultiplayerInstance(gameId);
+    if (instance) await this.configureRecoveredInstance(gameId, instance);
     return instance;
+  }
+
+  private async configureRecoveredInstance(gameId: string, instance: GameInstance): Promise<void> {
+    const isHeadless = instance.config.executionMode === 'headless';
+    if (isHeadless && instance.state === 'active') {
+      instance.state = 'paused';
+      instance.turnManager.clearTurnTimer();
+      await this.databaseProvider
+        .getDatabase()
+        .update(games)
+        .set({
+          status: 'paused',
+          gameState: sql`jsonb_set(coalesce(${games.gameState}, '{}'::jsonb), '{simulation,runState}', '"paused"'::jsonb, true)`,
+        })
+        .where(eq(games.id, gameId));
+    }
+    await this.configureMultiplayerInstance(gameId, { startTurnTimer: !isHeadless });
   }
 
   public getActiveGameInstances(): GameInstance[] {

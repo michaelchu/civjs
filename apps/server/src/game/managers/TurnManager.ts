@@ -336,15 +336,16 @@ export class TurnManager {
     });
   }
 
-  public processTurn(): Promise<void> {
+  public processTurn(signal?: AbortSignal): Promise<void> {
     if (this.processingPromise) return this.processingPromise;
-    this.processingPromise = this.processTurnInternal().finally(() => {
+    this.processingPromise = this.processTurnInternal(signal).finally(() => {
       this.processingPromise = null;
     });
     return this.processingPromise;
   }
 
-  private async processTurnInternal(): Promise<void> {
+  private async processTurnInternal(signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted();
     logger.info('Processing turn', { gameId: this.gameId, turn: this.currentTurn });
 
     const processingTurn = this.currentTurn;
@@ -374,6 +375,7 @@ export class TurnManager {
         this.currentYear,
         playerIds
       );
+      signal?.throwIfAborted();
 
       if (phaseResult.success) {
         logger.info('Turn processed successfully via phase service', {
@@ -384,14 +386,18 @@ export class TurnManager {
         });
 
         await this.processGovernmentTurns(playerIds);
+        signal?.throwIfAborted();
         await this.diplomacyProcessor?.();
+        signal?.throwIfAborted();
         const climateResult = await this.climateManager?.processTurn();
+        signal?.throwIfAborted();
         this.lastClimateState = climateResult?.state ?? this.lastClimateState;
         if (climateResult?.warmingApplied || climateResult?.coolingApplied) {
           this.cityManager.refreshAllTileOccupancy?.();
           this.visibilityManager.updateAllPlayersVisibility(playerIds);
         }
 
+        signal?.throwIfAborted();
         await this.completeTurnRecord(phaseResult);
         if (await this.endGameEvaluator?.(this.currentTurn, this.currentYear)) {
           this.clearTurnTimer();

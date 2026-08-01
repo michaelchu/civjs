@@ -23,4 +23,30 @@ describe('headless simulation lifecycle', () => {
     expect(startGame).toHaveBeenCalledWith('simulation-id', 'headless-host');
     expect(configure).toHaveBeenCalledWith('simulation-id', { startTurnTimer: false });
   });
+
+  it('durably pauses an active recovered headless game without starting a timer', async () => {
+    const databaseProvider = createMockDatabaseProvider();
+    const manager = GameManager.getInstance(createMockSocketServer() as any, databaseProvider);
+    const clearTurnTimer = jest.fn();
+    const recovered = {
+      config: { executionMode: 'headless' },
+      state: 'active',
+      turnManager: { clearTurnTimer },
+    } as any;
+    jest
+      .spyOn((manager as any).gameInstanceRecoveryService, 'recoverGameInstance')
+      .mockResolvedValue(recovered);
+    const configure = jest
+      .spyOn(manager as any, 'configureMultiplayerInstance')
+      .mockResolvedValue(undefined);
+
+    await manager.recoverGameInstance('simulation-id');
+
+    expect(recovered.state).toBe('paused');
+    expect(clearTurnTimer).toHaveBeenCalled();
+    expect((databaseProvider.getDatabase() as any).set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'paused' })
+    );
+    expect(configure).toHaveBeenCalledWith('simulation-id', { startTurnTimer: false });
+  });
 });

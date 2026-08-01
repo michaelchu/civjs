@@ -33,72 +33,101 @@ export class SimulationGameService {
   ): Promise<CreatedSimulationGame> {
     const database = this.databaseProvider.getDatabase();
     const hostId = randomUUID();
+    let gameId: string | undefined;
 
-    await database.insert(users).values({
-      id: hostId,
-      username: `headless_${runId.slice(0, 12)}`,
-      email: `${hostId}@headless.invalid`,
-      isGuest: true,
-    });
+    try {
+      await database.insert(users).values({
+        id: hostId,
+        username: `headless_${runId.slice(0, 12)}`,
+        email: `${hostId}@headless.invalid`,
+        isGuest: true,
+      });
 
-    const gameId = await this.gameManager.createGame({
-      name: config.name,
-      hostId,
-      gameType: 'single',
-      maxPlayers: config.aiPlayerCount,
-      mapWidth: config.mapWidth,
-      mapHeight: config.mapHeight,
-      mapSeed: config.mapSeed,
-      ruleset: config.ruleset,
-      turnTimeLimit: config.turnTimeLimit,
-      maxTurns: config.maxTurns,
-      victoryConditions: config.victoryConditions,
-      aiLevel: config.aiLevel,
-      randomSeed: config.randomSeed,
-      terrainSettings: config.terrainSettings,
-    });
+      gameId = await this.gameManager.createGame({
+        name: config.name,
+        hostId,
+        gameType: 'single',
+        maxPlayers: config.aiPlayerCount,
+        mapWidth: config.mapWidth,
+        mapHeight: config.mapHeight,
+        mapSeed: config.mapSeed,
+        ruleset: config.ruleset,
+        turnTimeLimit: config.turnTimeLimit,
+        maxTurns: config.maxTurns,
+        victoryConditions: config.victoryConditions,
+        aiLevel: config.aiLevel,
+        randomSeed: config.randomSeed,
+        terrainSettings: config.terrainSettings,
+        executionMode,
+      });
 
-    const simulationState = {
-      enabled: true,
-      aiPlayerCount: config.aiPlayerCount,
-      speed: 'fast',
-      runState: 'running',
-      maxTurns: config.maxTurns,
-      victoryConditions: config.victoryConditions,
-      spectatorVisibility: 'omniscient',
-      strategy: {
-        provider: 'native',
-        reviewIntervalTurns: 0,
-        eventDrivenReviews: false,
-      },
-      diagnostics: {
-        level: 'standard',
-        schemaVersion: SIMULATION_DIAGNOSTIC_SCHEMA_VERSION,
-      },
-      runId,
-      executionMode,
-    };
-    await database
-      .update(games)
-      .set({
-        gameState: sql`coalesce(${games.gameState}, '{}'::jsonb) || ${JSON.stringify({ simulation: simulationState })}::jsonb`,
-      })
-      .where(eq(games.id, gameId));
+      const simulationState = {
+        enabled: true,
+        aiPlayerCount: config.aiPlayerCount,
+        speed: 'fast',
+        runState: 'running',
+        maxTurns: config.maxTurns,
+        victoryConditions: config.victoryConditions,
+        spectatorVisibility: 'omniscient',
+        strategy: {
+          provider: 'native',
+          reviewIntervalTurns: 0,
+          eventDrivenReviews: false,
+        },
+        diagnostics: {
+          level: 'standard',
+          schemaVersion: SIMULATION_DIAGNOSTIC_SCHEMA_VERSION,
+        },
+        runId,
+        executionMode,
+      };
+      await database
+        .update(games)
+        .set({
+          gameState: sql`coalesce(${games.gameState}, '{}'::jsonb) || ${JSON.stringify({ simulation: simulationState })}::jsonb`,
+        })
+        .where(eq(games.id, gameId));
 
-    await this.gameManager.ensureMinimumPlayers(gameId, config.aiPlayerCount);
-    const createdPlayers = await database.query.players.findMany({
-      where: eq(players.gameId, gameId),
-    });
-    if (
-      createdPlayers.length !== config.aiPlayerCount ||
-      createdPlayers.some(player => !player.isAI || player.userId !== null)
-    ) {
-      throw new Error(
-        `Simulation setup created ${createdPlayers.length} players; expected ${config.aiPlayerCount} AI players`
-      );
+      await this.gameManager.ensureMinimumPlayers(gameId, config.aiPlayerCount);
+      const createdPlayers = await database.query.players.findMany({
+        where: eq(players.gameId, gameId),
+      });
+      if (
+        createdPlayers.length !== config.aiPlayerCount ||
+        createdPlayers.some(player => !player.isAI || player.userId !== null)
+      ) {
+        throw new Error(
+          `Simulation setup created ${createdPlayers.length} players; expected ${config.aiPlayerCount} AI players`
+        );
+      }
+
+      await this.gameManager.startHeadlessGame(gameId, hostId);
+      return { gameId, hostId, runId };
+    } catch (error) {
+      const cleanupErrors: string[] = [];
+      if (gameId) {
+        try {
+          await this.gameManager.deleteGame(gameId, hostId);
+        } catch (cleanupError) {
+          cleanupErrors.push(
+            cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+          );
+        }
+      }
+      try {
+        await database.delete(users).where(eq(users.id, hostId));
+      } catch (cleanupError) {
+        cleanupErrors.push(
+          cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+        );
+      }
+      if (cleanupErrors.length > 0) {
+        throw new Error(
+          `${error instanceof Error ? error.message : String(error)}; simulation setup cleanup failed: ${cleanupErrors.join('; ')}`,
+          { cause: error }
+        );
+      }
+      throw error;
     }
-
-    await this.gameManager.startHeadlessGame(gameId, hostId);
-    return { gameId, hostId, runId };
   }
 }

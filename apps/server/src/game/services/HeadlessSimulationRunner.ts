@@ -79,8 +79,20 @@ export class HeadlessSimulationRunner {
       this.gameManager,
       this.databaseProvider
     ).createAndStart(options.config, options.runId);
-    const manifest = this.createManifest(created.gameId, options.runId, options.config);
-    await this.persistManifest(created.gameId, manifest);
+    try {
+      return await this.runCreatedGame(created.gameId, options);
+    } catch (error) {
+      await this.pauseUnexpectedlyActiveRun(created.gameId, error);
+      throw error;
+    }
+  }
+
+  private async runCreatedGame(
+    gameId: string,
+    options: HeadlessSimulationRunOptions
+  ): Promise<HeadlessSimulationRunResult> {
+    const manifest = this.createManifest(gameId, options.runId, options.config);
+    await this.persistManifest(gameId, manifest);
     const executionService = new SimulationExecutionService(this.gameManager);
 
     const progress: SimulationProgressRecord[] = [];
@@ -92,30 +104,30 @@ export class HeadlessSimulationRunner {
       schemaVersion: SIMULATION_RUN_SCHEMA_VERSION,
       type: 'run_started',
       runId: options.runId,
-      gameId: created.gameId,
+      gameId,
     });
 
     let status: SimulationRunBundle['result']['status'] = 'completed';
     let failure: SimulationRunBundle['failure'];
     const aiSummaries: unknown[] = [];
     try {
-      await executionService.runToEnd(created.gameId, {
+      await executionService.runToEnd(gameId, {
         maxTurns: options.config.maxTurns,
         timeoutMs: options.timeoutMs,
         signal: options.signal,
         onTurnCompleted: async () => {
-          const replay = await this.readReplay(created.gameId);
+          const replay = await this.readReplay(gameId);
           const latest = replay?.turns.filter(turn => turn.endedAt !== null).at(-1);
           if (!latest) return;
           aiSummaries.push({
             turn: latest.turn,
-            players: await this.readAISummaries(created.gameId, latest.turn),
+            players: await this.readAISummaries(gameId, latest.turn),
           });
           emitProgress({
             schemaVersion: SIMULATION_RUN_SCHEMA_VERSION,
             type: 'turn_completed',
             runId: options.runId,
-            gameId: created.gameId,
+            gameId,
             turn: latest.turn,
             completedTurns: replay?.turns.filter(turn => turn.endedAt !== null).length,
           });
@@ -136,12 +148,12 @@ export class HeadlessSimulationRunner {
               ? 'CANCELLED'
               : 'TURN_FAILURE';
         failure = { code, message: error.message };
-        await this.pauseFailedRun(created.gameId);
+        await this.pauseFailedRun(gameId);
         emitProgress({
           schemaVersion: SIMULATION_RUN_SCHEMA_VERSION,
           type: 'run_failed',
           runId: options.runId,
-          gameId: created.gameId,
+          gameId,
           code,
           error: error.message,
         });
@@ -150,12 +162,12 @@ export class HeadlessSimulationRunner {
       }
     }
 
-    const replay = await this.readReplay(created.gameId);
+    const replay = await this.readReplay(gameId);
     const game = await this.databaseProvider.getDatabase().query.games.findFirst({
-      where: eq(games.id, created.gameId),
+      where: eq(games.id, gameId),
     });
     const aiPlayers = await this.databaseProvider.getDatabase().query.players.findMany({
-      where: eq(players.gameId, created.gameId),
+      where: eq(players.gameId, gameId),
     });
     const completedTurns = replay?.turns.filter(turn => turn.endedAt !== null) ?? [];
     const stateHashes = completedTurns.map(turn => ({
@@ -163,7 +175,7 @@ export class HeadlessSimulationRunner {
       hash: hashState(turn.snapshot),
     }));
     try {
-      await this.verifyReplayCheckpoints(created.gameId, completedTurns);
+      await this.verifyReplayCheckpoints(gameId, completedTurns);
     } catch (error) {
       const alreadyReported = failure !== undefined;
       status = 'failed';
@@ -171,22 +183,21 @@ export class HeadlessSimulationRunner {
         code: 'TURN_FAILURE',
         message: error instanceof Error ? error.message : String(error),
       };
-      await this.pauseFailedRun(created.gameId);
+      await this.pauseFailedRun(gameId);
       if (!alreadyReported) {
         emitProgress({
           schemaVersion: SIMULATION_RUN_SCHEMA_VERSION,
           type: 'run_failed',
           runId: options.runId,
-          gameId: created.gameId,
+          gameId,
           code: failure.code,
           error: failure.message,
         });
       }
     }
 
-    const endReason =
-      (game?.endReason as string | null | undefined) ?? failure?.code.toLowerCase() ?? 'completed';
-    if (status === 'completed') await this.markCompletedRun(created.gameId);
+    const endReason = resolveSimulationEndReason(status, game?.endReason, failure?.code);
+    if (status === 'completed') await this.markCompletedRun(gameId);
     const bundle: SimulationRunBundle = {
       schemaVersion: SIMULATION_RUN_SCHEMA_VERSION,
       manifest,
@@ -212,7 +223,7 @@ export class HeadlessSimulationRunner {
       schemaVersion: SIMULATION_RUN_SCHEMA_VERSION,
       type: 'run_finished',
       runId: options.runId,
-      gameId: created.gameId,
+      gameId,
       completedTurns: completedTurns.length,
       endReason,
       status,
@@ -223,6 +234,18 @@ export class HeadlessSimulationRunner {
     };
     await this.writeBundle(options.outputDirectory, bundle);
     return { bundle, outputPath: join(options.outputDirectory, 'run.json') };
+  }
+
+  private async pauseUnexpectedlyActiveRun(gameId: string, originalError: unknown): Promise<void> {
+    if (this.gameManager.getGameInstance(gameId)?.state !== 'active') return;
+    try {
+      await this.pauseFailedRun(gameId);
+    } catch (cleanupError) {
+      throw new Error(
+        `${originalError instanceof Error ? originalError.message : String(originalError)}; failed to pause active simulation: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`,
+        { cause: originalError }
+      );
+    }
   }
 
   private createManifest(
@@ -381,4 +404,13 @@ function sortKeys(value: unknown): unknown {
 
 export function createRunId(): string {
   return randomUUID();
+}
+
+export function resolveSimulationEndReason(
+  status: SimulationRunBundle['result']['status'],
+  gameEndReason?: string | null,
+  failureCode?: 'TURN_FAILURE' | 'TIMEOUT' | 'CANCELLED'
+): string {
+  if (status !== 'completed' && failureCode) return failureCode.toLowerCase();
+  return gameEndReason ?? 'completed';
 }
