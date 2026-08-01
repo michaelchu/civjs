@@ -25,10 +25,144 @@ describe('GameClient state-bearing packets', () => {
       year: undefined,
       players: {},
       cities: {},
+      units: {},
       map: { width: 0, height: 0, tiles: {} },
     });
-    useGameStore.setState({ notifications: [], hasReceivedUnitSnapshot: false });
+    useGameStore.setState({
+      notifications: [],
+      hasReceivedUnitSnapshot: false,
+      presentationEffects: [],
+    });
     useGameStore.setState({ clientState: 'running', endGameReport: undefined });
+  });
+
+  it('keeps distinct server combat events on the same tile and deduplicates repeated event IDs', () => {
+    const socket = { on: vi.fn() };
+    (gameClient as unknown as { socket: typeof socket }).socket = socket;
+    (gameClient as unknown as { setupGameHandlers: () => void }).setupGameHandlers();
+
+    const combatHandler = socket.on.mock.calls.find(
+      ([event]) => event === 'combat_occurred'
+    )?.[1] as
+      | ((data: {
+          eventId: string;
+          x: number;
+          y: number;
+          combatants?: Array<Record<string, unknown>>;
+        }) => void)
+      | undefined;
+    expect(combatHandler).toBeDefined();
+
+    vi.spyOn(performance, 'now').mockReturnValue(1000);
+    combatHandler!({ eventId: 'combat-1', x: 3, y: 4 });
+    combatHandler!({
+      eventId: 'combat-2',
+      x: 3,
+      y: 4,
+      combatants: [
+        {
+          id: 'defender-1',
+          role: 'defender',
+          playerId: 'player-2',
+          unitTypeId: 'warriors',
+          x: 3,
+          y: 4,
+          hpBefore: 100,
+          hpAfter: 0,
+          destroyed: true,
+        },
+      ],
+    });
+    combatHandler!({ eventId: 'combat-1', x: 3, y: 4 });
+
+    expect(useGameStore.getState().presentationEffects).toHaveLength(2);
+    expect(useGameStore.getState().presentationEffects?.map(effect => effect.id)).toEqual([
+      'combat-1',
+      'combat-2',
+    ]);
+
+    handlePacket({
+      type: PacketType.MAP_INFO,
+      data: { xsize: 2, ysize: 2, wrap_id: 0 },
+    });
+    expect(useGameStore.getState().presentationEffects).toEqual([]);
+    vi.restoreAllMocks();
+  });
+
+  it('correlates a local attack reply with its rich server combat broadcast', () => {
+    const socket = { on: vi.fn() };
+    (gameClient as unknown as { socket: typeof socket }).socket = socket;
+    (gameClient as unknown as { setupGameHandlers: () => void }).setupGameHandlers();
+
+    const combatHandler = socket.on.mock.calls.find(
+      ([event]) => event === 'combat_occurred'
+    )?.[1] as ((data: Record<string, unknown>) => void) | undefined;
+    expect(combatHandler).toBeDefined();
+
+    useGameStore.getState().updateGameState({
+      units: {
+        defender: {
+          id: 'defender',
+          playerId: 'player-2',
+          unitTypeId: 'warriors',
+          x: 3,
+          y: 4,
+          hp: 20,
+          movesLeft: 1,
+          veteranLevel: 0,
+        },
+      },
+    });
+    vi.spyOn(performance, 'now').mockReturnValue(1000);
+    combatHandler!({
+      eventId: 'combat-rich',
+      x: 3,
+      y: 4,
+      combatants: [
+        {
+          id: 'attacker',
+          role: 'attacker',
+          playerId: 'player-1',
+          unitTypeId: 'warriors',
+          x: 2,
+          y: 4,
+          hpBefore: 100,
+          hpAfter: 80,
+          destroyed: false,
+        },
+        {
+          id: 'defender',
+          role: 'defender',
+          playerId: 'player-2',
+          unitTypeId: 'warriors',
+          x: 3,
+          y: 4,
+          hpBefore: 100,
+          hpAfter: 20,
+          destroyed: false,
+        },
+      ],
+    });
+    handlePacket({
+      type: PacketType.UNIT_ATTACK_REPLY,
+      data: {
+        success: true,
+        combatResult: { attackerId: 'attacker', defenderId: 'defender' },
+      },
+    } as Packet);
+
+    expect(useGameStore.getState().presentationEffects).toHaveLength(1);
+    expect(useGameStore.getState().presentationEffects?.[0]).toEqual(
+      expect.objectContaining({
+        id: 'combat-rich',
+        origin: 'correlated',
+        combatants: expect.arrayContaining([
+          expect.objectContaining({ id: 'attacker' }),
+          expect.objectContaining({ id: 'defender' }),
+        ]),
+      })
+    );
+    vi.restoreAllMocks();
   });
 
   it('removes a consumed settler when the server broadcasts unit destruction', () => {

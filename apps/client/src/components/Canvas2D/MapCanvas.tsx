@@ -45,6 +45,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const [fogOfWarEnabled, setFogOfWarEnabled] = useState(
     () => !loadUserPreferences().disableFogOfWar
   );
+  const [reducedMotion, setReducedMotion] = useState(() => loadUserPreferences().reducedMotion);
 
   // Track initial centering to prevent multiple centering events (freeciv-web compliance)
   const [hasInitiallyCentered, setHasInitiallyCentered] = useState(false);
@@ -270,12 +271,14 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
             viewport: gameState.viewport,
             map: gameState.map,
             units: gameState.units,
+            presentationEffects: gameState.presentationEffects,
             cities: gameState.cities,
             players: gameState.players,
             selectedUnitId: gameState.selectedUnitId,
             focusedUnits: gameState.focusedUnits,
             currentPlayerId: gameState.currentPlayerId,
             researchedTechs: gameState.research?.researchedTechs,
+            reducedMotion: loadUserPreferences().reducedMotion,
           });
         }
       } catch (error) {
@@ -300,6 +303,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     const handlePreferencesChanged = (event: Event) => {
       const preferences = (event as CustomEvent<UserPreferences>).detail;
       setFogOfWarEnabled(!preferences.disableFogOfWar);
+      setReducedMotion(preferences.reducedMotion);
       if (import.meta.env.DEV) {
         void gameClient.setDebugVisibility(preferences.disableFogOfWar).catch(() => {
           // The settings panel reports debug visibility errors when it is open.
@@ -325,29 +329,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   }, [currentGameId, hasReceivedUnitSnapshot]);
 
   useEffect(() => {
-    const handleCenterMap = (event: Event) => {
-      const detail = (event as CustomEvent<{ x?: number; y?: number }>).detail;
-      if (detail.x === undefined || detail.y === undefined || !rendererRef.current) return;
-      const centered = rendererRef.current.getViewportPositionForTile(
-        detail.x,
-        detail.y,
-        width,
-        height
-      );
-      const constrained = rendererRef.current.setMapviewOrigin(
-        centered.x,
-        centered.y,
-        width,
-        height
-      );
-      setViewport({ ...constrained, width, height });
-    };
-
-    document.addEventListener('center-map-on-tile', handleCenterMap);
-    return () => document.removeEventListener('center-map-on-tile', handleCenterMap);
-  }, [height, setViewport, width]);
-
-  useEffect(() => {
     rendererRef.current?.setFogOfWarEnabled(fogOfWarEnabled);
   }, [fogOfWarEnabled]);
 
@@ -364,10 +345,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           viewport: viewportOverride ?? state.viewport,
           map: state.map,
           units: state.units,
+          presentationEffects: state.presentationEffects,
           cities: state.cities,
           players: state.players,
           selectedUnitId: state.selectedUnitId,
           selectedCityId: state.selectedCityId,
+          actionDecisionUnitId: contextMenu?.unit.id,
           focusedUnits: state.focusedUnits,
           urgentFocusQueue: state.urgentFocusQueue,
           gotoPath: gotoMode.currentPath,
@@ -379,12 +362,109 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
             : undefined,
           currentPlayerId: state.currentPlayerId,
           researchedTechs: state.research?.researchedTechs,
+          reducedMotion,
         },
         immediate
       );
     },
-    [gotoMode.currentPath, movementRange]
+    [contextMenu?.unit.id, gotoMode.currentPath, movementRange, reducedMotion]
   );
+
+  const cameraSlideFrame = useRef<number | null>(null);
+  const cameraSlideViewport = useRef<MapViewport | null>(null);
+
+  const cancelCameraSlide = useCallback(
+    (commitLatest = true): MapViewport | null => {
+      if (cameraSlideFrame.current !== null) {
+        cancelAnimationFrame(cameraSlideFrame.current);
+        cameraSlideFrame.current = null;
+      }
+      const latestViewport = cameraSlideViewport.current;
+      cameraSlideViewport.current = null;
+      if (commitLatest && latestViewport) setViewport(latestViewport);
+      return latestViewport;
+    },
+    [setViewport]
+  );
+
+  useEffect(() => {
+    const handleCenterMap = (event: Event) => {
+      const detail = (event as CustomEvent<{ x?: number; y?: number }>).detail;
+      if (detail.x === undefined || detail.y === undefined || !rendererRef.current) return;
+
+      cancelCameraSlide();
+      const centered = rendererRef.current.getViewportPositionForTile(
+        detail.x,
+        detail.y,
+        width,
+        height
+      );
+      const constrained = rendererRef.current.setMapviewOrigin(
+        centered.x,
+        centered.y,
+        width,
+        height
+      );
+      const target = { ...constrained, width, height };
+      const state = useGameStore.getState();
+      const current = state.viewport;
+      const dx = target.x - current.x;
+      const dy = target.y - current.y;
+
+      if (!Object.values(state.units).some(unit => unit.x === detail.x && unit.y === detail.y)) {
+        const marker = {
+          id: `marker:${detail.x}:${detail.y}:${Date.now()}`,
+          type: 'marker' as const,
+          x: detail.x,
+          y: detail.y,
+          startedAt: performance.now(),
+          durationMs: 900,
+        };
+        state.updateGameState({
+          presentationEffects: [...(state.presentationEffects ?? []), marker].slice(-64),
+        });
+      }
+
+      if (reducedMotion || Math.hypot(dx, dy) < 1) {
+        cameraSlideViewport.current = null;
+        setViewport(target);
+        renderLatestSnapshot(target, true);
+        return;
+      }
+
+      const startedAt = performance.now();
+      const durationMs = 700;
+      const animate = (now: number) => {
+        const progress = Math.min(1, (now - startedAt) / durationMs);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const viewportOverride = {
+          ...current,
+          width,
+          height,
+          x: current.x + dx * eased,
+          y: current.y + dy * eased,
+        };
+        cameraSlideViewport.current = viewportOverride;
+        renderLatestSnapshot(viewportOverride, true);
+
+        if (progress >= 1) {
+          cameraSlideFrame.current = null;
+          cameraSlideViewport.current = null;
+          setViewport(target);
+          return;
+        }
+        cameraSlideFrame.current = requestAnimationFrame(animate);
+      };
+
+      cameraSlideFrame.current = requestAnimationFrame(animate);
+    };
+
+    document.addEventListener('center-map-on-tile', handleCenterMap);
+    return () => {
+      document.removeEventListener('center-map-on-tile', handleCenterMap);
+      cancelCameraSlide(false);
+    };
+  }, [cancelCameraSlide, height, reducedMotion, renderLatestSnapshot, setViewport, width]);
 
   // Update canvas size
   useEffect(() => {
@@ -478,10 +558,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           state.viewport,
           state.map,
           state.units,
+          state.presentationEffects,
           state.cities,
           state.players,
           state.selectedUnitId,
           state.selectedCityId,
+          contextMenu?.unit.id,
           state.focusedUnits,
           state.urgentFocusQueue,
           state.currentPlayerId,
@@ -490,12 +572,16 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       () => renderLatestSnapshot(),
       { equalityFn: shallow }
     );
-  }, [renderLatestSnapshot, rendererReady]);
+  }, [contextMenu?.unit.id, renderLatestSnapshot, rendererReady]);
+
+  const hasRenderableSelection = Boolean(
+    (selectedUnitId && units[selectedUnitId]) || focusedUnits.some(unitId => units[unitId])
+  );
 
   // Optimized animation for selection pulsing - use a simple timer instead of continuous animation loop
   useEffect(() => {
     // Don't run animation while dragging to prevent conflicts
-    if (selectedUnitId && rendererRef.current && !isDragging) {
+    if (hasRenderableSelection && rendererRef.current && !isDragging) {
       // Use setInterval with a reasonable refresh rate to avoid stuttering during scrolling
       const intervalId = setInterval(() => {
         renderLatestSnapshot(undefined, true);
@@ -510,7 +596,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     } else if (!isDragging) {
       renderLatestSnapshot(undefined, true);
     }
-  }, [selectedUnitId, isDragging, renderLatestSnapshot]);
+  }, [hasRenderableSelection, isDragging, renderLatestSnapshot]);
 
   // Drag tracking refs
   const dragStart = useRef({ x: 0, y: 0 });
@@ -824,6 +910,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
       const canvas = canvasRef.current;
       if (!canvas) return;
+      const slideViewport = cancelCameraSlide();
+      const interactionViewport = slideViewport ?? viewport;
 
       const rect = canvas.getBoundingClientRect();
       const canvasX = event.clientX - rect.left;
@@ -834,13 +922,13 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
       // Record drag start for potential drag operation
       dragStart.current = { x: canvasX, y: canvasY };
-      dragStartViewport.current = viewport;
-      currentRenderViewport.current = viewport;
+      dragStartViewport.current = interactionViewport;
+      currentRenderViewport.current = interactionViewport;
       dragStartTime.current = Date.now();
 
       // Don't immediately set dragging - wait for actual movement
     },
-    [viewport]
+    [cancelCameraSlide, viewport]
   );
 
   const handleMouseMove = useCallback(
@@ -1042,6 +1130,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
       const canvas = canvasRef.current;
       if (!canvas) return;
+      const slideViewport = cancelCameraSlide();
+      const interactionViewport = slideViewport ?? viewport;
 
       const touch = event.touches[0];
       const rect = canvas.getBoundingClientRect();
@@ -1054,8 +1144,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       // Prepare drag like mouse: don't set dragging until we move beyond threshold
       setIsDragging(false);
       dragStart.current = { x: canvasX, y: canvasY };
-      dragStartViewport.current = viewport;
-      currentRenderViewport.current = viewport;
+      dragStartViewport.current = interactionViewport;
+      currentRenderViewport.current = interactionViewport;
       dragStartTime.current = Date.now();
 
       longPressFiredRef.current = false;
@@ -1077,7 +1167,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
             deactivateGotoMode();
           } else if (rendererRef.current) {
             // Open unit context menu or city info at touch position
-            const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, viewport);
+            const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, interactionViewport);
             const tileX = Math.floor(mapPos.mapX);
             const tileY = Math.floor(mapPos.mapY);
 
@@ -1106,6 +1196,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       event.preventDefault();
     },
     [
+      cancelCameraSlide,
       viewport,
       gotoMode.active,
       deactivateGotoMode,

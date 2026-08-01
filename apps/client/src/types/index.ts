@@ -25,6 +25,7 @@ export interface Unit {
   x: number;
   y: number;
   hp: number;
+  maxHp?: number;
   attack?: number;
   defense?: number;
   firepower?: number;
@@ -67,6 +68,39 @@ export interface Unit {
     unitActions?: string[];
     availableWorkerActions?: string[];
   };
+  /** Set only when the server is asking the player to choose a unit action. */
+  actionDecisionWant?: boolean;
+}
+
+export interface PresentationEffect {
+  id: string;
+  type: 'combat' | 'nuclear' | 'marker';
+  x: number;
+  y: number;
+  startedAt: number;
+  durationMs?: number;
+  style?: 'swords' | 'explosion';
+  tiles?: Array<{ x: number; y: number }>;
+  combatants?: PresentationCombatant[];
+  /** Internal delivery metadata used to correlate a command reply with its server broadcast. */
+  correlationKey?: string;
+  origin?: 'server' | 'reply' | 'correlated';
+}
+
+export interface PresentationCombatant {
+  id: string;
+  role: 'attacker' | 'defender';
+  playerId: string;
+  unitTypeId: string;
+  x: number;
+  y: number;
+  hpBefore: number;
+  hpAfter: number;
+  movesLeft?: number;
+  veteranLevel?: number;
+  fortified?: boolean;
+  activity?: unknown;
+  destroyed: boolean;
 }
 
 export interface ProductionOption {
@@ -254,6 +288,8 @@ export interface Player {
   id: string;
   name: string;
   nation: string;
+  /** Tileset flag suffix, e.g. `rome` for the `roman` nation. */
+  nationGraphic?: string;
   color: string;
   gold: number;
   goldPerTurn?: number;
@@ -403,6 +439,8 @@ export interface GameState {
     wrap_id?: number;
   };
   units: Record<string, Unit>;
+  /** Ephemeral Canvas-only effects; never authoritative game state. */
+  presentationEffects?: PresentationEffect[];
   cities: Record<string, City>;
   technologies: Record<string, Technology>;
   research?: ResearchState;

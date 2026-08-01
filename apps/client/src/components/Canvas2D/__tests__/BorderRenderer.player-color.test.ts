@@ -3,6 +3,18 @@ import { BorderRenderer } from '../renderers/BorderRenderer';
 import type { RenderState } from '../renderers/BaseRenderer';
 
 describe('BorderRenderer player colors', () => {
+  it('reports whether the reference moving-border loop should remain active', () => {
+    const context = {
+      canvas: { width: 800, height: 600 },
+    } as unknown as CanvasRenderingContext2D;
+    const renderer = new BorderRenderer(context, {} as never, 96, 48, {
+      drawMovingBorders: true,
+    });
+
+    expect(renderer.hasActiveAnimation()).toBe(true);
+    expect(renderer.hasActiveAnimation(true)).toBe(false);
+  });
+
   it('uses the assigned color for an AI-owned border', () => {
     const strokeColors: string[] = [];
     const context = {

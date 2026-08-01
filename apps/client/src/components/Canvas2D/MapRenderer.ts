@@ -8,6 +8,7 @@ import { CityRenderer } from './renderers/CityRenderer';
 import { PathRenderer } from './renderers/PathRenderer';
 import { BorderRenderer } from './renderers/BorderRenderer';
 import { FogRenderer } from './renderers/FogRenderer';
+import { PresentationEffectRenderer } from './renderers/PresentationEffectRenderer';
 import { rulesetService } from '../../services/RulesetService';
 import { resolveGraphic } from '../../services/PresentationResolver';
 import type { RenderState } from './renderers/BaseRenderer';
@@ -49,6 +50,7 @@ export class MapRenderer {
   private pathRenderer: PathRenderer;
   private borderRenderer: BorderRenderer;
   private fogRenderer: FogRenderer;
+  private presentationEffectRenderer: PresentationEffectRenderer;
   private fogOfWarEnabled = true;
   private currentMap: GameState['map'] = { width: 0, height: 0, tiles: {} };
 
@@ -85,6 +87,12 @@ export class MapRenderer {
       this.tileHeight
     );
     this.fogRenderer = new FogRenderer(ctx, this.tilesetLoader, this.tileWidth, this.tileHeight);
+    this.presentationEffectRenderer = new PresentationEffectRenderer(
+      ctx,
+      this.tilesetLoader,
+      this.tileWidth,
+      this.tileHeight
+    );
   }
 
   async initialize(): Promise<void> {
@@ -109,6 +117,7 @@ export class MapRenderer {
       this.pathRenderer.updateTileSize(this.tileWidth, this.tileHeight);
       this.borderRenderer.updateTileSize(this.tileWidth, this.tileHeight);
       this.fogRenderer.updateTileSize(this.tileWidth, this.tileHeight);
+      this.presentationEffectRenderer.updateTileSize(this.tileWidth, this.tileHeight);
       const terrainGraphics = Object.fromEntries(
         Object.entries(presentation.terrains)
           .map(([id, definition]) => [
@@ -122,6 +131,7 @@ export class MapRenderer {
       this.unitRenderer.setTerrainGraphics(terrainGraphics);
       this.cityRenderer.setTerrainGraphics(terrainGraphics);
       this.unitRenderer.setUnitGraphics(presentation.units);
+      this.unitRenderer.setActivityGraphics(presentation.extras);
       this.cityRenderer.setCityStyles(
         presentation.city_styles,
         presentation.nation_styles,
@@ -247,8 +257,24 @@ export class MapRenderer {
     // LAYER_SPECIAL2: Empty layer in our implementation (handled by specific renderers)
     // In freeciv-web this handles airbase, buoy, etc. but not resources
 
-    // LAYER_UNIT: Render units layer ON TOP of cities
-    this.unitRenderer.renderUnits(state);
+    // LAYER_UNIT: Render units layer ON TOP of cities. During combat, replace
+    // authoritative unit records with ephemeral visual copies so immediate
+    // server removal cannot cut off the death animation or health timeline.
+    const presentationUnitOverrides =
+      this.presentationEffectRenderer?.getUnitOverrides?.(state) ?? {};
+    const presentationState = Object.keys(presentationUnitOverrides).length
+      ? {
+          ...state,
+          units: { ...state.units, ...presentationUnitOverrides },
+        }
+      : state;
+    this.unitRenderer.renderUnits(presentationState);
+
+    // Presentation effects sit above units but below fog so they cannot reveal
+    // information from an unauthorized tile.
+    const hasActivePresentationEffects = this.presentationEffectRenderer?.render(state) ?? false;
+    const hasActiveBorderAnimation =
+      this.borderRenderer.hasActiveAnimation?.(state.reducedMotion) ?? false;
 
     // LAYER_FOG: Freeciv draws fog after units so unseen dynamic entities
     // cannot leak through the remembered terrain layer.
@@ -260,12 +286,17 @@ export class MapRenderer {
     this.pathRenderer.renderPaths(state);
 
     // Keep the selected-unit highlight above movement and path overlays.
-    this.unitRenderer.renderUnitSelection(state);
+    this.unitRenderer.renderUnitSelection(presentationState);
 
     // Keep the selected unit and its annotation above the selection highlight.
-    this.unitRenderer.renderSelectedUnit?.(state);
+    this.unitRenderer.renderSelectedUnit?.(presentationState);
 
-    if (this.unitRenderer.hasActiveMovementAnimations() && this.movementAnimationFrameId === null) {
+    if (
+      (this.unitRenderer.hasActiveMovementAnimations() ||
+        hasActivePresentationEffects ||
+        hasActiveBorderAnimation) &&
+      this.movementAnimationFrameId === null
+    ) {
       this.movementAnimationFrameId = requestAnimationFrame(() => {
         this.movementAnimationFrameId = null;
         if (this.renderState) this.render(this.renderState, true);

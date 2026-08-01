@@ -14,6 +14,8 @@ import type {
   ProductionOption,
   CityBatchAction,
   CityBatchResult,
+  PresentationEffect,
+  PresentationCombatant,
   TreatyClause,
   TreatyClauseType,
 } from '../types';
@@ -256,6 +258,36 @@ export class GameClient {
       }
     });
 
+    this.socket.on('combat_occurred', data => {
+      if (typeof data?.x !== 'number' || typeof data?.y !== 'number') return;
+      const combatants = this.normalizePresentationCombatants(data.combatants);
+      this.addPresentationEffect({
+        id: String(data.eventId ?? `combat:${data.x}:${data.y}:${Date.now()}`),
+        type: 'combat',
+        x: data.x,
+        y: data.y,
+        style: data.style === 'swords' ? 'swords' : 'explosion',
+        combatants,
+        correlationKey: this.getCombatCorrelationKey(combatants),
+        origin: 'server',
+      });
+    });
+
+    this.socket.on('nuclear_explosion', data => {
+      if (typeof data?.x !== 'number' || typeof data?.y !== 'number') return;
+      this.addPresentationEffect({
+        id: String(data.eventId ?? `nuke:${data.x}:${data.y}:${Date.now()}`),
+        type: 'nuclear',
+        x: data.x,
+        y: data.y,
+        tiles: Array.isArray(data.tiles)
+          ? data.tiles.filter(
+              (tile: any) => typeof tile?.x === 'number' && typeof tile?.y === 'number'
+            )
+          : undefined,
+      });
+    });
+
     // Handle city founding
     this.socket.on('city_founded', data => {
       clientLogger.debug('City founded:', data);
@@ -358,6 +390,7 @@ export class GameClient {
           id: packet.data.id,
           name: packet.data.name,
           nation: packet.data.nation,
+          nationGraphic: packet.data.nationGraphic ?? players[packet.data.id]?.nationGraphic,
           color: playerColorToHex(packet.data.color), // Convert RGB to hex
           gold: packet.data.gold,
           goldPerTurn: packet.data.goldPerTurn ?? 0,
@@ -441,6 +474,7 @@ export class GameClient {
               x: normalizedUnit.x,
               y: normalizedUnit.y,
               hp: normalizedUnit.hp,
+              maxHp: normalizedUnit.maxHp,
               attack: normalizedUnit.attack,
               defense: normalizedUnit.defense,
               firepower: normalizedUnit.firepower,
@@ -472,6 +506,7 @@ export class GameClient {
               transportedBy: normalizedUnit.transportedBy,
               cargoUnits: normalizedUnit.cargoUnits,
               capabilities: normalizedUnit.capabilities,
+              actionDecisionWant: normalizedUnit.actionDecisionWant,
             };
 
             // Check if unit position changed and clear cached paths if so
@@ -492,6 +527,25 @@ export class GameClient {
           });
         }
         break;
+
+      case PacketType.UNIT_ATTACK_REPLY: {
+        const combatResult = packet.data.combatResult;
+        if (packet.data.success && combatResult) {
+          const unit = useGameStore.getState().units[combatResult.defenderId];
+          if (unit) {
+            this.addPresentationEffect({
+              id: `combat:${combatResult.attackerId}:${combatResult.defenderId}:${Date.now()}`,
+              type: 'combat',
+              x: unit.x,
+              y: unit.y,
+              style: 'explosion',
+              correlationKey: `combat:${combatResult.attackerId}:${combatResult.defenderId}`,
+              origin: 'reply',
+            });
+          }
+        }
+        break;
+      }
 
       case PacketType.UNIT_MOVE_REPLY:
         clientLogger.debug('Unit move reply:', packet.data);
@@ -759,6 +813,97 @@ export class GameClient {
     };
   }
 
+  private addPresentationEffect(effect: Omit<PresentationEffect, 'startedAt'>): void {
+    const state = useGameStore.getState();
+    const now = performance.now();
+    const effects = state.presentationEffects ?? [];
+    const exactDuplicateIndex = effects.findIndex(item => item.id === effect.id);
+    const correlatedDuplicateIndex = effect.correlationKey
+      ? effects.findIndex(
+          item =>
+            item.type === effect.type &&
+            item.correlationKey === effect.correlationKey &&
+            ((item.origin === 'server' && effect.origin === 'reply') ||
+              (item.origin === 'reply' && effect.origin === 'server')) &&
+            now - item.startedAt >= 0 &&
+            now - item.startedAt < 500
+        )
+      : -1;
+    const duplicateIndex =
+      exactDuplicateIndex >= 0 ? exactDuplicateIndex : correlatedDuplicateIndex;
+    if (duplicateIndex >= 0) {
+      const existing = effects[duplicateIndex];
+      const shouldMerge =
+        correlatedDuplicateIndex >= 0 ||
+        Boolean(effect.combatants?.length && !existing.combatants?.length);
+      if (shouldMerge) {
+        const serverEffect = effect.origin === 'server' ? effect : existing;
+        const mergedEffects = [...effects];
+        mergedEffects[duplicateIndex] = {
+          ...existing,
+          ...effect,
+          id: serverEffect.id,
+          startedAt: existing.startedAt,
+          combatants: effect.combatants?.length ? effect.combatants : existing.combatants,
+          origin: correlatedDuplicateIndex >= 0 ? 'correlated' : existing.origin,
+        };
+        state.updateGameState({ presentationEffects: mergedEffects });
+      }
+      return;
+    }
+
+    state.updateGameState({
+      presentationEffects: [...effects, { ...effect, startedAt: now }].slice(-64),
+    });
+  }
+
+  private getCombatCorrelationKey(
+    combatants: PresentationCombatant[] | undefined
+  ): string | undefined {
+    const attacker = combatants?.find(combatant => combatant.role === 'attacker');
+    const defender = combatants?.find(combatant => combatant.role === 'defender');
+    return attacker && defender ? `combat:${attacker.id}:${defender.id}` : undefined;
+  }
+
+  private normalizePresentationCombatants(data: unknown): PresentationCombatant[] | undefined {
+    if (!Array.isArray(data)) return undefined;
+
+    const combatants = data.flatMap((value: any) => {
+      if (
+        !value ||
+        typeof value.id !== 'string' ||
+        (value.role !== 'attacker' && value.role !== 'defender') ||
+        typeof value.playerId !== 'string' ||
+        typeof value.unitTypeId !== 'string' ||
+        typeof value.x !== 'number' ||
+        typeof value.y !== 'number' ||
+        typeof value.hpBefore !== 'number' ||
+        typeof value.hpAfter !== 'number' ||
+        typeof value.destroyed !== 'boolean'
+      ) {
+        return [];
+      }
+      return [
+        {
+          id: value.id,
+          role: value.role,
+          playerId: value.playerId,
+          unitTypeId: value.unitTypeId,
+          x: value.x,
+          y: value.y,
+          hpBefore: Math.max(0, value.hpBefore),
+          hpAfter: Math.max(0, value.hpAfter),
+          movesLeft: value.movesLeft,
+          veteranLevel: value.veteranLevel,
+          fortified: value.fortified,
+          activity: value.activity,
+          destroyed: value.destroyed,
+        } satisfies PresentationCombatant,
+      ];
+    });
+    return combatants.length > 0 ? combatants : undefined;
+  }
+
   private normalizeCityData(cityData: any): any {
     const production =
       cityData.production ??
@@ -823,6 +968,7 @@ export class GameClient {
     useGameStore.setState({
       map: this.mapSnapshots.begin(data),
       hasReceivedUnitSnapshot: false,
+      presentationEffects: [],
     });
   }
 

@@ -445,6 +445,12 @@ export class GameInstanceRecoveryService extends BaseGameService {
       rulesetUnitsService.getUnitTypes(rulesetName),
       identities
     );
+    unitManager.setCombatPresentationCallback(event =>
+      this.broadcastManager.broadcastCombatOccurred(gameId, event)
+    );
+    unitManager.setNuclearPresentationCallback(event =>
+      this.broadcastManager.broadcastNuclearExplosion(gameId, event)
+    );
     cityManager.setUnitProvider(() => unitManager.getAllUnits());
     cityManager.setCallbacks({
       onCityProductionComplete: async (city, item) => {

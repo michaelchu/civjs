@@ -20,9 +20,31 @@ export interface RulesetRequirement {
 }
 
 export interface GraphicDefinition {
+  name?: string;
+  rule_name?: string;
   graphic?: string;
   graphic_alt?: string;
   graphic_alt2?: string;
+  activity_gfx?: string;
+  act_gfx_alt?: string;
+  act_gfx_alt2?: string;
+  offsets?: UnitOverlayOffsets;
+}
+
+export interface UnitOverlayOffsets {
+  unitX: number;
+  unitY: number;
+  shieldX: number;
+  shieldY: number;
+  veteranX: number;
+  veteranY: number;
+  stackX: number;
+  stackY: number;
+  stackRingX: number;
+  stackRingY: number;
+  stackRingKey: 'unit.stk_shld_l' | 'unit.stk_shld_r';
+  shieldRight: boolean;
+  shieldYAligned: boolean;
 }
 
 export interface NationStyle {

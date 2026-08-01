@@ -14,6 +14,7 @@ import { GameManager } from '@game/managers/GameManager';
 import { CityDataService } from '@game/services/CityDataService';
 import { resolveCityPresentations } from '@game/services/CityPresentationService';
 import { resolvePlayerScore } from '@game/services/PlayerScoreService';
+import { resolveNationGraphic } from '@game/services/NationPresentationService';
 
 /**
  * Handles game management packets: creation, joining, starting, listing, deletion
@@ -624,6 +625,7 @@ export class GameManagementHandler extends BaseSocketHandler {
         x: unit.x,
         y: unit.y,
         hp: unit.health,
+        maxHp: unitType?.hp ?? 100,
         attack: unitType?.attack ?? unitType?.combat ?? 0,
         defense: unitType?.defense ?? 0,
         firepower: unitType?.firepower ?? 1,
@@ -745,10 +747,13 @@ export class GameManagementHandler extends BaseSocketHandler {
 
   private formatSnapshotPlayer(player: any, gameInstance?: any): any {
     const value = (field: string, fallback: any) => player[field] ?? fallback;
+    const nation = value('nation', player.civilization);
+    const rulesetName = gameInstance?.config?.ruleset ?? 'classic';
     return {
       id: player.id,
       name: value('leaderName', player.civilization),
-      nation: value('nation', player.civilization),
+      nation,
+      nationGraphic: resolveNationGraphic(nation, rulesetName),
       score: resolvePlayerScore(player.score, this.getSnapshotScoreInputs(player, gameInstance)),
       gold: value('gold', 0),
       goldPerTurn: value('goldPerTurn', 0),

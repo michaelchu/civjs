@@ -16,6 +16,8 @@ import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import { calculatePlayerScore } from '@game/services/PlayerScoreService';
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 import { visibleResourceForPlayer } from '@game/services/ResourceVisibilityService';
+import { resolveNationGraphic } from '@game/services/NationPresentationService';
+import type { CombatPresentationEvent, NuclearPresentationEvent } from '@app-types/presentation';
 
 const LOBBY_EVENTS = new Set(['player-joined', 'player-connection-changed']);
 
@@ -24,6 +26,7 @@ export interface BroadcastService {
   broadcastPacketToGame(gameId: string, packetType: PacketType, data: any): void;
   broadcastMapData(gameId: string, mapData: any): void;
   broadcastUnitInfo(gameId: string, unit: any): void;
+  broadcastCombatOccurred(gameId: string, event: CombatPresentationEvent): void;
   broadcastVisibilityState(gameId: string): void;
   broadcastCityData(gameId: string): void;
   broadcastCityDataToPlayer(gameId: string, playerId: string): void;
@@ -165,6 +168,59 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     }
 
     this.broadcastVisibilityState(gameId);
+  }
+
+  broadcastCombatOccurred(gameId: string, event: CombatPresentationEvent): void {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) return;
+
+    for (const [playerId, player] of gameInstance.players) {
+      const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
+      const isParticipant = event.playerIds.includes(playerId);
+      if (!isParticipant && !visibleTiles.has(`${event.x},${event.y}`)) continue;
+      const combatants = isParticipant
+        ? event.combatants
+        : event.combatants?.filter(combatant => visibleTiles.has(`${combatant.x},${combatant.y}`));
+      const recipientId = player?.userId || playerId;
+      this.io.to(`player:${recipientId}`).emit('combat_occurred', {
+        gameId,
+        eventId: event.eventId,
+        x: event.x,
+        y: event.y,
+        style: event.style ?? 'explosion',
+        attackerDamage: event.attackerDamage,
+        defenderDamage: event.defenderDamage,
+        attackerDestroyed: event.attackerDestroyed,
+        defenderDestroyed: event.defenderDestroyed,
+        combatants,
+      });
+    }
+  }
+
+  broadcastNuclearExplosion(gameId: string, event: NuclearPresentationEvent): void {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) return;
+
+    for (const [playerId, player] of gameInstance.players) {
+      const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
+      const isOwner = playerId === event.playerId;
+      const visibleAffectedTiles = isOwner
+        ? event.affectedTiles
+        : event.affectedTiles.filter(tile => visibleTiles.has(`${tile.x},${tile.y}`));
+      if (visibleAffectedTiles.length === 0) continue;
+      const centerVisible = isOwner || visibleTiles.has(`${event.x},${event.y}`);
+      const presentationAnchor = centerVisible
+        ? { x: event.x, y: event.y }
+        : visibleAffectedTiles[0];
+      const recipientId = player?.userId || playerId;
+      this.io.to(`player:${recipientId}`).emit('nuclear_explosion', {
+        gameId,
+        eventId: event.eventId,
+        x: presentationAnchor.x,
+        y: presentationAnchor.y,
+        tiles: visibleAffectedTiles,
+      });
+    }
   }
 
   /**
@@ -422,10 +478,13 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         ).length,
       0
     );
+    const rulesetName = gameInstance.config?.ruleset ?? 'classic';
+    const nation = this.playerValue(player.nation, player.civilization);
     return {
       id: player.id,
       name: this.playerValue(player.leaderName, player.civilization),
-      nation: this.playerValue(player.nation, player.civilization),
+      nation,
+      nationGraphic: resolveNationGraphic(nation, rulesetName),
       score: calculatePlayerScore({
         cities,
         units,
@@ -890,6 +949,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       maxFuel: this.unitValue(unitType?.fuel, 0),
       transportCapacity: this.unitValue(unitType?.transport_capacity, 0),
       hp: this.unitValue(unit.health, 100),
+      maxHp: this.unitValue(unitType?.hp, 100),
       ...this.getUnitCombatStats(unitType),
       veteran: this.unitValue(unit.veteranLevel, false),
       homeCity: this.unitValue(unit.homeCity, null),
@@ -904,6 +964,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         unitType,
         unitManager.getAvailableWorkerActions?.(unit.id)
       ),
+      actionDecisionWant: Boolean(unit.actionDecisionWant),
       nationality: this.unitValue(unit.nationality, unit.playerId),
       upkeep: [
         this.unitValue(unitType?.uk_food, 0),

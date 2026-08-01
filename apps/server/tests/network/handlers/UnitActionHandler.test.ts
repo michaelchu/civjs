@@ -44,6 +44,7 @@ describe('UnitActionHandler', () => {
       getGameInstance: jest.fn(),
       broadcastUnitInfo: jest.fn(),
       broadcastUnitDestroyed: jest.fn(),
+      broadcastNuclearExplosion: jest.fn(),
       broadcastCityData: jest.fn(),
       syncGameStateToPlayer: jest.fn(),
       executeDiplomatAction: jest.fn(),

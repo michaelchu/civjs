@@ -1,15 +1,42 @@
 import type { Unit, MapViewport } from '../../../types';
+import type { GraphicDefinition, UnitOverlayOffsets } from '../../../services/RulesetService';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
 
 export class UnitRenderer extends BaseRenderer {
-  private unitGraphics: Record<string, { graphic?: string; graphic_alt?: string }> = {};
+  private readonly unitActivityOffset = { x: 55, y: -25 };
+  private readonly defaultUnitOverlayOffsets: UnitOverlayOffsets = {
+    unitX: 16,
+    unitY: -11,
+    shieldX: 25,
+    shieldY: -15,
+    veteranX: 35,
+    veteranY: -35,
+    stackX: 0,
+    stackY: -31,
+    stackRingX: 0,
+    stackRingY: -31,
+    stackRingKey: 'unit.stk_shld_l',
+    shieldRight: false,
+    shieldYAligned: false,
+  };
+  private unitGraphics: Record<
+    string,
+    { graphic?: string; graphic_alt?: string; offsets?: UnitOverlayOffsets }
+  > = {};
+  private activityGraphics: Record<string, GraphicDefinition> = {};
+  private missingNationShieldDiagnostics = new Set<string>();
   // Animation state for unit selection
   private selectionAnimationStartTime: number | null = null;
   private lastSelectedUnitId: string | null = null;
   private lastPositions = new Map<string, { x: number; y: number }>();
+  private lastTransportedState = new Map<string, boolean>();
+  private readonly maxMovementAnimations = 30;
   private movementAnimations = new Map<
     string,
-    { fromX: number; fromY: number; toX: number; toY: number; startedAt: number }
+    {
+      segments: Array<{ fromX: number; fromY: number; toX: number; toY: number }>;
+      startedAt: number;
+    }
   >();
   private readonly movementDurationMs = 180;
 
@@ -22,20 +49,37 @@ export class UnitRenderer extends BaseRenderer {
     const activeIds = new Set(Object.keys(state.units));
     for (const unit of Object.values(state.units)) {
       const previous = this.lastPositions.get(unit.id);
-      if (previous && (previous.x !== unit.x || previous.y !== unit.y)) {
-        this.movementAnimations.set(unit.id, {
-          fromX: previous.x,
-          fromY: previous.y,
-          toX: unit.x,
-          toY: unit.y,
-          startedAt: now,
-        });
+      const wasTransported = this.lastTransportedState.get(unit.id) ?? false;
+      const isTransported = Boolean(unit.transportedBy);
+      if (isTransported || wasTransported) {
+        this.movementAnimations.delete(unit.id);
+      } else if (previous && (previous.x !== unit.x || previous.y !== unit.y)) {
+        const current = this.movementAnimations.get(unit.id);
+        const segments = current
+          ? [
+              ...current.segments,
+              {
+                fromX: current.segments.at(-1)?.toX ?? previous.x,
+                fromY: current.segments.at(-1)?.toY ?? previous.y,
+                toX: unit.x,
+                toY: unit.y,
+              },
+            ]
+          : [{ fromX: previous.x, fromY: previous.y, toX: unit.x, toY: unit.y }];
+        if (current || this.movementAnimations.size < this.maxMovementAnimations) {
+          this.movementAnimations.set(unit.id, {
+            segments,
+            startedAt: current?.startedAt ?? now,
+          });
+        }
       }
       this.lastPositions.set(unit.id, { x: unit.x, y: unit.y });
+      this.lastTransportedState.set(unit.id, isTransported);
     }
     for (const unitId of this.lastPositions.keys()) {
       if (!activeIds.has(unitId)) {
         this.lastPositions.delete(unitId);
+        this.lastTransportedState.delete(unitId);
         this.movementAnimations.delete(unitId);
       }
     }
@@ -89,14 +133,14 @@ export class UnitRenderer extends BaseRenderer {
       focusedUnits.forEach((unitId, index) => {
         const unit = state.units[unitId];
         if (unit && this.isInViewport(unit.x, unit.y, state.viewport)) {
-          this.renderUnitSelectionOutline(unit, state.viewport, index === 0);
+          this.renderUnitSelectionOutline(unit, state.viewport, index === 0, state.reducedMotion);
         }
       });
     } else if (state.selectedUnitId) {
       // Fallback to legacy single selection
       const selectedUnit = state.units[state.selectedUnitId];
       if (selectedUnit && this.isInViewport(selectedUnit.x, selectedUnit.y, state.viewport)) {
-        this.renderUnitSelectionOutline(selectedUnit, state.viewport, true);
+        this.renderUnitSelectionOutline(selectedUnit, state.viewport, true, state.reducedMotion);
       }
     } else {
       // Reset animation state when no unit is selected
@@ -114,19 +158,26 @@ export class UnitRenderer extends BaseRenderer {
 
     // Get unit animation offset for smooth movement
     // @reference freeciv-web/.../unit.js:get_unit_anim_offset()
-    const animOffset = this.getUnitAnimOffset(unit, viewport);
+    const animOffset = this.getUnitAnimOffset(unit, viewport, state.reducedMotion);
 
-    // Apply freeciv-web's unit positioning offsets to properly center units on tiles
-    // @reference freeciv-web/tileset_config_amplio2.js: unit_offset_x = 19, unit_offset_y = 14
-    // @reference freeciv-web/tilespec.js fill_unit_sprite_array(): "offset_y" : unit_offset['y'] - unit_offset_y
-    const UNIT_OFFSET_X = 19;
-    const UNIT_OFFSET_Y = 14;
-    const unitX = screenPos.x + animOffset.x + UNIT_OFFSET_X;
-    const unitY = screenPos.y + animOffset.y - UNIT_OFFSET_Y; // Note: negative Y offset like freeciv-web
+    // Sprite offsets are relative to the tile origin, matching the reference
+    // fill_unit_sprite_array() contract. Unit-specific UO_* adjustments are
+    // supplied by the ruleset presentation endpoint.
+    const originX = screenPos.x + animOffset.x;
+    const originY = screenPos.y + animOffset.y;
+    const offsets = this.getUnitOverlayOffsets(unit);
+    const unitX = originX + offsets.unitX;
+    const unitY = originY + offsets.unitY;
 
     // Render unit sprites using freeciv-web approach
     // @reference freeciv-web/.../tilespec.js:fill_unit_sprite_array()
-    const unitSprites = this.fillUnitSpriteArray(unit, stackSize, state);
+    const nationShield = this.getUnitNationFlagSprite(state.players[unit.playerId], offsets);
+    const unitSprites = this.fillUnitSpriteArray(
+      unit,
+      nationShield,
+      offsets,
+      unit.actionDecisionWant || state.actionDecisionUnitId === unit.id
+    );
 
     for (const spriteInfo of unitSprites) {
       if (spriteInfo.key) {
@@ -135,7 +186,7 @@ export class UnitRenderer extends BaseRenderer {
           const offsetX = spriteInfo.offset_x || 0;
           const offsetY = spriteInfo.offset_y || 0;
 
-          this.ctx.drawImage(sprite, unitX + offsetX, unitY + offsetY);
+          this.ctx.drawImage(sprite, originX + offsetX, originY + offsetY);
         } else if (spriteInfo.required) {
           // Freeciv tries the ruleset alternate graphic before a local placeholder.
           const alternateGraphic = this.unitGraphics[unit.unitTypeId]?.graphic_alt;
@@ -153,9 +204,19 @@ export class UnitRenderer extends BaseRenderer {
       }
     }
 
-    // Render health bar if unit is damaged
-    if (unit.hp < 100) {
-      this.renderUnitHealthBar(unit, unitX, unitY);
+    if (nationShield?.fallback) {
+      this.renderNationShieldFallback(
+        originX + nationShield.offset_x,
+        originY + nationShield.offset_y,
+        state.players[unit.playerId]?.color
+      );
+    }
+
+    // Reference draws the HP/stack/veteran overlays only while stationary.
+    // During movement they remain attached to the authoritative unit sprite
+    // and are reintroduced on the next settled frame.
+    if (animOffset.x === 0 && animOffset.y === 0) {
+      this.renderUnitIndicatorSprites(unit, stackSize, originX, originY, offsets, state);
     }
 
     this.renderUnitAnnotation(unit, unitX, unitY, stackSize, state);
@@ -211,23 +272,32 @@ export class UnitRenderer extends BaseRenderer {
    * Get unit animation offset for smooth movement
    * @reference freeciv-web/.../unit.js:get_unit_anim_offset()
    */
-  private getUnitAnimOffset(unit: Unit, viewport: MapViewport): { x: number; y: number } {
+  private getUnitAnimOffset(
+    unit: Unit,
+    viewport: MapViewport,
+    reducedMotion = false
+  ): { x: number; y: number } {
     const animation = this.movementAnimations.get(unit.id);
     if (!animation) return { x: 0, y: 0 };
-    const progress = Math.min(
-      1,
-      (performance.now() - animation.startedAt) / this.movementDurationMs
-    );
-    if (progress >= 1) {
+    if (reducedMotion) {
       this.movementAnimations.delete(unit.id);
       return { x: 0, y: 0 };
     }
+    const elapsed = performance.now() - animation.startedAt;
+    const segmentIndex = Math.floor(elapsed / this.movementDurationMs);
+    if (segmentIndex >= animation.segments.length) {
+      this.movementAnimations.delete(unit.id);
+      return { x: 0, y: 0 };
+    }
+    const segment = animation.segments[segmentIndex];
+    const progress = Math.min(1, (elapsed % this.movementDurationMs) / this.movementDurationMs);
     const easedProgress = 1 - Math.pow(1 - progress, 3);
-    const from = this.mapToScreen(animation.fromX, animation.fromY, viewport);
-    const to = this.mapToScreen(animation.toX, animation.toY, viewport);
+    const from = this.mapToScreen(segment.fromX, segment.fromY, viewport);
+    const to = this.mapToScreen(segment.toX, segment.toY, viewport);
+    const authoritative = this.mapToScreen(unit.x, unit.y, viewport);
     return {
-      x: (from.x - to.x) * (1 - easedProgress),
-      y: (from.y - to.y) * (1 - easedProgress),
+      x: from.x + (to.x - from.x) * easedProgress - authoritative.x,
+      y: from.y + (to.y - from.y) * easedProgress - authoritative.y,
     };
   }
 
@@ -241,8 +311,9 @@ export class UnitRenderer extends BaseRenderer {
    */
   private fillUnitSpriteArray(
     unit: Unit,
-    stackSize: number,
-    state: RenderState
+    nationShield: { key: string; offset_x: number; offset_y: number; fallback?: boolean } | null,
+    offsets: UnitOverlayOffsets,
+    actionDecisionWant: boolean
   ): Array<{ key: string; offset_x?: number; offset_y?: number; required?: boolean }> {
     const sprites: Array<{
       key: string;
@@ -253,9 +324,8 @@ export class UnitRenderer extends BaseRenderer {
 
     // Get nation flag sprite
     // @reference freeciv-web: get_unit_nation_flag_sprite(punit)
-    const flagSprite = this.getUnitNationFlagSprite(state.players[unit.playerId]?.nation);
-    if (flagSprite) {
-      sprites.push(flagSprite);
+    if (nationShield && !nationShield.fallback) {
+      sprites.push(nationShield);
     }
 
     // Get main unit graphic
@@ -263,8 +333,8 @@ export class UnitRenderer extends BaseRenderer {
     const unitGraphic = this.getUnitTypeGraphicTag(unit.unitTypeId);
     sprites.push({
       key: unitGraphic,
-      offset_x: 0,
-      offset_y: 0,
+      offset_x: offsets.unitX,
+      offset_y: offsets.unitY,
       required: true,
     });
 
@@ -273,20 +343,86 @@ export class UnitRenderer extends BaseRenderer {
     const activitySprite = this.getUnitActivitySprite(unit);
     if (activitySprite) {
       sprites.push(activitySprite);
+      if (activitySprite.connect) {
+        sprites.push({ key: 'unit.connect', offset_x: -6, offset_y: -6 });
+      }
     }
 
-    // Add stack indicator if multiple units at same position
-    // @reference freeciv-web LAYER_UNIT switch case: handles stackSize display
-    if (stackSize > 1) {
-      const stackIndicator = Math.min(stackSize, 9); // Max 9 in freeciv-web
+    if (actionDecisionWant) {
       sprites.push({
-        key: `unit.stack${stackIndicator}`,
-        offset_x: 0,
-        offset_y: -31,
+        key: 'unit.action_decision_want',
+        offset_x: this.unitActivityOffset.x,
+        offset_y: this.unitActivityOffset.y,
+      });
+    }
+
+    if (unit.veteranLevel > 0) {
+      sprites.push({
+        key: `unit.vet_${Math.min(unit.veteranLevel, 9)}`,
+        offset_x: offsets.veteranX,
+        offset_y: offsets.veteranY,
       });
     }
 
     return sprites;
+  }
+
+  private renderUnitIndicatorSprites(
+    unit: Unit,
+    stackSize: number,
+    originX: number,
+    originY: number,
+    offsets: UnitOverlayOffsets,
+    state: RenderState
+  ): void {
+    const maxHp = Math.max(1, unit.maxHp ?? 100);
+    const hpPercent = this.toFivePercent((unit.hp / maxHp) * 100);
+    const hpKey = `unit.hp_${hpPercent}`;
+    const hasMoveBar =
+      Boolean(state.showUnitMovePoints) &&
+      Number.isFinite(unit.movesLeft) &&
+      Number.isFinite(unit.maxMoves) &&
+      (unit.maxMoves ?? 0) > 0;
+    const movePercent = hasMoveBar
+      ? this.toFivePercent((unit.movesLeft / (unit.maxMoves ?? 1)) * 100)
+      : hpPercent;
+
+    let drewHp = false;
+    if (hasMoveBar) {
+      drewHp =
+        this.drawUnitSpriteIfPresent(`unit.hp_${movePercent}`, originX, originY - 31) || drewHp;
+    }
+    drewHp =
+      this.drawUnitSpriteIfPresent(hpKey, originX, originY - (hasMoveBar ? 36 : 31)) || drewHp;
+
+    // Keep the generic bar as a ruleset/tileset fallback, including full HP.
+    if (!drewHp) this.renderUnitHealthBar(unit, originX, originY);
+
+    if (stackSize > 1) {
+      if (!offsets.shieldYAligned) {
+        this.drawUnitSpriteIfPresent(
+          offsets.stackRingKey,
+          originX + offsets.stackRingX,
+          originY + offsets.stackRingY
+        );
+      }
+      this.drawUnitSpriteIfPresent(
+        `unit.stack${Math.min(stackSize, 9)}`,
+        originX + offsets.stackX,
+        originY + offsets.stackY
+      );
+    }
+  }
+
+  private drawUnitSpriteIfPresent(key: string, x: number, y: number): boolean {
+    const sprite = this.tilesetLoader.getSprite(key);
+    if (!sprite) return false;
+    this.ctx.drawImage(sprite, x, y);
+    return true;
+  }
+
+  private toFivePercent(percent: number): number {
+    return Math.max(0, Math.min(100, Math.round(percent / 5) * 5));
   }
 
   /**
@@ -294,14 +430,54 @@ export class UnitRenderer extends BaseRenderer {
    * @reference freeciv-web: get_unit_nation_flag_sprite()
    */
   private getUnitNationFlagSprite(
-    nation: string | undefined
-  ): { key: string; offset_x?: number; offset_y?: number } | null {
-    if (!nation) return null;
+    player: RenderState['players'][string] | undefined,
+    offsets: UnitOverlayOffsets
+  ): { key: string; offset_x: number; offset_y: number; fallback?: boolean } | null {
+    // A visible unit can arrive before its PLAYER_INFO packet. Keep an
+    // intentional neutral identity cue in that interval rather than making
+    // the flag appear intermittently based on packet order.
+    if (!player?.nation) {
+      return {
+        key: '',
+        fallback: true,
+        offset_x: offsets.shieldX,
+        offset_y: offsets.shieldY,
+      };
+    }
+
+    const graphicCandidates = [player.nationGraphic, player.nation].filter(
+      (graphic): graphic is string => Boolean(graphic)
+    );
+    const keyCandidates = graphicCandidates.flatMap(graphic => [
+      `f.shield.${graphic}`,
+      `f.shld_lg.${graphic}`,
+    ]);
+    const key = keyCandidates.find(candidate => this.tilesetLoader.getSprite(candidate));
+    if (!key) {
+      const diagnosticKey = `${player.nationGraphic ?? player.nation}`;
+      if (!this.missingNationShieldDiagnostics.has(diagnosticKey)) {
+        this.missingNationShieldDiagnostics.add(diagnosticKey);
+        if (import.meta.env.DEV) {
+          console.warn(`Missing nation shield sprite for ${diagnosticKey}`);
+        }
+      }
+      return {
+        key: '',
+        fallback: true,
+        offset_x: offsets.shieldX,
+        offset_y: offsets.shieldY,
+      };
+    }
+
     return {
-      key: `f.shield.${nation}`,
-      offset_x: 25,
-      offset_y: -16,
+      key,
+      offset_x: offsets.shieldX,
+      offset_y: offsets.shieldY,
     };
+  }
+
+  private getUnitOverlayOffsets(unit: Unit): UnitOverlayOffsets {
+    return this.unitGraphics[unit.unitTypeId]?.offsets ?? this.defaultUnitOverlayOffsets;
   }
 
   /**
@@ -329,8 +505,17 @@ export class UnitRenderer extends BaseRenderer {
     return `u.${spriteName}`;
   }
 
-  setUnitGraphics(graphics: Record<string, { graphic?: string; graphic_alt?: string }>): void {
+  setUnitGraphics(
+    graphics: Record<
+      string,
+      { graphic?: string; graphic_alt?: string; offsets?: UnitOverlayOffsets }
+    >
+  ): void {
     this.unitGraphics = graphics;
+  }
+
+  setActivityGraphics(graphics: Record<string, GraphicDefinition>): void {
+    this.activityGraphics = graphics;
   }
 
   /**
@@ -339,28 +524,125 @@ export class UnitRenderer extends BaseRenderer {
    */
   private getUnitActivitySprite(
     unit: Unit
-  ): { key: string; offset_x?: number; offset_y?: number } | null {
-    const activity = typeof unit.activity === 'string' ? unit.activity.toLowerCase() : '';
+  ): { key: string; offset_x?: number; offset_y?: number; connect?: boolean } | null {
+    const activity =
+      typeof unit.activity === 'string'
+        ? unit.activity.toLowerCase()
+        : unit.activity && typeof unit.activity === 'object' && 'type' in unit.activity
+          ? String((unit.activity as { type?: unknown }).type ?? '').toLowerCase()
+          : '';
     const activitySprites: Record<string, string> = {
       road: 'unit.road',
       build_road: 'unit.road',
+      building_road: 'unit.road',
       railroad: 'unit.rail',
       build_railroad: 'unit.rail',
+      building_railroad: 'unit.rail',
       sentry: 'unit.sentry',
+      vigil: 'unit.vigil',
       fortify: 'unit.fortifying',
       fortified: 'unit.fortified',
+      fortify_delay: 'unit.fortify_delay',
+      building_fortress: 'unit.fortress',
+      building_airbase: 'unit.airbase',
+      outpost: 'unit.outpost',
+      patrolling: 'unit.patrol',
+      patrol: 'unit.patrol',
+      patrol_back: 'unit.patrol_back',
       goto: 'unit.goto',
+      goto_delay: 'unit.goto_delay',
+      delayed_goto: 'unit.goto_delay',
       explore: 'unit.auto_explore',
       auto_explore: 'unit.auto_explore',
+      auto_settler: 'unit.auto_settler',
+      cargo: 'unit.cargo',
+      fishing: 'unit.fishing',
+      convert: 'unit.convert',
+      hidden: 'unit.hidden',
+      deepdive: 'unit.deepdive',
       irrigate: 'unit.irrigate',
       irrigation: 'unit.irrigate',
+      irrigating: 'unit.irrigate',
       mine: 'unit.mine',
+      mining: 'unit.mine',
+      cultivating: 'unit.irrigate',
+      cultivate: 'unit.irrigate',
+      planting: 'unit.plant',
+      transforming: 'unit.transform',
       pillage: 'unit.pillage',
+      pillaging: 'unit.pillage',
       pollution: 'unit.pollution',
+      cleaning_pollution: 'unit.pollution',
       fallout: 'unit.fallout',
     };
-    const key = unit.fortified ? 'unit.fortified' : activitySprites[activity];
-    return key ? { key, offset_x: 0, offset_y: 0 } : null;
+    const transportedActivity =
+      unit.transportedBy && (!activity || activity === 'idle' || activity === 'sentry');
+    const targetGraphic = this.getActivityTargetGraphic(unit.activityTarget);
+    const key = transportedActivity
+      ? 'unit.cargo'
+      : unit.fortified
+        ? 'unit.fortified'
+        : unit.automation === 'worker' && activity === 'idle'
+          ? 'unit.auto_settler'
+          : activity === 'road' || activity === 'build_road' || activity === 'building_road'
+            ? (targetGraphic ?? activitySprites[activity])
+            : activity === 'irrigate' || activity === 'irrigation' || activity === 'irrigating'
+              ? ((unit.activityTarget && unit.activityTarget !== '-1'
+                  ? targetGraphic
+                  : undefined) ?? activitySprites[activity])
+              : activity === 'mine' || activity === 'mining'
+                ? unit.activityTarget && unit.activityTarget !== '-1'
+                  ? targetGraphic
+                  : 'unit.plant'
+                : activity === 'base' || activity === 'building_base'
+                  ? (targetGraphic ?? activitySprites[activity])
+                  : activitySprites[activity];
+    if (!key) return null;
+
+    const connectingActivities = new Set([
+      'road',
+      'build_road',
+      'building_road',
+      'railroad',
+      'build_railroad',
+      'building_railroad',
+      'irrigate',
+      'irrigation',
+      'irrigating',
+      'mine',
+      'mining',
+      'cultivate',
+      'cultivating',
+      'planting',
+    ]);
+    return {
+      key,
+      offset_x: this.unitActivityOffset.x,
+      offset_y: this.unitActivityOffset.y,
+      connect:
+        connectingActivities.has(activity) && Array.isArray(unit.orders) && unit.orders.length > 0,
+    };
+  }
+
+  private getActivityTargetGraphic(activityTarget?: string): string | null {
+    if (!activityTarget || activityTarget === '-1') return null;
+    const normalized = String(activityTarget).trim().toLowerCase();
+    const candidates = [normalized, `extra_${normalized}`];
+    const match =
+      candidates.map(candidate => this.activityGraphics[candidate]).find(Boolean) ??
+      Object.values(this.activityGraphics).find(definition => {
+        const names = [definition.name, definition.rule_name]
+          .filter(Boolean)
+          .map(value => value!.trim().toLowerCase());
+        return names.includes(normalized);
+      });
+    if (!match) return null;
+
+    return (
+      [match.activity_gfx, match.act_gfx_alt, match.act_gfx_alt2].find(graphic =>
+        Boolean(graphic && graphic !== '-' && graphic !== 'None')
+      ) ?? null
+    );
   }
 
   /**
@@ -381,6 +663,16 @@ export class UnitRenderer extends BaseRenderer {
       x + this.tileWidth / 2,
       y + this.tileHeight / 2 + 4
     );
+  }
+
+  /** Render a visible identity cue when a ruleset omits a matching atlas flag. */
+  private renderNationShieldFallback(x: number, y: number, color = '#64748b'): void {
+    this.ctx.fillStyle = color;
+    this.ctx.fillRect(x, y, 14, 14);
+    this.ctx.fillStyle = 'rgba(15, 23, 42, 0.65)';
+    this.ctx.fillRect(x + 2, y + 2, 10, 10);
+    this.ctx.fillStyle = '#f8fafc';
+    this.ctx.fillRect(x + 5, y + 5, 4, 4);
   }
 
   /**
@@ -407,7 +699,9 @@ export class UnitRenderer extends BaseRenderer {
     // Border
     this.ctx.strokeStyle = '#000000';
     this.ctx.lineWidth = 1;
-    this.ctx.strokeRect(barX, barY, barWidth, barHeight);
+    if (typeof this.ctx.strokeRect === 'function') {
+      this.ctx.strokeRect(barX, barY, barWidth, barHeight);
+    }
   }
 
   /**
@@ -425,9 +719,13 @@ export class UnitRenderer extends BaseRenderer {
   private renderUnitSelectionOutline(
     unit: Unit,
     viewport: MapViewport,
-    isPrimary: boolean = true
+    isPrimary: boolean = true,
+    reducedMotion = false
   ): void {
     const screenPos = this.mapToScreen(unit.x, unit.y, viewport);
+    const movementOffset = this.getUnitAnimOffset(unit, viewport, reducedMotion);
+    screenPos.x += movementOffset.x;
+    screenPos.y += movementOffset.y;
 
     // Reset animation when unit selection changes
     if (this.lastSelectedUnitId !== unit.id) {
@@ -440,8 +738,19 @@ export class UnitRenderer extends BaseRenderer {
       }
     }
 
+    // Prefer the atlas animation used by freeciv-web; retain the procedural
+    // diamond below as a fallback for reduced/custom tilesets.
+    const selectionFrame = reducedMotion ? 0 : Math.floor(Date.now() / 125) % 4;
+    const selectionSprite = this.tilesetLoader.getSprite(`unit.select${selectionFrame}`);
+    if (selectionSprite) {
+      this.ctx.drawImage(selectionSprite, screenPos.x, screenPos.y);
+      return;
+    }
+
     // Create pulsating effect using time-based animation that starts at brightest level
-    const currentTime = Date.now();
+    const currentTime = reducedMotion
+      ? (this.selectionAnimationStartTime ?? Date.now())
+      : Date.now();
     const elapsedTime = this.selectionAnimationStartTime
       ? currentTime - this.selectionAnimationStartTime
       : 0;

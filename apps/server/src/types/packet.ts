@@ -82,6 +82,8 @@ export const UnitInfoSchema = z.object({
   veteran: z.number(), // UINT8 veteran
   type: z.string(), // UNIT_TYPE type
   hp: z.number(), // HP hp
+  maxHp: z.number().optional(), // UNIT_TYPE maximum hit points for atlas HP overlays
+  actionDecisionWant: z.boolean().optional(), // ACTION_DECISION state when supplied
   attack: z.number().optional(), // UNIT_TYPE attack
   defense: z.number().optional(), // UNIT_TYPE defense
   firepower: z.number().optional(), // UNIT_TYPE firepower
@@ -344,6 +346,7 @@ export const PlayerInfoSchema = z.object({
   id: z.string(),
   name: z.string(),
   nation: z.string(),
+  nationGraphic: z.string().optional(),
   team: z.string().optional(),
   score: z.number(),
   gold: z.number(),

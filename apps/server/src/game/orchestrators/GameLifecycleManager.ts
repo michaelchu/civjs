@@ -416,6 +416,12 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       random,
       identities
     );
+    unitManager.setCombatPresentationCallback(event =>
+      this.broadcastManager?.broadcastCombatOccurred(gameId, event)
+    );
+    unitManager.setNuclearPresentationCallback(event =>
+      this.broadcastManager?.broadcastNuclearExplosion(gameId, event)
+    );
     unitManager.setTileExtrasChangedCallback(change =>
       borderManager.synchronizeTileExtras(
         change.x,

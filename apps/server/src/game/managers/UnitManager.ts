@@ -25,6 +25,7 @@ import {
   type UnitAutomationMode,
   type WorkerAutomationTask,
 } from '@game/automation/WorkerAutomationTypes';
+import type { CombatPresentationEvent, NuclearPresentationEvent } from '@app-types/presentation';
 
 interface CityAtLocation {
   id: string;
@@ -281,6 +282,8 @@ export class UnitManager {
     removed: string[];
   }) => void;
   private unitLifecycleObserver?: (event: UnitLifecycleEvent) => void;
+  private combatPresentationCallback?: (event: CombatPresentationEvent) => void;
+  private nuclearPresentationCallback?: (event: NuclearPresentationEvent) => void;
   private diplomatActionExecutor?: (
     playerId: string,
     unitId: string,
@@ -1181,8 +1184,122 @@ export class UnitManager {
    */
   async attackUnit(attackerId: string, defenderId: string): Promise<CombatResult> {
     const setup = await this.prepareCombat(attackerId, defenderId);
+    const attackerBefore = { ...setup.attacker };
+    const defenderBefore = { ...setup.defender };
     const outcome = this.resolveCombatRounds(setup);
-    return this.finalizeCombat(setup, outcome);
+    const result = await this.finalizeCombat(setup, outcome);
+    this.emitCombatPresentation(attackerBefore, defenderBefore, result);
+    return result;
+  }
+
+  setCombatPresentationCallback(callback?: (event: CombatPresentationEvent) => void): void {
+    this.combatPresentationCallback = callback;
+  }
+
+  hasCombatPresentationCallback(): boolean {
+    return Boolean(this.combatPresentationCallback);
+  }
+
+  setNuclearPresentationCallback(callback?: (event: NuclearPresentationEvent) => void): void {
+    this.nuclearPresentationCallback = callback;
+  }
+
+  hasNuclearPresentationCallback(): boolean {
+    return Boolean(this.nuclearPresentationCallback);
+  }
+
+  private emitCombatPresentation(
+    attackerBefore: Unit,
+    defenderBefore: Unit,
+    result: CombatResult
+  ): void {
+    if (!this.combatPresentationCallback) return;
+    const winner = result.attackerDestroyed ? defenderBefore : attackerBefore;
+    const unitType = this.getUnitType(winner.unitTypeId);
+    const identifiers = [winner.unitTypeId, unitType?.name]
+      .filter((value): value is string => typeof value === 'string')
+      .map(value => value.toLowerCase());
+    const preGunpowderUnits = new Set([
+      'warriors',
+      'phalanx',
+      'legion',
+      'pikemen',
+      'archers',
+      'horsemen',
+      'chariot',
+      'elephants',
+      'knights',
+      'crusaders',
+      'scout',
+      'explorer',
+      'tribesmen',
+      'settlers',
+      'workers',
+      'trireme',
+      'longboat',
+      'caravan',
+      'war galley',
+      'galley',
+      'siege ram',
+      'caravel',
+      'ram ship',
+    ]);
+    const survivingAttacker = this.units.get(result.attackerId);
+    const survivingDefender = this.units.get(result.defenderId);
+    try {
+      this.combatPresentationCallback({
+        eventId: `combat:${this.gameId}:${Date.now()}:${attackerBefore.id}:${defenderBefore.id}`,
+        x: defenderBefore.x,
+        y: defenderBefore.y,
+        style: identifiers.some(identifier => preGunpowderUnits.has(identifier))
+          ? 'swords'
+          : 'explosion',
+        playerIds: [attackerBefore.playerId, defenderBefore.playerId],
+        attackerDamage: result.attackerDamage,
+        defenderDamage: result.defenderDamage,
+        attackerDestroyed: result.attackerDestroyed,
+        defenderDestroyed: result.defenderDestroyed,
+        combatants: [
+          this.toCombatPresentationCombatant(
+            attackerBefore,
+            'attacker',
+            result.attackerDestroyed ? 0 : (survivingAttacker?.health ?? 0),
+            result.attackerDestroyed
+          ),
+          this.toCombatPresentationCombatant(
+            defenderBefore,
+            'defender',
+            result.defenderDestroyed ? 0 : (survivingDefender?.health ?? 0),
+            result.defenderDestroyed
+          ),
+        ],
+      });
+    } catch (error) {
+      logger.warn('Combat presentation callback failed after authoritative combat', error);
+    }
+  }
+
+  private toCombatPresentationCombatant(
+    unit: Unit,
+    role: 'attacker' | 'defender',
+    hpAfter: number,
+    destroyed: boolean
+  ) {
+    return {
+      id: unit.id,
+      role,
+      playerId: unit.playerId,
+      unitTypeId: unit.unitTypeId,
+      x: unit.x,
+      y: unit.y,
+      hpBefore: unit.health,
+      hpAfter,
+      movesLeft: unit.movementLeft,
+      veteranLevel: unit.veteranLevel,
+      fortified: unit.fortified,
+      activity: unit.activity,
+      destroyed,
+    };
   }
 
   private async prepareCombat(attackerId: string, defenderId: string): Promise<CombatSetup> {
@@ -4127,6 +4244,19 @@ export class UnitManager {
       )) ?? [];
     this.applyNuclearFallout(centerX, centerY);
     await this.persistMapState();
+    if (this.nuclearPresentationCallback) {
+      try {
+        this.nuclearPresentationCallback({
+          eventId: `nuke:${this.gameId}:${Date.now()}:${unit.id}`,
+          x: centerX,
+          y: centerY,
+          playerId: unit.playerId,
+          affectedTiles: this.getMapTopology().getPositionsWithinRadius(centerX, centerY, 1),
+        });
+      } catch (error) {
+        logger.warn('Nuclear presentation callback failed after authoritative action', error);
+      }
+    }
     return {
       success: true,
       message: `Nuclear explosion affected ${affectedUnitIds.length} unit(s) and ${affectedCityIds.length} city/cities`,

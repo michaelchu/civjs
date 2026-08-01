@@ -484,6 +484,15 @@ export class BorderRenderer extends BaseRenderer {
   }
 
   /**
+   * Moving borders use the same redraw-driven dash phase as the reference
+   * renderer. MapRenderer uses this to keep the animation loop alive only
+   * when the option is enabled.
+   */
+  public hasActiveAnimation(reducedMotion = false): boolean {
+    return this.options.drawMovingBorders && !reducedMotion;
+  }
+
+  /**
    * Update player colors from nation data
    */
   public updatePlayerColors(
