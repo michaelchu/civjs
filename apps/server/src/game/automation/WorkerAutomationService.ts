@@ -322,9 +322,10 @@ export async function processHumanWorkerAutomation(
   let actions = 0;
   for (const [playerId, player] of game.players) {
     if (player.isAI) continue;
-    const allWorkers = game.unitManager
-      .getPlayerUnits(playerId)
-      .filter(unit => unit.automation === 'worker');
+    const allWorkers = game.unitManager.getPlayerUnits(playerId).filter(unit => {
+      const type = game.unitManager.getUnitType(unit.unitTypeId);
+      return unit.automation === 'worker' && type?.canBuildImprovements && !type.canFoundCity;
+    });
     const hostileIds = await hostilityPolicy.getHostilePlayerIds(game.id, playerId);
     const visibleUnits = game.unitManager.getVisibleUnits(
       playerId,

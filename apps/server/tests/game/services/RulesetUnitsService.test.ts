@@ -105,5 +105,17 @@ describe('RulesetUnitsService', () => {
         canBuildImprovements: false,
       })
     );
+    expect(rulesetUnitsService.getUnitType('settlers', 'civ2civ3')).toEqual(
+      expect.objectContaining({
+        canFoundCity: true,
+        canBuildImprovements: false,
+      })
+    );
+    expect(rulesetUnitsService.getUnitType('worker', 'civ2civ3')).toEqual(
+      expect.objectContaining({
+        canFoundCity: false,
+        canBuildImprovements: true,
+      })
+    );
   });
 });

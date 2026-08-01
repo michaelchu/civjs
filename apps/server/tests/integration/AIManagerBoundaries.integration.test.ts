@@ -1122,6 +1122,7 @@ describe('AI authoritative manager boundaries', () => {
 
     const workerType = scenario.game.unitManager.getUnitType(city.currentProduction!)!;
     expect(workerType.canBuildImprovements).toBe(true);
+    expect(workerType.canFoundCity).toBe(false);
     city.productionStock = workerType.cost;
     city.shieldStock = workerType.cost;
     await scenario.game.cityManager.processCityTurn(city.id, scenario.game.currentTurn);

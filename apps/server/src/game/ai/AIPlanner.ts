@@ -92,7 +92,10 @@ function calculateProductionMetrics(context: ProductionPlanningContext): Product
     );
   });
   const settlerCount = units.filter(unit => unitTypes[unit.unitTypeId]?.canFoundCity).length;
-  const workerCount = units.filter(unit => unitTypes[unit.unitTypeId]?.canBuildImprovements).length;
+  const workerCount = units.filter(unit => {
+    const type = unitTypes[unit.unitTypeId];
+    return type?.canBuildImprovements && !type.canFoundCity;
+  }).length;
   const expansionWeight =
     ((context.profile?.expansion ?? 100) / 100) *
     ((context.profile?.traits.expansionist ?? 50) / 50);
@@ -123,7 +126,7 @@ function scoreUnitProduction(
     want += metrics.expansionNeed * 45;
     reasons.push('expansion');
   }
-  if (type.canBuildImprovements) {
+  if (type.canBuildImprovements && !type.canFoundCity) {
     want += metrics.workerNeed * 35;
     reasons.push('infrastructure');
   }

@@ -5025,6 +5025,10 @@ export class UnitManager {
       if (unit.playerId !== playerId || !unit.orders?.[0]) continue;
       const order = unit.orders[0];
       if (this.isActivityOrderType(order.type)) {
+        if (this.unitTypes[unit.unitTypeId]?.canFoundCity) {
+          await this.executeCancelOrders(unit);
+          continue;
+        }
         const key = `${playerId}:${unit.x}:${unit.y}:${order.type}`;
         if (processedActivities.has(key)) continue;
         const group = [...this.units.values()].filter(
@@ -5032,6 +5036,7 @@ export class UnitManager {
             candidate.playerId === playerId &&
             candidate.x === unit.x &&
             candidate.y === unit.y &&
+            !this.unitTypes[candidate.unitTypeId]?.canFoundCity &&
             candidate.orders?.[0]?.type === order.type
         );
         await this.processActivityGroup(group);

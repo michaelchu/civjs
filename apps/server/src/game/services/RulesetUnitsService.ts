@@ -120,6 +120,7 @@ export class RulesetUnitsService {
    * Map ruleset unit to backward-compatible UnitType interface
    */
   private mapRulesetUnit(unit: UnitTypeRuleset, unitClassFlags: string[]): UnitType {
+    const canFoundCity = this.hasFoundCityRole(unit);
     return {
       id: unit.id,
       name: unit.name,
@@ -132,8 +133,11 @@ export class RulesetUnitsService {
       sight: this.firstNonZero(unit.vision_radius_sq, unit.sight, 2),
       vision_radius_sq: unit.vision_radius_sq,
       visionLayer: unit.vision_layer,
-      canFoundCity: this.hasFoundCityRole(unit),
-      canBuildImprovements: this.hasWorkerRole(unit),
+      canFoundCity,
+      // CivJS keeps founders and terrain improvers as exclusive roles. Some
+      // imported Freeciv rulesets give Settlers both flags, but our Settlers
+      // are reserved for founding cities; dedicated Workers handle terrain.
+      canBuildImprovements: !canFoundCity && this.hasWorkerRole(unit),
       unitClass: this.mapUnitClass(unit.unit_class, unit.unitClass as any, unit.flags),
       rulesetUnitClass: unit.unit_class,
       rulesetUnitClassFlags: [...unitClassFlags],

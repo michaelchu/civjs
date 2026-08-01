@@ -454,29 +454,6 @@ export class FreecivAIUnitController {
       existingTask,
       (profile.expansion / 100) * (profile.traits.expansionist / 50)
     );
-    const unitType = game.unitManager.getUnitType(unit.unitTypeId);
-    if (unitType?.canBuildImprovements && existingTask?.role !== 'settle') {
-      const workerPlan = await planAIInfrastructureWork(
-        game,
-        unit.playerId,
-        [unit],
-        hostileUnits,
-        {}
-      );
-      const improvement = workerPlan.assignments[0];
-      const citySite = candidates[0];
-      if (improvement && (!citySite || improvement.want >= citySite.want)) {
-        this.releaseSettlerReservation(reservedSites, unit.id);
-        return executeInfrastructurePlan(game, unit.playerId, [improvement], workerPlan.tasks, {
-          setTask: (unitId, task) => {
-            state.unitTasks[unitId] = { role: 'worker', ...task };
-          },
-          clearTask: unitId => {
-            if (state.unitTasks[unitId]?.role === 'worker') delete state.unitTasks[unitId];
-          },
-        });
-      }
-    }
     for (const candidate of candidates) {
       if (await this.trySettlerCandidate(game, unit, state, reservedSites, candidate)) return 1;
     }
@@ -507,6 +484,7 @@ export class FreecivAIUnitController {
           : undefined;
       return Boolean(
         type?.canBuildImprovements &&
+        !type.canFoundCity &&
         aiTask?.role !== 'settle' &&
         aiTask?.role !== 'ferry' &&
         !workerHasExplicitOrders(unit, workerTask)

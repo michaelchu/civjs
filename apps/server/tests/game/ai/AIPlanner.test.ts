@@ -113,6 +113,50 @@ describe('Freeciv AI want planner', () => {
     );
   });
 
+  it('does not satisfy infrastructure demand with a dual-capability founder', () => {
+    const ranked = rankCityProduction({
+      city: city(),
+      cities: [city()],
+      units: [unit('settler-1', 'settler'), unit('settler-2', 'settler')],
+      unitTypes: {
+        settler: {
+          id: 'settler',
+          name: 'Settler',
+          cost: 30,
+          movement: 1,
+          combat: 0,
+          canFoundCity: true,
+          canBuildImprovements: true,
+        } as any,
+        worker: {
+          id: 'worker',
+          name: 'Worker',
+          cost: 20,
+          movement: 1,
+          combat: 0,
+          canFoundCity: false,
+          canBuildImprovements: true,
+        } as any,
+      },
+      buildingTypes: {},
+      canBuild: () => true,
+      dangerAssessment: {
+        danger: 0,
+        urgency: 0,
+        graveDanger: 0,
+        defense: 0,
+        defenseDeficit: 0,
+      },
+    });
+
+    expect(ranked).toEqual([
+      expect.objectContaining({
+        value: { kind: 'unit', id: 'worker' },
+        reason: 'infrastructure',
+      }),
+    ]);
+  });
+
   it('discounts delayed benefit using Freeciv MORT', () => {
     expect(amortize(100, 0)).toBe(100);
     expect(amortize(100, 10)).toBeLessThan(100);

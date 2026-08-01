@@ -198,6 +198,37 @@ describe('UnitManager', () => {
       unitManager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, mapManager);
     });
 
+    it('cancels a persisted terrain activity on a city founder', async () => {
+      const settler = await unitManager.createUnit('player-123', 'settlers', 10, 10);
+      settler.automation = 'worker';
+      settler.orders = [
+        {
+          type: 'mine',
+          activity: {
+            type: 'mining',
+            turnsRemaining: 1,
+            totalTurns: 2,
+            target: { x: 10, y: 10 },
+          },
+        },
+      ];
+
+      await unitManager.processUnitOrders('player-123');
+
+      expect(settler.orders).toEqual([]);
+      expect(settler.automation).toBeUndefined();
+      expect(tile.improvements).not.toContain('mine');
+      expect((mockDbProvider.getDatabase() as any).set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isAutomated: false,
+          automationMode: null,
+          automationTask: null,
+          orders: [],
+          currentOrder: null,
+        })
+      );
+    });
+
     it('persists a multi-turn road order and mutates the map on completion', async () => {
       const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);
 

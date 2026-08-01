@@ -1985,7 +1985,7 @@ describe('FreecivAIOrchestrator', () => {
     ).toBeGreaterThanOrEqual(3);
   });
 
-  it('uses the shared worker plan when infrastructure outranks a new city site', async () => {
+  it('reserves a dual-capability settler for founding cities instead of infrastructure', async () => {
     const scenario = createScenario();
     scenario.units.delete('worker');
     scenario.units.delete('warrior');
@@ -2001,7 +2001,8 @@ describe('FreecivAIOrchestrator', () => {
       scenario.game as any
     );
 
-    expect(scenario.executeUnitAction).toHaveBeenCalledWith(
+    expect(scenario.executeUnitAction).toHaveBeenCalledWith('settler', ActionType.GOTO, 8, 8, 'ai');
+    expect(scenario.executeUnitAction).not.toHaveBeenCalledWith(
       'settler',
       ActionType.GOTO,
       3,
@@ -2009,18 +2010,10 @@ describe('FreecivAIOrchestrator', () => {
       'ai',
       { preserveAutomation: true }
     );
-    expect(scenario.executeUnitAction).not.toHaveBeenCalledWith(
-      'settler',
-      ActionType.GOTO,
-      8,
-      8,
-      'ai'
-    );
     expect((scenario.game.players.get('ai') as any).aiState.unitTasks.settler).toMatchObject({
-      role: 'worker',
-      action: ActionType.CLEAN_POLLUTION,
-      targetX: 3,
-      targetY: 3,
+      role: 'settle',
+      targetX: 8,
+      targetY: 8,
     });
   });
 
