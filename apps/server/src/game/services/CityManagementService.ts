@@ -68,7 +68,8 @@ export class CityManagementService extends BaseGameService {
       gameInstance.cityManager.getAllCities().map(city => city.name),
       name
     );
-    const cityData = await gameInstance.cityManager.foundCity(x, y, uniqueName, playerId, unit?.id);
+    const unitId = typeof unit === 'string' ? unit : unit?.id;
+    const cityData = await gameInstance.cityManager.foundCity(x, y, uniqueName, playerId, unitId);
 
     if (!cityData) {
       throw new Error('Failed to found city');

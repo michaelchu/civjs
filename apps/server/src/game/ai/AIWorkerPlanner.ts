@@ -30,6 +30,7 @@ interface WorkerPlanningContext {
   getType: (unitTypeId: string) => UnitType | undefined;
   distance: (fromX: number, fromY: number, toX: number, toY: number) => number;
   researchedTechs: ReadonlySet<string>;
+  rulesetName?: string;
 }
 
 interface ImprovementChoice {
@@ -47,8 +48,8 @@ interface CandidateTile {
 
 const OUTPUT_WEIGHTS = { food: 3, shields: 2, trade: 1 };
 
-function terrainValue(terrainId: MapTile['terrain']): number {
-  const terrain = rulesetLoader.getTerrain(terrainId);
+function terrainValue(terrainId: MapTile['terrain'], rulesetName: string): number {
+  const terrain = rulesetLoader.getTerrain(terrainId, rulesetName);
   return (
     terrain.food * OUTPUT_WEIGHTS.food +
     terrain.shields * OUTPUT_WEIGHTS.shields +
@@ -56,10 +57,10 @@ function terrainValue(terrainId: MapTile['terrain']): number {
   );
 }
 
-function resourceValue(tile: MapTile): number {
+function resourceValue(tile: MapTile, rulesetName: string): number {
   if (!tile.resource) return 0;
   try {
-    const resource = rulesetLoader.getResource(tile.resource);
+    const resource = rulesetLoader.getResource(tile.resource, rulesetName);
     return (
       (Number(resource.food) || 0) * OUTPUT_WEIGHTS.food +
       (Number(resource.shield) || 0) * OUTPUT_WEIGHTS.shields +
@@ -70,9 +71,9 @@ function resourceValue(tile: MapTile): number {
   }
 }
 
-function currentTileValue(tile: MapTile): number {
-  const terrain = rulesetLoader.getTerrain(tile.terrain);
-  let value = terrainValue(tile.terrain) + resourceValue(tile);
+function currentTileValue(tile: MapTile, rulesetName: string): number {
+  const terrain = rulesetLoader.getTerrain(tile.terrain, rulesetName);
+  let value = terrainValue(tile.terrain, rulesetName) + resourceValue(tile, rulesetName);
   if (tile.improvements.includes('irrigation')) {
     value += terrain.irrigationFoodIncr * OUTPUT_WEIGHTS.food;
   }
@@ -112,8 +113,12 @@ function cleanupChoices(tile: MapTile): ImprovementChoice[] {
     : [];
 }
 
-function yieldChoices(context: WorkerPlanningContext, tile: MapTile): ImprovementChoice[] {
-  const terrain = rulesetLoader.getTerrain(tile.terrain);
+function yieldChoices(
+  context: WorkerPlanningContext,
+  tile: MapTile,
+  rulesetName: string
+): ImprovementChoice[] {
+  const terrain = rulesetLoader.getTerrain(tile.terrain, rulesetName);
   const choices: ImprovementChoice[] = [];
   if (
     terrain.irrigationTime > 0 &&
@@ -136,8 +141,12 @@ function yieldChoices(context: WorkerPlanningContext, tile: MapTile): Improvemen
   return choices;
 }
 
-function basicRoadChoices(context: WorkerPlanningContext, tile: MapTile): ImprovementChoice[] {
-  const terrain = rulesetLoader.getTerrain(tile.terrain);
+function basicRoadChoices(
+  context: WorkerPlanningContext,
+  tile: MapTile,
+  rulesetName: string
+): ImprovementChoice[] {
+  const terrain = rulesetLoader.getTerrain(tile.terrain, rulesetName);
   if (terrain.roadTime <= 0 || tile.hasRoad || tile.improvements.includes('road')) return [];
   const trade = ['grassland', 'plains'].includes(tile.terrain) ? OUTPUT_WEIGHTS.trade : 0;
   return [
@@ -149,11 +158,15 @@ function basicRoadChoices(context: WorkerPlanningContext, tile: MapTile): Improv
   ];
 }
 
-function railroadChoices(context: WorkerPlanningContext, tile: MapTile): ImprovementChoice[] {
+function railroadChoices(
+  context: WorkerPlanningContext,
+  tile: MapTile,
+  rulesetName: string
+): ImprovementChoice[] {
   const hasRoad = tile.hasRoad || tile.improvements.includes('road');
   const hasRailroad = tile.hasRailroad || tile.improvements.includes('railroad');
   if (!context.researchedTechs.has('railroad') || !hasRoad || hasRailroad) return [];
-  const terrain = rulesetLoader.getTerrain(tile.terrain);
+  const terrain = rulesetLoader.getTerrain(tile.terrain, rulesetName);
   const shields =
     terrain.shields + (tile.improvements.includes('mine') ? terrain.miningShieldIncr : 0);
   return [
@@ -165,8 +178,8 @@ function railroadChoices(context: WorkerPlanningContext, tile: MapTile): Improve
   ];
 }
 
-function terrainChangeChoices(tile: MapTile): ImprovementChoice[] {
-  const terrain = rulesetLoader.getTerrain(tile.terrain);
+function terrainChangeChoices(tile: MapTile, rulesetName: string): ImprovementChoice[] {
+  const terrain = rulesetLoader.getTerrain(tile.terrain, rulesetName);
   const choices: ImprovementChoice[] = [];
   for (const [action, target, workTurns] of [
     [ActionType.CULTIVATE, terrain.cultivateTo, terrain.cultivateTime],
@@ -174,23 +187,25 @@ function terrainChangeChoices(tile: MapTile): ImprovementChoice[] {
     [ActionType.TRANSFORM_TERRAIN, terrain.transformTo, terrain.transformTime ?? 0],
   ] as const) {
     if (!target || workTurns <= 0) continue;
-    const benefit = terrainValue(target) - terrainValue(tile.terrain);
+    const benefit = terrainValue(target, rulesetName) - terrainValue(tile.terrain, rulesetName);
     if (benefit > 0) choices.push({ action, benefit, workTurns });
   }
   return choices;
 }
 
 function improvementChoices(context: WorkerPlanningContext, tile: MapTile): ImprovementChoice[] {
+  const rulesetName = context.rulesetName ?? 'classic';
   return [
     ...cleanupChoices(tile),
-    ...yieldChoices(context, tile),
-    ...basicRoadChoices(context, tile),
-    ...railroadChoices(context, tile),
-    ...terrainChangeChoices(tile),
+    ...yieldChoices(context, tile, rulesetName),
+    ...basicRoadChoices(context, tile, rulesetName),
+    ...railroadChoices(context, tile, rulesetName),
+    ...terrainChangeChoices(tile, rulesetName),
   ].filter(choice => choice.benefit > 0);
 }
 
 function candidateTiles(context: WorkerPlanningContext): CandidateTile[] {
+  const rulesetName = context.rulesetName ?? 'classic';
   const candidates = new Map<string, CandidateTile>();
   for (const city of context.cities) {
     for (const workable of city.workableTiles ?? []) {
@@ -200,7 +215,7 @@ function candidateTiles(context: WorkerPlanningContext): CandidateTile[] {
       const candidate = {
         tile,
         worked: workable.isWorked,
-        currentValue: currentTileValue(tile),
+        currentValue: currentTileValue(tile, rulesetName),
         requests: (city.workerTaskRequests ?? [])
           .filter(request => request.x === tile.x && request.y === tile.y)
           .map(request => ({

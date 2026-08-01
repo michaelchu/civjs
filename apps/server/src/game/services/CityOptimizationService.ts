@@ -170,7 +170,8 @@ export class CityOptimizationService extends BaseGameService {
       luxury: number;
       science: number;
     } = () => ({ tax: 30, luxury: 20, science: 50 }),
-    private readonly refreshAuthoritativeOutputs?: (cityId: string) => void
+    private readonly refreshAuthoritativeOutputs?: (cityId: string) => void,
+    private readonly rulesetName: string = 'classic'
   ) {
     super(logger);
     this.cities = cities;
@@ -220,7 +221,10 @@ export class CityOptimizationService extends BaseGameService {
         city,
         setup.optimizationParams,
         Boolean(setup.optimizationParams.allowNegativeSurpluses),
-        { taxRates: this.getTaxRates(city.playerId) }
+        {
+          taxRates: this.getTaxRates(city.playerId),
+          rulesetName: this.rulesetName,
+        }
       );
 
       const canApplyCompleteFallback = result.fallback_used && result.assignment_complete;

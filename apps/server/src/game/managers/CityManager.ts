@@ -7,6 +7,7 @@ import { DatabaseProvider } from '@database';
 import { cities, games } from '@database/schema';
 import { eq } from 'drizzle-orm';
 import { type UnitType, rulesetUnitsService } from '@game/services/RulesetUnitsService';
+import type { Unit } from '@game/managers/UnitManager';
 import {
   SpecialistType,
   SPECIALIST_TYPES,
@@ -336,6 +337,7 @@ export class CityManager {
   private mapManager?: MapManager;
   private io?: SocketServer; // Socket.IO server for emitting events
   private validationService?: CityFoundingValidationService;
+  private unitProvider: () => Map<string, Unit> = () => new Map();
   private currentTurnProvider?: () => number;
   /**
    * Players that have ever owned a city, mirroring freeciv's PLRF_FIRST_CITY.
@@ -463,6 +465,11 @@ export class CityManager {
     this.unitSupportProvider = provider;
   }
 
+  /** Provide authoritative unit state for city-founding occupancy validation. */
+  public setUnitProvider(provider: () => Map<string, Unit>): void {
+    this.unitProvider = provider;
+  }
+
   public setTileOccupancyProvider(
     provider: (city: CityState, tile: WorkableTile) => boolean
   ): void {
@@ -578,7 +585,8 @@ export class CityManager {
       cityId => {
         this.calculateCityOutputs(cityId);
         this.applyCityHappiness(cityId);
-      }
+      },
+      this.effectsManager.getRulesetName()
     );
 
     // setMapManager is commonly called before initialize. Rebuild the
@@ -641,6 +649,11 @@ export class CityManager {
       CITY_MAP_DEFAULT_RADIUS_SQ,
       rulesetLoader,
       this.effectsManager
+    );
+    this.validationService = new CityFoundingValidationService(
+      this.mapManager,
+      GAME_DEFAULT_CITYMINDIST,
+      this.effectsManager.getRulesetName()
     );
     if (this.playerGovernmentProvider) {
       this.tileManagementService.setPlayerGovernmentProvider(this.playerGovernmentProvider);
@@ -731,17 +744,29 @@ export class CityManager {
     x: number,
     y: number,
     playerId: string,
-    _settlerId?: string // Mark as unused
+    settlerId?: string
   ): CityFoundingValidationResult {
+    const unit = settlerId ? (this.unitProvider().get(settlerId) ?? null) : null;
+    if (settlerId && !unit) {
+      return {
+        canFound: false,
+        errorCode: CityFoundingErrorCode.UNIT_NOT_FOUND,
+        errorMessage: `Settler unit ${settlerId} not found`,
+      };
+    }
+
     // Use the validation service if available
     if (this.validationService) {
-      return this.validationService.validateCityFounding(
+      const validation = this.validationService.validateCityFounding(
         x,
         y,
-        null, // unit - not available in this context
+        unit,
         playerId,
         this.cities // Pass cities map directly
       );
+      if (!validation.canFound) return validation;
+
+      return this.validationService.validateNoEnemyUnits(x, y, playerId, this.unitProvider());
     }
 
     // Fallback validation logic
@@ -1723,7 +1748,8 @@ export class CityManager {
       new Set(city.buildings),
       new Set(this.playerBuildingsProvider(city.playerId))
     );
-    const populationFood = city.population * rulesetLoader.getCivstyle().food_cost;
+    const populationFood =
+      city.population * rulesetLoader.getCivstyle(this.effectsManager.getRulesetName()).food_cost;
     const unitUpkeep = {
       food: Math.max(0, support.upkeepCosts.food - populationFood),
       shield: support.upkeepCosts.shield,

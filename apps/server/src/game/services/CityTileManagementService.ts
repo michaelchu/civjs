@@ -627,7 +627,7 @@ export class CityTileManagementService extends BaseGameService {
     shields: number;
     trade: number;
   } {
-    const civstyle = this.ruleset.getCivstyle();
+    const civstyle = this.ruleset.getCivstyle(this.rulesetName);
     return {
       food: Math.max(outputs.food, civstyle.min_city_center_food),
       shields: Math.max(outputs.shields, civstyle.min_city_center_shield),

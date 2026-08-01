@@ -5,7 +5,7 @@
  */
 import { CityDataService } from '@game/services/CityDataService';
 import { CityTileManagementService } from '@game/services/CityTileManagementService';
-import { OutputType } from '@game/managers/EffectsManager';
+import { EffectsManager, OutputType } from '@game/managers/EffectsManager';
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { CityState } from '@game/managers/CityManager';
@@ -60,6 +60,34 @@ function mapFor(terrain: string, resource: string | null = null): MapManager {
 }
 
 describe('ruleset-backed city values', () => {
+  it('uses the active ruleset for city-center minimums', () => {
+    const classic = new CityTileManagementService(
+      new Map(),
+      mapFor('grassland'),
+      5,
+      rulesetLoader,
+      new EffectsManager('classic')
+    );
+    const civ2civ3 = new CityTileManagementService(
+      new Map(),
+      mapFor('grassland'),
+      5,
+      rulesetLoader,
+      new EffectsManager('civ2civ3')
+    );
+
+    expect((classic as any).applyCityCenterMinimums({ food: 0, shields: 0, trade: 0 })).toEqual({
+      food: 1,
+      shields: 1,
+      trade: 0,
+    });
+    expect((civ2civ3 as any).applyCityCenterMinimums({ food: 0, shields: 0, trade: 0 })).toEqual({
+      food: 0,
+      shields: 0,
+      trade: 0,
+    });
+  });
+
   it('serializes building names and upkeep from the building ruleset', () => {
     const result = CityDataService.transformCityForClient(
       city({ buildings: ['marketplace', 'city_walls'] })

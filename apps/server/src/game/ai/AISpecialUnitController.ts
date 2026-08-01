@@ -189,7 +189,8 @@ export class FreecivAISpecialUnitController {
           if (distance > Math.max(1, type.movement) * 3) return urgency;
           return urgency + 1 + (distance <= Math.max(1, type.movement) ? 10 : 0);
         }, 0),
-      terrainDefense: tile => rulesetLoader.getTerrain(tile.terrain).defense,
+      terrainDefense: tile =>
+        rulesetLoader.getTerrain(tile.terrain, game.config?.ruleset ?? 'classic').defense,
       isStackProtected: tile =>
         Boolean(
           game.cityManager.getCityAt(tile.x, tile.y) ||

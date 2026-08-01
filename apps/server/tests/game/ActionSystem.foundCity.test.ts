@@ -89,6 +89,6 @@ describe('ActionSystem - automated city names', () => {
 
     await actionSystem.executeAction(makeSettler('settler-1', 1, 1), ActionType.FOUND_CITY);
 
-    expect(foundCity).toHaveBeenCalledWith('game-1', 'ai-player', 'New City 3', 1, 1);
+    expect(foundCity).toHaveBeenCalledWith('game-1', 'ai-player', 'New City 3', 1, 1, 'settler-1');
   });
 });

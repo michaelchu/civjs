@@ -3,6 +3,7 @@ import {
   GoldUpkeepStyle,
   UnitSupportData,
 } from '@game/managers/UnitSupportManager';
+import { EffectsManager } from '@game/managers/EffectsManager';
 
 function makeUnit(overrides?: Partial<UnitSupportData>): UnitSupportData {
   return {
@@ -90,6 +91,15 @@ describe('UnitSupportManager.calculateCityUnitSupport', () => {
     // Shield: 1 shield - 2 free (despotism) => 0; Food: 0 units - 2 free => 0 + population 2
     expect(res.upkeepCosts.shield).toBe(0);
     expect(res.upkeepCosts.food).toBe(2);
+  });
+
+  test('mixed gold upkeep style: city does not pay unit gold upkeep', () => {
+    const mgr = new UnitSupportManager('g1', new EffectsManager('civ2civ3'));
+    const unit = makeUnit({ upkeep: { food: 0, shield: 0, gold: 2 } });
+
+    const res = mgr.calculateCityUnitSupport('city-mixed', 'p1', 'despotism', 1, [unit]) as any;
+
+    expect(res.upkeepCosts.gold).toBe(0);
   });
 
   test('single-arg overload rejects on non-existent city', async () => {

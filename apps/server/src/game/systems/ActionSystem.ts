@@ -433,7 +433,8 @@ export class ActionSystem {
       playerId: string,
       name: string,
       x: number,
-      y: number
+      y: number,
+      unitId?: string
     ) => Promise<string>;
     requestPath: (
       playerId: string,
@@ -460,7 +461,8 @@ export class ActionSystem {
         playerId: string,
         name: string,
         x: number,
-        y: number
+        y: number,
+        unitId?: string
       ) => Promise<string>;
       requestPath: (
         playerId: string,
@@ -1206,7 +1208,8 @@ export class ActionSystem {
         unit.playerId,
         cityName,
         unit.x,
-        unit.y
+        unit.y,
+        unit.id
       );
 
       logger.info(`City founded successfully`, {

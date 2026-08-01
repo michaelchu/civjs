@@ -430,6 +430,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
       rulesetUnitsService.getUnitTypes(rulesetName),
       identities
     );
+    cityManager.setUnitProvider(() => unitManager.getAllUnits());
     cityManager.setCallbacks({
       onCityProductionComplete: async (city, item) => {
         if (item.kind === 'unit') {

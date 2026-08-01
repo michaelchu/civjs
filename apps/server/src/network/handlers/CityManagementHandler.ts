@@ -1016,7 +1016,9 @@ export class CityManagementHandler extends BaseSocketHandler {
 
   /**
    * Process settler unit validation and retrieval
-   * Returns undefined for no unit, Unit for valid unit, or null for validation failure
+   * Network city founding must identify the settler being consumed. Internal
+   * callers (for example hut settlements) use CityManager directly and may
+   * intentionally omit the unit id.
    */
   private async processSettlerUnit(
     handler: PacketHandler,
@@ -1026,7 +1028,11 @@ export class CityManagementHandler extends BaseSocketHandler {
     connection: any
   ): Promise<any | undefined | null> {
     if (!data.unitId) {
-      return undefined; // No unit provided
+      handler.send(socket, PacketType.CITY_FOUND_REPLY, {
+        success: false,
+        message: 'Settler unit is required',
+      });
+      return null;
     }
 
     const unitValidationResult = this.validateSettlerUnit(

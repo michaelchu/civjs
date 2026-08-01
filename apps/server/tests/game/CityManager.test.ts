@@ -467,7 +467,7 @@ describe('CityManager', () => {
       await cityManager.foundCity(10, 10, 'AI City', 'ai-player');
 
       await expect(cityManager.foundCity(12, 10, 'Player City', 'player-123')).rejects.toThrow(
-        'Too close to existing city'
+        'too close to existing city'
       );
     });
 
@@ -872,6 +872,51 @@ describe('CityManager', () => {
   });
 
   describe('services access', () => {
+    it('uses the founding unit and authoritative tile occupancy checks', async () => {
+      const targetTile = {
+        x: 10,
+        y: 10,
+        terrain: 'grassland',
+        resource: null,
+        city: null,
+        unitIds: ['enemy-unit'],
+        isVisible: true,
+        isExplored: true,
+      };
+      mockMapManager.getTile = jest.fn().mockReturnValue(targetTile);
+      cityManager.setUnitProvider(
+        () =>
+          new Map([
+            [
+              'settler-unit',
+              {
+                id: 'settler-unit',
+                playerId: 'player-123',
+                unitTypeId: 'settlers',
+                x: 10,
+                y: 10,
+                movementLeft: 3,
+              },
+            ],
+            [
+              'enemy-unit',
+              {
+                id: 'enemy-unit',
+                playerId: 'player-456',
+                unitTypeId: 'warriors',
+                x: 10,
+                y: 10,
+                movementLeft: 3,
+              },
+            ],
+          ]) as any
+      );
+
+      await expect(
+        cityManager.foundCity(10, 10, 'Blocked Founding', 'player-123', 'settler-unit')
+      ).rejects.toThrow('enemy units present');
+    });
+
     it('blocks and reopens workable tiles when enemy occupancy changes', async () => {
       const city = await cityManager.foundCity(10, 10, 'Target', 'player-123');
       const tile = cityManager.getWorkableTiles(city.id)?.find(candidate => !candidate.isCenter);

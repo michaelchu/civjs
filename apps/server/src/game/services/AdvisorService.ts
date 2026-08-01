@@ -246,6 +246,7 @@ export class FreecivAdvisorService {
       getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
       distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
       researchedTechs: knownTechs,
+      rulesetName: game.config?.ruleset ?? 'classic',
     });
   }
 

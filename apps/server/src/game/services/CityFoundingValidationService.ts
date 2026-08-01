@@ -339,7 +339,7 @@ export class CityFoundingValidationService {
     }
 
     // Check for enemy units on the tile
-    const enemyUnitsOnTile = tile.unitIds
+    const enemyUnitsOnTile = (tile.unitIds ?? [])
       .map(unitId => allUnits.get(unitId))
       .filter((unit): unit is Unit => unit !== undefined && unit.playerId !== playerId);
 
@@ -451,10 +451,8 @@ export class CityFoundingValidationService {
   /**
    * Get tile owner (simplified implementation)
    */
-  private getTileOwner(_tile: MapTile): string | null {
-    // In a full implementation, this would check tile ownership
-    // For now, assume no tile ownership system
-    return null;
+  private getTileOwner(tile: MapTile): string | null {
+    return tile.owner ?? null;
   }
 
   // Helper methods for unit type classification

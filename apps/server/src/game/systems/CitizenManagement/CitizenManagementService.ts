@@ -24,6 +24,7 @@ import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 export interface CitizenOptimizationContext {
   taxRates?: { tax: number; luxury: number; science: number };
+  rulesetName?: string;
 }
 
 /**
@@ -211,6 +212,7 @@ export class CitizenManagementService {
         center: tile.isCenter,
       })),
       taxRates: context.taxRates,
+      rulesetName: context.rulesetName,
     });
     const paramsHash = JSON.stringify({
       factors: parameters.factor,
@@ -567,7 +569,8 @@ export class CitizenManagementService {
 
     // Subtract consumption (food for population)
     result.surplus[OutputType.FOOD] -=
-      CitizenResultUtils.getTotalCitizens(result) * rulesetLoader.getCivstyle().food_cost;
+      CitizenResultUtils.getTotalCitizens(result) *
+      rulesetLoader.getCivstyle(context.rulesetName).food_cost;
 
     // Calculate fitness
     result.fitness = Object.entries(result.surplus).reduce((sum, [type, amount]) => {

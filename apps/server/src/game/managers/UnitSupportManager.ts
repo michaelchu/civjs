@@ -71,7 +71,8 @@ export class UnitSupportManager {
   constructor(gameId: string, effectsManager?: EffectsManager) {
     this._gameId = gameId;
     this.effectsManager = effectsManager ?? new EffectsManager();
-    const gameRules = rulesetLoader.loadGameRulesRuleset();
+    const rulesetName = this.effectsManager.getRulesetName();
+    const gameRules = rulesetLoader.loadGameRulesRuleset(rulesetName);
     this.goldUpkeepStyle =
       GoldUpkeepStyle[
         gameRules.game_parameters.gold_upkeep_style.toUpperCase() as keyof typeof GoldUpkeepStyle
@@ -247,10 +248,9 @@ export class UnitSupportManager {
    * Reference: freeciv gold_upkeep_style logic
    */
   private shouldCityPayGoldUpkeep(): boolean {
-    return (
-      this.goldUpkeepStyle === GoldUpkeepStyle.CITY ||
-      this.goldUpkeepStyle === GoldUpkeepStyle.MIXED
-    );
+    // Mixed keeps building upkeep in the city and moves unit gold upkeep to
+    // the national ledger; only the CITY mode belongs in this calculation.
+    return this.goldUpkeepStyle === GoldUpkeepStyle.CITY;
   }
 
   private resolveInputs(

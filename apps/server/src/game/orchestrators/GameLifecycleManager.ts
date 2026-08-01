@@ -118,7 +118,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     playerId: string,
     name: string,
     x: number,
-    y: number
+    y: number,
+    unitId?: string
   ) => Promise<string>;
   // private _onRequestPath - removed, delegating to GameManager instead
   private onBroadcastMapData?: (gameId: string, mapData: any) => void;
@@ -146,7 +147,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       playerId: string,
       name: string,
       x: number,
-      y: number
+      y: number,
+      unitId?: string
     ) => Promise<string>,
     // _onRequestPath removed - delegating to GameManager instead
     onBroadcastMapData?: (gameId: string, mapData: any) => void,
@@ -424,6 +426,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       )
     );
     cityManager.setUnitSupportProvider(city => this.getUnitSupport(city, unitManager, cityManager));
+    cityManager.setUnitProvider(() => unitManager.getAllUnits());
     cityManager.setMapChangedCallback((changedGameId, mapData) =>
       this.onBroadcastMapData?.(changedGameId, mapData)
     );
@@ -1504,8 +1507,14 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       mapManager,
       {
         foundCity: this.onFoundCity
-          ? (gameId: string, playerId: string, name: string, x: number, y: number) =>
-              this.onFoundCity!(gameId, playerId, name, x, y)
+          ? (
+              gameId: string,
+              playerId: string,
+              name: string,
+              x: number,
+              y: number,
+              unitId?: string
+            ) => this.onFoundCity!(gameId, playerId, name, x, y, unitId)
           : async () => '',
         requestPath: (playerId: string, unitId: string, targetX: number, targetY: number) =>
           this.requestPathDelegate(gameId, playerId, unitId, targetX, targetY),

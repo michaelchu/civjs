@@ -1,5 +1,6 @@
 import { ActionType } from '@app-types/shared/actions';
 import { planWorkerImprovements } from '@game/ai/AIWorkerPlanner';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 const tile = (
   x: number,
@@ -79,6 +80,23 @@ function context(tiles: any[], workers: any[], overrides: Record<string, unknown
 }
 
 describe('Freeciv AI worker planner', () => {
+  it('routes terrain and resource valuation through the active ruleset', () => {
+    const terrainSpy = jest.spyOn(rulesetLoader, 'getTerrain');
+    const resourceSpy = jest.spyOn(rulesetLoader, 'getResource');
+
+    planWorkerImprovements(
+      context([tile(1, 1, 'grassland', { resource: 'wheat' })], [worker('worker', 1, 1)], {
+        rulesetName: 'civ2civ3',
+      })
+    );
+
+    expect(terrainSpy.mock.calls.some(([, ruleset]) => ruleset === 'civ2civ3')).toBe(true);
+    expect(resourceSpy).toHaveBeenCalledWith('wheat', 'civ2civ3');
+
+    terrainSpy.mockRestore();
+    resourceSpy.mockRestore();
+  });
+
   it('values the best ruleset improvement and discounts travel and work time', () => {
     const hills = tile(1, 1, 'hills');
     const plan = planWorkerImprovements(context([hills], [worker('worker', 1, 1)]));

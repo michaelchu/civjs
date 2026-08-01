@@ -1331,6 +1331,35 @@ describe('UnitManager', () => {
       expect(deterministicManager.getUnit(defender.id)?.veteranLevel).toBe(1);
     });
 
+    it('applies tired attack from the active ruleset', async () => {
+      const classicAttacker = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      classicAttacker.movementLeft = 1;
+
+      const civ2civ3Manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        new EffectsManager('civ2civ3'),
+        Math.random,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      const civ2civ3Attacker = await civ2civ3Manager.createUnit('player-123', 'warriors', 10, 10);
+      civ2civ3Attacker.movementLeft = 1;
+
+      expect(
+        (unitManager as any).calculateAttackStrength(classicAttacker, UNIT_TYPES.warriors)
+      ).toBe(1);
+      expect(
+        (civ2civ3Manager as any).calculateAttackStrength(
+          civ2civ3Attacker,
+          civ2civ3Manager.getUnitType('warriors')
+        )
+      ).toBe(0);
+    });
+
     it('applies the classic pearl-harbor firepower rule in a city', async () => {
       const cityAwareManager = new UnitManager(
         gameId,

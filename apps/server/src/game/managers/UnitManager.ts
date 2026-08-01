@@ -155,6 +155,8 @@ interface CombatSetup {
   defenderTileUnits: Unit[];
   attackerStrength: number;
   defenderStrength: number;
+  attackerVeteranChance: number;
+  defenderVeteranChance: number;
 }
 
 interface CombatOutcome {
@@ -196,7 +198,8 @@ export class UnitManager {
       playerId: string,
       name: string,
       x: number,
-      y: number
+      y: number,
+      unitId?: string
     ) => Promise<string>;
     requestPath: (
       playerId: string,
@@ -291,7 +294,8 @@ export class UnitManager {
         playerId: string,
         name: string,
         x: number,
-        y: number
+        y: number,
+        unitId?: string
       ) => Promise<string>;
       requestPath: (
         playerId: string,
@@ -1194,6 +1198,23 @@ export class UnitManager {
     const attackerType = this.unitTypes[attacker.unitTypeId];
     const defenderType = this.unitTypes[defender.unitTypeId];
     this.validateCombatRange(attacker, defender, attackerType);
+    const attackerStrength = this.calculateAttackStrength(attacker, attackerType);
+    const defenderStrength = this.calculateCombatStrength(
+      defender,
+      defenderType,
+      attacker,
+      attackerType
+    );
+    const firepower = this.calculateModifiedFirepower(
+      attacker,
+      defender,
+      attackerType,
+      defenderType
+    );
+    const attackerCombatStrength = attackerStrength * attacker.health * firepower.attacker;
+    const defenderCombatStrength = defenderStrength * defender.health * firepower.defender;
+    const totalCombatStrength = attackerCombatStrength + defenderCombatStrength;
+
     return {
       attackerId,
       defenderId: defender.id,
@@ -1204,13 +1225,12 @@ export class UnitManager {
       defenderTileUnits: this.getUnitsAt(defender.x, defender.y).filter(
         unit => unit.playerId === defender.playerId && unit.id !== defender.id
       ),
-      attackerStrength: this.calculateAttackStrength(attacker, attackerType),
-      defenderStrength: this.calculateCombatStrength(
-        defender,
-        defenderType,
-        attacker,
-        attackerType
-      ),
+      attackerStrength,
+      defenderStrength,
+      attackerVeteranChance:
+        totalCombatStrength > 0 ? (defenderCombatStrength * 200) / totalCombatStrength : 0,
+      defenderVeteranChance:
+        totalCombatStrength > 0 ? (attackerCombatStrength * 200) / totalCombatStrength : 0,
     };
   }
 
@@ -1339,10 +1359,20 @@ export class UnitManager {
     outcome: CombatOutcome
   ): Promise<{ attacker: number; defender: number }> {
     const attackerPromoted = outcome.defenderDestroyed
-      ? await this.maybePromoteAfterCombat(setup.attacker)
+      ? await this.maybePromoteAfterCombat(
+          setup.attacker,
+          setup.attackerVeteranChance,
+          setup.attackerStrength,
+          setup.defenderStrength
+        )
       : false;
     const defenderPromoted = outcome.attackerDestroyed
-      ? await this.maybePromoteAfterCombat(setup.defender)
+      ? await this.maybePromoteAfterCombat(
+          setup.defender,
+          setup.defenderVeteranChance,
+          setup.defenderStrength,
+          setup.attackerStrength
+        )
       : false;
     if (outcome.attackerDestroyed) await this.destroyUnit(setup.attackerId);
     else await this.persistCombatUnit(setup.attackerId, setup.attacker, true);
@@ -1577,7 +1607,7 @@ export class UnitManager {
     attackerType: UnitType,
     defenderType: UnitType
   ): { attacker: number; defender: number } {
-    const rules = rulesetLoader.getCombatRules();
+    const rules = rulesetLoader.getCombatRules(this.getRulesetName());
     const city = this.gameManagerCallback?.getCityAt?.(defender.x, defender.y);
     const firepower = {
       attacker: attackerType.firepower ?? 1,
@@ -1661,9 +1691,26 @@ export class UnitManager {
    * @reference reference/freeciv/server/unittools.c:219-278
    * @reference reference/freeciv/data/classic/units.ruleset:64-82
    */
-  private async maybePromoteAfterCombat(unit: Unit): Promise<boolean> {
-    const raiseChances = [50, 33, 20, 0];
-    const chance = raiseChances[unit.veteranLevel] ?? 0;
+  private async maybePromoteAfterCombat(
+    unit: Unit,
+    combatOdds: number,
+    ownStrength: number,
+    opponentStrength: number
+  ): Promise<boolean> {
+    const rules = rulesetLoader.getCombatRules(this.getRulesetName());
+    if (rules.only_real_fight_makes_veteran && (opponentStrength <= 0 || ownStrength <= 0)) {
+      return false;
+    }
+    const configuredChances = rulesetLoader.loadUnitsRuleset(this.getRulesetName()).veteran_system
+      ?.veteran_base_raise_chance;
+    const raiseChances = Array.isArray(configuredChances)
+      ? configuredChances.map(value => Number(value))
+      : String(configuredChances ?? '50, 33, 20, 0')
+          .split(',')
+          .map(value => Number(value.trim()));
+    const baseChance = raiseChances[unit.veteranLevel] ?? 0;
+    const scale = rules.combat_odds_scaled_veterancy ? combatOdds : 100;
+    const chance = (baseChance * scale) / 100;
     if (chance <= 0 || randomInt(this.random, 100) >= chance) {
       return false;
     }
@@ -2119,7 +2166,12 @@ export class UnitManager {
    */
   private calculateAttackStrength(unit: Unit, unitType: UnitType): number {
     const veteranLevel = this.getVeteranLevel(unit.veteranLevel);
-    return Math.max(1, Math.floor((unitType.attack ?? unitType.combat) * veteranLevel.powerFactor));
+    let strength = Math.floor((unitType.attack ?? unitType.combat) * veteranLevel.powerFactor);
+    const combatRules = rulesetLoader.getCombatRules(this.getRulesetName());
+    if (combatRules.tired_attack && unit.movementLeft < SINGLE_MOVE) {
+      strength = Math.floor((strength * Math.max(0, unit.movementLeft)) / SINGLE_MOVE);
+    }
+    return Math.max(0, strength);
   }
 
   /**
@@ -3881,7 +3933,7 @@ export class UnitManager {
       return { success: false, message: 'Bombardment requires a state of war' };
     }
     const type = this.unitTypes[unit.unitTypeId];
-    const combatRules = rulesetLoader.getCombatRules();
+    const combatRules = rulesetLoader.getCombatRules(this.getRulesetName());
     const bombardRate = combatRules.damage_reduces_bombard_rate
       ? Math.max(1, Math.floor((type.bombardRate * unit.health) / 100))
       : type.bombardRate;
@@ -5712,7 +5764,9 @@ export class UnitManager {
 
     // Update cargo unit
     cargo.transportedBy = transportId;
-    cargo.movementLeft = 0; // Loading consumes movement
+    // Boarding is a state change, not movement.  Freeciv keeps the cargo's
+    // movement points, which matters for rulesets with tired_attack enabled
+    // when a unit (notably Marines) attacks from a transport.
 
     // Update transport unit
     if (!transport.cargoUnits) {
@@ -5726,7 +5780,7 @@ export class UnitManager {
       .update(units)
       .set({
         transportedBy: transportId,
-        movementPoints: '0',
+        movementPoints: String(cargo.movementLeft),
       })
       .where(eq(units.id, cargoId));
     await this.databaseProvider

@@ -306,7 +306,7 @@ export class FreecivAIUnitController {
         .flat()
         .filter(tile => game.cityManager.canFoundCityAt!(tile.x, tile.y, unit.playerId)),
       (x, y) => game.mapManager.getNeighbors(x, y),
-      terrain => rulesetLoader.getTerrain(terrain),
+      terrain => rulesetLoader.getTerrain(terrain, game.config?.ruleset ?? 'classic'),
       tile => game.mapManager.getDistance(unit.x, unit.y, tile.x, tile.y),
       tile =>
         cities.length === 0
@@ -493,6 +493,7 @@ export class FreecivAIUnitController {
       distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
       researchedTechs:
         game.researchManager.getPlayerResearch(playerId)?.researchedTechs ?? new Set(),
+      rulesetName: game.config?.ruleset ?? 'classic',
     });
 
     for (const [unitId, task] of Object.entries(state.unitTasks)) {
