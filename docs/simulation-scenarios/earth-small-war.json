@@ -1,0 +1,41 @@
+{
+  "name": "Scenario war diagnostic",
+  "aiPlayerCount": 2,
+  "mapWidth": 80,
+  "mapHeight": 50,
+  "ruleset": "civ2civ3",
+  "aiLevel": "easy",
+  "randomSeed": 31002,
+  "mapSeed": "scenario-earth-small-war",
+  "maxTurns": 40,
+  "victoryConditions": ["max_turns"],
+  "terrainSettings": {
+    "generator": "scenario",
+    "landmass": "normal",
+    "huts": 15,
+    "temperature": 50,
+    "wetness": 50,
+    "rivers": 50,
+    "resources": "normal",
+    "scenarioId": "earth-small"
+  },
+  "scenarioSetup": {
+    "initialTurn": 1,
+    "initialYear": -4000,
+    "players": [
+      { "playerNumber": 1, "gold": 150, "scienceRate": 60 },
+      { "playerNumber": 2, "gold": 150, "scienceRate": 60 }
+    ],
+    "diplomacy": [
+      {
+        "playerNumber": 1,
+        "otherPlayerNumber": 2,
+        "state": "war",
+        "maxState": "war",
+        "sinceTurn": 1,
+        "attitude": -500
+      }
+    ]
+  },
+  "turnTimeLimit": 0
+}

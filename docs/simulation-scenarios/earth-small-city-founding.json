@@ -1,0 +1,28 @@
+{
+  "name": "Scenario city founding",
+  "aiPlayerCount": 2,
+  "mapWidth": 80,
+  "mapHeight": 50,
+  "ruleset": "civ2civ3",
+  "aiLevel": "easy",
+  "randomSeed": 31001,
+  "mapSeed": "scenario-earth-small-city-founding",
+  "maxTurns": 40,
+  "victoryConditions": ["max_turns"],
+  "terrainSettings": {
+    "generator": "scenario",
+    "landmass": "normal",
+    "huts": 15,
+    "temperature": 50,
+    "wetness": 50,
+    "rivers": 50,
+    "resources": "normal",
+    "scenarioId": "earth-small"
+  },
+  "scenarioSetup": {
+    "initialTurn": 1,
+    "initialYear": -4000,
+    "replaceDefaultStartingUnits": false
+  },
+  "turnTimeLimit": 0
+}

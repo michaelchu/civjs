@@ -2,7 +2,8 @@ import type { PlayerState } from '@game/managers/GameManager';
 import type { MapData } from './MapTypes';
 
 export const SCENARIOS_NOT_ENABLED = 'SCENARIOS_NOT_ENABLED';
-export const SCENARIOS_NOT_ENABLED_MESSAGE = 'Scenario games are not enabled in this release';
+export const SCENARIOS_NOT_ENABLED_MESSAGE =
+  'Scenario games are only enabled for headless simulation runs';
 
 export interface ScenarioMetadata {
   id: string;
@@ -31,7 +32,7 @@ export class ScenarioUnavailableError extends Error {
   }
 }
 
-/** Default provider while scenario gameplay remains outside the supported release scope. */
+/** Default provider for live games; headless simulation installs a real scenario loader. */
 export class DisabledScenarioProvider implements ScenarioProvider {
   listScenarios(): readonly string[] {
     return [];

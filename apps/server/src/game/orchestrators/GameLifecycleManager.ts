@@ -51,6 +51,12 @@ import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { assertAIState } from '@game/ai/AIStateStore';
 import { ScenarioUnavailableError } from '@game/map/ScenarioProvider';
+import { FreecivScenarioLoader } from '@game/map/FreecivScenarioLoader';
+import {
+  applyScenarioSetup,
+  hasCustomScenarioInitialState,
+  type ScenarioSetup,
+} from '@game/services/ScenarioSetup';
 import {
   completeSpaceshipPart,
   isSpaceshipPart,
@@ -177,7 +183,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
    */
   async createGame(gameConfig: GameConfig): Promise<string> {
     this.logger.info('Creating new game', { name: gameConfig.name, hostId: gameConfig.hostId });
-    this.assertScenarioGamesEnabled(gameConfig.terrainSettings);
+    this.assertScenarioGamesEnabled(gameConfig.terrainSettings, gameConfig.executionMode);
     const rulesetName = gameConfig.ruleset || DEFAULT_RULESET;
 
     const gameData = this.buildGameData(gameConfig, rulesetName);
@@ -264,6 +270,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
           rivers: 50,
           resources: 'normal',
         },
+        scenarioSetup: gameConfig.scenarioSetup,
       },
     };
   }
@@ -292,7 +299,10 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
     // Validate start conditions (preserves exact error messages)
     this.validateStartConditions(game, hostId);
-    this.assertScenarioGamesEnabled((game.gameState as any)?.terrainSettings);
+    this.assertScenarioGamesEnabled(
+      (game.gameState as any)?.terrainSettings,
+      (game.gameState as any)?.simulation?.executionMode
+    );
 
     this.logger.info('Starting game', { gameId, playerCount: game.players.length });
     await this.markGameStarting(gameId);
@@ -314,13 +324,17 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       this.games.set(gameId, gameInstance);
 
       await this.persistAuthoritativeStreams(gameId, gameInstance);
-      await this.activateGameRecord(gameId);
-      await this.updateRedisForGameStart(gameId, game.players.length);
+      await this.activateGameRecord(gameId, gameInstance.turnManager.getCurrentTurn());
+      await this.updateRedisForGameStart(
+        gameId,
+        game.players.length,
+        gameInstance.turnManager.getCurrentTurn()
+      );
 
       this.onBroadcastMapData?.(gameId, gameInstance.mapManager.getMapData());
       this.onBroadcast?.(gameId, 'game-started', {
         gameId,
-        currentTurn: 1,
+        currentTurn: gameInstance.turnManager.getCurrentTurn(),
         phase: gameInstance.turnPhase,
       });
 
@@ -363,6 +377,10 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
     // Create managers in dependency order
     const mapManager = this.createMapManager(game, terrainSettings);
+    const scenarioSetup = (game.gameState as any)?.scenarioSetup as ScenarioSetup | undefined;
+    if (this.isScenarioSimulation(game, terrainSettings)) {
+      mapManager.setScenarioProvider(new FreecivScenarioLoader());
+    }
     const rulesetName = game.ruleset ?? 'civ2civ3';
     const effectsManager = new EffectsManager(rulesetName); // Shared effects manager
     const governmentManager = new GovernmentManager(
@@ -488,7 +506,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     const pathfindingManager = this.createPathfindingManager(game, mapManager, unitManager);
 
     // Create TurnManager last since it depends on all other managers
-    const turnManager = await this.createTurnManagerAndInitialize(
+    const { turnManager, economicManager } = await this.createTurnManagerAndInitialize(
       gameId,
       players,
       unitManager,
@@ -505,7 +523,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       game.gameState && typeof game.gameState === 'object'
         ? (game.gameState as { barbarianRate?: number }).barbarianRate
         : undefined,
-      getClimateSettingsFromGameState(game.gameState)
+      getClimateSettingsFromGameState(game.gameState),
+      scenarioSetup
     );
     unitManager.setGameLossHandler(async playerId => {
       const player = players.get(playerId);
@@ -703,7 +722,15 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     });
 
     // Generate the map with starting positions based on terrain settings
-    await this.generateGameMap(gameId, mapManager, players, terrainSettings, unitManager);
+    await this.generateGameMap(
+      gameId,
+      mapManager,
+      players,
+      terrainSettings,
+      unitManager,
+      scenarioSetup,
+      game
+    );
 
     // Create game instance
     const gameInstance: GameInstance = this.buildGameInstance(
@@ -723,6 +750,25 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       random,
       identities
     );
+    // Register the complete instance before border callbacks can broadcast.
+    // Scenario cities are applied while the lifecycle still exposes a
+    // preliminary instance with no visibility manager.
+    this.games.set(gameId, gameInstance);
+    if (scenarioSetup) {
+      await applyScenarioSetup(scenarioSetup, {
+        databaseProvider: this.databaseProvider,
+        gameId,
+        players,
+        cityManager,
+        unitManager,
+        researchManager,
+        governmentManager,
+        economicManager,
+        borderManager,
+        turnManager,
+      });
+    }
+    borderManager.recalculateAllBorders();
 
     this.logger.info('Game instance initialized successfully', {
       gameId,
@@ -880,12 +926,14 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     mapManager: MapManager,
     players: Map<string, PlayerState>,
     terrainSettings?: TerrainSettings,
-    unitManager?: UnitManager
+    unitManager?: UnitManager,
+    scenarioSetup?: ScenarioSetup,
+    game?: any
   ): Promise<void> {
     // Generate the map with starting positions based on terrain settings
     const generator = terrainSettings?.generator || 'random';
     const startpos = terrainSettings?.startpos ?? MapStartpos.DEFAULT;
-    this.assertScenarioGamesEnabled(terrainSettings);
+    this.assertScenarioGamesEnabled(terrainSettings, game?.gameState?.simulation?.executionMode);
 
     this.logger.debug('Map generation starting', { terrainSettings, generator, startpos });
 
@@ -895,6 +943,11 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
     // Emergency fallback sequence (defensive addition, not in freeciv)
     if (!generated || !mapManager.getMapData()) {
+      if (generatorType === 'SCENARIO') {
+        throw new Error(
+          `Scenario map generation failed for '${terrainSettings?.scenarioId ?? ''}'`
+        );
+      }
       await this.performEmergencyFallback(mapManager, players, generatorType);
     }
 
@@ -904,7 +957,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       terrainSettings,
       unitManager,
       players,
-      generatorType
+      generatorType,
+      scenarioSetup
     );
   }
 
@@ -932,8 +986,18 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     }
   }
 
-  private assertScenarioGamesEnabled(terrainSettings?: TerrainSettings): void {
-    if (terrainSettings?.generator?.toLowerCase() === 'scenario') {
+  private isScenarioSimulation(game: any, terrainSettings?: TerrainSettings): boolean {
+    return (
+      terrainSettings?.generator?.toLowerCase() === 'scenario' &&
+      game?.gameState?.simulation?.executionMode === 'headless'
+    );
+  }
+
+  private assertScenarioGamesEnabled(
+    terrainSettings?: TerrainSettings,
+    executionMode?: string
+  ): void {
+    if (terrainSettings?.generator?.toLowerCase() === 'scenario' && executionMode !== 'headless') {
       throw new ScenarioUnavailableError();
     }
   }
@@ -1001,7 +1065,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     terrainSettings: TerrainSettings | undefined,
     unitManager: UnitManager | undefined,
     players: Map<string, PlayerState>,
-    generatorType: MapGeneratorType
+    generatorType: MapGeneratorType,
+    scenarioSetup?: ScenarioSetup
   ): Promise<void> {
     const mapData = mapManager.getMapData();
     if (!mapData) {
@@ -1019,7 +1084,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     await this.onPersistMapData?.(gameId, mapData, terrainSettings);
 
     // Create starting units for all players
-    if (unitManager) {
+    if (unitManager && !hasCustomScenarioInitialState(scenarioSetup)) {
       await this.onCreateStartingUnits?.(gameId, mapData, unitManager, players);
     }
 
@@ -1082,14 +1147,14 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     }
   }
 
-  private async activateGameRecord(gameId: string): Promise<void> {
+  private async activateGameRecord(gameId: string, currentTurn = 1): Promise<void> {
     await this.databaseProvider
       .getDatabase()
       .update(games)
       .set({
         status: 'active',
         startedAt: new Date(),
-        currentTurn: 1,
+        currentTurn,
       })
       .where(eq(games.id, gameId));
   }
@@ -1190,10 +1255,14 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     }
   }
 
-  private async updateRedisForGameStart(gameId: string, playerCount: number): Promise<void> {
+  private async updateRedisForGameStart(
+    gameId: string,
+    playerCount: number,
+    currentTurn: number
+  ): Promise<void> {
     await gameState.setGameState(gameId, {
       state: 'active',
-      currentTurn: 1,
+      currentTurn,
       turnPhase: 'movement',
       playerCount,
     });
@@ -1264,7 +1333,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         executionMode: (game.gameState as any)?.simulation?.executionMode,
       },
       state: 'active',
-      currentTurn: 1,
+      currentTurn: ((game.gameState as any)?.scenarioSetup?.initialTurn as number | undefined) ?? 1,
       turnPhase: 'movement',
       players: preliminaryPlayers,
       turnManager: null as any,
@@ -1361,8 +1430,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       enabled?: boolean;
       warmingThreshold?: number;
       coolingThreshold?: number;
-    }
-  ): Promise<TurnManager> {
+    },
+    scenarioSetup?: ScenarioSetup
+  ): Promise<{ turnManager: TurnManager; economicManager: EconomicManager }> {
     // Create a simple broadcast manager for the TurnManager
     // TODO: Proper dependency injection should be implemented
     const mockBroadcastManager = {
@@ -1427,7 +1497,10 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       players
     );
     const playerIds = Array.from(players.keys());
-    await tm.initializeTurn(playerIds);
+    await tm.initializeTurn(playerIds, {
+      currentTurn: scenarioSetup?.initialTurn ?? 1,
+      currentYear: scenarioSetup?.initialYear,
+    });
     // @reference reference/freeciv/server/unittools.c:1215-1280
     unitManager.setCurrentTurnProvider(() => tm.getCurrentTurn());
     // @reference reference/freeciv/server/citytools.c:639-690
@@ -1463,7 +1536,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     }
     cityManager.setPlayerTaxRatesProvider(playerId => economicManager.getPlayerTaxRates(playerId));
 
-    return tm;
+    return { turnManager: tm, economicManager };
   }
 
   private createCityManager(
@@ -1685,9 +1758,12 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         researchPacing: storedResearchPacing(game),
         randomSeed: (game.gameState as any)?.randomSeed,
         executionMode: (game.gameState as any)?.simulation?.executionMode,
+        scenarioSetup: (game.gameState as any)?.scenarioSetup,
       },
       state: 'active',
-      currentTurn: 1,
+      currentTurn:
+        ((game.gameState as any)?.scenarioSetup?.initialTurn as number | undefined) ??
+        turnManager.getCurrentTurn(),
       turnPhase: 'movement',
       players,
       turnManager,

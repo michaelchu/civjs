@@ -55,6 +55,7 @@ import {
 } from '@game/services/NativeSaveService';
 import { ActionType, type ActionResult } from '@app-types/shared/actions';
 import type { SpaceshipState } from '@game/services/SpaceshipService';
+import type { ScenarioSetup } from '@game/services/ScenarioSetup';
 import { GoldSpendingType } from '@game/systems/Economic/types/EconomicTypes';
 import {
   calculateDiplomatBribeCost,
@@ -118,6 +119,7 @@ export interface GameConfig {
   randomSeed?: number;
   /** Selects timer and recovery behavior for application-owned simulations. */
   executionMode?: 'headless' | 'server';
+  scenarioSetup?: ScenarioSetup;
   /** Optional barbarian frequency override for presets such as Quick Start. */
   barbarianRate?: number;
   /** Optional global warming/nuclear-winter settings. */
@@ -168,6 +170,7 @@ export interface PlayerState {
   isAlive?: boolean;
   gold?: number;
   science?: number;
+  technologies?: string[];
   goldPerTurn?: number;
   sciencePerTurn?: number;
   government?: string;

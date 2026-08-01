@@ -571,6 +571,86 @@ export class ResearchManager {
     return true;
   }
 
+  /** Seed an authoritative research state for deterministic scenario fixtures. */
+  public async seedPlayerResearch(
+    playerId: string,
+    state: {
+      researchedTechs?: string[];
+      currentResearch?: string | null;
+      researchGoal?: string | null;
+      bulbsAccumulated?: number;
+      bulbsLastTurn?: number;
+    }
+  ): Promise<void> {
+    const playerResearch = this.playerResearch.get(playerId);
+    if (!playerResearch) throw new Error(`Player ${playerId} research not initialized`);
+
+    const researchedTechs = state.researchedTechs ?? [...playerResearch.researchedTechs];
+    this.validateSeededTechnologies(researchedTechs);
+    this.applySeededResearchState(playerResearch, researchedTechs, state);
+    await this.persistSeededResearch(playerId, playerResearch, researchedTechs);
+  }
+
+  private validateSeededTechnologies(techIds: string[]): void {
+    const unknownTech = techIds.find(techId => !this.technologies[techId]);
+    if (unknownTech) throw new Error(`Unknown scenario technology: ${unknownTech}`);
+  }
+
+  private applySeededResearchState(
+    playerResearch: PlayerResearch,
+    researchedTechs: string[],
+    state: {
+      currentResearch?: string | null;
+      researchGoal?: string | null;
+      bulbsAccumulated?: number;
+      bulbsLastTurn?: number;
+    }
+  ): void {
+    playerResearch.researchedTechs = new Set(researchedTechs);
+    if (state.currentResearch !== undefined) {
+      playerResearch.currentTech = state.currentResearch ?? undefined;
+    }
+    if (state.researchGoal !== undefined) {
+      playerResearch.techGoal = state.researchGoal ?? undefined;
+    }
+    if (state.bulbsAccumulated !== undefined) {
+      playerResearch.bulbsAccumulated = state.bulbsAccumulated;
+    }
+    if (state.bulbsLastTurn !== undefined) {
+      playerResearch.bulbsLastTurn = state.bulbsLastTurn;
+    }
+  }
+
+  private async persistSeededResearch(
+    playerId: string,
+    playerResearch: PlayerResearch,
+    researchedTechs: string[]
+  ): Promise<void> {
+    const database = this.databaseProvider.getDatabase();
+    await database
+      .delete(playerTechs)
+      .where(and(eq(playerTechs.gameId, this.gameId), eq(playerTechs.playerId, playerId)));
+    if (researchedTechs.length > 0) {
+      await database.insert(playerTechs).values(
+        researchedTechs.map(techId => ({
+          gameId: this.gameId,
+          playerId,
+          techId,
+          researchedTurn: this.getCurrentTurn(),
+        }))
+      );
+    }
+    await database
+      .update(researchTable)
+      .set({
+        currentTech: playerResearch.currentTech ?? null,
+        techGoal: playerResearch.techGoal ?? null,
+        bulbsAccumulated: playerResearch.bulbsAccumulated,
+        bulbsLastTurn: playerResearch.bulbsLastTurn,
+      })
+      .where(and(eq(researchTable.gameId, this.gameId), eq(researchTable.playerId, playerId)));
+  }
+
   public async revokeGrantedTechnology(playerId: string, techId: string): Promise<void> {
     const playerResearch = this.playerResearch.get(playerId);
     if (!playerResearch?.researchedTechs.delete(techId)) return;

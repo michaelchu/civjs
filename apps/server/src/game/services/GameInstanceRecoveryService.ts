@@ -838,6 +838,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
         researchPacing: recoveredResearchPacing(game),
         randomSeed: game.gameState.randomSeed,
         executionMode: (game.gameState as any)?.simulation?.executionMode,
+        scenarioSetup: (game.gameState as any)?.scenarioSetup,
       },
       state: game.status as GameState,
       pauseReason: game.pauseReason ?? undefined,

@@ -71,4 +71,49 @@ describe('headless simulation configuration', () => {
       }).terrainSettings.scenarioId
     ).toBe('duel');
   });
+
+  it('normalizes controlled scenario setup state', () => {
+    const config = headlessSimulationConfigSchema.parse({
+      aiPlayerCount: 2,
+      randomSeed: 42,
+      mapSeed: 'earth-small-42',
+      maxTurns: 20,
+      terrainSettings: { generator: 'scenario', scenarioId: 'earth-small' },
+      scenarioSetup: {
+        initialTurn: 12,
+        initialYear: -3989,
+        replaceDefaultStartingUnits: true,
+        players: [{ playerNumber: 1, technologies: ['alphabet'] }],
+        diplomacy: [{ playerNumber: 1, otherPlayerNumber: 2, state: 'war' }],
+      },
+    });
+
+    expect(config.scenarioSetup).toEqual(
+      expect.objectContaining({
+        initialTurn: 12,
+        initialYear: -3989,
+        replaceDefaultStartingUnits: true,
+      })
+    );
+    expect(config.scenarioSetup?.diplomacy).toEqual([
+      expect.objectContaining({
+        playerNumber: 1,
+        otherPlayerNumber: 2,
+        state: 'war',
+      }),
+    ]);
+  });
+
+  it('rejects zero-based scenario player references', () => {
+    expect(() =>
+      headlessSimulationConfigSchema.parse({
+        aiPlayerCount: 2,
+        randomSeed: 42,
+        mapSeed: 'earth-small-42',
+        maxTurns: 20,
+        terrainSettings: { generator: 'scenario', scenarioId: 'earth-small' },
+        scenarioSetup: { players: [{ playerNumber: 0 }] },
+      })
+    ).toThrow();
+  });
 });

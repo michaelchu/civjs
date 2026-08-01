@@ -53,6 +53,7 @@ export interface TurnStatistics {
 
 export interface TurnInitializationOptions {
   currentTurn?: number;
+  currentYear?: number;
   createTurnRecord?: boolean;
   broadcastTurnStart?: boolean;
 }
@@ -338,6 +339,7 @@ export class TurnManager {
     playerIds: string[],
     {
       currentTurn = 1,
+      currentYear,
       createTurnRecord = true,
       broadcastTurnStart = true,
     }: TurnInitializationOptions = {}
@@ -347,10 +349,16 @@ export class TurnManager {
     this.currentTurn = currentTurn;
     // Reconstruct the calendar when restoring an existing game so packets and
     // future turn processing continue from the persisted turn rather than turn 1.
-    for (let turn = 2; turn <= this.currentTurn; turn += 1) {
-      this.calendarService.advanceYear(this.getTimelineBonuses(playerIds));
+    if (currentYear === undefined) {
+      for (let turn = 2; turn <= this.currentTurn; turn += 1) {
+        this.calendarService.advanceYear(this.getTimelineBonuses(playerIds));
+      }
+      this.currentYear = this.calendarService.getState().year;
+    } else {
+      const calendarState = this.calendarService.getState();
+      this.calendarService.setState({ ...calendarState, year: currentYear });
+      this.currentYear = currentYear;
     }
-    this.currentYear = this.calendarService.getState().year;
     this.turnStartTime = new Date();
 
     // Initialize player actions tracking

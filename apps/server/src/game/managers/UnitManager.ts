@@ -617,6 +617,43 @@ export class UnitManager {
     return unit;
   }
 
+  /** Seed mutable unit state for deterministic scenario fixtures. */
+  public async seedUnitState(
+    unitId: string,
+    state: {
+      health?: number;
+      experience?: number;
+      veteranLevel?: number;
+      fortified?: boolean;
+      movementLeft?: number;
+      automation?: UnitAutomationMode;
+    }
+  ): Promise<void> {
+    const unit = this.units.get(unitId);
+    if (!unit) throw new Error(`Unit ${unitId} not found`);
+
+    if (state.health !== undefined) unit.health = state.health;
+    if (state.experience !== undefined) unit.experience = state.experience;
+    if (state.veteranLevel !== undefined) unit.veteranLevel = state.veteranLevel;
+    if (state.fortified !== undefined) unit.fortified = state.fortified;
+    if (state.movementLeft !== undefined) unit.movementLeft = state.movementLeft;
+    if (state.automation !== undefined) unit.automation = state.automation;
+
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({
+        health: unit.health,
+        experience: unit.experience,
+        veteranLevel: unit.veteranLevel,
+        isFortified: unit.fortified,
+        movementPoints: unit.movementLeft.toString(),
+        automationMode: unit.automation ?? null,
+        isAutomated: unit.automation !== undefined,
+      })
+      .where(eq(units.id, unitId));
+  }
+
   async applyRallyPoint(unit: Unit, rallyPoint: { x: number; y: number }): Promise<void> {
     unit.orders = [{ type: 'move', targetX: rallyPoint.x, targetY: rallyPoint.y }];
     await this.databaseProvider

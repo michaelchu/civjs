@@ -405,7 +405,7 @@ describe('GameManagementHandler', () => {
         expect.objectContaining({
           success: false,
           errorCode: 'SCENARIOS_NOT_ENABLED',
-          message: 'Scenario games are not enabled in this release',
+          message: 'Scenario games are only enabled for headless simulation runs',
         })
       );
     });

@@ -154,6 +154,16 @@ describe('TurnManager', () => {
         expect.anything() // gameTurns schema
       );
     });
+
+    it('initializes a scenario at its configured turn and year', async () => {
+      await turnManager.initializeTurn(['player1'], {
+        currentTurn: 12,
+        currentYear: -3989,
+      });
+
+      expect(turnManager.getCurrentTurn()).toBe(12);
+      expect(turnManager.getCurrentYear()).toBe(-3989);
+    });
   });
 
   describe('player actions', () => {

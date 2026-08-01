@@ -1,0 +1,68 @@
+{
+  "name": "Scenario research race",
+  "aiPlayerCount": 2,
+  "mapWidth": 80,
+  "mapHeight": 50,
+  "ruleset": "civ2civ3",
+  "aiLevel": "easy",
+  "randomSeed": 31003,
+  "mapSeed": "scenario-earth-small-research",
+  "maxTurns": 60,
+  "victoryConditions": ["max_turns"],
+  "terrainSettings": {
+    "generator": "scenario",
+    "landmass": "normal",
+    "huts": 15,
+    "temperature": 50,
+    "wetness": 50,
+    "rivers": 50,
+    "resources": "normal",
+    "scenarioId": "earth-small"
+  },
+  "scenarioSetup": {
+    "initialTurn": 1,
+    "initialYear": -4000,
+    "replaceDefaultStartingUnits": true,
+    "players": [
+      {
+        "playerNumber": 1,
+        "gold": 200,
+        "scienceRate": 90,
+        "technologies": ["alphabet"],
+        "currentResearch": "writing",
+        "researchProgress": 20
+      },
+      {
+        "playerNumber": 2,
+        "gold": 200,
+        "scienceRate": 20,
+        "currentResearch": "masonry"
+      }
+    ],
+    "cities": [
+      {
+        "playerNumber": 1,
+        "name": "Research Alpha",
+        "x": 15,
+        "y": 18,
+        "population": 3,
+        "currentProduction": "warriors",
+        "productionType": "unit"
+      },
+      {
+        "playerNumber": 2,
+        "name": "Research Beta",
+        "x": 36,
+        "y": 17,
+        "population": 3,
+        "currentProduction": "warriors",
+        "productionType": "unit"
+      }
+    ],
+    "units": [
+      { "playerNumber": 1, "unitType": "warriors", "x": 15, "y": 18 },
+      { "playerNumber": 2, "unitType": "warriors", "x": 36, "y": 17 }
+    ]
+  },
+  "turnTimeLimit": 0
+}

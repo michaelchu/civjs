@@ -1,0 +1,40 @@
+{
+  "name": "Scenario victory flag",
+  "aiPlayerCount": 2,
+  "mapWidth": 80,
+  "mapHeight": 50,
+  "ruleset": "civ2civ3",
+  "aiLevel": "easy",
+  "randomSeed": 31004,
+  "mapSeed": "scenario-earth-small-victory",
+  "maxTurns": 10,
+  "victoryConditions": ["scenario"],
+  "terrainSettings": {
+    "generator": "scenario",
+    "landmass": "normal",
+    "huts": 15,
+    "temperature": 50,
+    "wetness": 50,
+    "rivers": 50,
+    "resources": "normal",
+    "scenarioId": "earth-small"
+  },
+  "scenarioSetup": {
+    "initialTurn": 1,
+    "initialYear": -4000,
+    "replaceDefaultStartingUnits": true,
+    "players": [
+      { "playerNumber": 1, "isWinner": true },
+      { "playerNumber": 2, "isAlive": true }
+    ],
+    "cities": [
+      { "playerNumber": 1, "name": "Victory Alpha", "x": 15, "y": 18 },
+      { "playerNumber": 2, "name": "Victory Beta", "x": 36, "y": 17 }
+    ],
+    "units": [
+      { "playerNumber": 1, "unitType": "warriors", "x": 15, "y": 18 },
+      { "playerNumber": 2, "unitType": "warriors", "x": 36, "y": 17 }
+    ]
+  },
+  "turnTimeLimit": 0
+}

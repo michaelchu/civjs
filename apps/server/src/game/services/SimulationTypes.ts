@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { isSettableAILevel, type SettableAILevel } from '@game/ai/AIProfile';
 import type { TerrainSettings } from '@game/managers/GameManager';
+import { scenarioSetupSchema } from './ScenarioSetup';
 
 export const SIMULATION_RUN_SCHEMA_VERSION = 1;
 export const SIMULATION_DIAGNOSTIC_SCHEMA_VERSION = 2;
@@ -61,6 +62,7 @@ export const headlessSimulationConfigSchema = z.object({
   victoryConditions: simulationVictoryConditions,
   terrainSettings: terrainSettingsSchema,
   turnTimeLimit: z.number().int().min(0).max(86_400).default(0),
+  scenarioSetup: scenarioSetupSchema.optional(),
 });
 
 export type HeadlessSimulationConfig = z.infer<typeof headlessSimulationConfigSchema>;

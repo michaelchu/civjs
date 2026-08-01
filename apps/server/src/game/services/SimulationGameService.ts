@@ -79,6 +79,7 @@ export class SimulationGameService {
       aiLevel: config.aiLevel,
       randomSeed: config.randomSeed,
       terrainSettings: config.terrainSettings,
+      scenarioSetup: config.scenarioSetup,
       executionMode,
     });
   }
