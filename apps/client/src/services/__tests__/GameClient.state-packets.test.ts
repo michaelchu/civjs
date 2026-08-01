@@ -44,7 +44,10 @@ describe('GameClient state-bearing packets', () => {
           unitTypeId: 'settlers',
           x: 11,
           y: 13,
-        } as any,
+          hp: 100,
+          movesLeft: 0,
+          veteranLevel: 0,
+        },
       },
     });
 
@@ -214,6 +217,13 @@ describe('GameClient state-bearing packets', () => {
             stay: true,
             facing: 4,
             birthTurn: 7,
+            automation: 'worker',
+            automationTask: {
+              action: 'build_road',
+              targetX: 4,
+              targetY: 3,
+              assignedTurn: 7,
+            },
           },
         ],
       },
@@ -233,6 +243,8 @@ describe('GameClient state-bearing packets', () => {
         attack: 4,
         defense: 2,
         firepower: 1,
+        automation: 'worker',
+        automationTask: expect.objectContaining({ action: 'build_road', targetX: 4 }),
       })
     );
   });

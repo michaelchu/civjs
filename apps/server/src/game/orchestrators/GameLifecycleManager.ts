@@ -1527,6 +1527,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         broadcastUnitDestroyed: (gameId, unit) => {
           this.broadcastManager?.broadcastUnitDestroyed(gameId, unit);
         },
+        broadcastUnitInfo: (gameId, unit) => {
+          this.broadcastManager?.broadcastUnitInfo(gameId, unit);
+        },
         getCityAt: (x: number, y: number) => {
           const city = cityManager.getCityAt(x, y);
           return city

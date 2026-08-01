@@ -3,6 +3,47 @@ import { FreecivRandom } from '@game/random/FreecivRandom';
 import { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAllocator';
 
 describe('TurnPhaseService recovery checkpoints', () => {
+  it('runs shared human autoworkers after AI decisions in the end-turn decision phase', async () => {
+    const order: string[] = [];
+    const service = new TurnPhaseService(
+      'game-1',
+      {} as any,
+      {} as any,
+      {} as any,
+      { registerEventHandler: jest.fn() } as any
+    );
+    service.setAIProcessor(async () => {
+      order.push('ai');
+      return 2;
+    });
+    service.setWorkerAutomationProcessor(async () => {
+      order.push('workers');
+      return 3;
+    });
+    const result = {
+      phase: TurnPhase.PHASE_AI_ACTIONS,
+      success: true,
+      duration: 0,
+      playersProcessed: 0,
+      itemsProcessed: 0,
+      errors: [],
+    };
+
+    await (service as any).executeAIActionsPhase(
+      { gameId: 'game-1', playerIds: ['player-1'] },
+      result
+    );
+
+    expect(order).toEqual(['ai', 'workers']);
+    expect(result).toMatchObject({
+      itemsProcessed: 5,
+      data: { aiActions: 2, workerActions: 3 },
+    });
+    expect(Object.values(TurnPhase).indexOf(TurnPhase.PHASE_UNIT_ACTIVITIES)).toBeLessThan(
+      Object.values(TurnPhase).indexOf(TurnPhase.PHASE_AI_ACTIONS)
+    );
+  });
+
   it('skips phase implementations that already have durable successful checkpoints', async () => {
     const processing = { resetPlayerUnitMovement: jest.fn() };
     const coordination = {};

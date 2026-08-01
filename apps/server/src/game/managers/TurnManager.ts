@@ -29,7 +29,11 @@ import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { FreecivRandom, generateFreecivGameSeed } from '@game/random/FreecivRandom';
 import { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAllocator';
-import { ClimateManager, type ClimateSettings } from '@game/services/ClimateManager';
+import {
+  ClimateManager,
+  type ClimateSettings,
+  type ClimateState,
+} from '@game/services/ClimateManager';
 
 export interface TurnEvent {
   type: 'unit_move' | 'city_production' | 'research_complete' | 'diplomacy' | 'combat';
@@ -124,6 +128,7 @@ export class TurnManager {
   private effectsManager: EffectsManager;
   private visibilityManager: VisibilityManager;
   private climateManager?: ClimateManager;
+  private lastClimateState?: ClimateState;
 
   constructor(
     gameId: string,
@@ -381,6 +386,7 @@ export class TurnManager {
         await this.processGovernmentTurns(playerIds);
         await this.diplomacyProcessor?.();
         const climateResult = await this.climateManager?.processTurn();
+        this.lastClimateState = climateResult?.state ?? this.lastClimateState;
         if (climateResult?.warmingApplied || climateResult?.coolingApplied) {
           this.cityManager.refreshAllTileOccupancy?.();
           this.visibilityManager.updateAllPlayersVisibility(playerIds);
@@ -991,8 +997,16 @@ export class TurnManager {
     return this.turnPhaseService.getCurrentPhase();
   }
 
+  public getClimateState(): ClimateState | undefined {
+    return this.lastClimateState ? { ...this.lastClimateState } : undefined;
+  }
+
   public setAIProcessor(processor: () => Promise<number>): void {
     this.turnPhaseService.setAIProcessor(processor);
+  }
+
+  public setWorkerAutomationProcessor(processor: () => Promise<number>): void {
+    this.turnPhaseService.setWorkerAutomationProcessor(processor);
   }
 
   /**

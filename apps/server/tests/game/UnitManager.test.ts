@@ -154,11 +154,15 @@ describe('UnitManager', () => {
       });
       expect(unit.orders).toEqual([]);
       expect(unit.activity).toEqual({ type: 'idle', turnsRemaining: 0, totalTurns: 0 });
-      expect((mockDbProvider.getDatabase() as any).set).toHaveBeenCalledWith({
-        isAutomated: false,
-        orders: [],
-        currentOrder: null,
-      });
+      expect((mockDbProvider.getDatabase() as any).set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isAutomated: false,
+          automationMode: null,
+          automationTask: null,
+          orders: [],
+          currentOrder: null,
+        })
+      );
     });
   });
 
@@ -2111,7 +2115,14 @@ describe('UnitManager', () => {
     it('persists bribed ownership and clears the unit orders and movement', async () => {
       const lifecycleObserver = jest.fn();
       unitManager.setUnitLifecycleObserver(lifecycleObserver);
-      const unit = await unitManager.createUnit('player-456', 'warriors', 10, 10);
+      const unit = await unitManager.createUnit('player-456', 'worker', 10, 10);
+      await unitManager.executeUnitAction(unit.id, ActionType.AUTO_SETTLER);
+      await unitManager.setWorkerAutomationTask(unit.id, {
+        action: ActionType.BUILD_ROAD,
+        targetX: 11,
+        targetY: 10,
+        assignedTurn: 2,
+      });
       unit.orders = [{ type: 'move', targetX: 11, targetY: 10 }];
       expect(lifecycleObserver).toHaveBeenLastCalledWith({ type: 'created', unit });
       lifecycleObserver.mockClear();
@@ -2124,9 +2135,16 @@ describe('UnitManager', () => {
         movementLeft: 0,
         orders: [],
         fortified: false,
+        automation: undefined,
+        automationTask: undefined,
       });
       expect((mockDbProvider.getDatabase() as any).set).toHaveBeenLastCalledWith(
-        expect.objectContaining({ playerId: 'player-123', movementPoints: '0' })
+        expect.objectContaining({
+          playerId: 'player-123',
+          movementPoints: '0',
+          automationMode: null,
+          automationTask: null,
+        })
       );
       expect(lifecycleObserver).toHaveBeenCalledWith({
         type: 'owner_changed',
@@ -2372,7 +2390,7 @@ describe('UnitManager', () => {
       expect(warrior.orders?.[0]).toMatchObject({ type: 'patrol' });
     });
 
-    it('keeps auto-settler queued behind the selected worker activity', async () => {
+    it('defers auto-worker selection to the shared end-of-turn service', async () => {
       const manager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, specialMap);
       const worker = await manager.createUnit('player-123', 'worker', 10, 10);
 
@@ -2385,8 +2403,75 @@ describe('UnitManager', () => {
       );
       await manager.processUnitOrders('player-123');
 
-      expect(worker.orders).toEqual([{ type: 'road' }, { type: 'autoSettler' }]);
-      expect(worker.automation).toBe('settler');
+      expect(worker.orders).toEqual([{ type: 'autoSettler' }]);
+      expect(worker.automation).toBe('worker');
+    });
+
+    it('toggles Auto Worker off and clears its persisted assignment', async () => {
+      const manager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, specialMap);
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      await manager.executeUnitAction(
+        worker.id,
+        ActionType.AUTO_SETTLER,
+        undefined,
+        undefined,
+        'player-123'
+      );
+      await manager.setWorkerAutomationTask(worker.id, {
+        action: ActionType.BUILD_ROAD,
+        targetX: 12,
+        targetY: 10,
+        assignedTurn: 3,
+      });
+
+      await expect(
+        manager.executeUnitAction(
+          worker.id,
+          ActionType.AUTO_SETTLER,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: true, newOrders: [] });
+      expect(worker).toMatchObject({ orders: [], automation: undefined });
+      expect(worker.automationTask).toBeUndefined();
+      expect((mockDbProvider.getDatabase() as any).set).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          isAutomated: false,
+          automationMode: null,
+          automationTask: null,
+          orders: [],
+        })
+      );
+    });
+
+    it('clears assignment-owned movement when a worker task is invalidated', async () => {
+      const manager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, specialMap);
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+      await manager.executeUnitAction(
+        worker.id,
+        ActionType.AUTO_SETTLER,
+        undefined,
+        undefined,
+        'player-123'
+      );
+      const task = {
+        action: ActionType.BUILD_ROAD,
+        targetX: 12,
+        targetY: 10,
+        assignedTurn: 3,
+      };
+      await manager.setWorkerAutomationTask(worker.id, task);
+      worker.orders = [{ type: 'move', targetX: 12, targetY: 10 }];
+
+      await manager.setWorkerAutomationTask(worker.id, undefined);
+
+      expect(worker).toMatchObject({
+        automation: 'worker',
+        automationTask: undefined,
+        orders: [{ type: 'autoSettler' }],
+      });
     });
 
     it('applies non-lethal bombard damage for a ruleset-capable unit', async () => {
@@ -2486,6 +2571,155 @@ describe('UnitManager', () => {
           }),
         ],
       });
+    });
+
+    it('recovers legacy worker mode from an activity followed by autoSettler', async () => {
+      const db = mockDbProvider.getDatabase() as any;
+      db.where.mockResolvedValueOnce([
+        {
+          id: 'legacy-auto-worker',
+          gameId,
+          playerId: 'player-123',
+          unitType: 'worker',
+          x: 10,
+          y: 10,
+          movementPoints: '0',
+          health: 100,
+          veteranLevel: 0,
+          experience: 0,
+          isFortified: false,
+          isAutomated: true,
+          automationMode: null,
+          automationTask: null,
+          orders: [{ type: 'road' }, { type: 'autoSettler' }],
+          currentOrder: 'road',
+          transportedBy: null,
+          cargoUnits: [],
+          homeCityId: null,
+        },
+      ]);
+
+      await unitManager.loadUnits();
+
+      expect(unitManager.getUnit('legacy-auto-worker')).toMatchObject({
+        automation: 'worker',
+        orders: [{ type: 'road' }, { type: 'autoSettler' }],
+      });
+    });
+
+    it('recovers canonical worker mode and task independently from current activity', async () => {
+      const db = mockDbProvider.getDatabase() as any;
+      db.where.mockResolvedValueOnce([
+        {
+          id: 'canonical-auto-worker',
+          gameId,
+          playerId: 'player-123',
+          unitType: 'worker',
+          x: 10,
+          y: 10,
+          movementPoints: '0',
+          health: 100,
+          veteranLevel: 0,
+          experience: 0,
+          isFortified: false,
+          isAutomated: true,
+          automationMode: 'worker',
+          automationTask: {
+            action: ActionType.BUILD_ROAD,
+            targetX: 10,
+            targetY: 10,
+            assignedTurn: 4,
+          },
+          orders: [{ type: 'road' }, { type: 'autoSettler' }],
+          currentOrder: 'road',
+          transportedBy: null,
+          cargoUnits: [],
+          homeCityId: null,
+        },
+      ]);
+
+      await unitManager.loadUnits();
+
+      expect(unitManager.getUnit('canonical-auto-worker')).toMatchObject({
+        automation: 'worker',
+        automationTask: {
+          action: ActionType.BUILD_ROAD,
+          targetX: 10,
+          targetY: 10,
+          assignedTurn: 4,
+        },
+      });
+    });
+
+    it('keeps worker mode but discards a semantically invalid persisted task', async () => {
+      const db = mockDbProvider.getDatabase() as any;
+      db.where.mockResolvedValueOnce([
+        {
+          id: 'invalid-task-auto-worker',
+          gameId,
+          playerId: 'player-123',
+          unitType: 'worker',
+          x: 10,
+          y: 10,
+          movementPoints: '3',
+          health: 100,
+          veteranLevel: 0,
+          experience: 0,
+          isFortified: false,
+          isAutomated: true,
+          automationMode: 'worker',
+          automationTask: {
+            action: ActionType.ATTACK,
+            targetX: 11,
+            targetY: 10,
+            assignedTurn: 4,
+          },
+          orders: [{ type: 'autoSettler' }],
+          currentOrder: 'autoSettler',
+          transportedBy: null,
+          cargoUnits: [],
+          homeCityId: null,
+        },
+      ]);
+
+      await unitManager.loadUnits();
+
+      expect(unitManager.getUnit('invalid-task-auto-worker')).toMatchObject({
+        automation: 'worker',
+        orders: [{ type: 'autoSettler' }],
+      });
+      expect(unitManager.getUnit('invalid-task-auto-worker')?.automationTask).toBeUndefined();
+    });
+
+    it('does not infer explore mode for legacy automated rally movement', async () => {
+      const db = mockDbProvider.getDatabase() as any;
+      db.where.mockResolvedValueOnce([
+        {
+          id: 'legacy-rally-unit',
+          gameId,
+          playerId: 'player-123',
+          unitType: 'warriors',
+          x: 10,
+          y: 10,
+          movementPoints: '3',
+          health: 100,
+          veteranLevel: 0,
+          experience: 0,
+          isFortified: false,
+          isAutomated: true,
+          automationMode: null,
+          automationTask: null,
+          orders: [{ type: 'move', targetX: 12, targetY: 10 }],
+          currentOrder: 'move',
+          transportedBy: null,
+          cargoUnits: [],
+          homeCityId: null,
+        },
+      ]);
+
+      await unitManager.loadUnits();
+
+      expect(unitManager.getUnit('legacy-rally-unit')?.automation).toBeUndefined();
     });
   });
 

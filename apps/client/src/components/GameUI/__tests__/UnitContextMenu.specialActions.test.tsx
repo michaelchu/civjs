@@ -41,6 +41,29 @@ describe('UnitContextMenu classic special actions', () => {
     expect(onActionSelect).toHaveBeenCalledWith(ActionType.AUTO_EXPLORE);
   });
 
+  it('presents the legacy auto-settler wire action as Auto Worker', () => {
+    const onActionSelect = vi.fn();
+    render(
+      <UnitContextMenu
+        unit={{
+          ...unit,
+          capabilities: {
+            ...unit.capabilities!,
+            canBuildImprovements: true,
+            unitActions: [ActionType.AUTO_SETTLER],
+          },
+        }}
+        position={{ x: 10, y: 10 }}
+        onClose={vi.fn()}
+        onActionSelect={onActionSelect}
+      />
+    );
+
+    expect(screen.queryByText('Auto Settler')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('Auto Worker'));
+    expect(onActionSelect).toHaveBeenCalledWith(ActionType.AUTO_SETTLER);
+  });
+
   it('does not render capabilities the server did not advertise', () => {
     render(
       <UnitContextMenu

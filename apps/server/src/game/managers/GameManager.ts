@@ -62,6 +62,7 @@ import { rulesetUnitsService, type UnitType } from '@game/services/RulesetUnitsS
 import type { FreecivRandom } from '@game/random/FreecivRandom';
 import type { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAllocator';
 import type { ResearchPacingSettings } from '@game/services/ResearchPacing';
+import { processHumanWorkerAutomation } from '@game/automation/WorkerAutomationService';
 
 // Freeciv dai_incident_simple() converts action badness into MAX_AI_LOVE / 35
 // victim penalties. CivJS stores love on the same -1000..1000 scale.
@@ -1337,6 +1338,9 @@ export class GameManager {
     gameInstance.turnManager.setAIProcessor(() =>
       this.aiOrchestrator.processTurn(gameId, gameInstance)
     );
+    gameInstance.turnManager.setWorkerAutomationProcessor(() =>
+      processHumanWorkerAutomation(gameInstance, this.hostilityPolicy)
+    );
     gameInstance.turnManager.setDiplomacyProcessor(async () => {
       const events = await this.diplomacyManager.processTurn(gameId);
       for (const event of events) {
@@ -2189,6 +2193,7 @@ export class GameManager {
     }
 
     const aiState = createAIState();
+    await game.unitManager?.clearPlayerAutomation?.(playerId);
     player.isAI = isAI;
     player.aiLevel = aiLevel;
     player.aiState = aiState as unknown as Record<string, unknown>;

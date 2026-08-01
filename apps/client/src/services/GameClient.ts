@@ -467,6 +467,8 @@ export class GameClient {
               fortified: normalizedUnit.fortified,
               activity: normalizedUnit.activity,
               orders: normalizedUnit.orders,
+              automation: normalizedUnit.automation,
+              automationTask: normalizedUnit.automationTask,
               transportedBy: normalizedUnit.transportedBy,
               cargoUnits: normalizedUnit.cargoUnits,
               capabilities: normalizedUnit.capabilities,

@@ -608,6 +608,35 @@ describe('GameBroadcastManager visibility sync', () => {
     ]);
   });
 
+  it('sends worker automation state only to the owning player', () => {
+    const unit = {
+      id: 'worker-1',
+      playerId: playerOne,
+      unitTypeId: 'worker',
+      x: 0,
+      y: 0,
+      movementLeft: 3,
+      health: 100,
+      automation: 'worker',
+      automationTask: {
+        action: 'build_road',
+        targetX: 2,
+        targetY: 2,
+        assignedTurn: 4,
+      },
+    };
+    const unitManager = { getUnitMaxMovement: () => 1 };
+
+    expect((manager as any).formatUnitForClient(unit, unitManager, playerOne)).toMatchObject({
+      automation: 'worker',
+      automationTask: expect.objectContaining({ targetX: 2, targetY: 2 }),
+    });
+    expect((manager as any).formatUnitForClient(unit, unitManager, playerTwo)).toMatchObject({
+      automation: undefined,
+      automationTask: undefined,
+    });
+  });
+
   it('visibility-scopes unit destruction using the last-known tile', () => {
     manager.broadcastUnitDestroyed(gameId, {
       id: 'lost-unit',

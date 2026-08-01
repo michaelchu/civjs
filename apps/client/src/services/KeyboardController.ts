@@ -128,7 +128,7 @@ export class KeyboardController {
 
     this.keyBindings.set('a', {
       action: ActionType.AUTO_SETTLER,
-      description: 'Auto settler',
+      description: 'Auto worker',
     });
 
     // Special actions

@@ -47,6 +47,14 @@ export interface Unit {
   fortified?: boolean;
   activity?: unknown;
   orders?: unknown;
+  automation?: 'explore' | 'worker';
+  automationTask?: {
+    action: string;
+    targetX: number;
+    targetY: number;
+    assignedTurn: number;
+    requestCityId?: string;
+  };
   transportedBy?: string;
   cargoUnits?: string[];
   capabilities?: {

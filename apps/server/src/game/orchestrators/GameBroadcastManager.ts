@@ -388,7 +388,9 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
           gameInstance.visibilityManager.getDetectionTiles?.(playerId)
         );
 
-    return units.map((unit: any) => this.formatUnitForClient(unit, gameInstance.unitManager));
+    return units.map((unit: any) =>
+      this.formatUnitForClient(unit, gameInstance.unitManager, playerId)
+    );
   }
 
   private sendPlayerInfoSnapshot(gameInstance: GameInstance, recipientPlayerId: string): void {
@@ -599,7 +601,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
           gameInstance.visibilityManager.getDetectionTiles?.(playerId)
         );
     const units = visibleUnits.map((unit: any) =>
-      this.formatUnitForClient(unit, gameInstance.unitManager)
+      this.formatUnitForClient(unit, gameInstance.unitManager, playerId)
     );
     this.sendPacketToPlayer(gameInstance, playerId, PacketType.UNIT_INFO, {
       units,
@@ -871,7 +873,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
    * Format unit data for client transmission
    * @reference Original GameManager.ts:800-832 formatUnitForClient()
    */
-  private formatUnitForClient(unit: any, unitManager: any): any {
+  private formatUnitForClient(unit: any, unitManager: any, recipientPlayerId?: string): any {
     const unitTypeId = this.getUnitTypeId(unit);
     const unitType =
       unitManager.getUnitType?.(unitTypeId) ??
@@ -894,6 +896,8 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       activity: this.unitValue(unit.activity, 'idle'),
       fortified: this.unitValue(unit.fortified, false),
       orders: this.unitValue(unit.orders, null),
+      automation: recipientPlayerId === unit.playerId ? unit.automation : undefined,
+      automationTask: recipientPlayerId === unit.playerId ? unit.automationTask : undefined,
       transportedBy: unit.transportedBy,
       cargoUnits: this.unitValue(unit.cargoUnits, []),
       capabilities: this.getUnitCapabilities(

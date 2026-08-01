@@ -897,13 +897,7 @@ describe('CityManager', () => {
       const isTileExplored = jest.fn().mockReturnValue(true);
       cityManager.setTileExplorationProvider(isTileExplored);
 
-      const city = await cityManager.foundCity(
-        10,
-        10,
-        'Visibility City',
-        'player-123',
-        settler.id
-      );
+      const city = await cityManager.foundCity(10, 10, 'Visibility City', 'player-123', settler.id);
 
       expect(city.name).toBe('Visibility City');
       expect(isTileExplored).toHaveBeenCalledWith('player-123', 10, 10);

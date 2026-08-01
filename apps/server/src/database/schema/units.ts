@@ -41,6 +41,8 @@ export const units = pgTable('units', {
   orders: jsonb('orders').default([]).notNull(), // queue of commands
   currentOrder: varchar('current_order', { length: 50 }),
   destination: jsonb('destination'), // {x, y} for goto orders
+  automationMode: varchar('automation_mode', { length: 20 }),
+  automationTask: jsonb('automation_task'),
 
   // Status
   isEmbarked: boolean('is_embarked').default(false).notNull(),

@@ -393,7 +393,7 @@ export class CityFoundingValidationService {
     // 1 = tile must be seen, 2 = tile must be explored
     const isExplored = this.tileExplorationProvider
       ? this.tileExplorationProvider(playerId, x, y)
-      : tile.isExplored ?? true;
+      : (tile.isExplored ?? true);
     if (this.foundingRules.exploration_requirement >= 1 && !isExplored) {
       return {
         canFound: false,

@@ -183,6 +183,13 @@
       "when": 1785398400000,
       "tag": "0025_add_player_score_counters",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1785542400000,
+      "tag": "0026_add_unit_automation_state",
+      "breakpoints": true
     }
   ]
 }

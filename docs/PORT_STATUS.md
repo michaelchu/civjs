@@ -26,6 +26,9 @@ CivJS supports a server-authoritative classic game with:
   by the classic ruleset;
 - the complete enabled classic caravan, unit-management, worker, airlift,
   paradrop, nuclear, and combat-consequence surface;
+- persistent human **Auto Worker** and native-AI worker management through one
+  shared city-workable planner, reservation/safety model, and authoritative
+  executor, including restart recovery and owner-visible assignment state;
 - persisted maps, players, cities, units, research, diplomacy, turn audit data,
   timers, and end-game reports;
 - a React/Canvas 2D client exposing the supported core play surface without

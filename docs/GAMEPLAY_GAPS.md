@@ -888,7 +888,11 @@ you declare war first.` Civilian/border-entry units may enter permitted
 - **Current implementation:** Same-player workers with compatible activity
   orders on the same tile now form one authoritative work group. Progress is
   calculated in shared work units, with Engineers contributing at double rate;
-  completion mutates the tile once and clears every participating order.
+  completion mutates the tile once and clears every participating order. The
+  automatic worker planner reserves distinct destinations, matching the
+  reference autoworker rule that avoids tiles already occupied by another
+  friendly worker; cooperation remains available when workers are manually
+  assigned to the same compatible activity.
 - **Reference behavior:** Freeciv stores accumulated activity work and sums the
   activity rates of compatible units on a tile, allowing workers to cooperate.
 - **CivJS references:**

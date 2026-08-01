@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { ActionType } from '@app-types/shared/actions';
+import { processHumanWorkerAutomation } from '@game/automation/WorkerAutomationService';
 import serverConfig from '@config';
 import * as schema from '@database/schema';
 import { createAIProfile } from '@game/ai/AIProfile';
@@ -1272,6 +1273,74 @@ describe('AI authoritative manager boundaries', () => {
     expect(persistedWorker?.orders ?? []).toEqual([]);
   });
 
+  it('persists and recovers human Auto Worker through shared authoritative execution', async () => {
+    const scenario = await createActiveGame(2);
+    const [host] = scenario.players;
+    const city = await foundPlayerCity(scenario, host!.playerId, 'Human Infrastructure City');
+    const target = findRoadableCityTile(scenario.game, city.id);
+    city.workerTaskRequests = [
+      { x: target.x, y: target.y, action: ActionType.BUILD_ROAD, want: 500 },
+    ];
+    const worker = await scenario.game.unitManager.createUnit(
+      host!.playerId,
+      'worker',
+      target.x,
+      target.y,
+      city.id
+    );
+
+    await expect(
+      scenario.game.unitManager.executeUnitAction(
+        worker.id,
+        ActionType.AUTO_SETTLER,
+        undefined,
+        undefined,
+        host!.playerId
+      )
+    ).resolves.toMatchObject({ success: true });
+    await expect(
+      processHumanWorkerAutomation(scenario.game, (gameManager as any).hostilityPolicy)
+    ).resolves.toBeGreaterThan(0);
+
+    expect(worker).toMatchObject({
+      automation: 'worker',
+      automationTask: {
+        action: ActionType.BUILD_ROAD,
+        targetX: target.x,
+        targetY: target.y,
+      },
+      orders: [{ type: 'road' }, { type: 'autoSettler' }],
+    });
+    const persisted = await getTestDatabase().query.units.findFirst({
+      where: eq(schema.units.id, worker.id),
+    });
+    expect(persisted).toMatchObject({
+      automationMode: 'worker',
+      automationTask: expect.objectContaining({ action: ActionType.BUILD_ROAD }),
+      currentOrder: 'road',
+    });
+
+    gameManager.clearAllGames();
+    (GameManager as any).instance = null;
+    gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
+    const recovered = await gameManager.recoverGameInstance(scenario.gameId);
+    const recoveredWorker = recovered!.unitManager.getUnit(worker.id)!;
+    expect(recoveredWorker).toMatchObject({
+      automation: 'worker',
+      automationTask: expect.objectContaining({ action: ActionType.BUILD_ROAD }),
+      orders: [{ type: 'road' }, { type: 'autoSettler' }],
+    });
+
+    for (
+      let attempt = 0;
+      attempt < 20 && !recovered!.mapManager.getTile(target.x, target.y)!.hasRoad;
+      attempt += 1
+    ) {
+      await recovered!.unitManager.processUnitOrders(host!.playerId);
+    }
+    expect(recovered!.mapManager.getTile(target.x, target.y)!.hasRoad).toBe(true);
+  });
+
   it('chooses, completes, and persists an economic city improvement through authoritative managers', async () => {
     const scenario = await createActiveGame(2);
     const [, guest] = scenario.players;
@@ -1954,9 +2023,11 @@ describe('AI authoritative manager boundaries', () => {
       (GameManager as any).instance = null;
       gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
     }
-    expect(hardTotal).toBe(aiPairedBenchmarkBaseline.hardTotal);
-    expect(easyTotal).toBe(aiPairedBenchmarkBaseline.easyTotal);
-    expect(hardWins).toBe(aiPairedBenchmarkBaseline.hardWins);
+    expect({ hardTotal, easyTotal, hardWins }).toEqual({
+      hardTotal: aiPairedBenchmarkBaseline.hardTotal,
+      easyTotal: aiPairedBenchmarkBaseline.easyTotal,
+      hardWins: aiPairedBenchmarkBaseline.hardWins,
+    });
     expect(hardTotal).toBeGreaterThan(easyTotal);
   }, 120_000);
 

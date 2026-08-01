@@ -372,7 +372,8 @@ describe('FreecivAIOrchestrator', () => {
       ActionType.BUILD_IRRIGATION,
       undefined,
       undefined,
-      'ai'
+      'ai',
+      { preserveAutomation: true }
     );
     expect(scenario.moveUnit).toHaveBeenCalledWith('scout', 6, 7);
     expect(scenario.executeUnitAction).not.toHaveBeenCalledWith(
@@ -582,7 +583,9 @@ describe('FreecivAIOrchestrator', () => {
       scenario.game as any
     );
 
-    expect(scenario.executeUnitAction).toHaveBeenCalledWith('worker', ActionType.GOTO, 3, 3, 'ai');
+    expect(scenario.executeUnitAction).toHaveBeenCalledWith('worker', ActionType.GOTO, 3, 3, 'ai', {
+      preserveAutomation: true,
+    });
     expect((scenario.game.players.get('ai') as any).aiState.unitTasks.worker).toMatchObject({
       role: 'worker',
       action: ActionType.BUILD_IRRIGATION,
@@ -623,7 +626,8 @@ describe('FreecivAIOrchestrator', () => {
       ActionType.BUILD_ROAD,
       undefined,
       undefined,
-      'ai'
+      'ai',
+      { preserveAutomation: true }
     );
     expect(clearWorkerTaskRequest).toHaveBeenCalledWith('capital', 3, 3, ActionType.BUILD_ROAD);
   });
@@ -1978,6 +1982,45 @@ describe('FreecivAIOrchestrator', () => {
         tasks['b-settler'].targetY
       )
     ).toBeGreaterThanOrEqual(3);
+  });
+
+  it('uses the shared worker plan when infrastructure outranks a new city site', async () => {
+    const scenario = createScenario();
+    scenario.units.delete('worker');
+    scenario.units.delete('warrior');
+    scenario.units.delete('scout');
+    scenario.units.delete('enemy');
+    scenario.unitTypes.settlers.canBuildImprovements = true;
+    (scenario.game.cityManager as any).canFoundCityAt = (x: number, y: number) =>
+      x === 8 && y === 8;
+    (scenario.game.mapManager.getTile(3, 3) as any).improvements = ['pollution'];
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect(scenario.executeUnitAction).toHaveBeenCalledWith(
+      'settler',
+      ActionType.GOTO,
+      3,
+      3,
+      'ai',
+      { preserveAutomation: true }
+    );
+    expect(scenario.executeUnitAction).not.toHaveBeenCalledWith(
+      'settler',
+      ActionType.GOTO,
+      8,
+      8,
+      'ai'
+    );
+    expect((scenario.game.players.get('ai') as any).aiState.unitTasks.settler).toMatchObject({
+      role: 'worker',
+      action: ActionType.CLEAN_POLLUTION,
+      targetX: 3,
+      targetY: 3,
+    });
   });
 
   it('does not found on a legal intermediate tile before reaching the reserved site', async () => {

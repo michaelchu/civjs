@@ -15,7 +15,13 @@ import {
   sortedPlayerUnits,
   targetableForeignCities,
 } from '@game/ai/AITargeting';
-import { planWorkerImprovements, type WorkerAssignment } from '@game/ai/AIWorkerPlanner';
+import {
+  executeInfrastructurePlan,
+  isWorkerTileSafe,
+  planAIInfrastructureWork,
+  workerHasExplicitOrders,
+} from '@game/automation/WorkerAutomationService';
+import type { WorkerAutomationTask } from '@game/automation/WorkerAutomationTypes';
 import {
   explorationAdditionalStepCost,
   planExploration,
@@ -448,6 +454,29 @@ export class FreecivAIUnitController {
       existingTask,
       (profile.expansion / 100) * (profile.traits.expansionist / 50)
     );
+    const unitType = game.unitManager.getUnitType(unit.unitTypeId);
+    if (unitType?.canBuildImprovements && existingTask?.role !== 'settle') {
+      const workerPlan = await planAIInfrastructureWork(
+        game,
+        unit.playerId,
+        [unit],
+        hostileUnits,
+        {}
+      );
+      const improvement = workerPlan.assignments[0];
+      const citySite = candidates[0];
+      if (improvement && (!citySite || improvement.want >= citySite.want)) {
+        this.releaseSettlerReservation(reservedSites, unit.id);
+        return executeInfrastructurePlan(game, unit.playerId, [improvement], workerPlan.tasks, {
+          setTask: (unitId, task) => {
+            state.unitTasks[unitId] = { role: 'worker', ...task };
+          },
+          clearTask: unitId => {
+            if (state.unitTasks[unitId]?.role === 'worker') delete state.unitTasks[unitId];
+          },
+        });
+      }
+    }
     for (const candidate of candidates) {
       if (await this.trySettlerCandidate(game, unit, state, reservedSites, candidate)) return 1;
     }
@@ -463,10 +492,24 @@ export class FreecivAIUnitController {
   ): Promise<number> {
     const workers = sortedPlayerUnits(game, playerId).filter(unit => {
       const type = game.unitManager.getUnitType(unit.unitTypeId);
+      const aiTask = state.unitTasks[unit.id];
+      const workerTask =
+        aiTask?.role === 'worker' &&
+        aiTask.action &&
+        aiTask.targetX !== undefined &&
+        aiTask.targetY !== undefined
+          ? ({
+              action: aiTask.action,
+              targetX: aiTask.targetX,
+              targetY: aiTask.targetY,
+              assignedTurn: aiTask.assignedTurn,
+            } satisfies WorkerAutomationTask)
+          : undefined;
       return Boolean(
         type?.canBuildImprovements &&
-        state.unitTasks[unit.id]?.role !== 'settle' &&
-        state.unitTasks[unit.id]?.role !== 'ferry'
+        aiTask?.role !== 'settle' &&
+        aiTask?.role !== 'ferry' &&
+        !workerHasExplicitOrders(unit, workerTask)
       );
     });
     const profile = createAIProfile(
@@ -474,128 +517,79 @@ export class FreecivAIUnitController {
       game.players.get(playerId)?.aiTraits
     );
     const hostileIds = await this.hostilityPolicy.getHostilePlayerIds(game.id, playerId);
-    const plan = planWorkerImprovements({
-      turn: game.currentTurn,
+    const existingTasks = Object.fromEntries(
+      Object.entries(state.unitTasks)
+        .filter(
+          ([, task]) =>
+            task.role === 'worker' &&
+            task.action &&
+            task.targetX !== undefined &&
+            task.targetY !== undefined
+        )
+        .map(([unitId, task]) => [
+          unitId,
+          {
+            action: task.action!,
+            targetX: task.targetX!,
+            targetY: task.targetY!,
+            assignedTurn: task.assignedTurn,
+          },
+        ])
+    );
+    const hostileUnits = hostileUnitsForPlanning(game, playerId, hostileIds, profile);
+    for (const worker of workers) {
+      if (
+        worker.activity &&
+        worker.activity.type !== 'idle' &&
+        !isWorkerTileSafe(game, playerId, hostileUnits, worker.x, worker.y)
+      ) {
+        await game.unitManager.executeUnitAction(
+          worker.id,
+          ActionType.CANCEL_ORDERS,
+          undefined,
+          undefined,
+          playerId
+        );
+        delete state.unitTasks[worker.id];
+      }
+    }
+    const plan = await planAIInfrastructureWork(
+      game,
       playerId,
       workers,
-      cities: game.cityManager.getPlayerCities(playerId),
-      hostileUnits: hostileUnitsForPlanning(game, playerId, hostileIds, profile),
-      existingTasks: state.unitTasks,
-      getTile: (x, y) => game.mapManager.getTile(x, y),
-      getNeighbors: (x, y) => game.mapManager.getNeighbors(x, y),
-      getCardinalNeighbors: (x, y) =>
-        game.mapManager
-          .getTopology()
-          .getCardinalNeighbors(x, y)
-          .map(position => game.mapManager.getTile(position.x, position.y))
-          .filter((tile): tile is NonNullable<typeof tile> => tile !== null),
-      getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
-      distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
-      researchedTechs:
-        game.researchManager.getPlayerResearch(playerId)?.researchedTechs ?? new Set(),
-      rulesetName: game.config?.ruleset ?? 'classic',
-    });
+      hostileUnits,
+      existingTasks
+    );
 
     for (const [unitId, task] of Object.entries(state.unitTasks)) {
       if (task.role !== 'worker') continue;
       const worker = game.unitManager.getUnit(unitId);
-      if (!worker?.transportedBy) delete state.unitTasks[unitId];
-    }
-    Object.assign(state.unitTasks, plan.tasks);
-
-    let actions = 0;
-    for (const assignment of plan.assignments) {
-      actions += await this.executeWorkerAssignment(game, playerId, state, assignment);
-    }
-    return actions;
-  }
-
-  private async executeWorkerAssignment(
-    game: GameInstance,
-    playerId: string,
-    state: FreecivAIState,
-    assignment: WorkerAssignment
-  ): Promise<number> {
-    const unit = game.unitManager.getUnit(assignment.unit.id);
-    if (!unit || unit.movementLeft <= 0) return 0;
-    if (unit.x === assignment.tile.x && unit.y === assignment.tile.y) {
-      return this.startWorkerActivity(game, playerId, state, assignment, unit);
-    }
-    return this.moveWorkerToAssignment(game, playerId, state, assignment, unit);
-  }
-
-  private async startWorkerActivity(
-    game: GameInstance,
-    playerId: string,
-    state: FreecivAIState,
-    assignment: WorkerAssignment,
-    unit: Unit
-  ): Promise<number> {
-    if (!game.unitManager.canUnitPerformAction(unit.id, assignment.action)) {
-      delete state.unitTasks[unit.id];
-      return 0;
-    }
-    const result = await game.unitManager.executeUnitAction(
-      unit.id,
-      assignment.action,
-      undefined,
-      undefined,
-      playerId
-    );
-    if (result.success && assignment.requestCityId) {
-      game.cityManager.clearWorkerTaskRequest(
-        assignment.requestCityId,
-        assignment.tile.x,
-        assignment.tile.y,
-        assignment.action
-      );
-    }
-    return result.success ? 1 : 0;
-  }
-
-  private async moveWorkerToAssignment(
-    game: GameInstance,
-    playerId: string,
-    state: FreecivAIState,
-    assignment: WorkerAssignment,
-    unit: Unit
-  ): Promise<number> {
-    if (
-      typeof game.pathfindingManager?.findPath !== 'function' ||
-      !game.unitManager.canUnitPerformAction(
-        unit.id,
-        ActionType.GOTO,
-        assignment.tile.x,
-        assignment.tile.y
-      )
-    ) {
-      delete state.unitTasks[unit.id];
-      return 0;
-    }
-    const path = await game.pathfindingManager.findPath(unit, assignment.tile.x, assignment.tile.y);
-    if (!path.valid || path.path.length < 2) {
-      const source = game.mapManager.getTile(unit.x, unit.y);
       if (
-        source &&
-        source.continentId > 0 &&
-        assignment.tile.continentId > 0 &&
-        source.continentId !== assignment.tile.continentId
+        !worker ||
+        worker.playerId !== playerId ||
+        (worker.transportedBy && !task.transportRequired)
       ) {
-        const task = state.unitTasks[unit.id];
-        if (task?.role === 'worker') task.transportRequired = true;
-        return 0;
+        delete state.unitTasks[unitId];
+      } else if (
+        !worker.transportedBy &&
+        !plan.tasks[unitId] &&
+        (!worker.activity || worker.activity.type === 'idle')
+      ) {
+        delete state.unitTasks[unitId];
       }
-      delete state.unitTasks[unit.id];
-      return 0;
     }
-    const result = await game.unitManager.executeUnitAction(
-      unit.id,
-      ActionType.GOTO,
-      assignment.tile.x,
-      assignment.tile.y,
-      playerId
-    );
-    return result.success ? 1 : 0;
+    return executeInfrastructurePlan(game, playerId, plan.assignments, plan.tasks, {
+      setTask: (unitId, task) => {
+        state.unitTasks[unitId] = { role: 'worker', ...task };
+      },
+      clearTask: unitId => {
+        if (state.unitTasks[unitId]?.role === 'worker') delete state.unitTasks[unitId];
+      },
+      markTransportRequired: unitId => {
+        const task = state.unitTasks[unitId];
+        if (task?.role === 'worker') task.transportRequired = true;
+      },
+    });
   }
 
   async attackAdjacentEnemies(

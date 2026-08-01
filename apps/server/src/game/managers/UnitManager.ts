@@ -20,6 +20,11 @@ import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
 import { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAllocator';
 import type { MapManager } from '@game/managers/MapManager';
 import { RulesetRequirementEvaluator } from '@game/services/RulesetRequirementEvaluator';
+import {
+  isWorkerAutomationTask,
+  type UnitAutomationMode,
+  type WorkerAutomationTask,
+} from '@game/automation/WorkerAutomationTypes';
 
 interface CityAtLocation {
   id: string;
@@ -47,7 +52,8 @@ export interface Unit {
   activity?: UnitActivity;
   sentryUntil?: 'turn_start' | 'enemy_sighted' | 'manual';
   autoExploreTarget?: { x: number; y: number };
-  automation?: 'explore' | 'settler';
+  automation?: UnitAutomationMode;
+  automationTask?: WorkerAutomationTask;
   transportedBy?: string; // ID of unit transporting this unit
   cargoUnits?: string[]; // IDs of units being transported by this unit
   homeCityId?: string;
@@ -215,6 +221,7 @@ export class UnitManager {
       movementLeft: number
     ) => void;
     broadcastUnitDestroyed?: (gameId: string, unit: Unit) => void;
+    broadcastUnitInfo?: (gameId: string, unit: Unit) => void;
     getCityAt?: (x: number, y: number) => CityAtLocation | null;
     applyCityPopulationLoss?: (cityId: string) => Promise<boolean>;
     getCityNames?: () => string[];
@@ -311,6 +318,7 @@ export class UnitManager {
         movementLeft: number
       ) => void;
       broadcastUnitDestroyed?: (gameId: string, unit: Unit) => void;
+      broadcastUnitInfo?: (gameId: string, unit: Unit) => void;
       getCityAt?: (x: number, y: number) => CityAtLocation | null;
       applyCityPopulationLoss?: (cityId: string) => Promise<boolean>;
       getCityNames?: () => string[];
@@ -2095,6 +2103,61 @@ export class UnitManager {
     return Array.from(this.units.values()).filter(u => u.x === x && u.y === y);
   }
 
+  async setWorkerAutomationTask(
+    unitId: string,
+    task: WorkerAutomationTask | undefined
+  ): Promise<void> {
+    const unit = this.units.get(unitId);
+    if (!unit || unit.automation !== 'worker') return;
+    const previousTask = unit.automationTask;
+    unit.automationTask = task;
+    if (!task && previousTask && this.ordersBelongToWorkerTask(unit, previousTask)) {
+      unit.orders = [{ type: 'autoSettler' }];
+      unit.activity = { type: 'idle', turnsRemaining: 0, totalTurns: 0 };
+    }
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({
+        automationMode: 'worker',
+        automationTask: task ?? null,
+        isAutomated: true,
+        orders: unit.orders ?? [],
+        currentOrder: unit.orders?.[0]?.type ?? null,
+      })
+      .where(eq(units.id, unit.id));
+  }
+
+  async clearPlayerAutomation(playerId: string): Promise<void> {
+    for (const unit of this.getPlayerUnits(playerId)) {
+      if (unit.automation) await this.clearAutomation(unit);
+    }
+  }
+
+  broadcastUnitInfo(unitId: string): void {
+    const unit = this.units.get(unitId);
+    if (unit) this.gameManagerCallback?.broadcastUnitInfo?.(this.gameId, unit);
+  }
+
+  private ordersBelongToWorkerTask(unit: Unit, task: WorkerAutomationTask): boolean {
+    const first = unit.orders?.[0];
+    if (!first || first.type === 'autoSettler') return false;
+    if (first.type === 'move') {
+      return first.targetX === task.targetX && first.targetY === task.targetY;
+    }
+    const orderByAction: Partial<Record<ActionType, UnitOrder['type']>> = {
+      [ActionType.BUILD_ROAD]: 'road',
+      [ActionType.BUILD_RAILROAD]: 'railroad',
+      [ActionType.BUILD_IRRIGATION]: 'irrigate',
+      [ActionType.BUILD_MINE]: 'mine',
+      [ActionType.CULTIVATE]: 'cultivate',
+      [ActionType.PLANT]: 'plant',
+      [ActionType.TRANSFORM_TERRAIN]: 'transform',
+      [ActionType.CLEAN_POLLUTION]: 'cleanPollution',
+    };
+    return orderByAction[task.action] === first.type;
+  }
+
   /**
    * Load units from database
    */
@@ -2138,7 +2201,15 @@ export class UnitManager {
       homeCityId: dbUnit.homeCityId ?? undefined,
       createdTurn: dbUnit.createdTurn,
       lastActionTurn: dbUnit.lastActionTurn ?? undefined,
-      automation: this.getLoadedAutomation(dbUnit.isAutomated, dbUnit.currentOrder),
+      automation: this.getLoadedAutomation(
+        dbUnit.automationMode,
+        dbUnit.isAutomated,
+        dbUnit.currentOrder,
+        this.parseLoadedOrders(dbUnit.orders)
+      ),
+      automationTask: isWorkerAutomationTask(dbUnit.automationTask)
+        ? dbUnit.automationTask
+        : undefined,
     };
   }
 
@@ -2147,11 +2218,21 @@ export class UnitManager {
   }
 
   private getLoadedAutomation(
+    automationMode: string | null,
     isAutomated: boolean,
-    currentOrder: string | null
-  ): 'explore' | 'settler' | undefined {
+    currentOrder: string | null,
+    orders: UnitOrder[]
+  ): UnitAutomationMode | undefined {
+    if (automationMode === 'explore' || automationMode === 'worker') return automationMode;
+    if (automationMode === 'settler') return 'worker';
     if (!isAutomated) return undefined;
-    return currentOrder === 'autoSettler' ? 'settler' : 'explore';
+    if (currentOrder === 'autoSettler' || orders.some(order => order.type === 'autoSettler')) {
+      return 'worker';
+    }
+    if (currentOrder === 'autoExplore' || orders.some(order => order.type === 'autoExplore')) {
+      return 'explore';
+    }
+    return undefined;
   }
 
   private parseLoadedOrders(orders: unknown): UnitOrder[] {
@@ -3051,6 +3132,8 @@ export class UnitManager {
     unit.playerId = newPlayerId;
     unit.homeCityId = homeCityId;
     unit.orders = [];
+    unit.automation = undefined;
+    unit.automationTask = undefined;
     unit.movementLeft = 0;
     unit.fortified = false;
     await this.databaseProvider
@@ -3061,6 +3144,9 @@ export class UnitManager {
         homeCityId: homeCityId ?? null,
         orders: [],
         currentOrder: null,
+        isAutomated: false,
+        automationMode: null,
+        automationTask: null,
         movementPoints: '0',
         isFortified: false,
       })
@@ -3307,7 +3393,8 @@ export class UnitManager {
     actionType: ActionType,
     targetX?: number,
     targetY?: number,
-    actingPlayerId?: string
+    actingPlayerId?: string,
+    options?: { preserveAutomation?: boolean }
   ): Promise<ActionResult> {
     const unit = this.units.get(unitId);
     if (!unit) {
@@ -3323,7 +3410,10 @@ export class UnitManager {
       };
     }
 
-    if (![ActionType.AUTO_EXPLORE, ActionType.AUTO_SETTLER].includes(actionType)) {
+    if (
+      !options?.preserveAutomation &&
+      ![ActionType.AUTO_EXPLORE, ActionType.AUTO_SETTLER].includes(actionType)
+    ) {
       await this.clearAutomation(unit);
     }
     const directAction = this.getDirectUnitAction(unit, actionType);
@@ -3417,7 +3507,13 @@ export class UnitManager {
     await this.databaseProvider
       .getDatabase()
       .update(units)
-      .set({ isAutomated: false, orders: [], currentOrder: null })
+      .set({
+        isAutomated: false,
+        automationMode: null,
+        automationTask: null,
+        orders: [],
+        currentOrder: null,
+      })
       .where(eq(units.id, unit.id));
 
     return {
@@ -4200,9 +4296,10 @@ export class UnitManager {
   }
 
   private async setAutomation(unit: Unit, actionType: ActionType): Promise<ActionResult> {
-    const automation = actionType === ActionType.AUTO_SETTLER ? 'settler' : 'explore';
+    const automation: UnitAutomationMode =
+      actionType === ActionType.AUTO_SETTLER ? 'worker' : 'explore';
     if (
-      (automation === 'settler' && !this.unitTypes[unit.unitTypeId].canBuildImprovements) ||
+      (automation === 'worker' && !this.unitTypes[unit.unitTypeId].canBuildImprovements) ||
       (automation === 'explore' && this.unitTypes[unit.unitTypeId].movement <= 0)
     ) {
       return { success: false, message: `Unit cannot use ${automation} automation` };
@@ -4212,11 +4309,18 @@ export class UnitManager {
       return { success: true, message: `${automation} automation stopped`, newOrders: [] };
     }
     unit.automation = automation;
-    unit.orders = [{ type: automation === 'settler' ? 'autoSettler' : 'autoExplore' }];
+    unit.automationTask = undefined;
+    unit.orders = [{ type: automation === 'worker' ? 'autoSettler' : 'autoExplore' }];
     await this.databaseProvider
       .getDatabase()
       .update(units)
-      .set({ isAutomated: true, orders: unit.orders, currentOrder: unit.orders[0].type })
+      .set({
+        isAutomated: true,
+        automationMode: automation,
+        automationTask: null,
+        orders: unit.orders,
+        currentOrder: unit.orders[0].type,
+      })
       .where(eq(units.id, unit.id));
     return {
       success: true,
@@ -4228,12 +4332,19 @@ export class UnitManager {
   private async clearAutomation(unit: Unit): Promise<void> {
     if (!unit.automation) return;
     unit.automation = undefined;
+    unit.automationTask = undefined;
     unit.autoExploreTarget = undefined;
     unit.orders = [];
     await this.databaseProvider
       .getDatabase()
       .update(units)
-      .set({ isAutomated: false, orders: [], currentOrder: null })
+      .set({
+        isAutomated: false,
+        automationMode: null,
+        automationTask: null,
+        orders: [],
+        currentOrder: null,
+      })
       .where(eq(units.id, unit.id));
   }
 
@@ -4823,13 +4934,18 @@ export class UnitManager {
     };
     const orderType = orderTypes[actionType];
     if (!orderType) return {};
-    unit.orders = [{ type: orderType }];
+    unit.orders = [
+      { type: orderType },
+      ...(unit.automation === 'worker' ? ([{ type: 'autoSettler' }] as UnitOrder[]) : []),
+    ];
     unit.activity = undefined;
     unit.movementLeft = 0;
     return {
       movementPoints: '0',
       orders: unit.orders,
       currentOrder: orderType,
+      automationMode: unit.automation ?? null,
+      automationTask: unit.automationTask ?? null,
     };
   }
 
@@ -5271,42 +5387,8 @@ export class UnitManager {
   }
 
   private async processAutoSettlerOrder(unit: Unit): Promise<void> {
-    const candidates: Array<[ActionType, UnitOrder['type']]> = [
-      [ActionType.CLEAN_POLLUTION, 'cleanPollution'],
-      [ActionType.BUILD_ROAD, 'road'],
-      [ActionType.BUILD_IRRIGATION, 'irrigate'],
-      [ActionType.BUILD_MINE, 'mine'],
-      [ActionType.CULTIVATE, 'cultivate'],
-      [ActionType.PLANT, 'plant'],
-      [ActionType.BUILD_FORTRESS, 'fortress'],
-      [ActionType.BUILD_AIRBASE, 'airbase'],
-    ];
-    const selected = candidates.find(([action]) => this.canUnitPerformAction(unit.id, action));
-    if (selected) {
-      const [action, orderType] = selected;
-      const result = await this.actionSystem.executeAction(unit, action);
-      if (result.success) {
-        unit.orders = [{ type: orderType }, { type: 'autoSettler' }];
-        unit.movementLeft = 0;
-        await this.databaseProvider
-          .getDatabase()
-          .update(units)
-          .set({
-            movementPoints: '0',
-            isAutomated: true,
-            orders: unit.orders,
-            currentOrder: orderType,
-          })
-          .where(eq(units.id, unit.id));
-        return;
-      }
-    }
-
-    const moved = await this.moveAutomatedUnitTowardUnexplored(unit);
-    if (!moved) {
-      await this.clearAutomation(unit);
-      return;
-    }
+    // Infrastructure selection runs in the shared end-of-turn worker service.
+    // Keep the compatibility marker stable during the normal activity phase.
     await this.persistAutomationOrder(unit);
   }
 
@@ -5380,12 +5462,18 @@ export class UnitManager {
   }
 
   private async persistAutomationOrder(unit: Unit): Promise<void> {
-    const orderType = unit.automation === 'settler' ? 'autoSettler' : 'autoExplore';
+    const orderType = unit.automation === 'worker' ? 'autoSettler' : 'autoExplore';
     unit.orders = [{ type: orderType }];
     await this.databaseProvider
       .getDatabase()
       .update(units)
-      .set({ isAutomated: true, orders: unit.orders, currentOrder: orderType })
+      .set({
+        isAutomated: true,
+        automationMode: unit.automation ?? null,
+        automationTask: unit.automationTask ?? null,
+        orders: unit.orders,
+        currentOrder: orderType,
+      })
       .where(eq(units.id, unit.id));
   }
 
@@ -5764,6 +5852,7 @@ export class UnitManager {
 
     // Update cargo unit
     cargo.transportedBy = transportId;
+    cargo.automationTask = undefined;
     // Boarding is a state change, not movement.  Freeciv keeps the cargo's
     // movement points, which matters for rulesets with tired_attack enabled
     // when a unit (notably Marines) attacks from a transport.
@@ -5781,6 +5870,7 @@ export class UnitManager {
       .set({
         transportedBy: transportId,
         movementPoints: String(cargo.movementLeft),
+        automationTask: null,
       })
       .where(eq(units.id, cargoId));
     await this.databaseProvider

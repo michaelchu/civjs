@@ -107,6 +107,7 @@ export class TurnPhaseService {
   private cultureManager?: CultureManager;
   private gameEventService: GameEventService;
   private aiProcessor?: () => Promise<number>;
+  private workerAutomationProcessor?: () => Promise<number>;
 
   private currentPhase: TurnPhase | null = null;
   private phaseHistory: PhaseResult[] = [];
@@ -208,6 +209,10 @@ export class TurnPhaseService {
 
   setAIProcessor(processor: () => Promise<number>): void {
     this.aiProcessor = processor;
+  }
+
+  setWorkerAutomationProcessor(processor: () => Promise<number>): void {
+    this.workerAutomationProcessor = processor;
   }
 
   /**
@@ -943,8 +948,16 @@ export class TurnPhaseService {
 
   private async executeAIActionsPhase(context: PhaseContext, result: PhaseResult): Promise<void> {
     logger.debug('Processing AI actions through CivJS adapter', { gameId: context.gameId });
-    result.itemsProcessed = this.aiProcessor ? await this.aiProcessor() : 0;
+    const aiActions = this.aiProcessor ? await this.aiProcessor() : 0;
+    // Freeciv runs the server-side autoworker agent after normal activity
+    // progress. Human workers use the same planner/executor as AI workers but
+    // run here so newly started work receives no extra progress tick.
+    const workerActions = this.workerAutomationProcessor
+      ? await this.workerAutomationProcessor()
+      : 0;
+    result.itemsProcessed = aiActions + workerActions;
     result.playersProcessed = result.itemsProcessed > 0 ? 1 : 0;
+    result.data = { aiActions, workerActions };
   }
 
   private async executeBorderCalculationPhase(

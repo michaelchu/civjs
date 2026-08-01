@@ -352,7 +352,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
     if (unitActions.has(ActionType.AUTO_SETTLER)) {
       automationActions.push({
         action: ActionType.AUTO_SETTLER,
-        name: 'Auto Settler',
+        name: 'Auto Worker',
         icon: Bot,
       });
     }

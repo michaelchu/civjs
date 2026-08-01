@@ -107,7 +107,6 @@ describe('Freeciv AI worker planner', () => {
       workTurns: 10,
     });
     expect(plan.tasks.worker).toMatchObject({
-      role: 'worker',
       action: ActionType.BUILD_MINE,
       targetX: 1,
       targetY: 1,
@@ -170,7 +169,10 @@ describe('Freeciv AI worker planner', () => {
         researchedTechs: new Set(['railroad']),
       })
     );
-    expect(withoutDependency.assignments[0].action).not.toBe(ActionType.BUILD_RAILROAD);
+    expect(withoutDependency.assignments[0]).toMatchObject({
+      action: ActionType.BUILD_ROAD,
+      tile: unroaded,
+    });
   });
 
   it('extends irrigation only from a cardinal classic water source', () => {
@@ -250,5 +252,57 @@ describe('Freeciv AI worker planner', () => {
       )
     ).toHaveLength(1);
     expect(Object.values(plan.tasks)).toHaveLength(plan.assignments.length);
+  });
+
+  it('displaces a farther reservation when another worker reaches the worksite sooner', () => {
+    const target = tile(2, 1, 'hills');
+    const plan = planWorkerImprovements(
+      context([target], [worker('far', 8, 1), worker('near', 1, 1)], {
+        existingTasks: {
+          far: {
+            role: 'worker',
+            action: ActionType.BUILD_MINE,
+            targetX: target.x,
+            targetY: target.y,
+            assignedTurn: 2,
+          },
+        },
+      })
+    );
+
+    expect(plan.assignments).toHaveLength(1);
+    expect(plan.assignments[0]).toMatchObject({ unit: { id: 'near' }, tile: target });
+  });
+
+  it('scans only city-workable candidates rather than total map area', () => {
+    const workable = [tile(1, 1, 'hills'), tile(2, 1, 'grassland')];
+    const planningContext = context(workable, [worker('worker', 0, 1)]);
+    const getTile = jest.fn(
+      (x: number, y: number) =>
+        workable.find(candidate => candidate.x === x && candidate.y === y) ?? null
+    );
+    planningContext.getTile = getTile;
+
+    planWorkerImprovements(planningContext);
+
+    expect(getTile).toHaveBeenCalledTimes(workable.length);
+  });
+
+  it('increases cleanup urgency as environmental pressure approaches an upset', () => {
+    const polluted = tile(1, 1, 'grassland', { improvements: ['pollution'] });
+    const baseline = context([polluted], [worker('worker', 1, 1)]);
+    const pressured = context([polluted], [worker('worker', 1, 1)]);
+    pressured.climate = {
+      warmingPressure: 9,
+      coolingPressure: 0,
+      warmingEvents: 2,
+      coolingEvents: 0,
+      warmingLevel: 10,
+      coolingLevel: 10,
+    };
+
+    expect(planWorkerImprovements(pressured).assignments[0]!.want).toBeGreaterThan(
+      planWorkerImprovements(baseline).assignments[0]!.want
+    );
   });
 });

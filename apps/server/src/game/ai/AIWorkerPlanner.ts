@@ -1,5 +1,5 @@
 import { ActionType } from '@app-types/shared/actions';
-import type { AIUnitTask } from '@game/ai/AIStateStore';
+import type { WorkerAutomationTask } from '@game/automation/WorkerAutomationTypes';
 import type { CityState } from '@game/managers/CityManager';
 import type { MapTile } from '@game/managers/MapManager';
 import type { Unit } from '@game/managers/UnitManager';
@@ -17,13 +17,18 @@ export interface WorkerAssignment {
   requestCityId?: string;
 }
 
-interface WorkerPlanningContext {
+interface ExistingWorkerTask extends WorkerAutomationTask {
+  role?: 'worker';
+}
+
+export interface WorkerPlanningContext {
   turn: number;
   playerId: string;
   workers: Unit[];
   cities: CityState[];
   hostileUnits: Unit[];
-  existingTasks: Readonly<Record<string, AIUnitTask>>;
+  friendlyUnits?: Unit[];
+  existingTasks: Readonly<Record<string, ExistingWorkerTask>>;
   getTile: (x: number, y: number) => MapTile | null;
   getNeighbors: (x: number, y: number) => MapTile[];
   getCardinalNeighbors: (x: number, y: number) => MapTile[];
@@ -31,6 +36,17 @@ interface WorkerPlanningContext {
   distance: (fromX: number, fromY: number, toX: number, toY: number) => number;
   researchedTechs: ReadonlySet<string>;
   rulesetName?: string;
+  excludedAssignments?: ReadonlySet<string>;
+  canPerformAction?: (worker: Unit, action: ActionType, tile: MapTile) => boolean;
+  travelTurns?: (worker: Unit, tile: MapTile) => number | undefined;
+  climate?: {
+    warmingPressure: number;
+    coolingPressure: number;
+    warmingEvents: number;
+    coolingEvents: number;
+    warmingLevel: number;
+    coolingLevel: number;
+  };
 }
 
 interface ImprovementChoice {
@@ -46,53 +62,66 @@ interface CandidateTile {
   requests: Array<{ cityId: string; action: ActionType; want: number }>;
 }
 
-const OUTPUT_WEIGHTS = { food: 3, shields: 2, trade: 1 };
+// @reference reference/freeciv/server/advisors/advbuilding.h:19-21
+const OUTPUT_WEIGHTS = { food: 30, shields: 17, trade: 18 };
+const REQUEST_PRIORITY = 1_000_000_000;
 
-function terrainValue(terrainId: MapTile['terrain'], rulesetName: string): number {
-  const terrain = rulesetLoader.getTerrain(terrainId, rulesetName);
+function weightedOutputs(food: number, shields: number, trade: number): number {
   return (
-    terrain.food * OUTPUT_WEIGHTS.food +
-    terrain.shields * OUTPUT_WEIGHTS.shields +
-    terrain.trade * OUTPUT_WEIGHTS.trade
+    food * OUTPUT_WEIGHTS.food +
+    (food > 0 ? OUTPUT_WEIGHTS.food / 2 : 0) +
+    shields * OUTPUT_WEIGHTS.shields +
+    (shields > 0 ? OUTPUT_WEIGHTS.shields / 2 : 0) +
+    trade * OUTPUT_WEIGHTS.trade +
+    (trade > 0 ? OUTPUT_WEIGHTS.trade / 2 : 0)
   );
 }
 
-function resourceValue(tile: MapTile, rulesetName: string): number {
-  if (!tile.resource) return 0;
+function terrainValue(terrainId: MapTile['terrain'], rulesetName: string): number {
+  const terrain = rulesetLoader.getTerrain(terrainId, rulesetName);
+  return weightedOutputs(terrain.food, terrain.shields, terrain.trade);
+}
+
+function resourceOutputs(
+  tile: MapTile,
+  rulesetName: string
+): { food: number; shields: number; trade: number } {
+  if (!tile.resource) return { food: 0, shields: 0, trade: 0 };
   try {
     const resource = rulesetLoader.getResource(tile.resource, rulesetName);
-    return (
-      (Number(resource.food) || 0) * OUTPUT_WEIGHTS.food +
-      (Number(resource.shield) || 0) * OUTPUT_WEIGHTS.shields +
-      (Number(resource.trade) || 0) * OUTPUT_WEIGHTS.trade
-    );
+    return {
+      food: Number(resource.food) || 0,
+      shields: Number(resource.shield) || 0,
+      trade: Number(resource.trade) || 0,
+    };
   } catch {
-    return 0;
+    return { food: 0, shields: 0, trade: 0 };
   }
 }
 
 function currentTileValue(tile: MapTile, rulesetName: string): number {
   const terrain = rulesetLoader.getTerrain(tile.terrain, rulesetName);
-  let value = terrainValue(tile.terrain, rulesetName) + resourceValue(tile, rulesetName);
+  const resource = resourceOutputs(tile, rulesetName);
+  let food = terrain.food + resource.food;
+  let shields = terrain.shields + resource.shields;
+  let trade = terrain.trade + resource.trade;
   if (tile.improvements.includes('irrigation')) {
-    value += terrain.irrigationFoodIncr * OUTPUT_WEIGHTS.food;
+    food += terrain.irrigationFoodIncr;
   }
   if (tile.improvements.includes('mine')) {
-    value += terrain.miningShieldIncr * OUTPUT_WEIGHTS.shields;
+    shields += terrain.miningShieldIncr;
   }
   if (
     (tile.hasRoad || tile.improvements.includes('road')) &&
     ['grassland', 'plains'].includes(tile.terrain)
   ) {
-    value += OUTPUT_WEIGHTS.trade;
+    trade += 1;
   }
-  if (tile.riverMask !== 0) value += OUTPUT_WEIGHTS.trade;
+  if (tile.riverMask !== 0) trade += 1;
   if (tile.hasRailroad || tile.improvements.includes('railroad')) {
-    const shields =
-      terrain.shields + (tile.improvements.includes('mine') ? terrain.miningShieldIncr : 0);
-    value += Math.floor(shields * 1.5) * OUTPUT_WEIGHTS.shields - shields * OUTPUT_WEIGHTS.shields;
+    shields = Math.floor(shields * 1.5);
   }
-  return value;
+  return weightedOutputs(food, shields, trade);
 }
 
 function roadNetworkBenefit(context: WorkerPlanningContext, tile: MapTile): number {
@@ -107,10 +136,28 @@ function roadNetworkBenefit(context: WorkerPlanningContext, tile: MapTile): numb
   return connected * 2 + (cityConnection ? 4 : 0);
 }
 
-function cleanupChoices(tile: MapTile): ImprovementChoice[] {
-  return tile.improvements.some(extra => ['pollution', 'fallout'].includes(extra.toLowerCase()))
-    ? [{ action: ActionType.CLEAN_POLLUTION, benefit: 1000, workTurns: 3 }]
-    : [];
+function cleanupChoices(context: WorkerPlanningContext, tile: MapTile): ImprovementChoice[] {
+  const extras = new Set(tile.improvements.map(extra => extra.toLowerCase()));
+  if (!extras.has('pollution') && !extras.has('fallout')) return [];
+  const climate = context.climate;
+  const warmingUrgency = climate
+    ? (climate.warmingPressure * 50) / Math.max(1, climate.warmingLevel) +
+      climate.warmingEvents * 50
+    : 0;
+  const coolingUrgency = climate
+    ? (climate.coolingPressure * 50) / Math.max(1, climate.coolingLevel) +
+      climate.coolingEvents * 50
+    : 0;
+  return [
+    {
+      action: ActionType.CLEAN_POLLUTION,
+      benefit:
+        1000 +
+        (extras.has('pollution') ? warmingUrgency : 0) +
+        (extras.has('fallout') ? coolingUrgency : 0),
+      workTurns: 3,
+    },
+  ];
 }
 
 function yieldChoices(
@@ -165,14 +212,27 @@ function railroadChoices(
 ): ImprovementChoice[] {
   const hasRoad = tile.hasRoad || tile.improvements.includes('road');
   const hasRailroad = tile.hasRailroad || tile.improvements.includes('railroad');
-  if (!context.researchedTechs.has('railroad') || !hasRoad || hasRailroad) return [];
+  if (!context.researchedTechs.has('railroad') || hasRailroad) return [];
   const terrain = rulesetLoader.getTerrain(tile.terrain, rulesetName);
   const shields =
     terrain.shields + (tile.improvements.includes('mine') ? terrain.miningShieldIncr : 0);
+  const railroadBenefit =
+    Math.max(1, Math.floor(shields * 1.5) - shields) * OUTPUT_WEIGHTS.shields + 4;
+  if (!hasRoad) {
+    if (terrain.roadTime <= 0) return [];
+    const trade = ['grassland', 'plains'].includes(tile.terrain) ? OUTPUT_WEIGHTS.trade : 0;
+    return [
+      {
+        action: ActionType.BUILD_ROAD,
+        benefit: railroadBenefit + trade + roadNetworkBenefit(context, tile),
+        workTurns: terrain.roadTime * 3,
+      },
+    ];
+  }
   return [
     {
       action: ActionType.BUILD_RAILROAD,
-      benefit: Math.max(1, Math.floor(shields * 1.5) - shields) * OUTPUT_WEIGHTS.shields + 4,
+      benefit: railroadBenefit,
       workTurns: Math.max(1, terrain.roadTime * 2),
     },
   ];
@@ -196,7 +256,7 @@ function terrainChangeChoices(tile: MapTile, rulesetName: string): ImprovementCh
 function improvementChoices(context: WorkerPlanningContext, tile: MapTile): ImprovementChoice[] {
   const rulesetName = context.rulesetName ?? 'classic';
   return [
-    ...cleanupChoices(tile),
+    ...cleanupChoices(context, tile),
     ...yieldChoices(context, tile, rulesetName),
     ...basicRoadChoices(context, tile, rulesetName),
     ...railroadChoices(context, tile, rulesetName),
@@ -237,7 +297,14 @@ function candidateTiles(context: WorkerPlanningContext): CandidateTile[] {
 }
 
 function isSafe(context: WorkerPlanningContext, tile: MapTile): boolean {
+  const defended = context.friendlyUnits?.some(friendly => {
+    if (friendly.x !== tile.x || friendly.y !== tile.y || friendly.transportedBy) return false;
+    const type = context.getType(friendly.unitTypeId);
+    return Boolean(type && (type.attack ?? type.combat ?? 0) > 0);
+  });
+  if (defended) return true;
   return !context.hostileUnits.some(hostile => {
+    if (hostile.x === tile.x && hostile.y === tile.y) return true;
     const type = context.getType(hostile.unitTypeId);
     if (!type || (type.attack ?? type.combat ?? 0) <= 0) return false;
     return context.distance(hostile.x, hostile.y, tile.x, tile.y) <= Math.max(1, type.movement);
@@ -257,9 +324,10 @@ function canWorkerUseCandidate(
   return !occupants || (occupants.size === 1 && occupants.has(worker.id));
 }
 
-function isSameTask(task: AIUnitTask | undefined, candidate: WorkerAssignment): boolean {
+function isSameTask(task: ExistingWorkerTask | undefined, candidate: WorkerAssignment): boolean {
   return Boolean(
-    task?.role === 'worker' &&
+    task &&
+    (task.role === undefined || task.role === 'worker') &&
     task.action === candidate.action &&
     task.targetX === candidate.tile.x &&
     task.targetY === candidate.tile.y
@@ -274,7 +342,9 @@ function scoreChoice(
 ): WorkerAssignment {
   const type = context.getType(worker.unitTypeId);
   const distance = context.distance(worker.x, worker.y, candidate.tile.x, candidate.tile.y);
-  const travelTurns = Math.ceil(distance / Math.max(1, type?.movement ?? 1));
+  const travelTurns =
+    context.travelTurns?.(worker, candidate.tile) ??
+    Math.ceil(distance / Math.max(1, type?.movement ?? 1));
   const workTurns = Math.max(
     1,
     Math.ceil(choice.workTurns / (worker.unitTypeId === 'engineers' ? 2 : 1))
@@ -282,28 +352,16 @@ function scoreChoice(
   const delay = travelTurns + workTurns;
   const useFactor = candidate.worked ? 2 : 1;
   const resultingTileBonus = candidate.worked ? 0 : candidate.currentValue + choice.benefit;
-  let want = (choice.benefit * useFactor * 100 + resultingTileBonus * 10) / (10 + delay);
+  const want = (choice.benefit * useFactor * 100 + resultingTileBonus * 10) / (10 + delay);
   const request = candidate.requests
     .filter(item => item.action === choice.action)
     .sort((left, right) => right.want - left.want || left.cityId.localeCompare(right.cityId))[0];
   const requestedWant = request ? ((request.want + 1) * 10) / (travelTurns + 1) : 0;
-  if (
-    isSameTask(context.existingTasks[worker.id], {
-      unit: worker,
-      tile: candidate.tile,
-      action: choice.action,
-      want,
-      travelTurns,
-      workTurns,
-    })
-  ) {
-    want *= 1.1;
-  }
   return {
     unit: worker,
     tile: candidate.tile,
     action: choice.action,
-    want: Math.max(want, requestedWant),
+    want: request ? REQUEST_PRIORITY + requestedWant : want,
     travelTurns,
     workTurns,
     requestCityId: request?.cityId,
@@ -322,7 +380,7 @@ function scoreChoice(
  */
 export function planWorkerImprovements(context: WorkerPlanningContext): {
   assignments: WorkerAssignment[];
-  tasks: Record<string, AIUnitTask>;
+  tasks: Record<string, WorkerAutomationTask>;
 } {
   const candidates = candidateTiles(context).filter(candidate => isSafe(context, candidate.tile));
   const occupiedBy = new Map<string, Set<string>>();
@@ -337,10 +395,22 @@ export function planWorkerImprovements(context: WorkerPlanningContext): {
     .flatMap(worker =>
       candidates
         .filter(candidate => canWorkerUseCandidate(worker, candidate, occupiedBy))
+        .filter(
+          candidate =>
+            !context.travelTurns || context.travelTurns(worker, candidate.tile) !== undefined
+        )
         .flatMap(candidate =>
-          improvementChoices(context, candidate.tile).map(choice =>
-            scoreChoice(worker, candidate, choice, context)
-          )
+          improvementChoices(context, candidate.tile)
+            .filter(
+              choice => context.canPerformAction?.(worker, choice.action, candidate.tile) !== false
+            )
+            .map(choice => scoreChoice(worker, candidate, choice, context))
+        )
+    )
+    .filter(
+      assignment =>
+        !context.excludedAssignments?.has(
+          `${assignment.unit.id}:${assignment.tile.x},${assignment.tile.y}`
         )
     )
     .sort(
@@ -355,7 +425,7 @@ export function planWorkerImprovements(context: WorkerPlanningContext): {
   const assignedWorkers = new Set<string>();
   const reservedTiles = new Set<string>();
   const assignments: WorkerAssignment[] = [];
-  const tasks: Record<string, AIUnitTask> = {};
+  const tasks: Record<string, WorkerAutomationTask> = {};
 
   for (const candidate of ranked) {
     const tileKey = `${candidate.tile.x},${candidate.tile.y}`;
@@ -365,11 +435,11 @@ export function planWorkerImprovements(context: WorkerPlanningContext): {
     reservedTiles.add(tileKey);
     const oldTask = context.existingTasks[candidate.unit.id];
     tasks[candidate.unit.id] = {
-      role: 'worker',
       action: candidate.action,
       targetX: candidate.tile.x,
       targetY: candidate.tile.y,
       assignedTurn: isSameTask(oldTask, candidate) ? oldTask!.assignedTurn : context.turn,
+      requestCityId: candidate.requestCityId,
     };
   }
   return { assignments, tasks };
