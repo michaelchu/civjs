@@ -161,6 +161,117 @@ describe('GameBroadcastManager visibility sync', () => {
     ]);
   });
 
+  it('forwards rich combat presentation data only to participants or visible observers', () => {
+    manager.broadcastCombatOccurred(gameId, {
+      eventId: 'combat-1',
+      x: 0,
+      y: 0,
+      playerIds: [playerOne],
+      style: 'swords',
+      attackerDamage: 40,
+      defenderDamage: 100,
+      defenderDestroyed: true,
+      combatants: [
+        {
+          id: 'defender-1',
+          role: 'defender',
+          playerId: playerTwo,
+          unitTypeId: 'warriors',
+          x: 0,
+          y: 0,
+          hpBefore: 100,
+          hpAfter: 0,
+          destroyed: true,
+        },
+      ],
+    });
+
+    expect(emitted).toContainEqual(
+      expect.objectContaining({
+        room: `player:${userOne}`,
+        event: 'combat_occurred',
+        data: expect.objectContaining({
+          eventId: 'combat-1',
+          style: 'swords',
+          combatants: expect.arrayContaining([expect.objectContaining({ id: 'defender-1' })]),
+        }),
+      })
+    );
+    expect(emitted.some(emission => emission.room === `player:${userTwo}`)).toBe(false);
+  });
+
+  it('filters hidden combatants from a visible observer payload', () => {
+    manager.broadcastCombatOccurred(gameId, {
+      eventId: 'combat-observer',
+      x: 1,
+      y: 0,
+      playerIds: [playerOne],
+      combatants: [
+        {
+          id: 'hidden-attacker',
+          role: 'attacker',
+          playerId: playerOne,
+          unitTypeId: 'warriors',
+          x: 0,
+          y: 0,
+          hpBefore: 100,
+          hpAfter: 80,
+          destroyed: false,
+        },
+        {
+          id: 'visible-defender',
+          role: 'defender',
+          playerId: 'player-3',
+          unitTypeId: 'warriors',
+          x: 1,
+          y: 0,
+          hpBefore: 100,
+          hpAfter: 0,
+          destroyed: true,
+        },
+      ],
+    });
+
+    const participantEvent = emitted.find(
+      emission => emission.room === `player:${userOne}` && emission.event === 'combat_occurred'
+    );
+    expect(participantEvent?.data.combatants).toHaveLength(2);
+
+    const observerEvent = emitted.find(
+      emission => emission.room === `player:${userTwo}` && emission.event === 'combat_occurred'
+    );
+    expect(observerEvent?.data.combatants).toEqual([
+      expect.objectContaining({ id: 'visible-defender' }),
+    ]);
+  });
+
+  it('routes nuclear effects by visible affected tiles without exposing a hidden center', () => {
+    manager.broadcastNuclearExplosion(gameId, {
+      eventId: 'nuke-1',
+      x: 0,
+      y: 0,
+      playerId: playerOne,
+      affectedTiles: [
+        { x: 0, y: 0 },
+        { x: 1, y: 0 },
+      ],
+    });
+
+    const ownerEvent = emitted.find(
+      emission => emission.room === `player:${userOne}` && emission.event === 'nuclear_explosion'
+    );
+    expect(ownerEvent?.data.tiles).toEqual([
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+    ]);
+    expect(ownerEvent?.data).toEqual(expect.objectContaining({ x: 0, y: 0 }));
+    const observerEvent = emitted.find(
+      emission => emission.room === `player:${userTwo}` && emission.event === 'nuclear_explosion'
+    );
+    expect(observerEvent?.data.tiles).toEqual([{ x: 1, y: 0 }]);
+    expect(observerEvent?.data).toEqual(expect.objectContaining({ x: 1, y: 0 }));
+  });
+
   it('broadcasts lobby connection events without warning about a missing runtime instance', () => {
     manager.setGamesReference(new Map());
 

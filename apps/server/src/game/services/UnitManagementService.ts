@@ -2,10 +2,39 @@ import { GameInstance } from '@game/managers/GameManager';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { logger } from '@utils/logger';
 import type { Unit } from '@game/managers/UnitManager';
+import type { CombatPresentationEvent } from '@app-types/presentation';
+
+const PRE_GUNPOWDER_COMBAT_UNITS = new Set([
+  'warriors',
+  'phalanx',
+  'legion',
+  'pikemen',
+  'archers',
+  'horsemen',
+  'chariot',
+  'elephants',
+  'knights',
+  'crusaders',
+  'scout',
+  'explorer',
+  'tribesmen',
+  'well-digger',
+  'settlers',
+  'workers',
+  'trireme',
+  'longboat',
+  'caravan',
+  'war galley',
+  'galley',
+  'siege ram',
+  'caravel',
+  'ram ship',
+]);
 
 interface UnitBroadcaster {
   broadcastUnitInfo(gameId: string, unit: Unit): void;
   broadcastUnitDestroyed(gameId: string, unit: Unit): void;
+  broadcastCombatOccurred?: (gameId: string, event: CombatPresentationEvent) => void;
 }
 
 /**
@@ -136,7 +165,45 @@ export class UnitManagementService extends BaseGameService {
       defenderUnitId,
       playerId
     );
+    const attackerSnapshot = { ...attackerUnit };
+    const defenderSnapshot = gameInstance.unitManager.getUnit(defenderUnitId);
     const combatResult = await gameInstance.unitManager.attackUnit(attackerUnitId, defenderUnitId);
+    const defenderBefore =
+      defenderStackSnapshots.find(unit => unit.id === combatResult.defenderId) ??
+      (defenderSnapshot ? { ...defenderSnapshot } : undefined);
+    if (defenderBefore && !gameInstance.unitManager.hasCombatPresentationCallback?.()) {
+      const survivingAttacker = gameInstance.unitManager.getUnit(attackerUnitId);
+      const survivingDefender = gameInstance.unitManager.getUnit(combatResult.defenderId);
+      const winner = combatResult.attackerDestroyed ? defenderBefore : attackerSnapshot;
+      const combatEvent: CombatPresentationEvent = {
+        eventId: `combat:${gameId}:${Date.now()}:${attackerUnitId}:${combatResult.defenderId}`,
+        x: defenderBefore.x,
+        y: defenderBefore.y,
+        style: this.getCombatPresentationStyle(gameInstance, winner),
+        playerIds: [attackerSnapshot.playerId, defenderBefore.playerId],
+        attackerDamage: combatResult.attackerDamage,
+        defenderDamage: combatResult.defenderDamage,
+        attackerDestroyed: combatResult.attackerDestroyed,
+        defenderDestroyed: combatResult.defenderDestroyed,
+        combatants: [
+          this.toCombatPresentationCombatant(
+            attackerSnapshot,
+            'attacker',
+            combatResult.attackerDestroyed ? 0 : (survivingAttacker?.health ?? 0),
+            combatResult.attackerDestroyed
+          ),
+          this.toCombatPresentationCombatant(
+            defenderBefore,
+            'defender',
+            combatResult.defenderDestroyed ? 0 : (survivingDefender?.health ?? 0),
+            combatResult.defenderDestroyed
+          ),
+        ],
+      };
+      this.unitBroadcaster?.broadcastCombatOccurred?.(gameId, {
+        ...combatEvent,
+      });
+    }
     this.broadcastCombatResult(
       gameInstance,
       gameId,
@@ -147,6 +214,39 @@ export class UnitManagementService extends BaseGameService {
     );
 
     return combatResult;
+  }
+
+  private toCombatPresentationCombatant(
+    unit: any,
+    role: 'attacker' | 'defender',
+    hpAfter: number,
+    destroyed: boolean
+  ) {
+    return {
+      id: unit.id,
+      role,
+      playerId: unit.playerId,
+      unitTypeId: unit.unitTypeId,
+      x: unit.x,
+      y: unit.y,
+      hpBefore: unit.health,
+      hpAfter,
+      movesLeft: unit.movementLeft,
+      veteranLevel: unit.veteranLevel,
+      fortified: unit.fortified,
+      activity: unit.activity,
+      destroyed,
+    };
+  }
+
+  private getCombatPresentationStyle(gameInstance: any, winner: any): 'swords' | 'explosion' {
+    const unitType = gameInstance.unitManager.getUnitType?.(winner.unitTypeId);
+    const identifiers = [winner.unitTypeId, unitType?.name]
+      .filter((value): value is string => typeof value === 'string')
+      .map(value => value.toLowerCase());
+    return identifiers.some(identifier => PRE_GUNPOWDER_COMBAT_UNITS.has(identifier))
+      ? 'swords'
+      : 'explosion';
   }
 
   private captureDefenderStack(gameInstance: any, defenderUnitId: string, playerId: string): any[] {

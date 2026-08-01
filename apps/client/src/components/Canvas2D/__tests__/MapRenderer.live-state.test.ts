@@ -48,6 +48,8 @@ function createRenderState(cities: RenderState['cities'] = {}): RenderState {
 describe('MapRenderer live-state updates', () => {
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it('centers a tile using the current canvas dimensions', () => {
@@ -167,9 +169,356 @@ describe('MapRenderer live-state updates', () => {
       },
     });
 
-    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 19, -14);
-    expect(context.drawImage).toHaveBeenCalledWith(stackSprite, 19, -45);
+    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 16, -11);
+    expect(context.drawImage).toHaveBeenCalledWith(stackSprite, 0, -31);
     expect(context.fillText).not.toHaveBeenCalled();
+  });
+
+  it('renders the ruleset nation graphic shield for own and foreign units', () => {
+    const context = createContext();
+    const unitSprite = {} as HTMLImageElement;
+    const shieldSprite = {} as HTMLImageElement;
+    const tilesetLoader = {
+      getSprite: (key: string) =>
+        key === 'u.warriors' ? unitSprite : key === 'f.shield.rome' ? shieldSprite : null,
+    };
+    const renderer = new UnitRenderer(context, tilesetLoader as never, 96, 48);
+    const unit: Unit = {
+      id: 'roman-warrior',
+      playerId: 'roman-player',
+      unitTypeId: 'warriors',
+      x: 0,
+      y: 0,
+      hp: 100,
+      movesLeft: 1,
+      veteranLevel: 0,
+    };
+
+    renderer.renderUnits({
+      ...createRenderState(),
+      players: {
+        'roman-player': {
+          name: 'Caesar',
+          nation: 'roman',
+          nationGraphic: 'rome',
+          color: '#ff0000',
+        },
+      },
+      units: { [unit.id]: unit },
+    });
+
+    expect(context.drawImage).toHaveBeenCalledWith(shieldSprite, 25, -15);
+    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 16, -11);
+  });
+
+  it('normalizes object worker activities to their active indicator sprites', () => {
+    const context = createContext();
+    const unitSprite = {} as HTMLImageElement;
+    const activitySprite = {} as HTMLImageElement;
+    const tilesetLoader = {
+      getSprite: (key: string) =>
+        key === 'u.worker' ? unitSprite : key === 'unit.irrigate' ? activitySprite : null,
+    };
+    const renderer = new UnitRenderer(context, tilesetLoader as never, 96, 48);
+    const unit: Unit = {
+      id: 'worker',
+      playerId: 'player-1',
+      unitTypeId: 'worker',
+      x: 0,
+      y: 0,
+      hp: 100,
+      movesLeft: 1,
+      veteranLevel: 0,
+      activity: { type: 'irrigating', turnsRemaining: 2, totalTurns: 3 },
+    };
+
+    renderer.renderUnits({
+      ...createRenderState(),
+      units: { [unit.id]: unit },
+    });
+
+    expect(context.drawImage).toHaveBeenCalledWith(activitySprite, 55, -25);
+  });
+
+  it('draws the connect badge only when a matching activity has queued orders', () => {
+    const context = createContext();
+    const unitSprite = {} as HTMLImageElement;
+    const activitySprite = {} as HTMLImageElement;
+    const connectSprite = {} as HTMLImageElement;
+    const renderer = new UnitRenderer(
+      context,
+      {
+        getSprite: (key: string) =>
+          key === 'u.worker'
+            ? unitSprite
+            : key === 'unit.road'
+              ? activitySprite
+              : key === 'unit.connect'
+                ? connectSprite
+                : null,
+      } as never,
+      96,
+      48
+    );
+    const unit: Unit = {
+      id: 'worker',
+      playerId: 'player-1',
+      unitTypeId: 'worker',
+      x: 0,
+      y: 0,
+      hp: 100,
+      movesLeft: 1,
+      veteranLevel: 0,
+      activity: 'road',
+      orders: [],
+    };
+
+    renderer.renderUnits({ ...createRenderState(), units: { [unit.id]: unit } });
+    expect(context.drawImage).not.toHaveBeenCalledWith(connectSprite, -6, -6);
+
+    renderer.renderUnits({
+      ...createRenderState(),
+      units: { [unit.id]: { ...unit, orders: [{ type: 'activity' }] } },
+    });
+    expect(context.drawImage).toHaveBeenCalledWith(connectSprite, -6, -6);
+  });
+
+  it('anchors queued movement segments to their absolute interpolated positions', () => {
+    const context = createContext();
+    const unitSprite = {} as HTMLImageElement;
+    const renderer = new UnitRenderer(
+      context,
+      { getSprite: (key: string) => (key === 'u.warriors' ? unitSprite : null) } as never,
+      96,
+      48
+    );
+    const unit: Unit = {
+      id: 'rapid-unit',
+      playerId: 'player-1',
+      unitTypeId: 'warriors',
+      x: 0,
+      y: 0,
+      hp: 100,
+      movesLeft: 1,
+      veteranLevel: 0,
+    };
+    let now = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+
+    renderer.renderUnits({ ...createRenderState(), units: { [unit.id]: unit } });
+    renderer.renderUnits({
+      ...createRenderState(),
+      units: { [unit.id]: { ...unit, x: 1 } },
+    });
+    (context.drawImage as unknown as ReturnType<typeof vi.fn>).mockClear();
+    renderer.renderUnits({
+      ...createRenderState(),
+      units: { [unit.id]: { ...unit, x: 2 } },
+    });
+
+    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 16, -11);
+
+    now += 180;
+    (context.drawImage as unknown as ReturnType<typeof vi.fn>).mockClear();
+    renderer.renderUnits({
+      ...createRenderState(),
+      units: { [unit.id]: { ...unit, x: 2 } },
+    });
+    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 64, 13);
+  });
+
+  it('does not start a full-map RAF loop for selection pulsing', () => {
+    const requestFrame = vi.fn();
+    vi.stubGlobal('requestAnimationFrame', requestFrame);
+    const renderer = new MapRenderer(createContext());
+    Object.assign(renderer as unknown as Record<string, unknown>, {
+      isInitialized: true,
+      terrainRenderer: {
+        invalidateTileCache: vi.fn(),
+        renderTerrain: vi.fn(),
+        renderSpecials: vi.fn(),
+        renderOceanPadding: vi.fn(),
+      },
+      borderRenderer: { render: vi.fn(), hasActiveAnimation: () => false },
+      cityRenderer: { renderCities: vi.fn() },
+      unitRenderer: {
+        renderUnitSelection: vi.fn(),
+        renderSelectedUnit: vi.fn(),
+        renderUnits: vi.fn(),
+        hasActiveMovementAnimations: () => false,
+        hasActiveSelectionAnimation: () => true,
+      },
+      presentationEffectRenderer: {
+        getUnitOverrides: () => ({}),
+        render: () => false,
+      },
+      fogRenderer: { render: vi.fn() },
+      pathRenderer: { renderPaths: vi.fn() },
+      getVisibleTiles: () => [],
+      checkViewportBounds: () => false,
+    });
+    const state = createRenderState();
+    state.selectedUnitId = 'stale-unit';
+
+    renderer.render(state, true);
+
+    expect(requestFrame).not.toHaveBeenCalled();
+  });
+
+  it('uses the ruleset activity target graphic when one is provided', () => {
+    const context = createContext();
+    const unitSprite = {} as HTMLImageElement;
+    const targetActivitySprite = {} as HTMLImageElement;
+    const renderer = new UnitRenderer(
+      context,
+      {
+        getSprite: (key: string) =>
+          key === 'u.worker' ? unitSprite : key === 'unit.farmland' ? targetActivitySprite : null,
+      } as never,
+      96,
+      48
+    );
+    renderer.setActivityGraphics({
+      extra_farmland: {
+        name: 'Farmland',
+        activity_gfx: 'unit.farmland',
+      },
+    });
+    const unit: Unit = {
+      id: 'farmer',
+      playerId: 'player-1',
+      unitTypeId: 'worker',
+      x: 0,
+      y: 0,
+      hp: 100,
+      movesLeft: 1,
+      veteranLevel: 0,
+      activity: { type: 'irrigating', target: 'extra_farmland' },
+      activityTarget: 'extra_farmland',
+    };
+
+    renderer.renderUnits({
+      ...createRenderState(),
+      units: { [unit.id]: unit },
+    });
+
+    expect(context.drawImage).toHaveBeenCalledWith(targetActivitySprite, 55, -25);
+  });
+
+  it('renders reference-positioned HP, movement, veteran, and stack overlays', () => {
+    const context = createContext();
+    const sprites = new Map<string, HTMLImageElement>();
+    for (const key of [
+      'u.warriors',
+      'unit.hp_35',
+      'unit.hp_50',
+      'unit.vet_2',
+      'unit.stk_shld_l',
+      'unit.stack2',
+      'unit.action_decision_want',
+    ])
+      sprites.set(key, {} as HTMLImageElement);
+    const renderer = new UnitRenderer(
+      context,
+      { getSprite: (key: string) => sprites.get(key) ?? null } as never,
+      96,
+      48
+    );
+    const unit: Unit = {
+      id: 'decorated-warrior',
+      playerId: 'player-1',
+      unitTypeId: 'warriors',
+      x: 0,
+      y: 0,
+      hp: 100,
+      maxHp: 200,
+      movesLeft: 2,
+      maxMoves: 6,
+      veteranLevel: 2,
+      actionDecisionWant: true,
+    };
+
+    renderer.renderUnits({
+      ...createRenderState(),
+      showUnitMovePoints: true,
+      units: {
+        [unit.id]: unit,
+        second: { ...unit, id: 'second' },
+      },
+    });
+
+    const drawCalls = (context.drawImage as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    expect(drawCalls).toContainEqual([sprites.get('unit.hp_35'), 0, -31]);
+    expect(drawCalls).toContainEqual([sprites.get('unit.hp_50'), 0, -36]);
+    expect(drawCalls).toContainEqual([sprites.get('unit.vet_2'), 35, -35]);
+    expect(drawCalls).toContainEqual([sprites.get('unit.stk_shld_l'), 0, -31]);
+    expect(drawCalls).toContainEqual([sprites.get('unit.stack2'), 0, -31]);
+    expect(drawCalls).toContainEqual([sprites.get('unit.action_decision_want'), 55, -25]);
+  });
+
+  it('keeps a visible identity marker when a nation flag asset is unavailable', () => {
+    const context = createContext();
+    const unitSprite = {} as HTMLImageElement;
+    const renderer = new UnitRenderer(
+      context,
+      { getSprite: (key: string) => (key === 'u.warriors' ? unitSprite : null) } as never,
+      96,
+      48
+    );
+    const unit: Unit = {
+      id: 'unknown-flag-warrior',
+      playerId: 'player-1',
+      unitTypeId: 'warriors',
+      x: 0,
+      y: 0,
+      hp: 100,
+      movesLeft: 1,
+      veteranLevel: 0,
+    };
+
+    renderer.renderUnits({
+      ...createRenderState(),
+      players: {
+        'player-1': {
+          name: 'Unknown',
+          nation: 'custom_nation',
+          color: '#123456',
+        },
+      },
+      units: { [unit.id]: unit },
+    });
+
+    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 16, -11);
+    expect(context.fillRect).toHaveBeenCalledWith(25, -15, 14, 14);
+  });
+
+  it('keeps a neutral identity marker while owner metadata is still missing', () => {
+    const context = createContext();
+    const unitSprite = {} as HTMLImageElement;
+    const renderer = new UnitRenderer(
+      context,
+      { getSprite: (key: string) => (key === 'u.warriors' ? unitSprite : null) } as never,
+      96,
+      48
+    );
+    const unit: Unit = {
+      id: 'packet-order-warrior',
+      playerId: 'player-not-yet-loaded',
+      unitTypeId: 'warriors',
+      x: 0,
+      y: 0,
+      hp: 100,
+      movesLeft: 1,
+      veteranLevel: 0,
+    };
+
+    renderer.renderUnits({
+      ...createRenderState(),
+      units: { [unit.id]: unit },
+    });
+
+    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 16, -11);
+    expect(context.fillRect).toHaveBeenCalledWith(25, -15, 14, 14);
   });
 
   it('renders a selected own-unit annotation label above the sprite', () => {
@@ -225,7 +574,7 @@ describe('MapRenderer live-state updates', () => {
       units: { [unit.id]: unit },
     });
 
-    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, -81, -14);
+    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, -84, -11);
   });
 
   it('culls known tiles that are outside the canvas overdraw margin', () => {

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { resolveUnitOverlayOffsets } from '@game/services/UnitPresentationService';
 
 const router = Router();
 
@@ -26,13 +27,25 @@ export const buildRulesetPresentation = (ruleset: string) => {
     units: Object.fromEntries(
       Object.entries(units).map(([id, unit]) => [
         id,
-        { graphic: unit.graphic, graphic_alt: unit.graphic_alt },
+        {
+          graphic: unit.graphic,
+          graphic_alt: unit.graphic_alt,
+          offsets: resolveUnitOverlayOffsets(unit.name ?? id),
+        },
       ])
     ),
     extras: Object.fromEntries(
       Object.entries(extras).map(([id, extra]) => [
         id,
-        { graphic: extra.graphic, graphic_alt: extra.graphic_alt },
+        {
+          name: extra.name,
+          rule_name: extra.rule_name,
+          graphic: extra.graphic,
+          graphic_alt: extra.graphic_alt,
+          activity_gfx: extra.activity_gfx,
+          act_gfx_alt: extra.act_gfx_alt,
+          act_gfx_alt2: extra.act_gfx_alt2,
+        },
       ])
     ),
   };

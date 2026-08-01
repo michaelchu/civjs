@@ -104,6 +104,8 @@ improvements remain outside the release claim:
 - a decision on event-stream replay beyond checkpoint and archive inspection;
 - client help, reports/history, accessibility, animation, and presentation
   polish;
+- animation and presentation implementation details are tracked in
+  [`ANIMATION_PORTING_GAPS.md`](ANIMATION_PORTING_GAPS.md);
 - the concrete behavioral issues tracked in [`GAMEPLAY_GAPS.md`](GAMEPLAY_GAPS.md).
 
 These are follow-up items, not evidence that the supported server-authoritative

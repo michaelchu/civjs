@@ -1,4 +1,4 @@
-import type { MapViewport, Unit, City, GameState } from '../../../types';
+import type { MapViewport, Unit, City, GameState, PresentationEffect } from '../../../types';
 import type { AccessibleTile, GotoPath } from '../../../services/PathfindingService';
 import type { TilesetProvider } from '../tilesets/TilesetProvider';
 
@@ -7,9 +7,11 @@ export interface RenderState {
   map: GameState['map'];
   units: Record<string, Unit>;
   cities: Record<string, City>;
-  players: Record<string, { color: string; name: string; nation: string }>; // Player data for border colors and validation
+  players: Record<string, { color: string; name: string; nation: string; nationGraphic?: string }>; // Player data for border colors and validation
   selectedUnitId?: string | null;
   selectedCityId?: string | null;
+  /** Local presentation equivalent of freeciv's pending action decision. */
+  actionDecisionUnitId?: string | null;
   focusedUnits?: string[];
   urgentFocusQueue?: string[];
   gotoPath?: GotoPath | null;
@@ -17,6 +19,10 @@ export interface RenderState {
   movementRangeOrigin?: { x: number; y: number };
   currentPlayerId?: string;
   researchedTechs?: ReadonlySet<string>;
+  presentationEffects?: PresentationEffect[];
+  reducedMotion?: boolean;
+  /** Matches freeciv-web's show_unit_movepct option, disabled by default. */
+  showUnitMovePoints?: boolean;
 }
 
 export abstract class BaseRenderer {

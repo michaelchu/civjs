@@ -1,8 +1,10 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const requestPathResult = vi.hoisted(() => vi.fn());
 const executeUnitAction = vi.hoisted(() => vi.fn());
+const setDebugVisibility = vi.hoisted(() => vi.fn());
+const mapRendererConstructed = vi.hoisted(() => vi.fn());
 const state = {
   viewport: { x: 0, y: 0, width: 100, height: 100 },
   map: { width: 10, height: 10, xsize: 10, ysize: 10, tiles: [] },
@@ -29,6 +31,7 @@ const state = {
   hasReceivedUnitSnapshot: true,
   research: { researchedTechs: [] },
   setViewport: vi.fn(),
+  updateGameState: vi.fn(),
   selectUnit: vi.fn(),
   selectCity: vi.fn(),
   addToFocus: vi.fn(),
@@ -44,6 +47,9 @@ vi.mock('../../../store/gameStore', () => ({
 
 vi.mock('../MapRenderer', () => ({
   MapRenderer: class {
+    constructor() {
+      mapRendererConstructed();
+    }
     async initialize() {}
     cleanup() {}
     render() {}
@@ -52,10 +58,10 @@ vi.mock('../MapRenderer', () => ({
       return { mapX: 1, mapY: 1 };
     }
     getViewportPositionForTile() {
-      return { x: 0, y: 0 };
+      return { x: 60, y: 40 };
     }
     setMapviewOrigin() {
-      return { x: 0, y: 0, width: 100, height: 100 };
+      return { x: 60, y: 40, width: 100, height: 100 };
     }
   },
 }));
@@ -69,7 +75,7 @@ vi.mock('../../../services/PathfindingService', () => ({
 
 vi.mock('../../../services/GameClient', () => ({
   gameClient: {
-    setDebugVisibility: vi.fn().mockResolvedValue(undefined),
+    setDebugVisibility,
     executeUnitAction,
   },
 }));
@@ -81,11 +87,19 @@ vi.mock('../../GameUI/CityInfoOverlay', () => ({ CityInfoOverlay: () => null }))
 import { MapCanvas } from '../MapCanvas';
 
 describe('MapCanvas Go To feedback', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() => {
     requestPathResult.mockReset();
     requestPathResult.mockRejectedValue(new Error('Cannot invade unless you break peace first.'));
     executeUnitAction.mockReset();
     executeUnitAction.mockResolvedValue({ success: true, message: 'Unit moved' });
+    setDebugVisibility.mockReset();
+    setDebugVisibility.mockResolvedValue(undefined);
+    mapRendererConstructed.mockClear();
     Object.assign(state.cities, {});
     state.diplomacy.nations.length = 0;
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
@@ -149,5 +163,101 @@ describe('MapCanvas Go To feedback', () => {
     );
     expect(executeUnitAction).toHaveBeenCalledWith('unit-1', 'goto', 1, 1, true);
     confirm.mockRestore();
+  });
+
+  it('keeps the renderer alive when an action context menu opens', async () => {
+    render(<MapCanvas width={100} height={100} />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(mapRendererConstructed).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      document.dispatchEvent(
+        new CustomEvent('show-action-dialog', { detail: { unit: state.units['unit-1'] } })
+      );
+      await Promise.resolve();
+    });
+
+    expect(mapRendererConstructed).toHaveBeenCalledTimes(1);
+  });
+
+  it('slides the viewport to a centered tile and commits the target at the end', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    vi.spyOn(performance, 'now').mockReturnValue(1000);
+
+    render(<MapCanvas width={100} height={100} />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    state.setViewport.mockClear();
+
+    await act(async () => {
+      document.dispatchEvent(new CustomEvent('center-map-on-tile', { detail: { x: 0, y: 0 } }));
+      await Promise.resolve();
+    });
+
+    expect(frames).toHaveLength(1);
+    expect(state.setViewport).not.toHaveBeenCalled();
+
+    await act(async () => {
+      frames.shift()?.(1350);
+    });
+    expect(state.setViewport).not.toHaveBeenCalled();
+    expect(frames).toHaveLength(1);
+
+    await act(async () => {
+      frames.shift()?.(1700);
+    });
+    expect(state.setViewport).toHaveBeenCalledWith({
+      x: 60,
+      y: 40,
+      width: 100,
+      height: 100,
+    });
+  });
+
+  it('commits the latest slide viewport before a drag begins', async () => {
+    const frames: FrameRequestCallback[] = [];
+    const cancelFrame = vi.fn();
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', cancelFrame);
+    vi.spyOn(performance, 'now').mockReturnValue(1000);
+
+    render(<MapCanvas width={100} height={100} />);
+    const canvas = screen.getByLabelText('World map');
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    state.setViewport.mockClear();
+
+    await act(async () => {
+      document.dispatchEvent(new CustomEvent('center-map-on-tile', { detail: { x: 0, y: 0 } }));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      frames.shift()?.(1350);
+    });
+
+    fireEvent.mouseDown(canvas, { clientX: 10, clientY: 10, button: 0 });
+
+    expect(cancelFrame).toHaveBeenCalled();
+    expect(state.setViewport).toHaveBeenCalledWith({
+      x: 52.5,
+      y: 35,
+      width: 100,
+      height: 100,
+    });
   });
 });

@@ -133,6 +133,7 @@ export const useGameStore = create<GameStore>()(
       tiles: {},
     },
     units: {},
+    presentationEffects: [],
     cities: {},
     technologies: {},
     research: {

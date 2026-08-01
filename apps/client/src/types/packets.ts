@@ -211,6 +211,7 @@ export interface PlayerInfoPacket {
     id: string;
     name: string;
     nation: string;
+    nationGraphic?: string;
     team?: string;
     teamId?: string;
     score: number;

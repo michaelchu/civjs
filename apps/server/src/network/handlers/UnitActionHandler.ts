@@ -488,6 +488,24 @@ export class UnitActionHandler extends BaseSocketHandler {
         gameInstance
       );
       if (
+        data.actionType === ActionType.NUCLEAR_EXPLOSION &&
+        !gameInstance.unitManager.hasNuclearPresentationCallback?.()
+      ) {
+        const centerX = data.targetX ?? unitBeforeAction?.x;
+        const centerY = data.targetY ?? unitBeforeAction?.y;
+        if (centerX !== undefined && centerY !== undefined) {
+          this.gameManager.broadcastNuclearExplosion(connection.gameId!, {
+            eventId: `nuke:${connection.gameId}:${Date.now()}:${data.unitId}`,
+            x: centerX,
+            y: centerY,
+            playerId,
+            affectedTiles: gameInstance.mapManager
+              ?.getTopology?.()
+              .getPositionsWithinRadius(centerX, centerY, 1) ?? [{ x: centerX, y: centerY }],
+          });
+        }
+      }
+      if (
         [
           ActionType.MARKETPLACE,
           ActionType.HELP_WONDER,

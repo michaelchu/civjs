@@ -13,6 +13,14 @@ describe('ruleset presentation API', () => {
       graphic_alt2: '-',
     });
     expect(presentation.units.warriors.graphic).toBe('u.warriors');
+    expect(presentation.units.warriors.offsets).toMatchObject({
+      unitX: 13,
+      unitY: -9,
+      shieldX: 25,
+      shieldY: -15,
+      veteranX: 33,
+      veteranY: -33,
+    });
     expect(presentation.extras.extra_gold.graphic).toBe('ts.gold');
   });
 

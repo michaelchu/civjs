@@ -16,6 +16,7 @@ import { CityManagementService } from '@game/services/CityManagementService';
 import { ResearchManagementService } from '@game/services/ResearchManagementService';
 import { VisibilityMapService } from '@game/services/VisibilityMapService';
 import { GameInstanceRecoveryService } from '@game/services/GameInstanceRecoveryService';
+import type { NuclearPresentationEvent } from '@app-types/presentation';
 
 // Keep existing imports for delegation
 import { CityManager, type CityState } from '@game/managers/CityManager';
@@ -2006,6 +2007,10 @@ export class GameManager {
 
   public broadcastUnitDestroyed(gameId: string, unit: Unit): void {
     this.gameBroadcastManager.broadcastUnitDestroyed(gameId, unit);
+  }
+
+  public broadcastNuclearExplosion(gameId: string, event: NuclearPresentationEvent): void {
+    this.gameBroadcastManager.broadcastNuclearExplosion(gameId, event);
   }
 
   public broadcastCityData(gameId: string): void {
