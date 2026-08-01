@@ -168,29 +168,35 @@ export interface EffectContext {
   tradeRouteCultures?: number[];
 }
 
+function singleCultureValue(value: number | undefined): number[] | undefined {
+  return value === undefined ? undefined : [value];
+}
+
+function tradeRouteCultureValues(context: EffectContext): number[] | undefined {
+  const cultures = [
+    ...(context.cityCulture === undefined ? [] : [context.cityCulture]),
+    ...(context.tradeRouteCultures ?? []),
+  ];
+  return cultures.length > 0 ? cultures : singleCultureValue(context.tradeRouteCulture);
+}
+
+function playerCultureValues(context: EffectContext): number[] | undefined {
+  return context.playerCulture === undefined
+    ? context.playerCulturesInRange
+    : [context.playerCulture];
+}
+
+const cultureRangeResolvers: Record<string, (context: EffectContext) => number[] | undefined> = {
+  city: context => singleCultureValue(context.cityCulture),
+  traderoute: tradeRouteCultureValues,
+  player: playerCultureValues,
+  team: context => context.playerCulturesInRange,
+  alliance: context => context.playerCulturesInRange,
+  world: context => context.playerCulturesInRange,
+};
+
 function cultureValuesForRange(range: string, context: EffectContext): number[] | undefined {
-  switch (range) {
-    case 'city':
-      return context.cityCulture === undefined ? undefined : [context.cityCulture];
-    case 'traderoute': {
-      const cultures = [
-        ...(context.cityCulture === undefined ? [] : [context.cityCulture]),
-        ...(context.tradeRouteCultures ?? []),
-      ];
-      if (cultures.length > 0) return cultures;
-      return context.tradeRouteCulture === undefined ? undefined : [context.tradeRouteCulture];
-    }
-    case 'player':
-      return context.playerCulture === undefined
-        ? context.playerCulturesInRange
-        : [context.playerCulture];
-    case 'team':
-    case 'alliance':
-    case 'world':
-      return context.playerCulturesInRange;
-    default:
-      return undefined;
-  }
+  return cultureRangeResolvers[range]?.(context);
 }
 
 // Requirement evaluation result
