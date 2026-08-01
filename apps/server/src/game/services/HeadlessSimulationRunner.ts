@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { DatabaseProvider } from '@database';
 import { games, players } from '@database/schema';
 import { PROTOCOL_VERSION } from '@app-types/packet';
@@ -33,6 +33,7 @@ export const HEADLESS_EXIT_CODES = {
 } as const;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_TOKEN_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 
 export class HeadlessSimulationError extends Error {
   constructor(
@@ -390,18 +391,22 @@ export class HeadlessSimulationRunner {
 
   private async readAISummaries(gameId: string, turn: number): Promise<unknown[]> {
     const aiPlayers = await this.databaseProvider.getDatabase().query.players.findMany({
-      where: eq(players.gameId, gameId),
+      where: and(eq(players.gameId, gameId), eq(players.isAI, true)),
       orderBy: [asc(players.playerNumber), asc(players.id)],
     });
-    return aiPlayers.map(player => ({
-      playerId: player.id,
-      civilization: player.civilization,
-      aiLevel: player.aiLevel,
-      decisionTrace: (
-        (player.aiState as { recentDecisionTrace?: Array<{ turn?: number }> } | null)
-          ?.recentDecisionTrace ?? []
-      ).filter(entry => entry.turn === turn),
-    }));
+    return aiPlayers.map(player => {
+      const aiState = player.aiState as {
+        recentPlanSnapshot?: { turn?: number };
+        recentDecisionTrace?: Array<{ turn?: number }>;
+      } | null;
+      return {
+        playerId: player.id,
+        civilization: player.civilization,
+        aiLevel: player.aiLevel,
+        plan: aiState?.recentPlanSnapshot?.turn === turn ? aiState.recentPlanSnapshot : null,
+        decisionTrace: (aiState?.recentDecisionTrace ?? []).filter(entry => entry.turn === turn),
+      };
+    });
   }
 
   private async verifyReplayCheckpoints(turns: GameReplay['turns']): Promise<void> {
@@ -499,7 +504,15 @@ export function hashSimulationState(snapshot: unknown): string {
 function sanitizeForHash(value: unknown, key?: string): unknown {
   if (
     key &&
-    ['gameId', 'createdAt', 'startedAt', 'endedAt', 'generatedAt', 'lastSeen'].includes(key)
+    [
+      'gameId',
+      'createdAt',
+      'startedAt',
+      'endedAt',
+      'generatedAt',
+      'lastSeen',
+      'timestamp',
+    ].includes(key)
   ) {
     return undefined;
   }
@@ -522,6 +535,12 @@ function sanitizeForHash(value: unknown, key?: string): unknown {
 }
 
 function canonicalizeHashIdentifier(value: string): string {
+  const canonicalUuid = canonicalizeUuid(value);
+  if (canonicalUuid !== value) return canonicalUuid;
+  return value.replace(UUID_TOKEN_PATTERN, uuid => canonicalizeUuid(uuid));
+}
+
+function canonicalizeUuid(value: string): string {
   if (!UUID_PATTERN.test(value)) return value;
   const identityNumber = identityNumberFromUuid(value);
   return identityNumber === null ? value : `ordered-id:${identityNumber}`;

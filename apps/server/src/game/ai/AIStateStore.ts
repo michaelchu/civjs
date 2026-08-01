@@ -51,15 +51,34 @@ export interface AIDecisionTrace {
     trade: number;
     science: number;
   };
-  candidateScores?: {
+  outcome?: AIDecisionOutcome;
+  error?: string;
+}
+
+export interface AIDecisionOutcome {
+  reportedActions: number;
+  citiesDelta: number;
+  unitsDelta: number;
+  tasksDelta: number;
+  taskChanges: number;
+  unitsMoved: number;
+  productionChanges: number;
+  researchChanged: boolean;
+  noOp: boolean;
+}
+
+export interface AIPlanSnapshot {
+  turn: number;
+  candidateScores: {
     cityProduction: Record<string, Record<string, number>>;
     research: Record<string, number>;
   };
-  selectedActions?: {
+  selectedActions: {
     cityProduction: Record<string, string | null>;
     research: string | null;
   };
-  error?: string;
+  unitTasks: Record<string, AIUnitTask>;
+  treasuryGoal?: AITreasuryGoal;
 }
 
 export interface FreecivAIState {
@@ -71,6 +90,7 @@ export interface FreecivAIState {
   cityWants: Record<string, Record<string, number>>;
   techWants: Record<string, number>;
   treasuryGoal?: AITreasuryGoal;
+  recentPlanSnapshot?: AIPlanSnapshot;
   recentDecisionTrace?: AIDecisionTrace[];
 }
 
@@ -135,6 +155,37 @@ function assertSelectedActions(value: unknown): void {
   }
 }
 
+function assertDecisionOutcome(value: unknown): void {
+  if (!isRecord(value)) throw new Error('AI state decision outcome is invalid');
+  const numericFields = [
+    'reportedActions',
+    'citiesDelta',
+    'unitsDelta',
+    'tasksDelta',
+    'taskChanges',
+    'unitsMoved',
+    'productionChanges',
+  ];
+  if (numericFields.some(field => typeof value[field] !== 'number')) {
+    throw new Error('AI state decision outcome counts are invalid');
+  }
+  if (typeof value.researchChanged !== 'boolean' || typeof value.noOp !== 'boolean') {
+    throw new Error('AI state decision outcome flags are invalid');
+  }
+}
+
+function assertPlanSnapshot(value: unknown): void {
+  if (!isRecord(value) || typeof value.turn !== 'number') {
+    throw new Error('AI state plan snapshot is invalid');
+  }
+  assertCandidateScores(value.candidateScores);
+  assertSelectedActions(value.selectedActions);
+  if (!isRecord(value.unitTasks)) throw new Error('AI state plan snapshot tasks are invalid');
+  if (value.treasuryGoal !== undefined && !isTreasuryGoal(value.treasuryGoal)) {
+    throw new Error('AI state plan snapshot treasury goal is invalid');
+  }
+}
+
 function isTreasuryGoal(value: unknown): value is AITreasuryGoal {
   if (!isRecord(value)) return false;
   return (
@@ -157,6 +208,7 @@ export function assertAIState(value: unknown): FreecivAIState {
   assertOptionalNumber(state.lastProcessedTurn, 'lastProcessedTurn');
   assertOptionalNumber(state.lastDecisionCount, 'lastDecisionCount');
   assertOptionalNumber(state.inProgressTurn, 'inProgressTurn');
+  if (state.recentPlanSnapshot !== undefined) assertPlanSnapshot(state.recentPlanSnapshot);
   assertDecisionTrace(state.recentDecisionTrace);
   if (state.treasuryGoal !== undefined && !isTreasuryGoal(state.treasuryGoal)) {
     throw new Error('AI state treasuryGoal is invalid');
@@ -199,8 +251,7 @@ function assertDecisionTraceDetails(entry: Record<string, unknown>): void {
       'trade',
       'science',
     ]);
-  if (entry.candidateScores !== undefined) assertCandidateScores(entry.candidateScores);
-  if (entry.selectedActions !== undefined) assertSelectedActions(entry.selectedActions);
+  if (entry.outcome !== undefined) assertDecisionOutcome(entry.outcome);
 }
 
 /**

@@ -30,6 +30,7 @@ import { BorderManager } from '@game/managers/BorderManager';
 import { GovernmentManager } from '@game/managers/GovernmentManager';
 import {
   DiplomacyManager,
+  toDiplomacyReplayEvent,
   type DiplomacySnapshot,
   type TreatyClause,
   type TreatyProposal,
@@ -45,7 +46,7 @@ import {
 import { assertAIState, createAIState } from '@game/ai/AIStateStore';
 import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import { FreecivAdvisorService, type AdvisorRecommendations } from '@game/services/AdvisorService';
-import { EndGameService } from '@game/services/EndGameService';
+import { EndGameService, type EndGameTelemetry } from '@game/services/EndGameService';
 import { GameReplayService, type GameReplay } from '@game/services/GameReplayService';
 import {
   NativeSaveService,
@@ -294,7 +295,10 @@ export class GameManager {
     this.diplomacyManager.setEventSink(event => {
       this.gameBroadcastManager.broadcastToGame(event.gameId, 'diplomacy_event', event);
       const game = this.games.get(event.gameId);
-      if (game) this.aiOrchestrator.onDiplomacyEvent(event.gameId, game, event);
+      if (game) {
+        game.turnManager.recordDiplomacyEvent(toDiplomacyReplayEvent(event));
+        this.aiOrchestrator.onDiplomacyEvent(event.gameId, game, event);
+      }
     });
     this.hostilityPolicy = new DiplomacyHostilityPolicy(this.diplomacyManager);
     this.advisorService = new FreecivAdvisorService(this.hostilityPolicy);
@@ -1363,6 +1367,7 @@ export class GameManager {
     gameInstance.turnManager.setWorkerAutomationProcessor(() =>
       processHumanWorkerAutomation(gameInstance, this.hostilityPolicy)
     );
+    let endGameTelemetry: EndGameTelemetry | null = null;
     gameInstance.turnManager.setDiplomacyProcessor(async () => {
       const events = await this.diplomacyManager.processTurn(gameId);
       for (const event of events) {
@@ -1396,6 +1401,8 @@ export class GameManager {
       })),
       diplomacy: await this.diplomacyManager.getReplaySnapshot(gameId),
       aiDiplomacy: getAIDiplomacyReplaySnapshot(gameInstance),
+      diplomacyEvents: gameInstance.turnManager.getTurnDiplomacyEvents(),
+      endGame: endGameTelemetry,
     }));
     gameInstance.turnManager.setEndGameEvaluator(async (turn, year) => {
       const evaluation = await this.endGameService.evaluate({
@@ -1422,6 +1429,9 @@ export class GameManager {
         spaceshipStateSink: (playerId, state) => {
           const player = gameInstance.players.get(playerId);
           if (player) player.spaceshipState = state;
+        },
+        telemetrySink: telemetry => {
+          endGameTelemetry = telemetry;
         },
       });
       if (!evaluation.ended) return false;

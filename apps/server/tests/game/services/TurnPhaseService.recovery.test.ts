@@ -3,6 +3,41 @@ import { FreecivRandom } from '@game/random/FreecivRandom';
 import { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAllocator';
 
 describe('TurnPhaseService recovery checkpoints', () => {
+  it('persists normalized phase work counts and replay item totals', () => {
+    const service = new TurnPhaseService(
+      'game-1',
+      {} as any,
+      {} as any,
+      {} as any,
+      { registerEventHandler: jest.fn() } as any
+    );
+
+    const update = (service as any).getPhaseUpdate(
+      {
+        phase: TurnPhase.PHASE_CITY_PRODUCTION,
+        success: true,
+        duration: 4,
+        playersProcessed: 2,
+        itemsProcessed: 3,
+        errors: [],
+      },
+      new Date(0),
+      new Date(4)
+    );
+
+    expect(update).toEqual(
+      expect.objectContaining({
+        citiesProcessed: 3,
+        unitsProcessed: 0,
+        actionsProcessed: 0,
+        phaseData: expect.objectContaining({
+          itemsProcessed: 3,
+          citiesProcessed: 3,
+        }),
+      })
+    );
+  });
+
   it('runs shared human autoworkers after AI decisions in the end-turn decision phase', async () => {
     const order: string[] = [];
     const service = new TurnPhaseService(

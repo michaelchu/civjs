@@ -141,6 +141,51 @@ describe('EndGameService', () => {
     unitsByPlayer.defeated = [];
   });
 
+  it('emits per-turn victory progress when no condition is met', async () => {
+    const databaseProvider = createMockDatabaseProvider();
+    const database = databaseProvider.getDatabase() as any;
+    database.query.players.findMany.mockResolvedValue([
+      { id: 'winner', civilization: 'Roman', history: 0, isAlive: true },
+      { id: 'defeated', civilization: 'Greek', history: 0, isAlive: true },
+    ]);
+    unitsByPlayer.defeated = [{ id: 'unit-2' }];
+    const telemetrySink = jest.fn();
+
+    const result = await new EndGameService(databaseProvider, io).evaluate({
+      gameId: 'game-1',
+      turn: 30,
+      year: -2800,
+      victoryConditions: ['conquest', 'max_turns'],
+      maxTurns: 100,
+      playerIds: ['winner', 'defeated'],
+      cityManager,
+      unitManager,
+      researchManager,
+      telemetrySink,
+    });
+
+    expect(result).toEqual({ ended: false });
+    expect(telemetrySink).toHaveBeenCalledWith(
+      expect.objectContaining({
+        turn: 30,
+        survivors: 2,
+        conditions: expect.objectContaining({
+          conquest: expect.objectContaining({
+            enabled: true,
+            met: false,
+            reason: 'multiple_surviving_teams',
+          }),
+          max_turns: expect.objectContaining({
+            enabled: true,
+            met: false,
+            progress: { currentTurn: 30, maxTurns: 100 },
+          }),
+        }),
+      })
+    );
+    unitsByPlayer.defeated = [];
+  });
+
   it('uses the classic minimum and lead thresholds for cultural domination', async () => {
     const databaseProvider = createMockDatabaseProvider();
     const database = databaseProvider.getDatabase() as any;

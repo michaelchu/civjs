@@ -137,6 +137,30 @@ export interface DiplomacyEvent {
   scope?: 'victim_only' | 'international_outcry';
 }
 
+export interface DiplomacyReplayEvent {
+  type: DiplomacyEvent['type'];
+  playerIds: [string, string];
+  message: string;
+  offenderId?: string;
+  victimId?: string;
+  severity?: number;
+  justified?: boolean;
+  scope?: DiplomacyEvent['scope'];
+}
+
+export function toDiplomacyReplayEvent(event: DiplomacyEvent): DiplomacyReplayEvent {
+  return {
+    type: event.type,
+    playerIds: [event.playerIds[0], event.playerIds[1]],
+    message: event.message,
+    ...(event.offenderId === undefined ? {} : { offenderId: event.offenderId }),
+    ...(event.victimId === undefined ? {} : { victimId: event.victimId }),
+    ...(event.severity === undefined ? {} : { severity: event.severity }),
+    ...(event.justified === undefined ? {} : { justified: event.justified }),
+    ...(event.scope === undefined ? {} : { scope: event.scope }),
+  };
+}
+
 const TREATY_TURNS = 16;
 const CONTACT_TURNS = 20;
 const STATE_RANK: Record<DiplomaticState, number> = {

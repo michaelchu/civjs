@@ -10,6 +10,8 @@ export interface AuthoritativeGameState {
   research: Record<string, unknown>;
   diplomacy?: unknown;
   aiDiplomacy?: unknown;
+  diplomacyEvents?: unknown;
+  endGame?: unknown;
   map?: unknown;
   [key: string]: unknown;
 }

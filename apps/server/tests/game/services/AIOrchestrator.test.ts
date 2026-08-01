@@ -320,7 +320,8 @@ describe('FreecivAIOrchestrator', () => {
 
     await orchestrator.processTurn('game', scenario.game as any);
 
-    const trace = (scenario.game.players.get('ai') as any).aiState.recentDecisionTrace;
+    const state = (scenario.game.players.get('ai') as any).aiState;
+    const trace = state.recentDecisionTrace;
     expect(trace).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -328,17 +329,26 @@ describe('FreecivAIOrchestrator', () => {
           label: 'citizens',
           input: expect.objectContaining({ cities: 1, units: 4 }),
           economicDelta: expect.objectContaining({ production: expect.any(Number) }),
-          candidateScores: expect.objectContaining({ research: expect.any(Object) }),
-          selectedActions: expect.objectContaining({ cityProduction: expect.any(Object) }),
+          outcome: expect.objectContaining({
+            reportedActions: expect.any(Number),
+            noOp: expect.any(Boolean),
+          }),
         }),
         expect.objectContaining({
           turn: 0,
           label: 'state persistence',
           economicDelta: expect.objectContaining({ science: expect.any(Number) }),
-          candidateScores: expect.objectContaining({ cityProduction: expect.any(Object) }),
-          selectedActions: expect.any(Object),
+          outcome: expect.objectContaining({ noOp: expect.any(Boolean) }),
         }),
       ])
+    );
+    expect(state.recentPlanSnapshot).toEqual(
+      expect.objectContaining({
+        turn: 0,
+        candidateScores: expect.objectContaining({ research: expect.any(Object) }),
+        selectedActions: expect.objectContaining({ cityProduction: expect.any(Object) }),
+        unitTasks: expect.any(Object),
+      })
     );
     expect(trace.length).toBeLessThanOrEqual(50);
   });

@@ -64,6 +64,37 @@ export interface EndGameReport {
   endedAt: string;
 }
 
+export interface EndGameConditionTelemetry {
+  enabled: boolean;
+  met: boolean;
+  reason: string;
+  winnerPlayerIds: string[];
+  progress: Record<string, unknown>;
+}
+
+export interface EndGameTelemetry {
+  version: 1;
+  gameId: string;
+  turn: number;
+  year: number;
+  enabledConditions: string[];
+  survivors: number;
+  standings: Array<{
+    playerId: string;
+    civilization: string;
+    score: number;
+    cities: number;
+    population: number;
+    units: number;
+    technologies: number;
+    alive: boolean;
+    teamId?: string;
+    history: number;
+    spaceship?: SpaceshipState;
+  }>;
+  conditions: Record<string, EndGameConditionTelemetry>;
+}
+
 export interface EndGameEvaluation {
   ended: boolean;
   report?: EndGameReport;
@@ -83,6 +114,19 @@ interface EvaluationContext {
   rulesetName?: string;
   maxTurns?: number;
   spaceshipStateSink?: (playerId: string, state: SpaceshipState) => void;
+  telemetrySink?: (telemetry: EndGameTelemetry) => void;
+}
+
+interface EndGameEvaluationDetails {
+  worldPeaceStart?: number;
+  worldPeaceRequired?: number;
+  allSurvivorsAllied?: boolean;
+  cultureScores?: Array<{ playerId: string; culture: number }>;
+}
+
+interface WinnerCandidate {
+  condition: string;
+  result?: { reason: EndGameReport['reason']; winners: EndGameStanding[] };
 }
 
 /**
@@ -132,9 +176,20 @@ export class EndGameService {
     );
 
     const survivors = standings.filter(standing => standing.alive);
-    const result = await this.determineWinners(context, enabled, standings, survivors, playerById);
-    const reason = result?.reason;
-    const winners = result?.winners ?? [];
+    const details: EndGameEvaluationDetails = {};
+    const evaluation = await this.determineWinners(
+      context,
+      enabled,
+      standings,
+      survivors,
+      playerById,
+      details
+    );
+    context.telemetrySink?.(
+      this.buildTelemetry(context, enabled, standings, survivors, evaluation.candidates, details)
+    );
+    const reason = evaluation.selected?.reason;
+    const winners = evaluation.selected?.winners ?? [];
 
     if (!reason || winners.length === 0) return { ended: false };
 
@@ -258,21 +313,39 @@ export class EndGameService {
     enabled: string[],
     standings: EndGameStanding[],
     survivors: EndGameStanding[],
-    playerById: Map<string, any>
-  ): Promise<{ reason: EndGameReport['reason']; winners: EndGameStanding[] } | undefined> {
-    const scenario = this.findScenarioWinner(enabled, standings, playerById);
-    if (scenario) return scenario;
-    const science = this.findScienceWinner(enabled, context.turn, survivors);
-    if (science) return science;
-    const peace = await this.findWorldPeaceWinner(context, enabled, survivors);
-    if (peace) return peace;
-    const conquest = this.findConquestWinner(enabled, survivors);
-    if (conquest) return conquest;
-    const allied = await this.findAlliedWinner(context, enabled, survivors);
-    if (allied) return allied;
-    const culture = await this.findCultureWinner(context, enabled, survivors);
-    if (culture) return culture;
-    return this.findMaxTurnWinner(context, standings);
+    playerById: Map<string, any>,
+    details: EndGameEvaluationDetails
+  ): Promise<{ selected?: WinnerCandidate['result']; candidates: WinnerCandidate[] }> {
+    const candidates: WinnerCandidate[] = [];
+    candidates.push({
+      condition: 'scenario',
+      result: this.findScenarioWinner(enabled, standings, playerById),
+    });
+    candidates.push({
+      condition: 'science',
+      result: this.findScienceWinner(enabled, context.turn, survivors),
+    });
+    candidates.push({
+      condition: 'world_peace',
+      result: await this.findWorldPeaceWinner(context, enabled, survivors, details),
+    });
+    candidates.push({
+      condition: 'conquest',
+      result: this.findConquestWinner(enabled, survivors),
+    });
+    candidates.push({
+      condition: 'allied',
+      result: await this.findAlliedWinner(context, enabled, survivors, details),
+    });
+    candidates.push({
+      condition: 'culture',
+      result: await this.findCultureWinner(context, enabled, survivors, details),
+    });
+    candidates.push({
+      condition: 'max_turns',
+      result: this.findMaxTurnWinner(context, standings),
+    });
+    return { selected: candidates.find(candidate => candidate.result)?.result, candidates };
   }
 
   private findScenarioWinner(
@@ -302,7 +375,8 @@ export class EndGameService {
   private async findWorldPeaceWinner(
     context: EvaluationContext,
     enabled: string[],
-    survivors: EndGameStanding[]
+    survivors: EndGameStanding[],
+    details: EndGameEvaluationDetails
   ) {
     if (
       !this.isEnabled(enabled, 'world_peace', 'worldpeace') ||
@@ -318,6 +392,8 @@ export class EndGameService {
     );
     const required = rulesetLoader.loadGameRulesRuleset(context.rulesetName ?? 'classic')
       .world_peace.victory_turns;
+    details.worldPeaceStart = peaceStart;
+    details.worldPeaceRequired = required;
     return peaceStart !== undefined && context.turn - peaceStart >= required
       ? { reason: 'world_peace' as const, winners: survivors }
       : undefined;
@@ -337,7 +413,8 @@ export class EndGameService {
   private async findAlliedWinner(
     context: EvaluationContext,
     enabled: string[],
-    survivors: EndGameStanding[]
+    survivors: EndGameStanding[],
+    details: EndGameEvaluationDetails
   ) {
     if (
       !this.isEnabled(enabled, 'allied', 'allied_victory') ||
@@ -350,13 +427,15 @@ export class EndGameService {
       survivors,
       context.diplomacyManager
     );
+    details.allSurvivorsAllied = allied;
     return allied ? { reason: 'allied' as const, winners: survivors } : undefined;
   }
 
   private async findCultureWinner(
     context: EvaluationContext,
     enabled: string[],
-    survivors: EndGameStanding[]
+    survivors: EndGameStanding[],
+    details: EndGameEvaluationDetails
   ) {
     if (!enabled.includes('culture') || !context.cultureManager || !survivors.length)
       return undefined;
@@ -369,6 +448,10 @@ export class EndGameService {
         ).totalCulture,
       }))
     );
+    details.cultureScores = scores.map(({ standing, culture }) => ({
+      playerId: standing.playerId,
+      culture,
+    }));
     scores.sort(
       (a, b) => b.culture - a.culture || a.standing.playerId.localeCompare(b.standing.playerId)
     );
@@ -402,6 +485,124 @@ export class EndGameService {
 
   private isEnabled(enabled: string[], ...aliases: string[]): boolean {
     return aliases.some(alias => enabled.includes(alias));
+  }
+
+  private buildTelemetry(
+    context: EvaluationContext,
+    enabled: string[],
+    standings: EndGameStanding[],
+    survivors: EndGameStanding[],
+    candidates: WinnerCandidate[],
+    details: EndGameEvaluationDetails
+  ): EndGameTelemetry {
+    const candidate = (condition: string) =>
+      candidates.find(entry => entry.condition === condition)?.result;
+    const enabledFor = (...aliases: string[]) => this.isEnabled(enabled, ...aliases);
+    const condition = (
+      name: string,
+      aliases: string[],
+      reason: string,
+      progress: Record<string, unknown>
+    ): EndGameConditionTelemetry => {
+      const selected = candidate(name);
+      const isEnabled = enabledFor(...aliases);
+      const met = isEnabled && (selected?.winners.length ?? 0) > 0;
+      return {
+        enabled: isEnabled,
+        met,
+        reason: !isEnabled ? 'disabled' : met ? 'met' : reason,
+        winnerPlayerIds: selected?.winners.map(winner => winner.playerId) ?? [],
+        progress,
+      };
+    };
+
+    const cultureRules = rulesetLoader.getCultureRules(context.rulesetName ?? 'classic');
+    const cultureScores = details.cultureScores ?? [];
+    const survivingTeams = [
+      ...new Set(survivors.map(standing => standing.teamId ?? `player:${standing.playerId}`)),
+    ].sort();
+    const peaceElapsed =
+      details.worldPeaceStart === undefined
+        ? 0
+        : Math.max(0, context.turn - details.worldPeaceStart);
+
+    return {
+      version: 1,
+      gameId: context.gameId,
+      turn: context.turn,
+      year: context.year,
+      enabledConditions: [...enabled],
+      survivors: survivors.length,
+      standings: standings.map(standing => ({
+        playerId: standing.playerId,
+        civilization: standing.civilization,
+        score: standing.score,
+        cities: standing.cities,
+        population: standing.population,
+        units: standing.units,
+        technologies: standing.technologies,
+        alive: standing.alive,
+        ...(standing.teamId ? { teamId: standing.teamId } : {}),
+        history: standing.history,
+        ...(standing.spaceship ? { spaceship: standing.spaceship } : {}),
+      })),
+      conditions: {
+        scenario: condition('scenario', ['scenario'], 'no_scenario_winner', {
+          flaggedWinnerIds: candidate('scenario')?.winners.map(winner => winner.playerId) ?? [],
+        }),
+        science: condition('science', ['science', 'spaceship'], 'no_arrived_spaceship', {
+          players: standings.map(standing => ({
+            playerId: standing.playerId,
+            launchedTurn: standing.spaceship?.launchedTurn,
+            arrivalTurn: standing.spaceship?.arrivalTurn,
+            arrived:
+              standing.spaceship?.arrivalTurn !== undefined &&
+              standing.spaceship.arrivalTurn <= context.turn,
+          })),
+        }),
+        world_peace: condition(
+          'world_peace',
+          ['world_peace', 'worldpeace'],
+          context.diplomacyManager
+            ? 'no_uninterrupted_peace_period'
+            : 'diplomacy_manager_unavailable',
+          {
+            peaceStartTurn: details.worldPeaceStart,
+            requiredTurns: details.worldPeaceRequired,
+            elapsedTurns: peaceElapsed,
+          }
+        ),
+        conquest: condition(
+          'conquest',
+          ['conquest'],
+          survivors.length === 0 ? 'no_surviving_players' : 'multiple_surviving_teams',
+          { survivingTeams, survivors: survivors.map(standing => standing.playerId) }
+        ),
+        allied: condition(
+          'allied',
+          ['allied', 'allied_victory'],
+          context.diplomacyManager ? 'not_all_survivors_allied' : 'diplomacy_manager_unavailable',
+          {
+            allSurvivorsAllied: details.allSurvivorsAllied ?? false,
+            survivors: survivors.map(standing => standing.playerId),
+          }
+        ),
+        culture: condition(
+          'culture',
+          ['culture'],
+          context.cultureManager ? 'below_threshold_or_lead' : 'culture_manager_unavailable',
+          {
+            minimumPoints: cultureRules.victory_min_points,
+            leadPercent: cultureRules.victory_lead_pct,
+            players: cultureScores,
+          }
+        ),
+        max_turns: condition('max_turns', ['max_turns'], 'turn_limit_not_reached', {
+          currentTurn: context.turn,
+          maxTurns: context.maxTurns ?? null,
+        }),
+      },
+    };
   }
 
   private getSpaceshipState(

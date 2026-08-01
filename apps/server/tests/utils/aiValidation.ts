@@ -114,28 +114,45 @@ export function buildAIValidationReplayFingerprint(game: GameInstance): string {
       .map(unit => [unit.unitTypeId, unit.x, unit.y, unit.health, unit.transportedBy ?? null])
       .sort((left, right) => `${left}`.localeCompare(`${right}`)),
     metrics: captureAIValidationMetrics(game).players.map(({ id: _id, ...metrics }) => metrics),
+    plans: [...game.players.values()]
+      .map(player => assertAIState(player.aiState).recentPlanSnapshot)
+      .filter(plan => plan !== undefined)
+      .map(plan => ({
+        turn: plan.turn,
+        candidateScores: {
+          cityProduction: normalizeCityEntries(plan.candidateScores.cityProduction),
+          research: plan.candidateScores.research,
+        },
+        selectedActions: {
+          cityProduction: normalizeCityEntries(plan.selectedActions.cityProduction),
+          research: plan.selectedActions.research,
+        },
+        tasks: Object.values(plan.unitTasks)
+          .map(task => [
+            task.role,
+            task.targetX ?? null,
+            task.targetY ?? null,
+            task.action ?? null,
+            task.transportRequired ?? false,
+            task.assignedTurn,
+          ])
+          .sort((left, right) => `${left}`.localeCompare(`${right}`)),
+        treasuryGoal: plan.treasuryGoal
+          ? { amount: plan.treasuryGoal.amount, reason: plan.treasuryGoal.reason }
+          : null,
+      }))
+      .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))),
     decisions: [...game.players.values()]
       .flatMap(player => assertAIState(player.aiState).recentDecisionTrace ?? [])
-      .map(trace => {
-        const candidateScores = trace.candidateScores && {
-          cityProduction: normalizeCityEntries(trace.candidateScores.cityProduction),
-          research: trace.candidateScores.research,
-        };
-        const selectedActions = trace.selectedActions && {
-          cityProduction: normalizeCityEntries(trace.selectedActions.cityProduction),
-          research: trace.selectedActions.research,
-        };
-        return [
-          trace.turn,
-          trace.label,
-          trace.actions,
-          trace.input ?? null,
-          trace.economicDelta ?? null,
-          candidateScores ?? null,
-          selectedActions ?? null,
-          trace.error ?? null,
-        ];
-      })
+      .map(trace => [
+        trace.turn,
+        trace.label,
+        trace.actions,
+        trace.input ?? null,
+        trace.economicDelta ?? null,
+        trace.outcome ?? null,
+        trace.error ?? null,
+      ])
       .sort((left, right) => `${left}`.localeCompare(`${right}`)),
   });
 }

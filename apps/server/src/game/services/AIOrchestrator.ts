@@ -60,6 +60,13 @@ export class FreecivAIOrchestrator {
           this.attempt(state, game, player.id, game.currentTurn ?? 0, label, decision)
       );
       actions += playerActions;
+      state.recentPlanSnapshot = {
+        turn: game.currentTurn ?? 0,
+        candidateScores: this.candidateScores(state),
+        selectedActions: this.selectedActions(game, player.id),
+        unitTasks: this.unitTasks(state),
+        ...(state.treasuryGoal ? { treasuryGoal: { ...state.treasuryGoal } } : {}),
+      };
       state.lastProcessedTurn = game.currentTurn;
       state.lastDecisionCount = playerActions;
       delete state.inProgressTurn;
@@ -240,8 +247,7 @@ export class FreecivAIOrchestrator {
         actions,
         input: before.input,
         economicDelta: this.economicDelta(before.economy, after.economy),
-        candidateScores: this.candidateScores(state),
-        selectedActions: this.selectedActions(game, playerId),
+        outcome: this.outcome(before, after, actions),
       });
       return actions;
     } catch (error) {
@@ -253,8 +259,7 @@ export class FreecivAIOrchestrator {
         actions: 0,
         input: before.input,
         economicDelta: this.economicDelta(before.economy, after.economy),
-        candidateScores: this.candidateScores(state),
-        selectedActions: this.selectedActions(game, playerId),
+        outcome: this.outcome(before, after, 0),
         error: message,
       });
       logger.warn('CivJS AI decision failed', {
@@ -267,11 +272,12 @@ export class FreecivAIOrchestrator {
 
   private traceSnapshot(game: GameInstance, playerId: string, state: FreecivAIState) {
     const cities = game.cityManager.getPlayerCities(playerId);
+    const units = game.unitManager.getPlayerUnits(playerId);
     const finite = (value: number | undefined) => (Number.isFinite(value) ? (value as number) : 0);
     return {
       input: {
         cities: cities.length,
-        units: game.unitManager.getPlayerUnits(playerId).length,
+        units: units.length,
         tasks: Object.keys(state.unitTasks).length,
       },
       economy: {
@@ -281,6 +287,75 @@ export class FreecivAIOrchestrator {
         trade: cities.reduce((total, city) => total + finite(city.tradePerTurn), 0),
         science: cities.reduce((total, city) => total + finite(city.sciencePerTurn), 0),
       },
+      unitPositions: Object.fromEntries(
+        units
+          .filter(unit => typeof unit.id === 'string')
+          .sort((left, right) => left.id.localeCompare(right.id))
+          .map(unit => [unit.id, `${unit.x},${unit.y},${unit.movementLeft ?? 0}`])
+      ),
+      taskSignatures: Object.fromEntries(
+        Object.entries(state.unitTasks)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([unitId, task]) => [unitId, JSON.stringify(task)])
+      ),
+      cityProduction: Object.fromEntries(
+        cities
+          .slice()
+          .sort((left, right) => left.id.localeCompare(right.id))
+          .map(city => [city.id, city.currentProduction ?? null])
+      ),
+      research: game.researchManager.getPlayerResearch(playerId)?.currentTech ?? null,
+    };
+  }
+
+  private outcome(
+    before: ReturnType<FreecivAIOrchestrator['traceSnapshot']>,
+    after: ReturnType<FreecivAIOrchestrator['traceSnapshot']>,
+    reportedActions: number
+  ) {
+    const union = new Set([
+      ...Object.keys(before.unitPositions),
+      ...Object.keys(after.unitPositions),
+    ]);
+    const taskUnion = new Set([
+      ...Object.keys(before.taskSignatures),
+      ...Object.keys(after.taskSignatures),
+    ]);
+    const productionUnion = new Set([
+      ...Object.keys(before.cityProduction),
+      ...Object.keys(after.cityProduction),
+    ]);
+    const unitsMoved = [...union].filter(
+      unitId => before.unitPositions[unitId] !== after.unitPositions[unitId]
+    ).length;
+    const taskChanges = [...taskUnion].filter(
+      unitId => before.taskSignatures[unitId] !== after.taskSignatures[unitId]
+    ).length;
+    const productionChanges = [...productionUnion].filter(
+      cityId => before.cityProduction[cityId] !== after.cityProduction[cityId]
+    ).length;
+    const citiesDelta = after.input.cities - before.input.cities;
+    const unitsDelta = after.input.units - before.input.units;
+    const tasksDelta = after.input.tasks - before.input.tasks;
+    const researchChanged = before.research !== after.research;
+    return {
+      reportedActions,
+      citiesDelta,
+      unitsDelta,
+      tasksDelta,
+      taskChanges,
+      unitsMoved,
+      productionChanges,
+      researchChanged,
+      noOp:
+        reportedActions === 0 &&
+        citiesDelta === 0 &&
+        unitsDelta === 0 &&
+        tasksDelta === 0 &&
+        taskChanges === 0 &&
+        unitsMoved === 0 &&
+        productionChanges === 0 &&
+        !researchChanged,
     };
   }
 
@@ -302,17 +377,33 @@ export class FreecivAIOrchestrator {
       cityProduction: Object.fromEntries(
         Object.entries(state.cityWants)
           .sort(([left], [right]) => left.localeCompare(right))
+          .slice(0, 100)
           .map(([cityId, scores]) => [
             cityId,
             Object.fromEntries(
-              Object.entries(scores).sort(([left], [right]) => left.localeCompare(right))
+              Object.entries(scores)
+                .sort(([, left], [, right]) => right - left)
+                .slice(0, 12)
+                .sort(([left], [right]) => left.localeCompare(right))
             ),
           ])
       ),
       research: Object.fromEntries(
-        Object.entries(state.techWants).sort(([left], [right]) => left.localeCompare(right))
+        Object.entries(state.techWants)
+          .sort(([, left], [, right]) => right - left)
+          .slice(0, 30)
+          .sort(([left], [right]) => left.localeCompare(right))
       ),
     };
+  }
+
+  private unitTasks(state: FreecivAIState) {
+    return Object.fromEntries(
+      Object.entries(state.unitTasks)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .slice(0, 200)
+        .map(([unitId, task]) => [unitId, { ...task }])
+    );
   }
 
   private selectedActions(game: GameInstance, playerId: string) {

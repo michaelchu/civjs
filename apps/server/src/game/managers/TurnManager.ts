@@ -25,6 +25,7 @@ import { RandomEventsManager } from '@game/managers/RandomEventsManager';
 import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 import type { EconomicManager } from '@game/systems/Economic/EconomicManager';
 import type { GovernmentManager } from '@game/managers/GovernmentManager';
+import type { DiplomacyReplayEvent } from '@game/managers/DiplomacyManager';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { FreecivRandom, generateFreecivGameSeed } from '@game/random/FreecivRandom';
@@ -98,6 +99,7 @@ export class TurnManager {
   private currentTurn: number = 0;
   private currentYear: number = -4000; // Starting year like Civilization
   private turnEvents: TurnEvent[] = [];
+  private turnDiplomacyEvents: DiplomacyReplayEvent[] = [];
   private playerActions: Map<string, PlayerAction[]> = new Map();
   private turnStartTime: Date | null = null;
   private turnTimer: NodeJS.Timeout | null = null;
@@ -410,6 +412,7 @@ export class TurnManager {
       }
       this.turnDeadline = null;
       this.persistTimerState(null, null);
+      this.turnDiplomacyEvents = [];
 
       // Get active player IDs
       const playerIds = Array.from(this.playerActions.keys());
@@ -443,8 +446,10 @@ export class TurnManager {
         }
 
         signal?.throwIfAborted();
+        const gameEnded =
+          (await this.endGameEvaluator?.(this.currentTurn, this.currentYear)) ?? false;
         await this.completeTurnRecord(phaseResult);
-        if (await this.endGameEvaluator?.(this.currentTurn, this.currentYear)) {
+        if (gameEnded) {
           this.clearTurnTimer();
           return;
         }
@@ -816,6 +821,7 @@ export class TurnManager {
 
     this.turnStartTime = new Date();
     this.turnEvents = [];
+    this.turnDiplomacyEvents = [];
     for (const playerId of this.playerActions.keys()) {
       this.playerActions.set(playerId, []);
     }
@@ -922,6 +928,19 @@ export class TurnManager {
 
   public getTurnEvents(): TurnEvent[] {
     return [...this.turnEvents];
+  }
+
+  public recordDiplomacyEvent(event: DiplomacyReplayEvent): void {
+    const key = JSON.stringify(event);
+    if (this.turnDiplomacyEvents.some(existing => JSON.stringify(existing) === key)) return;
+    this.turnDiplomacyEvents.push(event);
+  }
+
+  public getTurnDiplomacyEvents(): DiplomacyReplayEvent[] {
+    return this.turnDiplomacyEvents.map(event => ({
+      ...event,
+      playerIds: [event.playerIds[0], event.playerIds[1]],
+    }));
   }
 
   public startTurnTimer(timeLimit: number): void {

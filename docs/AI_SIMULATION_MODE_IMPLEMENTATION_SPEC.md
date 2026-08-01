@@ -1203,6 +1203,18 @@ and must be omitted from deterministic checkpoints. AI diplomacy memory should
 include bounded love, war-desire, contact, and war-countdown values so a replay
 can explain why a treaty or war decision became available.
 
+Replay snapshots also include a canonical, per-turn diplomacy event list. Events
+retain the event type, ordered player pair, actor/victim and incident metadata,
+but omit runtime identifiers and timestamps. This preserves the causal trail
+for contact, treaty, incident, and war transitions without making state hashes
+depend on wall-clock data.
+
+Each completed turn records end-game telemetry even when no victory condition is
+met. The bounded record includes current standings, survivors, enabled
+conditions, condition progress, winner candidates, and a stable reason such as
+`multiple_surviving_teams`, `no_arrived_spaceship`, or
+`turn_limit_not_reached`.
+
 Only a turn with successful required phases and a non-null completion marker is
 replayable. Never expose an in-progress checkpoint as a completed replay turn.
 
@@ -1218,6 +1230,12 @@ as permanent history.
 Persist one compact AI turn summary per civilization per completed turn. A
 dedicated `ai_turn_summaries` table is preferred over embedding an unbounded
 array in player state.
+
+The current embedded summary keeps planner alternatives and selected actions in
+one bounded plan snapshot per turn. Individual decision traces contain only
+inputs, economic deltas, reported action counts, mutation deltas, no-op status,
+and errors. Task assignments are sorted and capped so repeated controller
+phases do not duplicate the same candidate-score payload.
 
 Required fields:
 
@@ -1949,7 +1967,8 @@ Capture:
 - scheduled turn delay and actual turn duration;
 - runner generation invalidation;
 - duplicate/overlap prevention;
-- per-phase duration, action counts, warnings, errors, and state hashes;
+- per-phase duration, normalized `itemsProcessed` totals, phase-specific unit,
+  city, and action counts, warnings, errors, and state hashes;
 - aggregate state deltas and invariant checks;
 - turn failure and forced pause;
 - recovery and runner restoration;

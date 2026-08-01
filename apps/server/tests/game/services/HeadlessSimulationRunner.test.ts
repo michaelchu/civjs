@@ -157,4 +157,28 @@ describe('HeadlessSimulationRunner result metadata', () => {
       })
     );
   });
+
+  it('ignores wall-clock timestamps in deterministic state hashes', () => {
+    expect(
+      hashSimulationState({
+        events: [{ eventData: { timestamp: 1_000 } }],
+      })
+    ).toBe(
+      hashSimulationState({
+        events: [{ eventData: { timestamp: 2_000 } }],
+      })
+    );
+  });
+
+  it('canonicalizes ordered UUIDs embedded in diagnostic labels', () => {
+    expect(
+      hashSimulationState({
+        survivingTeams: ['player:00000001-1111-4111-8111-111111111111'],
+      })
+    ).toBe(
+      hashSimulationState({
+        survivingTeams: ['player:00000001-2222-4222-8222-222222222222'],
+      })
+    );
+  });
 });

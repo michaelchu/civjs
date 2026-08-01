@@ -275,8 +275,7 @@ export class TurnPhaseService {
           success: true,
           duration: existing.duration ?? 0,
           playersProcessed: existing.playersProcessed,
-          itemsProcessed:
-            existing.actionsProcessed + existing.unitsProcessed + existing.citiesProcessed,
+          itemsProcessed: this.phaseItemsProcessed(existing),
           errors: [],
           data:
             existing.phaseData && typeof existing.phaseData === 'object' ? existing.phaseData : {},
@@ -313,8 +312,11 @@ export class TurnPhaseService {
   }
 
   private getPhaseUpdate(result: PhaseResult, startTime: Date, endTime: Date): any {
+    const counts = this.phaseCounts(result);
     const phaseData = {
       ...(result.data || {}),
+      itemsProcessed: result.itemsProcessed,
+      ...counts,
       ...this.authoritativeCheckpoint(result.success),
     };
     return {
@@ -326,9 +328,61 @@ export class TurnPhaseService {
       errorMessage: result.errors.join('; ') || null,
       phaseData,
       playersProcessed: result.playersProcessed,
-      unitsProcessed: result.data?.unitsProcessed || 0,
-      citiesProcessed: result.data?.citiesProcessed || 0,
-      actionsProcessed: result.data?.actionsProcessed || 0,
+      ...counts,
+    };
+  }
+
+  private phaseItemsProcessed(phase: {
+    phaseData?: unknown;
+    actionsProcessed?: number;
+    unitsProcessed?: number;
+    citiesProcessed?: number;
+  }): number {
+    const phaseData = phase.phaseData;
+    if (
+      phaseData &&
+      typeof phaseData === 'object' &&
+      typeof (phaseData as { itemsProcessed?: unknown }).itemsProcessed === 'number'
+    ) {
+      return (phaseData as { itemsProcessed: number }).itemsProcessed;
+    }
+    return (
+      (phase.actionsProcessed ?? 0) + (phase.unitsProcessed ?? 0) + (phase.citiesProcessed ?? 0)
+    );
+  }
+
+  private phaseCounts(result: PhaseResult): {
+    unitsProcessed: number;
+    citiesProcessed: number;
+    actionsProcessed: number;
+  } {
+    const data = result.data ?? {};
+    const phaseUsesUnits = [TurnPhase.PHASE_BEGIN_TURN, TurnPhase.PHASE_UNIT_ACTIVITIES].includes(
+      result.phase
+    );
+    const phaseUsesCities = result.phase === TurnPhase.PHASE_CITY_PRODUCTION;
+    const phaseUsesActions = [TurnPhase.PHASE_PLAYER_ACTIONS, TurnPhase.PHASE_AI_ACTIONS].includes(
+      result.phase
+    );
+    return {
+      unitsProcessed:
+        typeof data.unitsProcessed === 'number'
+          ? data.unitsProcessed
+          : phaseUsesUnits
+            ? result.itemsProcessed
+            : 0,
+      citiesProcessed:
+        typeof data.citiesProcessed === 'number'
+          ? data.citiesProcessed
+          : phaseUsesCities
+            ? result.itemsProcessed
+            : 0,
+      actionsProcessed:
+        typeof data.actionsProcessed === 'number'
+          ? data.actionsProcessed
+          : phaseUsesActions
+            ? result.itemsProcessed
+            : 0,
     };
   }
 

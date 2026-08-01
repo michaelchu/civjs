@@ -67,7 +67,12 @@ export class GameReplayService {
         actions: turn.playerActions,
         statistics: turn.statistics,
         snapshot: turn.stateSnapshot,
-        phases: phases.filter(phase => phase.turnId === turn.id),
+        phases: phases
+          .filter(phase => phase.turnId === turn.id)
+          .map(phase => ({
+            ...phase,
+            itemsProcessed: phaseItemsProcessed(phase),
+          })),
         events: events.filter(event => event.turnId === turn.id),
       })),
     };
@@ -125,4 +130,20 @@ export class GameReplayService {
     }
     return snapshot;
   }
+}
+
+function phaseItemsProcessed(phase: {
+  phaseData: unknown;
+  actionsProcessed: number;
+  unitsProcessed: number;
+  citiesProcessed: number;
+}): number {
+  if (
+    phase.phaseData &&
+    typeof phase.phaseData === 'object' &&
+    typeof (phase.phaseData as { itemsProcessed?: unknown }).itemsProcessed === 'number'
+  ) {
+    return (phase.phaseData as { itemsProcessed: number }).itemsProcessed;
+  }
+  return phase.actionsProcessed + phase.unitsProcessed + phase.citiesProcessed;
 }
