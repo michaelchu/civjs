@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export interface GameCreationFormState {
-  playerName: string;
   gameName: string;
   gameType: 'single' | 'multiplayer';
   maxPlayers: number;
@@ -44,7 +43,6 @@ interface GameCreationStore {
 }
 
 const initialFormData: GameCreationFormState = {
-  playerName: '',
   gameName: '',
   gameType: 'single',
   maxPlayers: 4,

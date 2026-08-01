@@ -35,7 +35,6 @@ export const HomePage: React.FC = () => {
       const hash = generateTestHash();
       const gameData = {
         gameName: `test-${hash}`,
-        playerName: `test-${hash}`,
         gameType: 'single' as const,
         maxPlayers: 4,
         mapSize: 'small',

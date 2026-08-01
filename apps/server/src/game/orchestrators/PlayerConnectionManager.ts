@@ -17,7 +17,12 @@ import { getNextPlayerColorTheme, type PlayerColor } from '../../utils/playerCol
 import { isSettableAILevel } from '../ai/AIProfile';
 import { createAIState } from '../ai/AIStateStore';
 import { createOrderedUuid } from '@game/random/FreecivIdentityAllocator';
-import { FreecivRandom, isFreecivRandomState, randomInt } from '@game/random/FreecivRandom';
+import {
+  FreecivRandom,
+  isFreecivRandomState,
+  randomInt,
+  type RandomSource,
+} from '@game/random/FreecivRandom';
 // PlayerState type is used in comments and method parameters but imported from GameManager
 
 export interface PlayerConnectionService {
@@ -25,7 +30,12 @@ export interface PlayerConnectionService {
     gameId: string,
     userId: string,
     civilization?: string
-  ): Promise<{ playerId: string; assignedNation: string; assignedColor: PlayerColor }>;
+  ): Promise<{
+    playerId: string;
+    assignedNation: string;
+    assignedColor: PlayerColor;
+    leaderName: string;
+  }>;
   updatePlayerConnection(playerId: string, isConnected: boolean): Promise<void>;
   ensureMinimumPlayers(gameId: string): Promise<void>;
 }
@@ -59,12 +69,17 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     gameId: string,
     userId: string,
     civilization?: string
-  ): Promise<{ playerId: string; assignedNation: string; assignedColor: PlayerColor }> {
+  ): Promise<{
+    playerId: string;
+    assignedNation: string;
+    assignedColor: PlayerColor;
+    leaderName: string;
+  }> {
     // Get game from database
     const game = await this.databaseProvider.getDatabase().query.games.findFirst({
       where: eq(games.id, gameId),
       with: {
-        players: true,
+        players: { with: { user: true } },
       },
     });
 
@@ -79,6 +94,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
         playerId: existingPlayer.id,
         assignedNation: existingPlayer.nation || existingPlayer.civilization || 'american',
         assignedColor: existingPlayer.color as PlayerColor,
+        leaderName: existingPlayer.leaderName,
       };
       return existingResult; // Already joined - allow rejoining at any game status
     }
@@ -135,7 +151,13 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       playerNumber,
       nation: selectedNation,
       civilization: selectedNation || `Civilization${playerNumber}`,
-      leaderName: `Leader${playerNumber}`,
+      leaderName: this.getLeaderName(
+        selectedNation,
+        game.ruleset ?? DEFAULT_RULESET,
+        game.players,
+        lobbyRandom,
+        `Leader${playerNumber}`
+      ),
       color: safeTheme.primary, // Store primary color for backward compatibility
       taxRate: DEFAULT_TAX_RATES.tax,
       luxuryRate: DEFAULT_TAX_RATES.luxury,
@@ -147,7 +169,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       .insert(players)
       .values(playerData)
       .returning();
-    await this.persistLobbyRandomIfUsed(gameId, civilization, lobbyRandom);
+    await this.persistLobbyRandomState(gameId, lobbyRandom);
 
     // Track player to game mapping
     this.playerToGame.set(newPlayer.id, gameId);
@@ -177,6 +199,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       playerId: newPlayer.id,
       assignedNation: selectedNation,
       assignedColor: safeTheme.primary,
+      leaderName: playerData.leaderName,
     };
     return finalResult;
   }
@@ -239,7 +262,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     // Get current game state
     const game = await this.databaseProvider.getDatabase().query.games.findFirst({
       where: eq(games.id, gameId),
-      with: { players: true },
+      with: { players: { with: { user: true } } },
     });
 
     if (!game) {
@@ -261,6 +284,17 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
 
     const aiPlayersNeeded = minPlayers - currentPlayerCount;
     const configuredAILevel = this.getConfiguredAILevel(game);
+    const lobbyRandom = this.getLobbyRandom(game);
+    const existingPlayers: Array<{
+      leaderName?: string;
+      userId?: string | null;
+      username?: string;
+    }> = game.players.map(player => ({
+      leaderName: player.leaderName,
+      userId: player.userId,
+      username: player.user?.username,
+    }));
+    let addedAIPlayers = false;
     this.logger.info('Adding AI players to meet minimum requirements', {
       gameId,
       currentPlayerCount,
@@ -308,7 +342,13 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
         playerNumber,
         nation: aiNation,
         civilization: aiNation,
-        leaderName: `AI Leader ${playerNumber}`,
+        leaderName: this.getLeaderName(
+          aiNation,
+          game.ruleset ?? DEFAULT_RULESET,
+          existingPlayers,
+          lobbyRandom,
+          `AI Leader ${playerNumber}`
+        ),
         color: safeAiTheme.primary, // Store primary color for backward compatibility
         connectionStatus: 'connected',
         isAI: true,
@@ -332,6 +372,8 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
           aiPlayerId: aiPlayer.id,
           nation: aiNation,
         });
+        existingPlayers.push({ leaderName: aiPlayerData.leaderName, userId: aiPlayerData.userId });
+        addedAIPlayers = true;
 
         // Broadcast AI player addition
         this.onBroadcast?.(gameId, 'player-joined', {
@@ -345,6 +387,7 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
         this.logger.error('Failed to add AI player:', error);
       }
     }
+    if (addedAIPlayers) await this.persistLobbyRandomState(gameId, lobbyRandom);
   }
 
   private getConfiguredAILevel(game: any): string {
@@ -434,12 +477,11 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       : undefined;
   }
 
-  private async persistLobbyRandomIfUsed(
+  private async persistLobbyRandomState(
     gameId: string,
-    civilization: string | undefined,
     random: FreecivRandom | undefined
   ): Promise<void> {
-    if (civilization !== 'random' || !random) return;
+    if (!random) return;
     await this.databaseProvider
       .getDatabase()
       .update(games)
@@ -481,6 +523,52 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       const fallbackNations = ['american', 'roman', 'german', 'japanese', 'russian', 'english'];
       const takenNations = new Set(existingPlayers.map(p => p.civilization));
       return fallbackNations.filter(nation => !takenNations.has(nation));
+    }
+  }
+
+  /** Match Freeciv by choosing a random unused leader from the selected nation. */
+  private getLeaderName(
+    nationId: string,
+    rulesetName: string,
+    existingPlayers: Array<{
+      leaderName?: unknown;
+      userId?: unknown;
+      username?: unknown;
+      user?: { username?: unknown } | null;
+      name?: unknown;
+    }>,
+    random: RandomSource | undefined,
+    fallback: string
+  ): string {
+    try {
+      const nation = RulesetLoader.getInstance().loadNationsRuleset(rulesetName).nations[nationId];
+      const leaders = nation?.leaders ?? [];
+      if (leaders.length === 0) return fallback;
+
+      const usedNames = new Set(
+        existingPlayers
+          .flatMap(player => [
+            player.leaderName,
+            player.userId,
+            player.username,
+            player.user?.username,
+            player.name,
+          ])
+          .filter((name): name is string => typeof name === 'string' && name.trim().length > 0)
+          .map(name => name.trim().toLowerCase())
+      );
+      const unusedLeaders = leaders.filter(
+        leader => !usedNames.has(leader.name.trim().toLowerCase())
+      );
+      const candidates = unusedLeaders.length > 0 ? unusedLeaders : leaders;
+      return candidates[randomInt(random ?? Math.random, candidates.length)].name;
+    } catch (error) {
+      this.logger.warn('Failed to load nation leader, using fallback', {
+        nationId,
+        rulesetName,
+        error,
+      });
+      return fallback;
     }
   }
 

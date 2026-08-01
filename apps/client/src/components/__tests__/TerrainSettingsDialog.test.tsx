@@ -18,7 +18,6 @@ describe('TerrainSettingsDialog', () => {
     useGameCreationStore.setState({
       _hasHydrated: true,
       formData: {
-        playerName: 'Player',
         gameName: 'Game',
         gameType: 'single',
         maxPlayers: 4,

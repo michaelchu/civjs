@@ -295,6 +295,7 @@ export class GameManagementHandler extends BaseSocketHandler {
         message: 'Game created successfully',
         assignedNation: result.assignedNation,
         assignedColor: result.assignedColor,
+        leaderName: result.leaderName,
       });
 
       logger.info(`Game created by ${connection.username}`, { gameId });
@@ -336,6 +337,7 @@ export class GameManagementHandler extends BaseSocketHandler {
       handler.send(socket, PacketType.GAME_JOIN_REPLY, {
         success: true,
         playerId: result.playerId,
+        leaderName: result.leaderName,
         message: 'Joined game successfully',
       });
       const joinedGame = await this.gameManager.getGame(data.gameId);
@@ -420,6 +422,7 @@ export class GameManagementHandler extends BaseSocketHandler {
         playerId: result.playerId,
         assignedNation: result.assignedNation,
         assignedColor: result.assignedColor,
+        leaderName: result.leaderName,
       });
       logger.info(`${connection?.username || 'Unknown'} joined game ${data.gameId}`, {
         playerId: result.playerId,

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { MapRenderer } from './MapRenderer';
 import { ActionFeedbackBanner, type ActionFeedback } from './ActionFeedbackBanner';
@@ -8,6 +8,7 @@ import { CityInfoOverlay } from '../GameUI/CityInfoOverlay';
 import type { Unit, City, ProductionOption, MapViewport } from '../../types';
 import { ActionType } from '../../types/shared/actions';
 import { gameClient } from '../../services/GameClient';
+import { useNation } from '../../hooks/useNations';
 import { pathfindingService, type GotoPath } from '../../services/PathfindingService';
 import {
   determineMapClickAction,
@@ -21,6 +22,7 @@ import {
   type UserPreferences,
 } from '../../services/UserPreferences';
 import { findInitialMapCenter } from '../../utils/initialMapCenter';
+import { getNextNationCityName } from '../../utils/cityNames';
 import { shallow } from 'zustand/shallow';
 
 interface MapCanvasProps {
@@ -116,6 +118,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const map = useGameStore(state => state.map);
   const units = useGameStore(state => state.units);
   const cities = useGameStore(state => state.cities);
+  const players = useGameStore(state => state.players);
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
   const currentGameId = useGameStore(state => state.currentGameId);
   const diplomacy = useGameStore(state => state.diplomacy);
@@ -127,6 +130,14 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const selectUnit = useGameStore(state => state.selectUnit);
   const selectCity = useGameStore(state => state.selectCity);
   const addToFocus = useGameStore(state => state.addToFocus);
+  const currentPlayer = players[currentPlayerId];
+  const { nation: currentNation } = useNation(currentPlayer?.nation ?? '', rulesetName);
+  const suggestedCityName = useMemo(() => {
+    return getNextNationCityName(
+      currentNation?.cities,
+      Object.values(cities).map(city => city.name)
+    );
+  }, [cities, currentNation]);
 
   useEffect(() => {
     const unit = selectedUnitId ? units[selectedUnitId] : undefined;
@@ -1648,6 +1659,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       <CityNameDialog
         isOpen={cityNameDialog.isOpen}
         unit={cityNameDialog.unit}
+        suggestedName={suggestedCityName}
         onClose={handleCloseCityNameDialog}
         onFoundCity={handleFoundCity}
       />
