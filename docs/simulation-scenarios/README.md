@@ -32,3 +32,17 @@ jq '{result, firstCheckpoint: .replay.turns[0].snapshot}' \
 `maxTurns` is an absolute hard turn cap. If `initialTurn` is greater than 1,
 set `maxTurns` above it to allow turns to execute. Repeating a run with the
 same config and build should produce identical `result.stateHashes`.
+
+Run every checked-in fixture sequentially, with one output directory per
+fixture:
+
+```sh
+npm run --silent simulation:run:scenarios -- \
+  --database-url postgresql://civjs:civjs_secret@127.0.0.1:5432/civjs_test \
+  --no-persist \
+  --output apps/artifacts/simulation-scenarios
+```
+
+The suite stops at the first failure by default. Add `--continue-on-error` to
+collect failures from every fixture. Use `--max-turns` or `--timeout-ms` to
+apply the same run limit to all fixtures.
