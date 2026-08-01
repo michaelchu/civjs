@@ -7,7 +7,11 @@ import { games, players } from '@database/schema';
 import { PROTOCOL_VERSION } from '@app-types/packet';
 import type { GameManager } from '@game/managers/GameManager';
 import { GameReplayService, type GameReplay } from './GameReplayService';
-import { SimulationExecutionError, SimulationExecutionService } from './SimulationExecutionService';
+import {
+  SimulationExecutionError,
+  SimulationExecutionService,
+  type SimulationExecutionStopReason,
+} from './SimulationExecutionService';
 import { SimulationGameService } from './SimulationGameService';
 import {
   SIMULATION_DIAGNOSTIC_SCHEMA_VERSION,
@@ -47,6 +51,27 @@ export class HeadlessSimulationOutputError extends Error {
 export interface HeadlessSimulationRunResult {
   bundle: SimulationRunBundle;
   outputPath: string;
+}
+
+type RunStatus = SimulationRunBundle['result']['status'];
+type RunFailure = NonNullable<SimulationRunBundle['failure']>;
+
+interface ExecutionOutcome {
+  status: RunStatus;
+  failure?: RunFailure;
+  aiSummaries: unknown[];
+}
+
+interface FailedExecutionOutcome extends ExecutionOutcome {
+  failure: RunFailure;
+}
+
+interface RunArtifacts {
+  replay: GameReplay | null;
+  game?: { endReason: string | null; endGameReport: unknown };
+  aiPlayers: Array<{ id: string; civilization: string; score: number; isAlive: boolean }>;
+  completedTurns: GameReplay['turns'];
+  stateHashes: Array<{ turn: number; hash: string }>;
 }
 
 /**
@@ -106,127 +131,31 @@ export class HeadlessSimulationRunner {
       runId: options.runId,
       gameId,
     });
-
-    let status: SimulationRunBundle['result']['status'] = 'completed';
-    let failure: SimulationRunBundle['failure'];
-    const aiSummaries: unknown[] = [];
-    try {
-      await executionService.runToEnd(gameId, {
-        maxTurns: options.config.maxTurns,
-        timeoutMs: options.timeoutMs,
-        signal: options.signal,
-        onTurnCompleted: async () => {
-          const replay = await this.readReplay(gameId);
-          const latest = replay?.turns.filter(turn => turn.endedAt !== null).at(-1);
-          if (!latest) return;
-          aiSummaries.push({
-            turn: latest.turn,
-            players: await this.readAISummaries(gameId, latest.turn),
-          });
-          emitProgress({
-            schemaVersion: SIMULATION_RUN_SCHEMA_VERSION,
-            type: 'turn_completed',
-            runId: options.runId,
-            gameId,
-            turn: latest.turn,
-            completedTurns: replay?.turns.filter(turn => turn.endedAt !== null).length,
-          });
-        },
-      });
-    } catch (error) {
-      if (error instanceof SimulationExecutionError) {
-        status =
-          error.reason === 'timeout'
-            ? 'timed_out'
-            : error.reason === 'cancelled'
-              ? 'cancelled'
-              : 'failed';
-        const code =
-          error.reason === 'timeout'
-            ? 'TIMEOUT'
-            : error.reason === 'cancelled'
-              ? 'CANCELLED'
-              : 'TURN_FAILURE';
-        failure = { code, message: error.message };
-        await this.pauseFailedRun(gameId);
-        emitProgress({
-          schemaVersion: SIMULATION_RUN_SCHEMA_VERSION,
-          type: 'run_failed',
-          runId: options.runId,
-          gameId,
-          code,
-          error: error.message,
-        });
-      } else {
-        throw error;
-      }
-    }
-
-    const replay = await this.readReplay(gameId);
-    const game = await this.databaseProvider.getDatabase().query.games.findFirst({
-      where: eq(games.id, gameId),
-    });
-    const aiPlayers = await this.databaseProvider.getDatabase().query.players.findMany({
-      where: eq(players.gameId, gameId),
-    });
-    const completedTurns = replay?.turns.filter(turn => turn.endedAt !== null) ?? [];
-    const stateHashes = completedTurns.map(turn => ({
-      turn: turn.turn,
-      hash: hashState(turn.snapshot),
-    }));
-    try {
-      await this.verifyReplayCheckpoints(gameId, completedTurns);
-    } catch (error) {
-      const alreadyReported = failure !== undefined;
-      status = 'failed';
-      failure = {
-        code: 'TURN_FAILURE',
-        message: error instanceof Error ? error.message : String(error),
-      };
-      await this.pauseFailedRun(gameId);
-      if (!alreadyReported) {
-        emitProgress({
-          schemaVersion: SIMULATION_RUN_SCHEMA_VERSION,
-          type: 'run_failed',
-          runId: options.runId,
-          gameId,
-          code: failure.code,
-          error: failure.message,
-        });
-      }
-    }
-
-    const endReason = resolveSimulationEndReason(status, game?.endReason, failure?.code);
-    if (status === 'completed') await this.markCompletedRun(gameId);
-    const bundle: SimulationRunBundle = {
-      schemaVersion: SIMULATION_RUN_SCHEMA_VERSION,
-      manifest,
-      result: {
-        status,
-        completedTurns: completedTurns.length,
-        endReason,
-        standings: game?.endGameReport ?? buildLiveStandings(aiPlayers),
-        stateHashes,
-      },
-      replay,
-      aiSummaries,
-      diagnostics: {
-        schemaVersion: SIMULATION_DIAGNOSTIC_SCHEMA_VERSION,
-        progress,
-        phases: replay?.turns.flatMap(turn => turn.phases) ?? [],
-        events: replay?.turns.flatMap(turn => turn.events) ?? [],
-      },
-      ...(failure ? { failure } : {}),
-    };
+    const initialOutcome = await this.executeGame(gameId, options, executionService, emitProgress);
+    const artifacts = await this.readArtifacts(gameId);
+    const outcome = await this.verifyExecutionOutcome(
+      gameId,
+      options.runId,
+      artifacts.completedTurns,
+      initialOutcome,
+      emitProgress
+    );
+    const endReason = resolveSimulationEndReason(
+      outcome.status,
+      artifacts.game?.endReason,
+      outcome.failure?.code
+    );
+    await this.markCompletedRunIfNeeded(gameId, outcome.status);
+    const bundle = this.buildBundle(manifest, outcome, artifacts, progress, endReason);
 
     emitProgress({
       schemaVersion: SIMULATION_RUN_SCHEMA_VERSION,
       type: 'run_finished',
       runId: options.runId,
       gameId,
-      completedTurns: completedTurns.length,
+      completedTurns: artifacts.completedTurns.length,
       endReason,
-      status,
+      status: outcome.status,
     });
     bundle.diagnostics = {
       ...(bundle.diagnostics as Record<string, unknown>),
@@ -234,6 +163,143 @@ export class HeadlessSimulationRunner {
     };
     await this.writeBundle(options.outputDirectory, bundle);
     return { bundle, outputPath: join(options.outputDirectory, 'run.json') };
+  }
+
+  private async executeGame(
+    gameId: string,
+    options: HeadlessSimulationRunOptions,
+    executionService: SimulationExecutionService,
+    emitProgress: (record: SimulationProgressRecord) => void
+  ): Promise<ExecutionOutcome> {
+    const aiSummaries: unknown[] = [];
+    try {
+      await executionService.runToEnd(gameId, {
+        maxTurns: options.config.maxTurns,
+        timeoutMs: options.timeoutMs,
+        signal: options.signal,
+        onTurnCompleted: this.createTurnObserver(gameId, options.runId, aiSummaries, emitProgress),
+      });
+      return { status: 'completed', aiSummaries };
+    } catch (error) {
+      const outcome = executionFailureOutcome(error, aiSummaries);
+      await this.pauseFailedRun(gameId);
+      this.emitFailure(options.runId, gameId, outcome.failure, emitProgress);
+      return outcome;
+    }
+  }
+
+  private createTurnObserver(
+    gameId: string,
+    runId: string,
+    aiSummaries: unknown[],
+    emitProgress: (record: SimulationProgressRecord) => void
+  ): () => Promise<void> {
+    return async () => {
+      const replay = await this.readReplay(gameId);
+      const completedTurns = getCompletedTurns(replay);
+      const latest = completedTurns.at(-1);
+      if (!latest) return;
+      aiSummaries.push({
+        turn: latest.turn,
+        players: await this.readAISummaries(gameId, latest.turn),
+      });
+      emitProgress({
+        schemaVersion: SIMULATION_RUN_SCHEMA_VERSION,
+        type: 'turn_completed',
+        runId,
+        gameId,
+        turn: latest.turn,
+        completedTurns: completedTurns.length,
+      });
+    };
+  }
+
+  private async readArtifacts(gameId: string): Promise<RunArtifacts> {
+    const replay = await this.readReplay(gameId);
+    const game = await this.databaseProvider.getDatabase().query.games.findFirst({
+      where: eq(games.id, gameId),
+    });
+    const aiPlayers = await this.databaseProvider.getDatabase().query.players.findMany({
+      where: eq(players.gameId, gameId),
+    });
+    const completedTurns = getCompletedTurns(replay);
+    return {
+      replay,
+      game,
+      aiPlayers,
+      completedTurns,
+      stateHashes: completedTurns.map(turn => ({
+        turn: turn.turn,
+        hash: hashState(turn.snapshot),
+      })),
+    };
+  }
+
+  private async verifyExecutionOutcome(
+    gameId: string,
+    runId: string,
+    completedTurns: GameReplay['turns'],
+    outcome: ExecutionOutcome,
+    emitProgress: (record: SimulationProgressRecord) => void
+  ): Promise<ExecutionOutcome> {
+    try {
+      await this.verifyReplayCheckpoints(gameId, completedTurns);
+      return outcome;
+    } catch (error) {
+      const failure = { code: 'TURN_FAILURE', message: errorMessage(error) } as const;
+      await this.pauseFailedRun(gameId);
+      this.emitFailure(runId, gameId, failure, emitProgress);
+      return { ...outcome, status: 'failed', failure };
+    }
+  }
+
+  private emitFailure(
+    runId: string,
+    gameId: string,
+    failure: RunFailure,
+    emitProgress: (record: SimulationProgressRecord) => void
+  ): void {
+    emitProgress({
+      schemaVersion: SIMULATION_RUN_SCHEMA_VERSION,
+      type: 'run_failed',
+      runId,
+      gameId,
+      code: failure.code,
+      error: failure.message,
+    });
+  }
+
+  private async markCompletedRunIfNeeded(gameId: string, status: RunStatus): Promise<void> {
+    if (status === 'completed') await this.markCompletedRun(gameId);
+  }
+
+  private buildBundle(
+    manifest: SimulationRunManifest,
+    outcome: ExecutionOutcome,
+    artifacts: RunArtifacts,
+    progress: SimulationProgressRecord[],
+    endReason: string
+  ): SimulationRunBundle {
+    return {
+      schemaVersion: SIMULATION_RUN_SCHEMA_VERSION,
+      manifest,
+      result: {
+        status: outcome.status,
+        completedTurns: artifacts.completedTurns.length,
+        endReason,
+        standings: artifacts.game?.endGameReport ?? buildLiveStandings(artifacts.aiPlayers),
+        stateHashes: artifacts.stateHashes,
+      },
+      replay: artifacts.replay,
+      aiSummaries: outcome.aiSummaries,
+      diagnostics: {
+        schemaVersion: SIMULATION_DIAGNOSTIC_SCHEMA_VERSION,
+        progress,
+        phases: artifacts.replay?.turns.flatMap(turn => turn.phases) ?? [],
+        events: artifacts.replay?.turns.flatMap(turn => turn.events) ?? [],
+      },
+      ...(outcome.failure ? { failure: outcome.failure } : {}),
+    };
   }
 
   private async pauseUnexpectedlyActiveRun(gameId: string, originalError: unknown): Promise<void> {
@@ -352,6 +418,33 @@ export class HeadlessSimulationRunner {
       );
     }
   }
+}
+
+const EXECUTION_FAILURE_BY_REASON: Record<
+  SimulationExecutionStopReason,
+  { status: RunStatus; code: RunFailure['code'] }
+> = {
+  turn_failure: { status: 'failed', code: 'TURN_FAILURE' },
+  timeout: { status: 'timed_out', code: 'TIMEOUT' },
+  cancelled: { status: 'cancelled', code: 'CANCELLED' },
+};
+
+function executionFailureOutcome(error: unknown, aiSummaries: unknown[]): FailedExecutionOutcome {
+  if (!(error instanceof SimulationExecutionError)) throw error;
+  const classification = EXECUTION_FAILURE_BY_REASON[error.reason];
+  return {
+    status: classification.status,
+    failure: { code: classification.code, message: error.message },
+    aiSummaries,
+  };
+}
+
+function getCompletedTurns(replay: GameReplay | null): GameReplay['turns'] {
+  return replay?.turns.filter(turn => turn.endedAt !== null) ?? [];
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function buildLiveStandings(

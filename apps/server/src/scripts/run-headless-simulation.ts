@@ -4,6 +4,8 @@ import { resolve } from 'node:path';
 import {
   headlessSimulationConfigSchema,
   type HeadlessSimulationConfig,
+  type HeadlessSimulationRunOptions,
+  type SimulationRunBundle,
 } from '@game/services/SimulationTypes';
 import {
   createRunId,
@@ -22,6 +24,12 @@ interface CliOptions {
   timeoutMs?: number;
   noPersist: boolean;
   databaseUrl?: string;
+}
+
+interface PreparedRun {
+  options: CliOptions;
+  normalizedConfig: HeadlessSimulationConfig;
+  outputDirectory: string;
 }
 
 const usage = `Usage: npm run --silent simulation:run -- [options]
@@ -50,47 +58,57 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     process.stdout.write(usage);
     return 0;
   }
+  await loadEnvironment();
+  const parsed = parseOptionsOrReport(argv);
+  if (typeof parsed === 'number') return parsed;
+  const prepared = await prepareRunOrReport(parsed);
+  if (typeof prepared === 'number') return prepared;
+  return executePreparedRun(prepared);
+}
+
+async function loadEnvironment(): Promise<void> {
   const dotenv = await import('dotenv');
   dotenv.config({
     path: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',
     quiet: true,
   });
-  let options: CliOptions;
+}
+
+function parseOptionsOrReport(argv: string[]): CliOptions | number {
   try {
-    options = parseArguments(argv);
+    return parseArguments(argv);
   } catch (error) {
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n\n${usage}`);
+    process.stderr.write(`${errorMessage(error)}\n\n${usage}`);
     return HEADLESS_EXIT_CODES.invalidConfiguration;
   }
-  if (!options.configPath) {
-    process.stdout.write(usage);
-    return 0;
-  }
+}
 
-  let normalizedConfig: HeadlessSimulationConfig;
-  let outputDirectory: string;
+async function prepareRunOrReport(options: CliOptions): Promise<PreparedRun | number> {
   try {
-    normalizedConfig = await loadConfig(options);
-    outputDirectory = await validateOutputDirectory(options.outputDirectory);
+    const normalizedConfig = await loadConfig(options);
+    const outputDirectory = await validateOutputDirectory(options.outputDirectory);
     validateDatabaseTarget(options);
+    process.env.POSTGRES_URL = requireDatabaseUrl(options);
+    return { options, normalizedConfig, outputDirectory };
   } catch (error) {
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    process.stderr.write(`${errorMessage(error)}\n`);
     return HEADLESS_EXIT_CODES.invalidConfiguration;
   }
+}
 
+function requireDatabaseUrl(options: CliOptions): string {
   const databaseUrl =
     options.databaseUrl ??
     process.env.HEADLESS_SIMULATION_DATABASE_URL ??
     process.env.POSTGRES_URL ??
     process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    process.stderr.write(
-      'A database target is required via --database-url or HEADLESS_SIMULATION_DATABASE_URL.\n'
-    );
-    return HEADLESS_EXIT_CODES.invalidConfiguration;
-  }
-  process.env.POSTGRES_URL = databaseUrl;
+  if (databaseUrl) return databaseUrl;
+  throw new Error(
+    'A database target is required via --database-url or HEADLESS_SIMULATION_DATABASE_URL.'
+  );
+}
 
+async function executePreparedRun(prepared: PreparedRun): Promise<number> {
   const abortController = new AbortController();
   const cancel = () => abortController.abort();
   process.once('SIGINT', cancel);
@@ -98,56 +116,85 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
 
   let gameManager: import('@game/managers/GameManager').GameManager | undefined;
   try {
-    const [{ productionDatabaseProvider }, { GameManager }] = await Promise.all([
-      import('@database'),
-      import('@game/managers/GameManager'),
-    ]);
-    const io = {
-      emit: () => undefined,
-      to: () => ({ emit: () => undefined }),
-    } as unknown as import('socket.io').Server;
-    gameManager = GameManager.getInstance(io, productionDatabaseProvider);
-    const runner = new HeadlessSimulationRunner(gameManager, productionDatabaseProvider);
-    const result = await runner.run({
-      config: normalizedConfig,
-      outputDirectory,
-      runId: createRunId(),
-      signal: abortController.signal,
-      timeoutMs: options.timeoutMs,
-      onProgress: record => {
-        if (options.jsonl) process.stdout.write(`${JSON.stringify(record)}\n`);
-        else if (record.type === 'turn_completed') {
-          process.stderr.write(`completed turn ${record.turn}\n`);
-        }
-      },
+    return await runSimulation(prepared, abortController.signal, manager => {
+      gameManager = manager;
     });
-    process.stderr.write(`simulation bundle: ${result.outputPath}\n`);
-    return result.bundle.result.status === 'completed'
-      ? HEADLESS_EXIT_CODES.completed
-      : result.bundle.result.status === 'failed'
-        ? HEADLESS_EXIT_CODES.turnFailure
-        : HEADLESS_EXIT_CODES.timeoutOrCancellation;
   } catch (error) {
-    process.stderr.write(
-      `headless simulation failed: ${error instanceof Error ? error.message : String(error)}\n`
-    );
-    return error instanceof HeadlessSimulationOutputError
-      ? HEADLESS_EXIT_CODES.outputFailure
-      : HEADLESS_EXIT_CODES.turnFailure;
+    process.stderr.write(`headless simulation failed: ${errorMessage(error)}\n`);
+    return exitCodeForError(error);
   } finally {
     gameManager?.clearAllGames();
     process.removeListener('SIGINT', cancel);
     process.removeListener('SIGTERM', cancel);
-    try {
-      const [{ closeConnection }, { redis }] = await Promise.all([
-        import('@database'),
-        import('@database/redis'),
-      ]);
-      await closeConnection();
-      await redis.quit();
-    } catch {
-      // Preserve the simulation result; connection cleanup is best effort.
+    await closeRuntimeConnections();
+  }
+}
+
+async function runSimulation(
+  prepared: PreparedRun,
+  signal: AbortSignal,
+  onGameManager: (gameManager: import('@game/managers/GameManager').GameManager) => void
+): Promise<number> {
+  const [{ productionDatabaseProvider }, { GameManager }] = await Promise.all([
+    import('@database'),
+    import('@game/managers/GameManager'),
+  ]);
+  const io = {
+    emit: () => undefined,
+    to: () => ({ emit: () => undefined }),
+  } as unknown as import('socket.io').Server;
+  const gameManager = GameManager.getInstance(io, productionDatabaseProvider);
+  onGameManager(gameManager);
+  const runner = new HeadlessSimulationRunner(gameManager, productionDatabaseProvider);
+  const result = await runner.run({
+    config: prepared.normalizedConfig,
+    outputDirectory: prepared.outputDirectory,
+    runId: createRunId(),
+    signal,
+    timeoutMs: prepared.options.timeoutMs,
+    onProgress: createProgressReporter(prepared.options.jsonl),
+  });
+  process.stderr.write(`simulation bundle: ${result.outputPath}\n`);
+  return exitCodeForStatus(result.bundle.result.status);
+}
+
+function createProgressReporter(jsonl: boolean): HeadlessSimulationRunOptions['onProgress'] {
+  return record => {
+    if (jsonl) {
+      process.stdout.write(`${JSON.stringify(record)}\n`);
+      return;
     }
+    if (record.type === 'turn_completed') process.stderr.write(`completed turn ${record.turn}\n`);
+  };
+}
+
+const STATUS_EXIT_CODES: Record<SimulationRunBundle['result']['status'], number> = {
+  completed: HEADLESS_EXIT_CODES.completed,
+  failed: HEADLESS_EXIT_CODES.turnFailure,
+  timed_out: HEADLESS_EXIT_CODES.timeoutOrCancellation,
+  cancelled: HEADLESS_EXIT_CODES.timeoutOrCancellation,
+};
+
+function exitCodeForStatus(status: SimulationRunBundle['result']['status']): number {
+  return STATUS_EXIT_CODES[status];
+}
+
+function exitCodeForError(error: unknown): number {
+  return error instanceof HeadlessSimulationOutputError
+    ? HEADLESS_EXIT_CODES.outputFailure
+    : HEADLESS_EXIT_CODES.turnFailure;
+}
+
+async function closeRuntimeConnections(): Promise<void> {
+  try {
+    const [{ closeConnection }, { redis }] = await Promise.all([
+      import('@database'),
+      import('@database/redis'),
+    ]);
+    await closeConnection();
+    await redis.quit();
+  } catch {
+    // Preserve the simulation result; connection cleanup is best effort.
   }
 }
 
@@ -156,46 +203,62 @@ export function parseArguments(argv: string[]): CliOptions {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === '--help') continue;
-    if (argument === '--jsonl') {
-      options.jsonl = true;
+    const flagHandler = FLAG_OPTION_HANDLERS[argument];
+    if (flagHandler) {
+      flagHandler(options);
       continue;
     }
-    if (argument === '--no-persist') {
-      options.noPersist = true;
-      continue;
-    }
+    const valueHandler = VALUE_OPTION_HANDLERS[argument];
+    if (!valueHandler) throw new Error(`Unknown option: ${argument}`);
     const value = argv[++index];
     if (!value || value.startsWith('--')) throw new Error(`Missing value for ${argument}`);
-    switch (argument) {
-      case '--config':
-        options.configPath = value;
-        break;
-      case '--seed':
-        options.seed = parseSeed(value, '--seed');
-        break;
-      case '--map-seed':
-        if (!value.trim()) throw new Error('--map-seed must not be empty');
-        options.mapSeed = value;
-        break;
-      case '--max-turns':
-        options.maxTurns = parsePositiveInteger(value, '--max-turns');
-        break;
-      case '--output':
-        options.outputDirectory = value;
-        break;
-      case '--timeout-ms':
-        options.timeoutMs = parsePositiveInteger(value, '--timeout-ms');
-        break;
-      case '--database-url':
-        options.databaseUrl = value;
-        break;
-      default:
-        throw new Error(`Unknown option: ${argument}`);
-    }
+    valueHandler(options, value);
   }
+  validateRequiredOptions(options);
+  return options;
+}
+
+const FLAG_OPTION_HANDLERS: Record<string, (options: CliOptions) => void> = {
+  '--jsonl': options => {
+    options.jsonl = true;
+  },
+  '--no-persist': options => {
+    options.noPersist = true;
+  },
+};
+
+const VALUE_OPTION_HANDLERS: Record<string, (options: CliOptions, value: string) => void> = {
+  '--config': (options, value) => {
+    options.configPath = value;
+  },
+  '--seed': (options, value) => {
+    options.seed = parseSeed(value, '--seed');
+  },
+  '--map-seed': (options, value) => {
+    options.mapSeed = requireMapSeed(value);
+  },
+  '--max-turns': (options, value) => {
+    options.maxTurns = parsePositiveInteger(value, '--max-turns');
+  },
+  '--output': (options, value) => {
+    options.outputDirectory = value;
+  },
+  '--timeout-ms': (options, value) => {
+    options.timeoutMs = parsePositiveInteger(value, '--timeout-ms');
+  },
+  '--database-url': (options, value) => {
+    options.databaseUrl = value;
+  },
+};
+
+function validateRequiredOptions(options: CliOptions): void {
   if (!options.configPath) throw new Error('--config is required');
   if (!options.outputDirectory) throw new Error('--output is required');
-  return options;
+}
+
+function requireMapSeed(value: string): string {
+  if (value.trim()) return value;
+  throw new Error('--map-seed must not be empty');
 }
 
 async function loadConfig(options: CliOptions): Promise<HeadlessSimulationConfig> {
@@ -270,6 +333,10 @@ function parsePositiveInteger(value: string, option: string): number {
   if (!Number.isInteger(parsed) || parsed < 1)
     throw new Error(`${option} must be a positive integer`);
   return parsed;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 if (require.main === module) {

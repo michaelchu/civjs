@@ -82,21 +82,47 @@ describe('SimulationExecutionService', () => {
     now.mockRestore();
   });
 
-  it('bounds a turn that does not settle', async () => {
+  it('waits for an in-progress turn to acknowledge timeout before rejecting', async () => {
     jest.useFakeTimers();
     const { manager, game } = createFakeManager();
-    game.turnManager.processTurn = jest.fn(() => new Promise<void>(() => undefined));
+    let turnState: 'processing' | 'aborting' | 'stopped' = 'processing';
+    let acknowledgeAbort = () => undefined;
+    game.turnManager.processTurn = jest.fn(
+      (signal?: AbortSignal) =>
+        new Promise<void>((_resolve, reject) => {
+          signal?.addEventListener('abort', () => {
+            turnState = 'aborting';
+            acknowledgeAbort = () => {
+              turnState = 'stopped';
+              reject(signal.reason);
+            };
+          });
+        })
+    ) as any;
 
     const run = new SimulationExecutionService(manager).runToEnd('game', {
       maxTurns: 2,
       timeoutMs: 50,
     });
+    let runState: 'pending' | 'settled' = 'pending';
+    void run.then(
+      () => {
+        runState = 'settled';
+      },
+      () => {
+        runState = 'settled';
+      }
+    );
     const expectation = expect(run).rejects.toMatchObject<Partial<SimulationExecutionError>>({
       reason: 'timeout',
     });
     await jest.advanceTimersByTimeAsync(50);
 
+    expect(turnState).toBe('aborting');
+    expect(runState).toBe('pending');
+    acknowledgeAbort();
     await expectation;
+    expect(turnState).toBe('stopped');
     jest.useRealTimers();
   });
 
