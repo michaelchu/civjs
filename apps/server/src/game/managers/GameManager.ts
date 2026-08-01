@@ -391,6 +391,7 @@ export class GameManager {
     playerId: string;
     assignedNation: string;
     assignedColor: import('../../utils/playerColors').PlayerColor;
+    leaderName?: string;
   }> {
     const result = await this.playerConnectionManager.joinGame(gameId, userId, civilization);
     // Sync player-to-game mapping

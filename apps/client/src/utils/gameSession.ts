@@ -31,6 +31,23 @@ export function getStoredUsername(): string | null {
 }
 
 /**
+ * Return a reusable connection identity without asking the player to provide one.
+ * Leader names are assigned independently by the server.
+ */
+export function getOrCreateUsername(): string {
+  const storedUsername = getStoredUsername()?.trim();
+  if (storedUsername) return storedUsername;
+
+  const suffix =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID().replace(/-/g, '').slice(0, 12)
+      : Date.now().toString(36);
+  const username = `Player_${suffix}`.slice(0, 32);
+  storeUsername(username);
+  return username;
+}
+
+/**
  * Clear stored username
  */
 export function clearUsername(): void {

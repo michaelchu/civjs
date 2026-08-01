@@ -18,9 +18,13 @@ import { RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 // Mock RulesetLoader
 const mockNationsRuleset = {
   nations: {
-    american: { id: 'american', name: 'American' },
-    chinese: { id: 'chinese', name: 'Chinese' },
-    roman: { id: 'roman', name: 'Roman' },
+    american: { id: 'american', name: 'American', leaders: [{ name: 'George Washington' }] },
+    chinese: { id: 'chinese', name: 'Chinese', leaders: [{ name: 'Mao Zedong' }] },
+    roman: {
+      id: 'roman',
+      name: 'Roman',
+      leaders: [{ name: 'Romulus' }, { name: 'Gaius Iulius Caesar' }],
+    },
     german: { id: 'german', name: 'German' },
     french: { id: 'french', name: 'French' },
     japanese: { id: 'japanese', name: 'Japanese' },
@@ -243,6 +247,14 @@ describe('PlayerConnectionManager - Nation Selection', () => {
   });
 
   describe('joinGame with nation selection', () => {
+    it('chooses a random unused leader from the selected nation', () => {
+      const getLeaderName = (playerManager as any).getLeaderName.bind(playerManager);
+
+      expect(
+        getLeaderName('roman', 'civ2civ3', [{ leaderName: 'Romulus' }], () => 0, 'Leader1')
+      ).toBe('Gaius Iulius Caesar');
+    });
+
     it('should reject an existing player rejoining a finished game', async () => {
       mockDatabase.query.games.findFirst.mockResolvedValue({
         id: mockGameId,
@@ -298,6 +310,7 @@ describe('PlayerConnectionManager - Nation Selection', () => {
         userId: mockUserId,
         nation: 'chinese',
         civilization: 'chinese',
+        leaderName: 'Mao Zedong',
       });
     });
 
