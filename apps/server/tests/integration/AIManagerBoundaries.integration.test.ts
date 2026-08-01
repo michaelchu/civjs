@@ -1777,6 +1777,9 @@ describe('AI authoritative manager boundaries', () => {
     const scenario = await createActiveGame(2);
     const [host, guest] = scenario.players;
     const city = await foundPlayerCity(scenario, guest!.playerId, 'AI Defense City');
+    // Freeciv prohibits buying production in a city founded this turn. Make
+    // this an established city so the fixture exercises treasury rushing.
+    city.founded = scenario.game.turnManager.getCurrentTurn() - 1;
     for (const unit of scenario.game.unitManager.getPlayerUnits(guest!.playerId)) {
       await scenario.game.unitManager.removeUnit(unit.id);
     }

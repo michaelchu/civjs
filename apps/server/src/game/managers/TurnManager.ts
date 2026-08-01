@@ -148,7 +148,8 @@ export class TurnManager {
     private readonly random: FreecivRandom = new FreecivRandom(generateFreecivGameSeed()),
     private readonly identities: FreecivIdentityAllocator = new FreecivIdentityAllocator(),
     barbarianRateOverride?: number,
-    climateSettings: ClimateSettings = {}
+    climateSettings: ClimateSettings = {},
+    private readonly runtimePlayers?: Map<string, any>
   ) {
     this.gameId = gameId;
     this.databaseProvider = databaseProvider;
@@ -251,7 +252,9 @@ export class TurnManager {
       mapManager,
       broadcastManager,
       databaseProvider,
-      random
+      random,
+      undefined,
+      player => this.registerRuntimePlayer(player)
     );
     unitManager.setHutBarbarianProvider?.((_playerId, x, y) =>
       barbarianManager.unleashBarbariansAt(x, y)
@@ -292,6 +295,40 @@ export class TurnManager {
     this.calendarService = new CalendarService(
       CalendarService.createRulesetConfig(rulesetLoader.getCalendarRules(rulesetName))
     );
+  }
+
+  /** Register dynamically-created barbarian owners in the live game state. */
+  private registerRuntimePlayer(player: typeof players.$inferSelect): void {
+    if (this.runtimePlayers && !this.runtimePlayers.has(player.id)) {
+      this.runtimePlayers.set(player.id, {
+        id: player.id,
+        userId: player.userId,
+        isAI: player.isAI,
+        aiLevel: player.aiLevel,
+        aiTraits: player.aiTraits,
+        aiState: player.aiState,
+        playerNumber: player.playerNumber,
+        civilization: player.civilization,
+        nation: player.nation,
+        leaderName: player.leaderName,
+        color: player.color,
+        isAlive: player.isAlive,
+        gold: player.gold,
+        science: player.science,
+        government: player.government,
+        history: player.history ?? 0,
+        unitsBuilt: player.unitsBuilt ?? 0,
+        unitsKilled: player.unitsKilled ?? 0,
+        unitsLost: player.unitsLost ?? 0,
+        teamId: player.teamId ?? undefined,
+        hasConceded: player.hasConceded ?? false,
+        spaceshipState: player.spaceshipState,
+        isReady: player.isReady,
+        hasEndedTurn: player.hasEndedTurn,
+        isConnected: player.connectionStatus === 'connected',
+        lastSeen: new Date(),
+      });
+    }
   }
 
   public async initializeTurn(

@@ -1,4 +1,5 @@
-import { GameManager } from '@game/managers/GameManager';
+import { GameManager, type GameInstance } from '@game/managers/GameManager';
+import { getTerrainMovementCost } from '@game/constants/MovementConstants';
 import { Server as SocketServer } from 'socket.io';
 import { createBasicGameScenario, TestGameScenario } from '../fixtures/gameFixtures';
 import { clearAllTables, getTestDatabaseProvider } from './testDatabase';
@@ -105,6 +106,66 @@ export async function setupGameManagerWithScenario(): Promise<{
  */
 export function cleanupGameManager(gameManager?: GameManager): void {
   gameManager?.clearAllGames();
+}
+
+function isSeparatedFromSites(
+  game: GameInstance,
+  sites: Array<{ x: number; y: number }>,
+  x: number,
+  y: number
+): boolean {
+  return sites.every(site => game.mapManager.getDistance(site.x, site.y, x, y) >= 3);
+}
+
+function collectMapSites(
+  game: GameInstance,
+  count: number,
+  usable: (x: number, y: number, selected: Array<{ x: number; y: number }>) => boolean
+): Array<{ x: number; y: number }> {
+  const map = game.mapManager.getMapData();
+  if (!map) throw new Error('Expected generated map data');
+  const sites: Array<{ x: number; y: number }> = [];
+  for (let x = 0; x < map.width; x++) {
+    for (let y = 0; y < map.height; y++) {
+      if (sites.length === count) return sites;
+      if (usable(x, y, sites)) sites.push({ x, y });
+    }
+  }
+  return sites;
+}
+
+/** Select deterministic sites through the authoritative gameplay validator. */
+export function findValidCitySites(
+  game: GameInstance,
+  playerId: string,
+  count: number,
+  reserved: Array<{ x: number; y: number }> = []
+): Array<{ x: number; y: number }> {
+  const sites = collectMapSites(game, count, (x, y, selected) => {
+    if (!game.cityManager.canFoundCityAt(x, y, playerId)) return false;
+    return isSeparatedFromSites(game, reserved, x, y) && isSeparatedFromSites(game, selected, x, y);
+  });
+  if (sites.length !== count) throw new Error(`Expected ${count} valid city sites`);
+  return sites;
+}
+
+/** Select unoccupied native terrain for deterministic unit fixtures. */
+export function findPassableUnitSites(
+  game: GameInstance,
+  unitTypeId: string,
+  count: number,
+  excluded: Array<{ x: number; y: number }> = []
+): Array<{ x: number; y: number }> {
+  const map = game.mapManager.getMapData();
+  if (!map) throw new Error('Expected generated map data');
+  const sites = collectMapSites(game, count, (x, y) => {
+    if (excluded.some(site => site.x === x && site.y === y)) return false;
+    if (game.unitManager.getUnitsAt(x, y).length > 0) return false;
+    const terrain = map.tiles[x]?.[y]?.terrain ?? 'inaccessible';
+    return getTerrainMovementCost(terrain, unitTypeId) >= 0;
+  });
+  if (sites.length !== count) throw new Error(`Expected ${count} passable ${unitTypeId} sites`);
+  return sites;
 }
 
 /**

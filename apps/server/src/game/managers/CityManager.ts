@@ -2220,6 +2220,27 @@ export class CityManager {
   } {
     if (!this.productionService)
       return { canBuy: false, goldCost: 0, shieldsRemaining: 0, reason: 'Service not available' };
+    const city = this.cities.get(cityId);
+    if (!city) {
+      return { canBuy: false, goldCost: 0, shieldsRemaining: 0, reason: 'City not found' };
+    }
+    const currentTurn = this.currentTurnProvider?.();
+    if (currentTurn !== undefined && city.founded === currentTurn) {
+      return {
+        canBuy: false,
+        goldCost: 0,
+        shieldsRemaining: 0,
+        reason: 'Cannot rush production in a newly founded city',
+      };
+    }
+    if (currentTurn !== undefined && city.didBuyTurn === currentTurn) {
+      return {
+        canBuy: false,
+        goldCost: 0,
+        shieldsRemaining: 0,
+        reason: 'City has already rushed production this turn',
+      };
+    }
     return this.productionService.calculateBuyCost(cityId);
   }
 

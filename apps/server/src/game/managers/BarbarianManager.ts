@@ -98,7 +98,8 @@ export class BarbarianManager {
     _broadcastManager: GameBroadcastManager,
     databaseProvider: DatabaseProvider,
     private readonly random: RandomSource = Math.random,
-    private readonly playerFactory?: (type: BarbarianType) => Promise<string | null>
+    private readonly playerFactory?: (type: BarbarianType) => Promise<string | null>,
+    private readonly playerRegistrar?: (player: typeof players.$inferSelect) => void
   ) {
     this.gameId = gameId;
     this.config = config;
@@ -456,7 +457,10 @@ export class BarbarianManager {
       const existing = await database.query.players.findFirst({
         where: and(eq(players.gameId, this.gameId), eq(players.civilization, civilization)),
       });
-      if (existing) return existing.id;
+      if (existing) {
+        this.playerRegistrar?.(existing);
+        return existing.id;
+      }
       const existingPlayers = await database.query.players.findMany({
         where: eq(players.gameId, this.gameId),
       });
@@ -479,6 +483,7 @@ export class BarbarianManager {
           connectionStatus: 'connected',
         })
         .returning();
+      if (created) this.playerRegistrar?.(created);
       return created?.id ?? null;
     } catch (error) {
       logger.error('Error getting/creating barbarian player', {
