@@ -108,7 +108,7 @@ export class TurnManager {
   private timerPersistencePromise: Promise<void> = Promise.resolve();
   private onTurnAdvanced?: (turn: number) => void | Promise<void>;
   private endGameEvaluator?: (turn: number, year: number) => Promise<boolean>;
-  private replaySnapshotProvider?: () => Record<string, unknown>;
+  private replaySnapshotProvider?: () => Record<string, unknown> | Promise<Record<string, unknown>>;
   private diplomacyProcessor?: () => Promise<void>;
   private readonly processingOwner = randomUUID();
 
@@ -790,7 +790,7 @@ export class TurnManager {
           ];
         })
       ),
-      ...this.replaySnapshotProvider?.(),
+      ...(await this.replaySnapshotProvider?.()),
     };
     await this.databaseProvider
       .getDatabase()
@@ -1033,7 +1033,9 @@ export class TurnManager {
     this.endGameEvaluator = evaluator;
   }
 
-  public setReplaySnapshotProvider(provider: () => Record<string, unknown>): void {
+  public setReplaySnapshotProvider(
+    provider: () => Record<string, unknown> | Promise<Record<string, unknown>>
+  ): void {
     this.replaySnapshotProvider = provider;
   }
 

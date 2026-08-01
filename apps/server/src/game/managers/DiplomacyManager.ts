@@ -84,6 +84,37 @@ export interface DiplomacySnapshot {
   }>;
 }
 
+export interface DiplomacyReplaySnapshot {
+  players: Array<{
+    playerId: string;
+    playerNumber: number;
+    civilization: string;
+    isAlive: boolean;
+    isAI: boolean;
+    teamId: string | null;
+    relations: Array<{
+      playerId: string;
+      state: DiplomaticState;
+      maxState: DiplomaticState;
+      sinceTurn: number;
+      turnsLeft: number;
+      contactTurnsLeft: number;
+      hasReasonToCancel: number;
+      embassy: boolean;
+      sharedVision: boolean;
+      givesSharedVision?: boolean;
+      reputation: number;
+      attitude: number;
+      proposal?: {
+        proposerId: string;
+        recipientId: string;
+        clauses: TreatyClause[];
+        status: TreatyProposal['status'];
+      };
+    }>;
+  }>;
+}
+
 export interface DiplomacyEvent {
   type:
     | 'first_contact'
@@ -195,6 +226,41 @@ export class DiplomacyManager {
             relation: { ...relation, givesSharedVision: reverseRelation.sharedVision },
           };
         }),
+    };
+  }
+
+  async getReplaySnapshot(gameId: string): Promise<DiplomacyReplaySnapshot> {
+    const db = this.databaseProvider.getDatabase();
+    const gamePlayers = (await db.query.players.findMany({
+      where: eq(players.gameId, gameId),
+    })) as DiplomacyPlayerRow[];
+    const orderedPlayers = gamePlayers
+      .slice()
+      .sort(
+        (first, second) =>
+          first.playerNumber - second.playerNumber || first.id.localeCompare(second.id)
+      );
+
+    return {
+      players: orderedPlayers.map(player => {
+        const relations = this.readRelations(player);
+        return {
+          playerId: player.id,
+          playerNumber: player.playerNumber,
+          civilization: player.civilization,
+          isAlive: player.isAlive,
+          isAI: player.isAI,
+          teamId: player.teamId ?? null,
+          relations: orderedPlayers
+            .filter(other => other.id !== player.id)
+            .map(other =>
+              this.toReplayRelation(
+                other.id,
+                this.normalizeRelation(relations[other.id], this.areTeammates(player, other))
+              )
+            ),
+        };
+      }),
     };
   }
 
@@ -1079,6 +1145,38 @@ export class DiplomacyManager {
   private getRelation(player: DiplomacyPlayerRow, otherPlayerId: string): DiplomaticRelation {
     const otherRelation = this.readRelations(player)[otherPlayerId];
     return this.normalizeRelation(otherRelation, false);
+  }
+
+  private toReplayRelation(
+    playerId: string,
+    relation: DiplomaticRelation
+  ): DiplomacyReplaySnapshot['players'][number]['relations'][number] {
+    return {
+      playerId,
+      state: relation.state,
+      maxState: relation.maxState,
+      sinceTurn: relation.sinceTurn,
+      turnsLeft: relation.turnsLeft,
+      contactTurnsLeft: relation.contactTurnsLeft,
+      hasReasonToCancel: relation.hasReasonToCancel,
+      embassy: relation.embassy,
+      sharedVision: relation.sharedVision,
+      ...(relation.givesSharedVision === undefined
+        ? {}
+        : { givesSharedVision: relation.givesSharedVision }),
+      reputation: relation.reputation,
+      attitude: relation.attitude,
+      ...(relation.proposal
+        ? {
+            proposal: {
+              proposerId: relation.proposal.proposerId,
+              recipientId: relation.proposal.recipientId,
+              clauses: relation.proposal.clauses.map(clause => ({ ...clause })),
+              status: relation.proposal.status,
+            },
+          }
+        : {}),
+    };
   }
 
   private readKnownPlayers(player: DiplomacyPlayerRow): Set<string> {

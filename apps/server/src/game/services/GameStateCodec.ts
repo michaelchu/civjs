@@ -8,6 +8,8 @@ export interface AuthoritativeGameState {
   cities: unknown[];
   units: unknown[];
   research: Record<string, unknown>;
+  diplomacy?: unknown;
+  aiDiplomacy?: unknown;
   map?: unknown;
   [key: string]: unknown;
 }

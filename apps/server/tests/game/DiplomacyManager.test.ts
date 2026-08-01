@@ -52,6 +52,31 @@ describe('DiplomacyManager', () => {
     expect(second.nations[0]).toMatchObject({ id: 'p1', known: true });
   });
 
+  it('returns a stable omniscient replay snapshot without volatile proposal metadata', async () => {
+    await manager.establishContact('game-1', 'p1', 'p2');
+    await manager.proposeTreaty('game-1', 'p1', 'p2', [{ type: 'peace' }], 'replay-request');
+
+    const first = await manager.getReplaySnapshot('game-1');
+    const second = await manager.getReplaySnapshot('game-1');
+    const firstRelation = first.players[0]!.relations[0]!;
+
+    expect(second).toEqual(first);
+    expect(first.players).toHaveLength(2);
+    expect(firstRelation).toMatchObject({
+      playerId: 'p2',
+      state: 'war',
+      contactTurnsLeft: 20,
+      proposal: {
+        proposerId: 'p1',
+        recipientId: 'p2',
+        clauses: [{ type: 'peace', giverId: 'p1' }],
+        status: 'pending',
+      },
+    });
+    expect(firstRelation.proposal).not.toHaveProperty('id');
+    expect(firstRelation.proposal).not.toHaveProperty('createdAt');
+  });
+
   it('deduplicates proposal request IDs and applies bilateral and directional clauses', async () => {
     await manager.establishContact('game-1', 'p1', 'p2');
     const proposal = await manager.proposeTreaty(

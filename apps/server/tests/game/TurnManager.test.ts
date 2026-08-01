@@ -240,6 +240,29 @@ describe('TurnManager', () => {
       expect(turnManager.getCurrentTurn()).toBe(2);
     });
 
+    it('awaits asynchronous replay snapshot enrichment before persisting a checkpoint', async () => {
+      const mockTurnPhaseService = (turnManager as any).turnPhaseService;
+      mockTurnPhaseService.executePhaseProcessing = jest.fn().mockResolvedValue({
+        success: true,
+        totalDuration: 100,
+        phases: [],
+        errors: [],
+      });
+      turnManager.setReplaySnapshotProvider(async () => ({
+        diplomacy: { players: [{ playerId: 'player1', relations: [] }] },
+      }));
+
+      await turnManager.processTurn();
+
+      expect(mockDatabase.getDatabase().set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stateSnapshot: expect.objectContaining({
+            diplomacy: { players: [{ playerId: 'player1', relations: [] }] },
+          }),
+        })
+      );
+    });
+
     it('processes climate during a completed turn and refreshes changed map state', async () => {
       const pollutedTile = {
         x: 1,

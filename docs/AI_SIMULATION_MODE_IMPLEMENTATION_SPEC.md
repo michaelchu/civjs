@@ -1191,8 +1191,17 @@ Continue treating completed `gameTurns` records as immutable replay frames:
 - statistics;
 - completed phase records;
 - ordered turn events.
+- the omniscient diplomacy relation matrix and compact AI diplomacy memory;
 - the post-turn authoritative random state and identity counter needed to
   reproduce the next turn.
+
+The diplomacy portion of a simulation/replay snapshot must preserve each
+bilateral relation's state, maximum state, turn counters, contact status,
+embassy/shared-vision flags, reputation, attitude, and proposal clauses/status.
+Volatile proposal identifiers and wall-clock timestamps are diagnostic metadata
+and must be omitted from deterministic checkpoints. AI diplomacy memory should
+include bounded love, war-desire, contact, and war-countdown values so a replay
+can explain why a treaty or war decision became available.
 
 Only a turn with successful required phases and a non-null completion marker is
 replayable. Never expose an in-progress checkpoint as a completed replay turn.

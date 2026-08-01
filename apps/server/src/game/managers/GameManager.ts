@@ -42,7 +42,7 @@ import {
   type AITraits,
   type SettableAILevel,
 } from '@game/ai/AIProfile';
-import { createAIState } from '@game/ai/AIStateStore';
+import { assertAIState, createAIState } from '@game/ai/AIStateStore';
 import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import { FreecivAdvisorService, type AdvisorRecommendations } from '@game/services/AdvisorService';
 import { EndGameService } from '@game/services/EndGameService';
@@ -1381,7 +1381,7 @@ export class GameManager {
         }
       }
     });
-    gameInstance.turnManager.setReplaySnapshotProvider(() => ({
+    gameInstance.turnManager.setReplaySnapshotProvider(async () => ({
       map: gameInstance.mapManager.getMapData(),
       players: Array.from(gameInstance.players.values()).map(player => ({
         id: player.id,
@@ -1394,6 +1394,8 @@ export class GameManager {
         unitsLost: player.unitsLost ?? 0,
         spaceshipState: player.spaceshipState,
       })),
+      diplomacy: await this.diplomacyManager.getReplaySnapshot(gameId),
+      aiDiplomacy: getAIDiplomacyReplaySnapshot(gameInstance),
     }));
     gameInstance.turnManager.setEndGameEvaluator(async (turn, year) => {
       const evaluation = await this.endGameService.evaluate({
@@ -2518,4 +2520,35 @@ export class GameManager {
       return { success: false, unitId, error: 'Internal server error' };
     }
   }
+}
+
+function getAIDiplomacyReplaySnapshot(game: GameInstance) {
+  return Array.from(game.players.values())
+    .filter(player => player.isAI)
+    .sort(
+      (first, second) =>
+        first.playerNumber - second.playerNumber || first.id.localeCompare(second.id)
+    )
+    .map(player => {
+      const state = assertAIState(player.aiState);
+      return {
+        playerId: player.id,
+        relations: Object.fromEntries(
+          Object.entries(state.diplomacy)
+            .sort(([firstId], [secondId]) => firstId.localeCompare(secondId))
+            .map(([playerId, memory]) => [
+              playerId,
+              {
+                love: memory.love,
+                warDesire: memory.warDesire,
+                countdown: memory.countdown,
+                ...(memory.lastContactTurn === undefined
+                  ? {}
+                  : { lastContactTurn: memory.lastContactTurn }),
+                ...(memory.warCountdown === undefined ? {} : { warCountdown: memory.warCountdown }),
+              },
+            ])
+        ),
+      };
+    });
 }
