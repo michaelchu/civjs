@@ -288,6 +288,29 @@ describe('Freeciv AI worker planner', () => {
     expect(getTile).toHaveBeenCalledTimes(workable.length);
   });
 
+  it('can improve owned empire tiles outside a city radius', () => {
+    const cityTile = tile(1, 1, 'grassland', { hasRoad: true, improvements: ['road'] });
+    const borderTile = tile(4, 1, 'hills');
+    const planningContext = context([cityTile], [worker('worker', 1, 1)], {
+      ownedTiles: [cityTile, borderTile],
+    });
+
+    expect(planWorkerImprovements(planningContext).assignments[0]).toMatchObject({
+      tile: borderTile,
+      action: ActionType.BUILD_MINE,
+    });
+  });
+
+  it('never assigns neutral or foreign terrain', () => {
+    const neutral = tile(1, 1, 'hills', { owner: undefined });
+    const foreign = tile(2, 1, 'hills', { owner: 'enemy' });
+    const planningContext = context([neutral, foreign], [worker('worker', 0, 1)], {
+      ownedTiles: [neutral, foreign],
+    });
+
+    expect(planWorkerImprovements(planningContext).assignments).toEqual([]);
+  });
+
   it('increases cleanup urgency as environmental pressure approaches an upset', () => {
     const polluted = tile(1, 1, 'grassland', { improvements: ['pollution'] });
     const baseline = context([polluted], [worker('worker', 1, 1)]);

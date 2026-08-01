@@ -57,6 +57,7 @@ function gameFor(unit: Unit, target = { x: 2, y: 2 }): GameInstance {
       getUnit: () => unit,
       getUnitType: () => ({ movement: 3, canBuildImprovements: true }),
       canUnitPerformAction: () => true,
+      canUnitPerformActionAt: jest.fn(() => true),
       executeUnitAction,
       setWorkerAutomationTask,
     },
@@ -130,6 +131,12 @@ describe('shared worker automation service', () => {
     await expect(processHumanWorkerAutomation(game, hostility)).resolves.toBe(1);
 
     expect(game.pathfindingManager.findPath).toHaveBeenCalledWith(unit, 2, 2);
+    expect(game.unitManager.canUnitPerformActionAt).toHaveBeenCalledWith(
+      unit.id,
+      ActionType.BUILD_MINE,
+      2,
+      2
+    );
     expect(game.unitManager.executeUnitAction).toHaveBeenCalledWith(
       unit.id,
       ActionType.GOTO,

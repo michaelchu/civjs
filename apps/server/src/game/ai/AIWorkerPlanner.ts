@@ -26,6 +26,7 @@ export interface WorkerPlanningContext {
   playerId: string;
   workers: Unit[];
   cities: CityState[];
+  ownedTiles?: MapTile[];
   hostileUnits: Unit[];
   friendlyUnits?: Unit[];
   existingTasks: Readonly<Record<string, ExistingWorkerTask>>;
@@ -270,7 +271,7 @@ function candidateTiles(context: WorkerPlanningContext): CandidateTile[] {
   for (const city of context.cities) {
     for (const workable of city.workableTiles ?? []) {
       const tile = context.getTile(workable.x, workable.y);
-      if (!tile || (tile.owner && tile.owner !== context.playerId)) continue;
+      if (!tile || tile.owner !== context.playerId) continue;
       const key = `${tile.x},${tile.y}`;
       const candidate = {
         tile,
@@ -292,6 +293,22 @@ function candidateTiles(context: WorkerPlanningContext): CandidateTile[] {
         existing.requests.push(...candidate.requests);
       }
     }
+  }
+
+  // City radii drive economic value, but roads, cleanup, and future growth
+  // also need workers to service owned territory outside the current radius.
+  // These tiles receive the normal unworked-tile score and can never expand
+  // automation into neutral or foreign territory.
+  for (const tile of context.ownedTiles ?? []) {
+    if (tile.owner !== context.playerId) continue;
+    const key = `${tile.x},${tile.y}`;
+    if (candidates.has(key)) continue;
+    candidates.set(key, {
+      tile,
+      worked: false,
+      currentValue: currentTileValue(tile, rulesetName),
+      requests: [],
+    });
   }
   return [...candidates.values()];
 }

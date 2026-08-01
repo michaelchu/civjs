@@ -1131,10 +1131,20 @@ describe('AI authoritative manager boundaries', () => {
       .find(unit => unit.unitTypeId === workerType.id && unit.homeCityId === city.id);
     expect(worker).toBeDefined();
 
-    expect(await scenario.game.unitManager.moveUnit(worker!.id, target.x, target.y)).toBe(true);
-    worker!.movementLeft = workerType.movement;
-
     let unitController = (gameManager as any).aiOrchestrator.playerController.units;
+    worker!.movementLeft = workerType.movement * 3;
+    expect(
+      await unitController.automateWorkers(scenario.game, guest!.playerId, state)
+    ).toBeGreaterThan(0);
+    expect(state.unitTasks[worker!.id]).toMatchObject({
+      role: 'worker',
+      action: ActionType.BUILD_ROAD,
+      targetX: target.x,
+      targetY: target.y,
+    });
+    expect(worker).toMatchObject({ x: target.x, y: target.y });
+
+    worker!.movementLeft = workerType.movement * 3;
     expect(
       await unitController.automateWorkers(scenario.game, guest!.playerId, state)
     ).toBeGreaterThan(0);
@@ -1284,8 +1294,8 @@ describe('AI authoritative manager boundaries', () => {
     const worker = await scenario.game.unitManager.createUnit(
       host!.playerId,
       'worker',
-      target.x,
-      target.y,
+      city.x,
+      city.y,
       city.id
     );
 
@@ -1298,6 +1308,22 @@ describe('AI authoritative manager boundaries', () => {
         host!.playerId
       )
     ).resolves.toMatchObject({ success: true });
+    await expect(
+      processHumanWorkerAutomation(scenario.game, (gameManager as any).hostilityPolicy)
+    ).resolves.toBeGreaterThan(0);
+
+    expect(worker).toMatchObject({
+      x: target.x,
+      y: target.y,
+      automation: 'worker',
+      automationTask: {
+        action: ActionType.BUILD_ROAD,
+        targetX: target.x,
+        targetY: target.y,
+      },
+    });
+
+    worker.movementLeft = scenario.game.unitManager.getUnitType(worker.unitTypeId)!.movement * 3;
     await expect(
       processHumanWorkerAutomation(scenario.game, (gameManager as any).hostilityPolicy)
     ).resolves.toBeGreaterThan(0);

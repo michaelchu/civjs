@@ -1243,6 +1243,7 @@ describe('FreecivAIOrchestrator', () => {
     scenario.units.get('scout')!.automation = 'explore';
     scenario.units.get('scout')!.movementLeft = 0;
     scenario.units.get('warrior')!.movementLeft = 0;
+    scenario.units.get('worker')!.movementLeft = 0;
     scenario.diplomacyManager.getSnapshot.mockResolvedValue({ nations: [] });
 
     const actions = await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(

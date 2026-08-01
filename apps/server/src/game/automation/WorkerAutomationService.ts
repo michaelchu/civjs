@@ -80,11 +80,13 @@ export function planInfrastructureWork(
   excludedAssignments?: ReadonlySet<string>,
   travelTurns?: ReadonlyMap<string, number>
 ) {
+  const map = game.mapManager.getMapData?.();
   return planWorkerImprovements({
     turn: game.currentTurn,
     playerId,
     workers,
     cities: game.cityManager.getPlayerCities(playerId),
+    ownedTiles: map?.tiles.flat().filter(tile => tile.owner === playerId) ?? [],
     hostileUnits,
     friendlyUnits: game.unitManager.getPlayerUnits(playerId),
     existingTasks,
@@ -102,7 +104,9 @@ export function planInfrastructureWork(
     rulesetName: game.config?.ruleset ?? 'classic',
     excludedAssignments,
     canPerformAction: (worker, action, tile) =>
-      game.unitManager.canUnitPerformAction(worker.id, action, tile.x, tile.y),
+      typeof game.unitManager.canUnitPerformActionAt === 'function'
+        ? game.unitManager.canUnitPerformActionAt(worker.id, action, tile.x, tile.y)
+        : game.unitManager.canUnitPerformAction(worker.id, action, tile.x, tile.y),
     travelTurns: travelTurns
       ? (worker, tile) => travelTurns.get(`${worker.id}:${tile.x},${tile.y}`)
       : undefined,
@@ -121,6 +125,11 @@ async function planPathAwareInfrastructureWork(
   const tiles = new Map<string, { x: number; y: number }>();
   for (const city of game.cityManager.getPlayerCities(playerId)) {
     for (const tile of city.workableTiles ?? []) tiles.set(`${tile.x},${tile.y}`, tile);
+  }
+  for (const row of game.mapManager.getMapData?.()?.tiles ?? []) {
+    for (const tile of row) {
+      if (tile.owner === playerId) tiles.set(`${tile.x},${tile.y}`, tile);
+    }
   }
   const travelTurns = new Map<string, number>();
   for (const worker of workers) {

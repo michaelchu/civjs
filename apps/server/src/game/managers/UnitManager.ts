@@ -4553,6 +4553,39 @@ export class UnitManager {
     const unit = this.units.get(unitId);
     if (!unit) return false;
 
+    return this.canUnitPerformActionForUnit(unit, actionType, targetX, targetY);
+  }
+
+  /**
+   * Validate a terrain activity at a future worksite without moving or
+   * mutating the authoritative unit. Worker planners use this while ranking
+   * remote tiles; execution still validates against the unit's real position.
+   */
+  canUnitPerformActionAt(
+    unitId: string,
+    actionType: ActionType,
+    targetX: number,
+    targetY: number
+  ): boolean {
+    const unit = this.units.get(unitId);
+    if (!unit) return false;
+    if (!this.isWorkerTerrainAction(actionType)) {
+      return this.canUnitPerformActionForUnit(unit, actionType, targetX, targetY);
+    }
+    return this.canUnitPerformActionForUnit(
+      { ...unit, x: targetX, y: targetY },
+      actionType,
+      targetX,
+      targetY
+    );
+  }
+
+  private canUnitPerformActionForUnit(
+    unit: Unit,
+    actionType: ActionType,
+    targetX?: number,
+    targetY?: number
+  ): boolean {
     if (
       this.isRulesetWorkerAction(actionType) &&
       !this.canPerformRulesetWorkerAction(unit, actionType, targetX, targetY)
@@ -4577,6 +4610,21 @@ export class UnitManager {
     }
 
     return this.actionSystem.canUnitPerformAction(unit, actionType, targetX, targetY);
+  }
+
+  private isWorkerTerrainAction(actionType: ActionType): boolean {
+    return new Set([
+      ActionType.BUILD_ROAD,
+      ActionType.BUILD_RAILROAD,
+      ActionType.BUILD_IRRIGATION,
+      ActionType.BUILD_MINE,
+      ActionType.CULTIVATE,
+      ActionType.PLANT,
+      ActionType.BUILD_FORTRESS,
+      ActionType.BUILD_AIRBASE,
+      ActionType.TRANSFORM_TERRAIN,
+      ActionType.CLEAN_POLLUTION,
+    ]).has(actionType);
   }
 
   private isRulesetWorkerAction(actionType: ActionType): boolean {

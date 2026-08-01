@@ -222,6 +222,35 @@ describe('UnitManager', () => {
       expect(worker.orders).toEqual([]);
     });
 
+    it('validates a planned worker activity against its future worksite', async () => {
+      const current = {
+        x: 10,
+        y: 10,
+        terrain: 'grassland',
+        hasRoad: true,
+        hasRailroad: false,
+        improvements: ['road'],
+      };
+      const target = {
+        x: 11,
+        y: 10,
+        terrain: 'grassland',
+        hasRoad: false,
+        hasRailroad: false,
+        improvements: [] as string[],
+      };
+      mapManager.getTile.mockImplementation((x: number, y: number) =>
+        x === target.x && y === target.y ? target : current
+      );
+      const worker = await unitManager.createUnit('player-123', 'worker', current.x, current.y);
+
+      expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_ROAD)).toBe(false);
+      expect(
+        unitManager.canUnitPerformActionAt(worker.id, ActionType.BUILD_ROAD, target.x, target.y)
+      ).toBe(true);
+      expect(worker).toMatchObject({ x: current.x, y: current.y });
+    });
+
     it('combines compatible workers into one shared activity', async () => {
       const first = await unitManager.createUnit('player-123', 'worker', 10, 10);
       const second = await unitManager.createUnit('player-123', 'worker', 10, 10);
