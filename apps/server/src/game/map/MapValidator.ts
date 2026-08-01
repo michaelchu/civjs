@@ -2,6 +2,7 @@ import { MapTile, TerrainType } from './MapTypes';
 import { PlayerState } from '@game/managers/GameManager';
 import { logger } from '@utils/logger';
 import { MapTopology, type MapTopologyOptions } from './MapTopology';
+import { isLandTile } from './TerrainUtils';
 
 export interface ValidationResult {
   passed: boolean;
@@ -230,14 +231,14 @@ export class MapValidator {
 
     // Validate terrain variety (no single terrain should dominate)
     Object.entries(terrainPercentages).forEach(([terrain, percentage]) => {
-      if (terrain !== 'ocean' && percentage > 50) {
+      if (isLandTile(terrain) && percentage > 50) {
         issues.push({
           severity: 'error',
           category: 'terrain',
           message: `Terrain '${terrain}' dominates the map`,
           details: { terrain, percentage, threshold: '50%' },
         });
-      } else if (terrain !== 'ocean' && percentage > 30) {
+      } else if (isLandTile(terrain) && percentage > 30) {
         issues.push({
           severity: 'warning',
           category: 'terrain',
@@ -628,7 +629,7 @@ export class MapValidator {
 
     const continentSizeArray = Object.values(continentSizes);
     const landTiles = Object.entries(terrainCounts)
-      .filter(([terrain]) => !['ocean', 'deep_ocean', 'coast'].includes(terrain))
+      .filter(([terrain]) => isLandTile(terrain))
       .reduce((sum, [, count]) => sum + count, 0);
 
     const oceanTiles = this.totalTiles - landTiles;
@@ -856,12 +857,10 @@ export class MapValidator {
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         const tile = tiles[x][y];
-        if (tile.terrain !== 'ocean' && tile.terrain !== 'deep_ocean' && tile.terrain !== 'coast') {
+        if (isLandTile(tile.terrain)) {
           // Check if surrounded by water
           const neighbors = this.getNeighbors(tiles, x, y);
-          const landNeighbors = neighbors.filter(
-            n => n.terrain !== 'ocean' && n.terrain !== 'deep_ocean' && n.terrain !== 'coast'
-          );
+          const landNeighbors = neighbors.filter(n => isLandTile(n.terrain));
 
           if (landNeighbors.length === 0) {
             isolatedCount++;

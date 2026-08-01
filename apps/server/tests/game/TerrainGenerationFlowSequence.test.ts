@@ -804,8 +804,9 @@ describe('Phase 3: makeLand() Restructuring Compliance', () => {
       const avgPole = poleElevations.reduce((a, b) => a + b, 0) / poleElevations.length;
       const avgCenter = centerElevations.reduce((a, b) => a + b, 0) / centerElevations.length;
 
-      // Pole renormalization should affect elevation distribution
-      expect(Math.abs(avgPole - avgCenter)).toBeLessThan(100); // Reasonable difference
+      // normalize_hmap_poles() deliberately lowers the polar bands before
+      // classifying land; the poles should therefore average below the equator.
+      expect(avgPole).toBeLessThan(avgCenter);
 
       // Freeciv Step 3: Temperature map creation (freeciv line 1134 equivalent)
       let temperatureMapCorrect = true;

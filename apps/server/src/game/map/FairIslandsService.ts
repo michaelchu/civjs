@@ -329,7 +329,7 @@ export class FairIslandsService extends BaseMapGenerationService {
       Array.from({ length: this.height }, (_, y) => {
         const tile = createBaseTile(x, y);
         tile.terrain = 'deep_ocean';
-        tile.continentId = -1;
+        tile.continentId = 0;
         tile.elevation = 0;
         setTerrainGameProperties(tile);
         return tile;
@@ -710,7 +710,7 @@ export class FairIslandsService extends BaseMapGenerationService {
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         const tile = tiles[x][y];
-        if (tile.terrain !== 'ocean' && tile.continentId > 0) {
+        if (isLandTile(tile.terrain) && tile.continentId > 0) {
           const currentSize = continentSizes.get(tile.continentId) || 0;
           continentSizes.set(tile.continentId, currentSize + 1);
         }

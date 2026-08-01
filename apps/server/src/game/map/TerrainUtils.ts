@@ -175,8 +175,8 @@ export function isOceanTerrain(terrain: string): boolean {
  * @reference freeciv/common/terrain.c is_frozen_terrain()
  * Exact copy of freeciv frozen terrain classification
  */
-export function isFrozenTerrain(_terrain: string): boolean {
-  return false; // No frozen terrain types after removing glacier
+export function isFrozenTerrain(terrain: string): boolean {
+  return terrain === 'glacier';
 }
 
 /**

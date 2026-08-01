@@ -3,7 +3,7 @@ import { PlayerState } from '@game/managers/GameManager';
 import { MapData, MapTile, MapStartpos } from './MapTypes';
 import { BaseMapGenerationService } from './BaseMapGenerationService';
 import { IslandGeneratorState } from './IslandGenerator';
-import { islandTerrainInit, fillIslandTerrain } from './TerrainUtils';
+import { islandTerrainInit } from './TerrainUtils';
 
 /**
  * Island-based map generation service for ISLAND generator
@@ -37,7 +37,7 @@ export class IslandMapService extends BaseMapGenerationService {
     const tiles = this.initializeTiles();
 
     // Generate elevation for height-based terrain selection
-    this.heightGenerator.generateHeightMap();
+    this.heightGenerator.generateHeightMap(players.size, startPosMode);
     const heightMap = this.heightGenerator.getHeightMap();
 
     // Apply height data to tiles
@@ -51,8 +51,20 @@ export class IslandMapService extends BaseMapGenerationService {
     // Initialize island terrain selection system (like freeciv island_terrain_init())
     islandTerrainInit();
 
+    // Freeciv creates the preliminary latitude-based temperature map before
+    // running generators 2/3/4 so island terrain selectors can use it.
+    this.temperatureMap.createTemperatureMap(tiles, heightMap, false);
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        tiles[x][y].temperature = this.temperatureMap.getTemperature(x, y);
+      }
+    }
+
     // Initialize world for island generation
-    const state = this.islandGenerator.initializeWorldForIslands(tiles);
+    const state = this.islandGenerator.initializeWorldForIslands(
+      tiles,
+      this.calculateTotalMass(startPosMode)
+    );
 
     // Initialize bucket system (call with islandMass=0 for initialization)
     await this.islandGenerator.makeIsland(0, 0, state, tiles, this.terrainPercentages);
@@ -61,11 +73,12 @@ export class IslandMapService extends BaseMapGenerationService {
       reference: 'freeciv/server/generator/mapgen.c:1320-1341',
     });
 
-    // Generate islands using startpos-based routing (freeciv MAPSTARTPOS logic)
-    await this.generateIslandsByStartPosMode(state, tiles, players.size, startPosMode);
-
-    // Cleanup
-    this.islandGenerator.cleanup();
+    try {
+      // Generate islands using startpos-based routing (freeciv MAPSTARTPOS logic)
+      await this.generateIslandsByStartPosMode(state, tiles, players.size, startPosMode);
+    } finally {
+      this.islandGenerator.cleanup();
+    }
 
     // Apply island-specific terrain processing
     await this.applyIslandTerrainProcessing(tiles);
@@ -112,53 +125,60 @@ export class IslandMapService extends BaseMapGenerationService {
     tiles: MapTile[][],
     playerCount: number
   ): Promise<void> {
-    // Landpercent validation fallback (freeciv mapgen.c:2218-2223)
-    if (this.getLandPercent(tiles) > 85) {
+    // Landpercent validation fallback (freeciv mapgen.c mapgenerator2())
+    if (this.generationOptions.landPercent > 85) {
       logger.warn('Landpercent too high for mapGenerator2, falling back to random generator', {
-        landpercent: this.getLandPercent(tiles),
+        landpercent: this.generationOptions.landPercent,
         maxLandpercent: 85,
         reference: 'freeciv/server/generator/mapgen.c:2218-2223',
       });
       throw new Error('FALLBACK_TO_RANDOM');
     }
 
-    // Size validation fallback - minimum 30x30 for mapGenerator2 (large continents)
-    if (this.width < 30 || this.height < 30) {
-      logger.warn('Map too small for mapGenerator2 large continents, using mapGenerator4', {
-        width: this.width,
-        height: this.height,
-        minSize: 30,
-        reference: 'freeciv/server/generator/mapgen.c size requirements for large continents',
-      });
-      return this.mapGenerator4(state, tiles, playerCount);
-    }
-
     // Put 70% of land in big continents, 20% in medium, and 10% in small
-    const bigfrac = 70,
-      midfrac = 20,
-      smallfrac = 10;
-    const totalweight = playerCount + 2;
+    let bigfrac = 70;
+    let midfrac = 20;
+    let smallfrac = 10;
+    const totalweight = 100 * playerCount;
 
-    // Create one large continent for most players
+    let done = false;
+    while (!done && bigfrac > midfrac) {
+      done = true;
+      for (let i = 0; i < playerCount; i++) {
+        const placed = await this.islandGenerator.makeIsland(
+          Math.floor((bigfrac * state.totalMass) / totalweight),
+          1,
+          state,
+          tiles,
+          this.terrainPercentages,
+          95
+        );
+        if (placed) continue;
+
+        // Reference retries the complete world with all large islands 5%
+        // smaller, moving the released mass into medium/small islands.
+        midfrac = Math.trunc(midfrac + bigfrac * 0.01);
+        smallfrac = Math.trunc(smallfrac + bigfrac * 0.04);
+        bigfrac = Math.trunc(bigfrac * 0.95);
+        await this.resetIslandWorld(state, tiles);
+        done = false;
+        break;
+      }
+    }
+    if (bigfrac <= midfrac) throw new Error('FALLBACK_TO_RANDOM');
     const bigIslandMass = Math.floor((bigfrac * state.totalMass) / totalweight);
-    await this.islandGenerator.makeIsland(
-      bigIslandMass,
-      1,
-      state,
-      tiles,
-      this.terrainPercentages,
-      95 // min 95% of requested size
-    );
 
     // Create medium islands
     const mediumIslandMass = Math.floor((midfrac * state.totalMass) / totalweight);
-    await this.islandGenerator.makeIsland(
-      mediumIslandMass,
-      0,
-      state,
-      tiles,
-      this.terrainPercentages
-    );
+    for (let i = 0; i < playerCount; i++) {
+      await this.islandGenerator.makeIsland(
+        mediumIslandMass,
+        0,
+        state,
+        tiles,
+        this.terrainPercentages
+      );
+    }
 
     // Create small islands for remaining players
     const smallIslandMass = Math.floor((smallfrac * state.totalMass) / totalweight);
@@ -191,51 +211,67 @@ export class IslandMapService extends BaseMapGenerationService {
     playerCount: number
   ): Promise<void> {
     // Landpercent validation fallback (freeciv mapgen.c:2252-2257)
-    if (this.getLandPercent(tiles) > 85) {
-      logger.warn('Landpercent too high for mapGenerator3, falling back to random generator', {
-        landpercent: this.getLandPercent(tiles),
-        maxLandpercent: 85,
+    if (this.generationOptions.landPercent > 80) {
+      logger.warn('Landpercent too high for mapGenerator3, falling back to fractal generator', {
+        landpercent: this.generationOptions.landPercent,
+        maxLandpercent: 80,
         reference: 'freeciv/server/generator/mapgen.c:2252-2257',
       });
-      throw new Error('FALLBACK_TO_RANDOM');
+      throw new Error('FALLBACK_TO_FRACTAL');
     }
 
     // Size validation fallback - minimum 40x40 for mapGenerator3
     if (this.width < 40 || this.height < 40) {
-      logger.warn('Map too small for mapGenerator3, using mapGenerator4', {
+      logger.warn('Map too small for mapGenerator3, falling back to fractal generator', {
         width: this.width,
         height: this.height,
         minSize: 40,
         reference: 'freeciv/server/generator/mapgen.c size requirements',
       });
-      return this.mapGenerator4(state, tiles, playerCount);
+      throw new Error('FALLBACK_TO_FRACTAL');
     }
 
     // Create a few large islands suitable for multiple players each
     const maxMassDiv6 = 20;
-    const bigIslands = Math.floor(Math.sqrt(playerCount)) || 1;
+    const bigIslands = Math.max(1, playerCount);
+    let landmass = Math.floor(
+      (this.width * (this.height - 6) * this.generationOptions.landPercent) / 100
+    );
+    if (landmass > 3 * this.height + playerCount * 3) landmass -= 3 * this.height;
 
-    let landmass = state.totalMass;
-    const islandmass = Math.floor(landmass / bigIslands);
-    let size = islandmass;
+    let islandmass = Math.floor(landmass / (3 * bigIslands));
+    if (islandmass < 4 * maxMassDiv6) islandmass = Math.floor(landmass / (2 * bigIslands));
+    if (islandmass < 3 * maxMassDiv6 && playerCount * 2 < landmass) {
+      islandmass = Math.floor(landmass / bigIslands);
+    }
+    islandmass = Math.max(2, Math.min(maxMassDiv6 * 6, islandmass));
 
-    // Create big islands for players
-    for (let j = 0; j < bigIslands && j < 500; j++) {
-      await this.islandGenerator.makeIsland(size, 1, state, tiles, this.terrainPercentages);
-
-      landmass -= size;
-      if (landmass < islandmass / maxMassDiv6) break;
+    let attempts = 0;
+    while (
+      state.isleIndex - 2 <= bigIslands &&
+      this.getRemainingIslandMass(state, tiles) > islandmass &&
+      ++attempts < 500
+    ) {
+      await this.islandGenerator.makeIsland(islandmass, 1, state, tiles, this.terrainPercentages);
     }
 
     // Add some smaller supplementary islands
-    size = Math.floor((islandmass * 11) / 8);
-    if (size < 2) size = 2;
+    islandmass = Math.max(2, Math.floor((islandmass * 11) / 8));
 
-    for (let j = 0; j < playerCount && j < 1500; j++) {
-      await this.islandGenerator.makeIsland(size, 0, state, tiles, this.terrainPercentages);
-
-      landmass -= size;
-      if (landmass <= 0) break;
+    while (this.getRemainingIslandMass(state, tiles) > islandmass && ++attempts < 1500) {
+      let size =
+        attempts < 1000
+          ? Math.floor(this.random() * (Math.floor((islandmass + 1) / 2) + 1)) +
+            Math.floor(islandmass / 2)
+          : Math.floor(this.random() * (Math.floor((islandmass + 1) / 2) + 1));
+      size = Math.max(2, size);
+      await this.islandGenerator.makeIsland(
+        size,
+        state.isleIndex - 2 <= playerCount ? 1 : 0,
+        state,
+        tiles,
+        this.terrainPercentages
+      );
     }
 
     logger.debug('MapGenerator3 completed', {
@@ -255,14 +291,15 @@ export class IslandMapService extends BaseMapGenerationService {
     tiles: MapTile[][],
     playerCount: number
   ): Promise<void> {
-    // Landpercent validation fallback (freeciv mapgen.c:2260-2265)
-    if (this.getLandPercent(tiles) > 85) {
-      logger.warn('Landpercent too high for mapGenerator4, falling back to random generator', {
-        landpercent: this.getLandPercent(tiles),
-        maxLandpercent: 85,
+    // Freeciv downgrades startpos to SINGLE here, which immediately routes
+    // through mapgenerator3 in the same generation pass.
+    if (playerCount < 2 || this.generationOptions.landPercent > 80) {
+      logger.warn('MapGenerator4 is infeasible, retrying with MapGenerator3', {
+        landpercent: this.generationOptions.landPercent,
+        maxLandpercent: 80,
         reference: 'freeciv/server/generator/mapgen.c:2260-2265',
       });
-      throw new Error('FALLBACK_TO_RANDOM');
+      return this.mapGenerator3(state, tiles, playerCount);
     }
 
     // Size validation warning - minimum 20x20 recommended for mapGenerator4
@@ -285,11 +322,11 @@ export class IslandMapService extends BaseMapGenerationService {
       bigweight = 50;
     }
 
-    const totalweight = bigweight + (100 - bigweight);
-    let i = Math.floor(playerCount / 3);
+    const totalweight = (30 + bigweight) * playerCount;
+    let i = Math.floor(playerCount / 2);
 
     // Create some 3-player big islands
-    if (i === 0 && playerCount > 2) {
+    if ((playerCount & 1) === 1) {
       await this.islandGenerator.makeIsland(
         Math.floor((bigweight * 3 * state.totalMass) / totalweight),
         3,
@@ -313,11 +350,19 @@ export class IslandMapService extends BaseMapGenerationService {
     }
 
     // Create 1-player islands for remaining players
-    const remainingPlayers = playerCount - Math.floor(playerCount / 3) * 3;
-    for (let i = 0; i < remainingPlayers; i++) {
+    for (let i = 0; i < playerCount; i++) {
       await this.islandGenerator.makeIsland(
-        Math.floor(((100 - bigweight) * state.totalMass) / totalweight),
-        1,
+        Math.floor((20 * state.totalMass) / totalweight),
+        0,
+        state,
+        tiles,
+        this.terrainPercentages
+      );
+    }
+    for (let i = 0; i < playerCount; i++) {
+      await this.islandGenerator.makeIsland(
+        Math.floor((10 * state.totalMass) / totalweight),
+        0,
         state,
         tiles,
         this.terrainPercentages
@@ -328,7 +373,6 @@ export class IslandMapService extends BaseMapGenerationService {
       bigweight,
       totalweight,
       playerCount,
-      remainingPlayers,
       reference: 'freeciv/server/generator/mapgen.c mapGenerator4()',
     });
   }
@@ -353,111 +397,30 @@ export class IslandMapService extends BaseMapGenerationService {
     this.terrainGenerator.convertTemperatureToEnum(tiles);
     this.terrainGenerator.generateWetnessMap(tiles, this.generationOptions.wetness);
 
-    // Apply climate-based terrain variety to islands using freeciv's terrain selection system
-    await this.applyIslandTerrainVariety(tiles);
-
     // Fill remaining unplaced tiles with plains/grassland/tundra (like freeciv make_plains())
     this.terrainGenerator.makePlains(tiles);
 
-    // Apply final terrain improvements
-    this.terrainGenerator.applyBiomeTransitions(tiles);
+    // Freeciv generators 2/3/4 stop after make_plains(); applying the generic
+    // biome smoother here can turn ocean tiles into land and break landmass.
   }
 
-  /**
-   * Apply climate-based terrain variety to islands
-   * @reference freeciv/server/generator/mapgen.c terrain variety application
-   */
-  private async applyIslandTerrainVariety(tiles: MapTile[][]): Promise<void> {
-    logger.info('Applying climate-based terrain variety to islands');
-
-    // Calculate terrain counts based on total landmass and terrain percentages
-    let totalLandTiles = 0;
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const tile = tiles[x][y];
-        if (tile.terrain === 'grassland' || tile.terrain === 'plains') {
-          totalLandTiles++;
-        }
-      }
-    }
-
-    const forestCount = Math.floor((totalLandTiles * this.terrainPercentages.forest) / 100);
-    const desertCount = Math.floor((totalLandTiles * this.terrainPercentages.desert) / 100);
-    const mountainCount = Math.floor((totalLandTiles * this.terrainPercentages.mountain) / 100);
-    const swampCount = Math.floor((totalLandTiles * this.terrainPercentages.swamp) / 100);
-
-    logger.debug('Terrain variety targets', {
-      totalLandTiles,
-      forestCount,
-      desertCount,
-      mountainCount,
-      swampCount,
-    });
-
-    // Apply terrain types using freeciv's climate-based selection
-    for (let continentId = 1; continentId <= 10; continentId++) {
-      // Check if this continent exists
-      const continentTiles = this.getContinentTiles(tiles, continentId);
-      if (continentTiles.length === 0) continue;
-
-      const continentLandRatio = continentTiles.length / totalLandTiles;
-
-      // Apply terrain proportionally to continent size
-      fillIslandTerrain(
-        tiles,
-        'forest',
-        Math.floor(forestCount * continentLandRatio),
-        continentId,
-        this.random
-      );
-
-      fillIslandTerrain(
-        tiles,
-        'desert',
-        Math.floor(desertCount * continentLandRatio),
-        continentId,
-        this.random
-      );
-
-      fillIslandTerrain(
-        tiles,
-        'mountain',
-        Math.floor(mountainCount * continentLandRatio),
-        continentId,
-        this.random
-      );
-
-      fillIslandTerrain(
-        tiles,
-        'swamp',
-        Math.floor(swampCount * continentLandRatio),
-        continentId,
-        this.random
-      );
-    }
-
-    logger.info('Climate-based terrain variety applied successfully');
+  private calculateTotalMass(startPosMode: MapStartpos): number {
+    const landPercent = this.generationOptions.landPercent;
+    const usesGenerator4 =
+      startPosMode === MapStartpos.TWO_ON_THREE || startPosMode === MapStartpos.ALL;
+    const spares = usesGenerator4 ? Math.floor((landPercent - 5) / 30) : 1;
+    return ((this.height - 6 - spares) * landPercent * (this.width - spares)) / 100;
   }
 
-  /**
-   * Get all land tiles belonging to a specific continent
-   */
-  private getContinentTiles(tiles: MapTile[][], continentId: number): MapTile[] {
-    const continentTiles: MapTile[] = [];
+  private async resetIslandWorld(state: IslandGeneratorState, tiles: MapTile[][]): Promise<void> {
+    const reset = this.islandGenerator.initializeWorldForIslands(tiles, state.totalMass);
+    Object.assign(state, reset);
+    await this.islandGenerator.makeIsland(0, 0, state, tiles, this.terrainPercentages);
+  }
 
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const tile = tiles[x][y];
-        if (
-          tile.continentId === continentId &&
-          (tile.terrain === 'grassland' || tile.terrain === 'plains')
-        ) {
-          continentTiles.push(tile);
-        }
-      }
-    }
-
-    return continentTiles;
+  private getRemainingIslandMass(state: IslandGeneratorState, tiles: MapTile[][]): number {
+    const placedLand = tiles.flat().filter(tile => tile.continentId > 0).length;
+    return Math.max(0, state.totalMass - placedLand);
   }
 
   /**

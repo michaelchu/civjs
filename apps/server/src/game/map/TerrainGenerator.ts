@@ -15,13 +15,17 @@ import { OceanProcessor } from './terrain/OceanProcessor';
 import { ContinentProcessor } from './terrain/ContinentProcessor';
 import { MapTopology, type MapTopologyOptions } from './MapTopology';
 
+// Deliberately disabled: the separate Freeciv polar-land pass creates long,
+// artificial glacier strips along map edges in CivJS. Keep the implementation
+// available for parity work, but do not enable it in production generation.
+const POLAR_LAND_GENERATION_ENABLED = false;
+
 export class TerrainGenerator {
   private width: number;
   private height: number;
   private random: () => number;
   private generator: string;
   private placementMap: PlacementMap;
-  private heightGenerator?: any; // Will be passed for pole renormalization
   private temperatureMap?: TemperatureMap; // Will be passed for temperature map creation
   private riverGenerator?: any; // Will be passed for river generation
 
@@ -38,7 +42,8 @@ export class TerrainGenerator {
     height: number,
     random: () => number,
     generator: string,
-    topologyOptions: MapTopologyOptions = {}
+    topologyOptions: MapTopologyOptions = {},
+    climateOptions: { temperature?: number; separatePoles?: boolean; flatPoles?: number } = {}
   ) {
     this.width = width;
     this.height = height;
@@ -48,7 +53,13 @@ export class TerrainGenerator {
     this.topology = new MapTopology(width, height, topologyOptions);
 
     // Initialize extracted components
-    this.heightMapProcessor = new HeightMapProcessor(width, height, random, topologyOptions);
+    this.heightMapProcessor = new HeightMapProcessor(
+      width,
+      height,
+      random,
+      topologyOptions,
+      climateOptions
+    );
     this.terrainPlacementProcessor = new TerrainPlacementProcessor(
       width,
       height,
@@ -145,7 +156,8 @@ export class TerrainGenerator {
     riverGenerator?: any
   ): Promise<void> {
     // Store dependencies for internal use
-    this.setGenerationDependencies(heightGenerator, temperatureMap, riverGenerator);
+    void heightGenerator;
+    this.setGenerationDependencies(temperatureMap, riverGenerator);
 
     // Step 1: Normalize poles if present
     this.normalizePolesIfNeeded(heightMap, tiles);
@@ -154,18 +166,21 @@ export class TerrainGenerator {
     const land_fill: TerrainType = 'grassland';
 
     // Step 3: Compute shore level
-    const hmap_shore_level = this.computeShoreLevel(heightGenerator, params.landpercent);
+    const hmap_shore_level = this.computeShoreLevel(heightMap, params.landpercent);
 
     // Step 5: Classify tiles into ocean/land (with neighbor-aware ocean depth)
-    this.classifyLandAndOcean(tiles, hmap_shore_level, land_fill);
+    this.classifyLandAndOcean(tiles, heightMap, hmap_shore_level, land_fill);
 
     // Step 6: Renormalize poles post land classification
     this.renormalizePolesIfNeeded(heightMap, tiles);
 
-    // Recreate the real temperature map after oceans are known, then add the
-    // separate polar land used by Freeciv's random/fracture generators.
+    // Recreate the real temperature map after oceans are known. The separate
+    // polar-land pass is deliberately disabled above because it creates long,
+    // artificial glacier strips along map edges on standard and small maps.
     this.createTemperatureIfAvailable(tiles, heightMap, hmap_shore_level);
-    this.makePolarLand(tiles, hmap_shore_level);
+    if (POLAR_LAND_GENERATION_ENABLED) {
+      this.makePolarLand(tiles, hmap_shore_level);
+    }
 
     // Step 8: Initialize placement map and mark ocean tiles as placed
     this.initializePlacementMapForOceans(tiles);
@@ -190,9 +205,6 @@ export class TerrainGenerator {
     // Step 11: Cleanup placement map
     this.cleanupPlacementMap();
 
-    // Step 12: Final pole renormalization
-    this.finalPoleRenormalization();
-
     // Step 14: River generation
     await this.generateRiversIfAvailable(tiles, params.riverDensity);
 
@@ -202,12 +214,7 @@ export class TerrainGenerator {
 
   // --- Extracted helpers from makeLand ---
 
-  private setGenerationDependencies(
-    heightGenerator?: any,
-    temperatureMap?: TemperatureMap,
-    riverGenerator?: any
-  ): void {
-    this.heightGenerator = heightGenerator;
+  private setGenerationDependencies(temperatureMap?: TemperatureMap, riverGenerator?: any): void {
     this.temperatureMap = temperatureMap;
     this.riverGenerator = riverGenerator;
   }
@@ -218,12 +225,14 @@ export class TerrainGenerator {
     }
   }
 
-  private computeShoreLevel(heightGenerator: any | undefined, landpercent: number): number {
-    return heightGenerator?.getShoreLevel?.() || Math.floor((255 * (100 - landpercent)) / 100);
+  private computeShoreLevel(heightMap: number[], landpercent: number): number {
+    void heightMap;
+    return Math.floor((255 * (100 - landpercent)) / 100);
   }
 
   private classifyLandAndOcean(
     tiles: MapTile[][],
+    heightMap: number[],
     hmap_shore_level: number,
     land_fill: TerrainType
   ): void {
@@ -231,12 +240,12 @@ export class TerrainGenerator {
 
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
-        const tileHeight = tiles[x][y].elevation;
+        const tileHeight = heightMap[y * this.width + x];
         tiles[x][y].terrain = 'ocean';
 
         if (tileHeight < hmap_shore_level) {
           let depth = ((hmap_shore_level - tileHeight) * 100) / hmap_shore_level;
-          const neighborCount = this.countOceanLandNeighbors(tiles, x, y, hmap_shore_level);
+          const neighborCount = this.countOceanLandNeighbors(heightMap, x, y, hmap_shore_level);
           const ocean = neighborCount.ocean;
           const land = neighborCount.land;
 
@@ -343,12 +352,6 @@ export class TerrainGenerator {
     this.placementMap.destroyPlacedMap();
   }
 
-  private finalPoleRenormalization(): void {
-    if (this.heightGenerator) {
-      this.heightGenerator.renormalizeHeightMapPoles();
-    }
-  }
-
   private async generateRiversIfAvailable(
     tiles: MapTile[][],
     riverDensity?: number
@@ -426,23 +429,17 @@ export class TerrainGenerator {
     const hmap_mountain_level =
       ((hmap_max_level - hmap_shore_level) * (100 - steepness)) / 100 + hmap_shore_level;
 
-    // Generator-specific adjustments for terrain characteristics
-    const generatorAdjustments = this.getGeneratorSpecificAdjustments();
-
-    // Iterate through all tiles to place mountains and hills
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         const tile = tiles[x][y];
         const index = y * this.width + x;
         const tileHeight = heightMap[index];
 
-        // Only process unplaced land tiles
         if (!this.placementMap.notPlaced(x, y) || isOceanTerrain(tile.terrain)) {
           continue;
         }
 
-        // Enhanced terrain placement logic with generator-specific characteristics
-        let shouldPlaceRelief =
+        const shouldPlaceRelief =
           (hmap_mountain_level < tileHeight &&
             (this.random() * 10 > 5 ||
               !this.terrainIsTooHigh(tiles, x, y, hmap_mountain_level, tileHeight))) ||
@@ -456,160 +453,29 @@ export class TerrainGenerator {
             hmap_shore_level
           );
 
-        // Apply generator-specific modifications
-        shouldPlaceRelief = this.applyGeneratorSpecificReliefLogic(
-          shouldPlaceRelief,
-          tiles,
-          x,
-          y,
-          tileHeight,
-          hmap_shore_level,
-          generatorAdjustments
-        );
-
         if (shouldPlaceRelief) {
-          // Enhanced terrain selection with generator-specific preferences
-          const terrainChoice = this.selectReliefTerrain(tile, generatorAdjustments);
-          tile.terrain = terrainChoice as TerrainType;
+          const isHotRegion = (tile.temperature & TemperatureFlags.TT_HOT) !== 0;
+          tile.terrain = isHotRegion
+            ? pickTerrain(
+                MapgenTerrainPropertyEnum.MOUNTAINOUS,
+                this.random() * 10 < 4
+                  ? MapgenTerrainPropertyEnum.UNUSED
+                  : MapgenTerrainPropertyEnum.GREEN,
+                MapgenTerrainPropertyEnum.UNUSED,
+                this.random
+              )
+            : pickTerrain(
+                MapgenTerrainPropertyEnum.MOUNTAINOUS,
+                MapgenTerrainPropertyEnum.UNUSED,
+                this.random() * 10 < 8
+                  ? MapgenTerrainPropertyEnum.GREEN
+                  : MapgenTerrainPropertyEnum.UNUSED,
+                this.random
+              );
           this.placementMap.setPlaced(x, y);
           this.terrainPlacementProcessor.setTerrainPropertiesForTile(tile);
         }
       }
-    }
-  }
-
-  /**
-   * Get generator-specific terrain adjustments for relief generation
-   * @reference Task 10: Generator-specific terrain characteristics
-   */
-  private getGeneratorSpecificAdjustments() {
-    switch (this.generator.toLowerCase()) {
-      case 'island':
-        return {
-          coastalTerrainEmphasis: true,
-          coastalDistance: 3, // Emphasize terrain within 3 tiles of coast
-          mountainReduction: 0.7, // Fewer mountains on islands
-          hillIncrease: 1.3, // More hills for gentle island topology
-          forestBonus: 1.2, // Islands tend to be more forested
-          type: 'island',
-        };
-
-      case 'random':
-        return {
-          balancedDistribution: true,
-          varietyBonus: 1.1, // Slightly more variety in random maps
-          clusteringReduction: 0.8, // Less clustering for more random feel
-          type: 'random',
-        };
-
-      case 'fracture':
-      default:
-        return {
-          continentalRelief: true,
-          mountainIncrease: 1.3, // Already implemented in makeFractureRelief
-          clustering: true,
-          type: 'fracture',
-        };
-    }
-  }
-
-  /**
-   * Apply generator-specific logic to relief placement decisions
-   * @reference Task 10: Enhanced realism per generator type
-   */
-  private applyGeneratorSpecificReliefLogic(
-    baseDecision: boolean,
-    tiles: MapTile[][],
-    x: number,
-    y: number,
-    _tileHeight: number,
-    _hmap_shore_level: number,
-    adjustments: any
-  ): boolean {
-    if (adjustments.type === 'island') {
-      // Island maps: Emphasize coastal terrain, reduce inland mountains
-      const distanceToCoast = this.calculateDistanceToCoast(tiles, x, y);
-      const isCoastal = distanceToCoast <= adjustments.coastalDistance;
-
-      if (isCoastal && adjustments.coastalTerrainEmphasis) {
-        // Coastal emphasis: prefer hills over mountains, but still allow some relief
-        return baseDecision && this.random() < 0.8;
-      } else if (distanceToCoast > adjustments.coastalDistance) {
-        // Inland areas: reduce mountain placement for island character
-        return baseDecision && this.random() < adjustments.mountainReduction;
-      }
-    }
-
-    if (adjustments.type === 'random') {
-      // Random maps: Balanced distribution with slight variety bonus
-      const varietyFactor = adjustments.balancedDistribution
-        ? this.random() < 0.5
-          ? adjustments.varietyBonus
-          : 1 / adjustments.varietyBonus
-        : 1;
-      return baseDecision && this.random() < varietyFactor;
-    }
-
-    // Default (fracture) behavior or fallback
-    return baseDecision;
-  }
-
-  /**
-   * Select appropriate relief terrain based on generator characteristics
-   * @reference Task 10: Generator-specific terrain selection
-   */
-  private selectReliefTerrain(tile: MapTile, adjustments: any): string {
-    const isHotRegion = tile.temperature & TemperatureFlags.TT_HOT;
-
-    if (adjustments.type === 'island') {
-      // Islands prefer hills over mountains for gentler topology
-      if (isHotRegion) {
-        const preferHills = this.random() * 10 < 6; // Increased from 4 (60% vs 40%)
-        return pickTerrain(
-          MapgenTerrainPropertyEnum.MOUNTAINOUS,
-          preferHills ? MapgenTerrainPropertyEnum.UNUSED : MapgenTerrainPropertyEnum.GREEN,
-          MapgenTerrainPropertyEnum.UNUSED,
-          this.random
-        );
-      } else {
-        const preferMountains = this.random() * 10 < 6; // Decreased from 8 (60% vs 80%)
-        return pickTerrain(
-          MapgenTerrainPropertyEnum.MOUNTAINOUS,
-          MapgenTerrainPropertyEnum.UNUSED,
-          preferMountains ? MapgenTerrainPropertyEnum.GREEN : MapgenTerrainPropertyEnum.UNUSED,
-          this.random
-        );
-      }
-    }
-
-    if (adjustments.type === 'random') {
-      // Random maps: Balanced mountain/hill distribution
-      const balanced = this.random() < 0.5;
-      return pickTerrain(
-        MapgenTerrainPropertyEnum.MOUNTAINOUS,
-        balanced ? MapgenTerrainPropertyEnum.GREEN : MapgenTerrainPropertyEnum.UNUSED,
-        balanced ? MapgenTerrainPropertyEnum.UNUSED : MapgenTerrainPropertyEnum.GREEN,
-        this.random
-      );
-    }
-
-    // Default fracture behavior: original freeciv logic
-    if (isHotRegion) {
-      const preferHills = this.random() * 10 < 4;
-      return pickTerrain(
-        MapgenTerrainPropertyEnum.MOUNTAINOUS,
-        preferHills ? MapgenTerrainPropertyEnum.UNUSED : MapgenTerrainPropertyEnum.GREEN,
-        MapgenTerrainPropertyEnum.UNUSED,
-        this.random
-      );
-    } else {
-      const preferMountains = this.random() * 10 < 8;
-      return pickTerrain(
-        MapgenTerrainPropertyEnum.MOUNTAINOUS,
-        MapgenTerrainPropertyEnum.UNUSED,
-        preferMountains ? MapgenTerrainPropertyEnum.GREEN : MapgenTerrainPropertyEnum.UNUSED,
-        this.random
-      );
     }
   }
 
@@ -622,7 +488,7 @@ export class TerrainGenerator {
    * @returns Object with ocean and land neighbor counts
    */
   private countOceanLandNeighbors(
-    tiles: MapTile[][],
+    heightMap: number[],
     x: number,
     y: number,
     hmap_shore_level: number
@@ -631,7 +497,7 @@ export class TerrainGenerator {
     let land = 0;
 
     for (const { x: nx, y: ny } of this.topology.getNeighbors(x, y)) {
-      if (tiles[nx][ny].elevation < hmap_shore_level) {
+      if (heightMap[ny * this.width + nx] < hmap_shore_level) {
         ocean++;
       } else {
         land++;
@@ -639,38 +505,6 @@ export class TerrainGenerator {
     }
 
     return { ocean, land };
-  }
-
-  /**
-   * Calculate distance to nearest coast for island generator
-   * @reference Task 10: Island maps emphasize coastal terrain
-   */
-  private calculateDistanceToCoast(tiles: MapTile[][], x: number, y: number): number {
-    // Simple implementation: check in expanding squares until ocean is found
-    for (let radius = 1; radius <= 5; radius++) {
-      if (this.hasOceanAtRadius(tiles, x, y, radius)) {
-        return radius;
-      }
-    }
-    return 5; // Max distance checked
-  }
-
-  /**
-   * Check if there's an ocean tile at the given radius from position
-   * @param tiles Map tiles array
-   * @param x Center x coordinate
-   * @param y Center y coordinate
-   * @param radius Distance to check
-   * @returns true if ocean found at radius
-   */
-  private hasOceanAtRadius(tiles: MapTile[][], x: number, y: number, radius: number): boolean {
-    return this.topology
-      .getPositionsWithinRadius(x, y, radius)
-      .some(
-        position =>
-          this.topology.realDistance(x, y, position.x, position.y) === radius &&
-          isOceanTerrain(tiles[position.x][position.y].terrain)
-      );
   }
 
   /**

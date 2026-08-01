@@ -1,5 +1,6 @@
 import { MapTile, TemperatureType } from './MapTypes';
-import { MapTopology, type MapTopologyOptions } from './MapTopology';
+import { MapTopology, type MapTopologyOptions, WrapFlag } from './MapTopology';
+import { getMapSqSize } from './MapGenerationUtils';
 
 /**
  * Climate constants ported from freeciv reference
@@ -22,13 +23,16 @@ function getColdLevel(temperature: number = DEFAULT_TEMPERATURE): number {
  * @reference freeciv/server/generator/mapgen_topology.c:243-245
  * Original: ice_base_colatitude = (MAX(0, 100 * COLD_LEVEL / 3 - 2 * MAX_COLATITUDE) + 2 * MAX_COLATITUDE * sqsize) / (100 * sqsize)
  */
-function getIceBaseLevel(temperature: number = DEFAULT_TEMPERATURE): number {
+export function getIceBaseLevel(
+  temperature: number = DEFAULT_TEMPERATURE,
+  squareSize: number = 1,
+  separatePoles: boolean = true
+): number {
   const coldLevel = getColdLevel(temperature);
-  // Use the classic default map scale. Generator topology initialization
-  // adjusts this further when map-size options are exposed independently.
-  const squareSize = 5;
+  const poleScale = separatePoles ? 1 : 2;
   return (
-    (Math.max(0, (100 * coldLevel) / 3 - MAX_COLATITUDE) + MAX_COLATITUDE * squareSize) /
+    (Math.max(0, (100 * coldLevel) / 3 - poleScale * MAX_COLATITUDE) +
+      poleScale * MAX_COLATITUDE * squareSize) /
     (100 * squareSize)
   );
 }
@@ -56,32 +60,61 @@ export class TemperatureMap {
   private height: number;
   private temperatureParam: number;
   private topology: MapTopology;
+  private separatePoles: boolean;
+  private squareSize: number;
 
   constructor(
     width: number,
     height: number,
     temperatureParam: number = DEFAULT_TEMPERATURE,
-    topologyOptions: MapTopologyOptions = {}
+    topologyOptions: MapTopologyOptions = {},
+    separatePoles: boolean = true
   ) {
     this.width = width;
     this.height = height;
     this.temperatureParam = temperatureParam;
     this.temperatureMap = new Array(width * height);
     this.topology = new MapTopology(width, height, topologyOptions);
+    this.separatePoles = separatePoles;
+    this.squareSize = getMapSqSize(width, height);
   }
 
   /**
    * Calculate colatitude for a tile (0 = pole, MAX_COLATITUDE = equator)
    * @reference freeciv/server/generator/mapgen_topology.c:map_colatitude()
    */
-  public mapColatitude(_x: number, y: number): number {
-    // Linear interpolation between Freeciv's default +1000/-1000 latitude
-    // limits, followed by colatitude conversion.
-    const centerY = this.height / 2;
-    const distanceFromEquator = Math.abs(y - centerY);
-    const maxDistance = this.height / 2;
-    const latitudeFactor = Math.max(0, Math.min(1, distanceFromEquator / maxDistance));
-    return Math.floor((1 - latitudeFactor) * MAX_COLATITUDE);
+  public mapColatitude(x: number, y: number): number {
+    const southness = this.mapRelativeSouthness(x, y);
+    const signedLatitude = Math.trunc(
+      MAX_COLATITUDE * (1 - southness) - MAX_COLATITUDE * southness
+    );
+    return MAX_COLATITUDE - Math.abs(signedLatitude);
+  }
+
+  /** @reference reference/freeciv/common/map.c:map_relative_southness() */
+  private mapRelativeSouthness(x: number, y: number): number {
+    const relativeX = this.width > 1 ? x / (this.width - 1) : 0.5;
+    const relativeY = this.height > 1 ? y / (this.height - 1) : 0.5;
+
+    if (!this.topology.hasWrapFlag(WrapFlag.Y)) return relativeY;
+    if (!this.topology.hasWrapFlag(WrapFlag.X)) return relativeX;
+
+    let foldedX = 2 * (relativeX > 0.5 ? 1 - relativeX : relativeX);
+    let foldedY = 2 * (relativeY > 0.5 ? 1 - relativeY : relativeY);
+    foldedX = 1 - foldedX;
+
+    let flipped = false;
+    if (foldedX + foldedY > 1) {
+      foldedX = 1 - foldedX;
+      foldedY = 1 - foldedY;
+      flipped = true;
+    }
+
+    const toroidColatitude =
+      1.5 * (foldedX * foldedX * foldedY + foldedX * foldedY * foldedY) -
+      0.5 * (foldedX * foldedX * foldedX + foldedY * foldedY * foldedY) +
+      1.5 * (foldedX * foldedX + foldedY * foldedY);
+    return (flipped ? 2 - toroidColatitude : toroidColatitude) / 2;
   }
 
   /**
@@ -191,7 +224,11 @@ export class TemperatureMap {
   private convertToTemperatureTypes(): void {
     const coldLevel = getColdLevel(this.temperatureParam);
     const tropicalLevel = getTropicalLevel(this.temperatureParam);
-    const iceBaseLevel = getIceBaseLevel(this.temperatureParam);
+    const iceBaseLevel = getIceBaseLevel(
+      this.temperatureParam,
+      this.squareSize,
+      this.separatePoles
+    );
 
     for (let i = 0; i < this.temperatureMap.length; i++) {
       const temp = this.temperatureMap[i];

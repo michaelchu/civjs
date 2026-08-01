@@ -33,6 +33,15 @@ function createManager(overrides?: {
 }
 
 describe('GameLifecycleManager helper behavior', () => {
+  test('maps landmass presets around Freeciv default landmass', () => {
+    const manager = createManager();
+
+    expect((manager as any).getLandPercent('sparse')).toBe(20);
+    expect((manager as any).getLandPercent('normal')).toBe(30);
+    expect((manager as any).getLandPercent('dense')).toBe(50);
+    expect((manager as any).getLandPercent(undefined)).toBe(30);
+  });
+
   test('stores the configured Freeciv seed and its warmed initial state', () => {
     const manager = createManager();
 

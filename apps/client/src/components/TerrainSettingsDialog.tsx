@@ -105,9 +105,9 @@ export const TerrainSettingsDialog: React.FC = () => {
   };
 
   const landmassOptions = [
-    { value: 'sparse', label: 'Sparse (30%)' },
-    { value: 'normal', label: 'Normal (50%)' },
-    { value: 'dense', label: 'Dense (70%)' },
+    { value: 'sparse', label: 'Sparse (20%)' },
+    { value: 'normal', label: 'Normal (30%)' },
+    { value: 'dense', label: 'Dense (50%)' },
   ];
 
   const landmassDescriptions = {
