@@ -23,7 +23,10 @@ import {
   rankDiplomatTechnologyWants,
   rankVirtualDiplomatProduction,
 } from '@game/ai/AIDiplomatPlanner';
-import { calculateDiplomatInciteCost } from '@game/services/DiplomatActionEconomics';
+import {
+  calculateDiplomatInciteCost,
+  type RuntimeCultureCache,
+} from '@game/services/DiplomatActionEconomics';
 import { calculateTreasuryReserve } from '@game/ai/AITreasuryPlanner';
 import type { Unit } from '@game/managers/UnitManager';
 import { planWonderCoordination, type WonderHelperAssignment } from '@game/ai/AIWonderPlanner';
@@ -277,9 +280,10 @@ export class FreecivAICityController {
     cities: CityState[]
   ): Promise<Map<string, number>> {
     const costs = new Map<string, number>();
+    const cultureCache: RuntimeCultureCache = new Map();
     await Promise.all(
       cities.map(async city => {
-        costs.set(city.id, await calculateDiplomatInciteCost(game, city));
+        costs.set(city.id, await calculateDiplomatInciteCost(game, city, cultureCache));
       })
     );
     return costs;

@@ -6,13 +6,27 @@ import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService'
 import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 
+export type RuntimeCultureCache = Map<string, number | undefined>;
+
+function getRuntimePlayerCulture(
+  game: GameInstance,
+  playerId: string,
+  cache?: RuntimeCultureCache
+): number | undefined {
+  if (cache?.has(playerId)) return cache.get(playerId);
+  const culture = game.turnManager.getCultureManager?.().getRuntimePlayerCulture(playerId);
+  cache?.set(playerId, culture);
+  return culture;
+}
+
 /**
  * @reference reference/freeciv/common/unit.c:2371-2471 unit_bribe_cost()
  */
 export function calculateDiplomatBribeCost(
   game: GameInstance,
   target: Unit,
-  ownerGold: number
+  ownerGold: number,
+  cultureCache?: RuntimeCultureCache
 ): number {
   const rulesetName = game.config?.ruleset ?? 'civ2civ3';
   const targetType = getTargetType(game, target, rulesetName);
@@ -22,7 +36,7 @@ export function calculateDiplomatBribeCost(
   let cost = (baseBribeCost + ownerGold) / (distance + 2);
   cost *= valueOr(targetType?.cost, 10) / 10;
   cost *= 0.5 * (1 + target.health / 100);
-  const premium = getBribePremium(game, target, targetType, rulesetName);
+  const premium = getBribePremium(game, target, targetType, rulesetName, cultureCache);
   cost *= (100 + premium) / 100;
   return Math.max(1, Math.floor(cost));
 }
@@ -42,9 +56,9 @@ function getBribePremium(
   game: GameInstance,
   target: Unit,
   targetType: any,
-  rulesetName: string
+  rulesetName: string,
+  cultureCache?: RuntimeCultureCache
 ): number {
-  const cultureManager = game.turnManager.getCultureManager?.();
   return new EffectsManager(rulesetName).calculateEffect(EffectType.UNIT_BRIBE_COST_PCT, {
     playerId: target.playerId,
     unitId: target.id,
@@ -52,7 +66,7 @@ function getBribePremium(
     unitClass: targetType?.rulesetUnitClass,
     unitClassFlags: new Set(targetType?.rulesetUnitClassFlags ?? []),
     unitTypeFlags: new Set(targetType?.flags ?? []),
-    playerCulture: cultureManager?.getRuntimePlayerCulture(target.playerId),
+    playerCulture: getRuntimePlayerCulture(game, target.playerId, cultureCache),
   }).value;
 }
 
@@ -72,7 +86,8 @@ function getCapitalDistance(game: GameInstance, target: Unit): number {
  */
 export async function calculateDiplomatInciteCost(
   game: GameInstance,
-  city: CityState
+  city: CityState,
+  cultureCache?: RuntimeCultureCache
 ): Promise<number> {
   const economicManager = game.turnManager.getEconomicManager();
   if (!economicManager) return Infinity;
@@ -117,7 +132,7 @@ export async function calculateDiplomatInciteCost(
     cityBuildings: new Set(city.buildings),
     maxUnitsOnTile: game.unitManager.getUnitsAt(city.x, city.y).length,
     cityCulture: game.turnManager.getCultureManager?.().getRuntimeCityCulture(city.id),
-    playerCulture: game.turnManager.getCultureManager?.().getRuntimePlayerCulture(city.playerId),
+    playerCulture: getRuntimePlayerCulture(game, city.playerId, cultureCache),
   }).value;
   return Math.max(1, Math.floor((costWithBaseFactors * (100 + premium)) / 100));
 }

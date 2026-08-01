@@ -163,7 +163,34 @@ export interface EffectContext {
   /** Current culture values supplied by the owning runtime context. */
   cityCulture?: number;
   playerCulture?: number;
+  playerCulturesInRange?: number[];
   tradeRouteCulture?: number;
+  tradeRouteCultures?: number[];
+}
+
+function cultureValuesForRange(range: string, context: EffectContext): number[] | undefined {
+  switch (range) {
+    case 'city':
+      return context.cityCulture === undefined ? undefined : [context.cityCulture];
+    case 'traderoute': {
+      const cultures = [
+        ...(context.cityCulture === undefined ? [] : [context.cityCulture]),
+        ...(context.tradeRouteCultures ?? []),
+      ];
+      if (cultures.length > 0) return cultures;
+      return context.tradeRouteCulture === undefined ? undefined : [context.tradeRouteCulture];
+    }
+    case 'player':
+      return context.playerCulture === undefined
+        ? context.playerCulturesInRange
+        : [context.playerCulture];
+    case 'team':
+    case 'alliance':
+    case 'world':
+      return context.playerCulturesInRange;
+    default:
+      return undefined;
+  }
 }
 
 // Requirement evaluation result
@@ -737,17 +764,12 @@ export class EffectsManager {
     // value for the relevant requirement range in the effect context.
     this.requirementHandlers['MinCulture'] = (req, context) => {
       const range = this.normaliseRuleName(req.range);
-      const actual =
-        range === 'city'
-          ? context.cityCulture
-          : range === 'traderoute'
-            ? context.tradeRouteCulture
-            : ['player', 'team', 'alliance', 'world'].includes(range)
-              ? context.playerCulture
-              : undefined;
+      const cultures = cultureValuesForRange(range, context);
       const required = Number(req.name);
       const matches =
-        Number.isFinite(required) && actual !== undefined ? actual >= required : undefined;
+        Number.isFinite(required) && cultures !== undefined
+          ? cultures.some(culture => culture >= required)
+          : undefined;
       return this.requirementResult('MinCulture', req, matches);
     };
     this.requirementHandlers['NationGroup'] = (req, context) =>

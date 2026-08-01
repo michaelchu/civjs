@@ -4560,12 +4560,7 @@ export class UnitManager {
     if (persistOrder) {
       await this.persistGotoOrder(unit, reached, targetX!, targetY!);
     } else {
-      unit.orders = [];
-      await this.databaseProvider
-        .getDatabase()
-        .update(units)
-        .set({ orders: [], currentOrder: null })
-        .where(eq(units.id, unit.id));
+      await this.clearPersistedOrders(unit);
     }
     return {
       success: true,
@@ -5444,7 +5439,13 @@ export class UnitManager {
     } else {
       logger.warn(`Failed to process GOTO order for unit ${unit.id}: ${message}`);
     }
+    await this.clearPersistedOrders(unit);
+  }
+
+  private async clearPersistedOrders(unit: Unit): Promise<void> {
+    const hadOrders = (unit.orders?.length ?? 0) > 0;
     unit.orders = [];
+    if (!hadOrders) return;
     await this.databaseProvider
       .getDatabase()
       .update(units)

@@ -229,6 +229,29 @@ describe('EffectsManager classic requirement evaluation', () => {
     ).toBe(false);
   });
 
+  it('uses the matching player set for shared and trade-route culture ranges', () => {
+    const effects = new EffectsManager();
+
+    expect(
+      effects.evaluateRequirements([{ type: 'MinCulture', name: '1000', range: 'World' }], {
+        playerCulture: 100,
+        playerCulturesInRange: [100, 1000],
+      }).satisfied
+    ).toBe(true);
+    expect(
+      effects.evaluateRequirements([{ type: 'MinCulture', name: '1000', range: 'World' }], {
+        playerCulture: 1000,
+        playerCulturesInRange: [100],
+      }).satisfied
+    ).toBe(false);
+    expect(
+      effects.evaluateRequirements([{ type: 'MinCulture', name: '500', range: 'TradeRoute' }], {
+        cityCulture: 100,
+        tradeRouteCultures: [500],
+      }).satisfied
+    ).toBe(true);
+  });
+
   it('evaluates terrain flags and known AI-level requirements', () => {
     mockedRulesetLoader.getEffects.mockReturnValueOnce({
       sea_bonus: {

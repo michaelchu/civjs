@@ -11,6 +11,7 @@ import type { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostility
 import {
   calculateDiplomatBribeCost,
   calculateDiplomatInciteCost,
+  type RuntimeCultureCache,
 } from '@game/services/DiplomatActionEconomics';
 import { calculateTreasuryReserve } from '@game/ai/AITreasuryPlanner';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
@@ -484,6 +485,7 @@ export class FreecivAISpecialUnitController {
       netGold: game.players.get(playerId)?.goldPerTurn ?? 0,
     });
     const ownerGold = new Map<string, number>();
+    const cultureCache: RuntimeCultureCache = new Map();
     await Promise.all(
       [...new Set(foreignUnits.map(unit => unit.playerId))].map(async ownerId => {
         ownerGold.set(ownerId, (await economicManager?.getPlayerGold(ownerId)) ?? 0);
@@ -492,7 +494,7 @@ export class FreecivAISpecialUnitController {
     const inciteCosts = new Map<string, number>();
     await Promise.all(
       foreignCities.map(async city => {
-        inciteCosts.set(city.id, await calculateDiplomatInciteCost(game, city));
+        inciteCosts.set(city.id, await calculateDiplomatInciteCost(game, city, cultureCache));
       })
     );
     const travelCosts = new Map<string, number>();
@@ -564,7 +566,7 @@ export class FreecivAISpecialUnitController {
       countStealableTechs: otherPlayerId => stealableTechs.get(otherPlayerId) ?? 0,
       inciteCost: city => inciteCosts.get(city.id) ?? Infinity,
       bribeCost: target =>
-        calculateDiplomatBribeCost(game, target, ownerGold.get(target.playerId) ?? 0),
+        calculateDiplomatBribeCost(game, target, ownerGold.get(target.playerId) ?? 0, cultureCache),
       canBribeUnit: target =>
         !game.unitManager.getUnitType(target.unitTypeId)?.flags?.includes('Unbribable') &&
         game.governmentManager?.getPlayerGovernment(target.playerId)?.currentGovernment !==
