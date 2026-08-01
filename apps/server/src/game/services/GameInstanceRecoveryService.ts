@@ -380,6 +380,9 @@ export class GameInstanceRecoveryService extends BaseGameService {
         broadcastUnitMoved: gid => {
           this.broadcastManager.broadcastVisibilityState(gid);
         },
+        broadcastUnitDestroyed: (gid, unit) => {
+          this.broadcastManager.broadcastUnitDestroyed(gid, unit);
+        },
         getCityAt: (x: number, y: number) => {
           const city = cityManager.getCityAt(x, y);
           return city

@@ -31,6 +31,33 @@ describe('GameClient state-bearing packets', () => {
     useGameStore.setState({ clientState: 'running', endGameReport: undefined });
   });
 
+  it('removes a consumed settler when the server broadcasts unit destruction', () => {
+    const socket = { on: vi.fn() };
+    (gameClient as unknown as { socket: typeof socket }).socket = socket;
+    (gameClient as unknown as { setupGameHandlers: () => void }).setupGameHandlers();
+
+    useGameStore.getState().updateGameState({
+      units: {
+        'settler-1': {
+          id: 'settler-1',
+          playerId: 'player-1',
+          unitTypeId: 'settlers',
+          x: 11,
+          y: 13,
+        } as any,
+      },
+    });
+
+    const destructionHandler = socket.on.mock.calls.find(
+      ([event]) => event === 'unit_destroyed'
+    )?.[1] as ((data: { unitId: string }) => void) | undefined;
+    expect(destructionHandler).toBeDefined();
+
+    destructionHandler!({ unitId: 'settler-1' });
+
+    expect(useGameStore.getState().units['settler-1']).toBeUndefined();
+  });
+
   it('applies player, calendar, city, and turn-processing packets', () => {
     handlePacket({
       type: PacketType.PLAYER_INFO,
