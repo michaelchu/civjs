@@ -12,6 +12,7 @@ import {
   findPassableUnitSites,
   findValidCitySites,
 } from '../utils/gameTestUtils';
+import { getTerrainMovementCost } from '@game/constants/MovementConstants';
 import * as schema from '@database/schema';
 
 describe('GameManager - Integration Tests with Real Database', () => {
@@ -406,7 +407,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
             const tile = game.mapManager.getTile(x, y);
             if (
               tile &&
-              tile.terrain !== 'ocean' &&
+              getTerrainMovementCost(tile.terrain, 'settlers') >= 0 &&
               !tile.cityId &&
               tile.unitIds.length === 0 &&
               game.cityManager.canFoundCityAt(x, y, playerId)
