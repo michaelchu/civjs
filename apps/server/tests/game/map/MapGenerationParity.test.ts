@@ -120,6 +120,31 @@ describe('map generation parity contracts', () => {
     }
   );
 
+  it('keeps the fixed small-map simulator starts separated', async () => {
+    const manager = new MapManager(
+      20,
+      20,
+      'map-424242',
+      'random',
+      'RANDOM',
+      MapStartpos.DEFAULT,
+      false,
+      50,
+      {},
+      'earth-small',
+      {},
+      'classic'
+    );
+
+    await manager.generateMap(players, 'RANDOM');
+
+    const starts = manager.getMapData()!.startingPositions;
+    expect(starts).toHaveLength(2);
+    expect(
+      manager.getTopology().realDistance(starts[0].x, starts[0].y, starts[1].x, starts[1].y)
+    ).toBeGreaterThanOrEqual(3);
+  });
+
   it.each<MapGeneratorType>(['RANDOM', 'FRACTURE'])(
     '%s does not synthesize glacier strips along the map edges',
     async generator => {
@@ -354,6 +379,10 @@ describe('map generation parity contracts', () => {
           tiles[x][y].temperature = TemperatureType.TEMPERATE;
         }
       }
+      // Give each synthetic continent a distinct high-value starter tile so
+      // the reference start-position quality filter has valid candidates.
+      tiles[left + 2][9].resource = 'wheat';
+      tiles[left + 7][15].resource = 'wheat';
     }
 
     const starts = await new StartingPositionGenerator(width, height).generateStartingPositions(

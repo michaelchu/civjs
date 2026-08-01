@@ -42,6 +42,10 @@ interface StartFilterData {
   value: number[]; // Tile values by index
 }
 
+const START_POSITION_INITIAL_MIN_VALUE = 900;
+const START_POSITION_MIN_VALUE_FLOOR = 10;
+const START_POSITION_MIN_VALUE_RELAXATION = 0.95;
+
 export class StartingPositionGenerator {
   private width: number;
   private height: number;
@@ -513,7 +517,8 @@ export class StartingPositionGenerator {
   ): Array<{ x: number; y: number; playerId: string }> {
     const positions: Array<{ x: number; y: number; playerId: string }> = [];
     const filterData: StartFilterData = {
-      min_value: 200, // Minimum tile value threshold
+      // @reference reference/freeciv/server/generator/startpos.c:475-477
+      min_value: START_POSITION_INITIAL_MIN_VALUE,
       value: tileValue,
     };
 
@@ -529,14 +534,11 @@ export class StartingPositionGenerator {
       const playersForThisIsland = island.starters;
 
       for (let p = 0; p < playersForThisIsland && playerIndex < playerIds.length; p++) {
-        let position = this.findBestPositionOnIsland(tiles, filterData, positions, island.id);
-
+        const position = this.findPositionWithRelaxedValue(tiles, filterData, positions, island.id);
         if (!position) {
-          // Freeciv progressively relaxes its value/distance filter while
-          // retaining the selected island. Preserve that mode contract when
-          // the strict pass cannot place every player.
-          position = this.findFallbackPosition(tiles, positions, island.id);
-          logger.warn('Used relaxed start-position filter for player', playerIds[playerIndex]);
+          throw new Error(
+            `Unable to place a valid starting position for player ${playerIds[playerIndex]}`
+          );
         }
 
         positions.push({
@@ -557,7 +559,12 @@ export class StartingPositionGenerator {
 
     // Handle any remaining players with fallback logic
     while (playerIndex < playerIds.length) {
-      const position = this.findFallbackPosition(tiles, positions);
+      const position = this.findPositionWithRelaxedValue(tiles, filterData, positions);
+      if (!position) {
+        throw new Error(
+          `Unable to place a valid starting position for player ${playerIds[playerIndex]}`
+        );
+      }
       positions.push({
         x: position.x,
         y: position.y,
@@ -571,82 +578,71 @@ export class StartingPositionGenerator {
   }
 
   /**
-   * Find the best position on a specific island
+   * Match Freeciv's repeated filtered search. Only the tile-value threshold
+   * is relaxed; the terrain, continent, and spacing rules remain enforced.
+   * @reference reference/freeciv/server/generator/startpos.c:487-505
    */
-  private findBestPositionOnIsland(
+  private findPositionWithRelaxedValue(
     tiles: MapTile[][],
     filterData: StartFilterData,
     existingPositions: Array<{ x: number; y: number }>,
-    continentId: number
+    preferredContinentId?: number
   ): { x: number; y: number } | null {
-    const candidates: Array<{ x: number; y: number; value: number }> = [];
+    while (filterData.min_value > START_POSITION_MIN_VALUE_FLOOR) {
+      const position = this.findBestPosition(
+        tiles,
+        filterData,
+        existingPositions,
+        preferredContinentId
+      );
+      if (position) return position;
+      filterData.min_value = Math.floor(filterData.min_value * START_POSITION_MIN_VALUE_RELAXATION);
+    }
+    return null;
+  }
 
-    // Find all valid positions on this continent
+  /**
+   * Find the best valid position, optionally restricted to an island.
+   */
+  private findBestPosition(
+    tiles: MapTile[][],
+    filterData: StartFilterData,
+    existingPositions: Array<{ x: number; y: number }>,
+    preferredContinentId?: number
+  ): { x: number; y: number } | null {
+    const candidates: Array<{ x: number; y: number; value: number; starter: boolean }> = [];
+
+    // Find all valid positions, retaining the same spacing validation used by
+    // the strict Freeciv search even after the value threshold is relaxed.
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
         const tile = tiles[x][y];
 
         if (
-          tile.continentId === continentId &&
+          (preferredContinentId === undefined || tile.continentId === preferredContinentId) &&
           this.isValidStartPos(tiles, x, y, filterData, existingPositions)
         ) {
           const index = y * this.width + x;
-          candidates.push({ x, y, value: filterData.value[index] });
+          candidates.push({
+            x,
+            y,
+            value: filterData.value[index],
+            starter: this.isStarterTerrain(tile.terrain),
+          });
         }
       }
     }
 
     if (candidates.length === 0) return null;
 
-    // Sort by value and return the best
-    candidates.sort((a, b) => b.value - a.value);
+    candidates.sort(
+      (left, right) =>
+        Number(right.starter) - Number(left.starter) ||
+        right.value - left.value ||
+        left.x - right.x ||
+        left.y - right.y
+    );
     return candidates[0];
-  }
-
-  /**
-   * Find fallback position when normal placement fails
-   */
-  private findFallbackPosition(
-    tiles: MapTile[][],
-    existingPositions: Array<{ x: number; y: number }>,
-    preferredContinentId?: number
-  ): { x: number; y: number } {
-    const candidates: Array<{ x: number; y: number; starter: boolean; score: number }> = [];
-    const occupied = new Set(existingPositions.map(position => `${position.x},${position.y}`));
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const tile = tiles[x][y];
-        if (
-          occupied.has(`${x},${y}`) ||
-          this.isNoCitiesTerrain(tile.terrain) ||
-          (preferredContinentId !== undefined && tile.continentId !== preferredContinentId)
-        ) {
-          continue;
-        }
-        const spacing =
-          existingPositions.length === 0
-            ? Math.max(this.width, this.height)
-            : Math.min(
-                ...existingPositions.map(position =>
-                  this.realMapDistance(x, y, position.x, position.y)
-                )
-              );
-        candidates.push({
-          x,
-          y,
-          starter: this.isStarterTerrain(tile.terrain),
-          score: spacing * 100 + this.getTileValue(tile),
-        });
-      }
-    }
-
-    candidates.sort((left, right) => {
-      if (left.starter !== right.starter) return left.starter ? -1 : 1;
-      return right.score - left.score;
-    });
-    const selected = candidates[0];
-    if (!selected) throw new Error('Generated map has no city-capable starting tile');
-    return { x: selected.x, y: selected.y };
   }
 
   /**

@@ -2970,7 +2970,11 @@ export class UnitManager {
     toY: number,
     isDestination: boolean
   ): number {
+    // Freeciv's peaceful-border restriction applies to military units only;
+    // civilian units such as settlers may cross foreign territory.
+    // @reference reference/freeciv/common/movement.c:764-767
     if (
+      !this.isCivilianUnit(unit) &&
       this.isPeacefulForeignTerritory(unit, toX, toY) &&
       !(isDestination && this.hasHostileCityAt(unit, toX, toY))
     ) {
@@ -3027,9 +3031,14 @@ export class UnitManager {
     );
   }
 
+  private isCivilianUnit(unit: Unit): boolean {
+    const type = this.unitTypes[unit.unitTypeId];
+    return type?.unitClass === 'civilian' || type?.flags?.includes('NonMil') === true;
+  }
+
   private canUnitAttackForeignUnit(unit: Unit): boolean {
     const type = this.unitTypes[unit.unitTypeId];
-    return Boolean(type && !type.flags?.includes('NonMil') && (type.attack ?? type.combat) > 0);
+    return Boolean(type && !this.isCivilianUnit(unit) && (type.attack ?? type.combat) > 0);
   }
 
   canContinuePathFrom(unit: Unit, x: number, y: number): boolean {

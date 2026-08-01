@@ -870,6 +870,8 @@ describe('UnitManager', () => {
       );
 
       const settler = await manager.createUnit('player-123', 'settlers', 10, 11);
+      (manager as any).calculateTerrainMovementCost = jest.fn(() => 3);
+      expect((manager as any).getPathStepCost(settler, 10, 11, 11, 11, true)).toBe(3);
       await expect(manager.moveUnit(settler.id, 11, 11)).resolves.toBe(true);
     });
 
