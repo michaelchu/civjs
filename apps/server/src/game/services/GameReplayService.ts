@@ -1,24 +1,26 @@
-import { and, asc, eq, lte } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNotNull, lte } from 'drizzle-orm';
 import type { DatabaseProvider } from '@database';
 import { gameTurns, games, turnEvents, turnPhases } from '@database/schema';
 import { gameStateCodec, type AuthoritativeGameState } from './GameStateCodec';
+
+export interface GameReplayTurn {
+  id: string;
+  turn: number;
+  year: number;
+  startedAt: Date;
+  endedAt: Date | null;
+  actions: unknown;
+  statistics: unknown;
+  snapshot: unknown;
+  phases: unknown[];
+  events: unknown[];
+}
 
 export interface GameReplay {
   gameId: string;
   status: string;
   endGameReport: unknown;
-  turns: Array<{
-    id: string;
-    turn: number;
-    year: number;
-    startedAt: Date;
-    endedAt: Date | null;
-    actions: unknown;
-    statistics: unknown;
-    snapshot: unknown;
-    phases: unknown[];
-    events: unknown[];
-  }>;
+  turns: GameReplayTurn[];
 }
 
 /** Durable replay and post-game inspection read model. */
@@ -75,8 +77,34 @@ export class GameReplayService {
     const replay = await this.getReplay(gameId, turn);
     const checkpoint = replay?.turns.find(candidate => candidate.turn === turn);
     if (!checkpoint?.snapshot) return null;
+    return this.reconstructCheckpoint(checkpoint);
+  }
+
+  async getLatestCompletedTurn(
+    gameId: string
+  ): Promise<{ turn: number; completedTurns: number } | null> {
+    const database = this.databaseProvider.getDatabase();
+    const completedPredicate = and(eq(gameTurns.gameId, gameId), isNotNull(gameTurns.endedAt));
+    const [latestRows, countRows] = await Promise.all([
+      database
+        .select({ turn: gameTurns.turnNumber })
+        .from(gameTurns)
+        .where(completedPredicate)
+        .orderBy(desc(gameTurns.turnNumber))
+        .limit(1),
+      database.select({ completedTurns: count() }).from(gameTurns).where(completedPredicate),
+    ]);
+    const latest = latestRows[0];
+    if (!latest) return null;
+    return { turn: latest.turn, completedTurns: countRows[0]?.completedTurns ?? 0 };
+  }
+
+  reconstructCheckpoint(checkpoint: GameReplayTurn): AuthoritativeGameState {
+    if (!checkpoint.snapshot) {
+      throw new Error(`Turn ${checkpoint.turn} does not have a replay checkpoint`);
+    }
     if (checkpoint.endedAt === null) {
-      throw new Error(`Turn ${turn} has not reached a durable replay checkpoint`);
+      throw new Error(`Turn ${checkpoint.turn} has not reached a durable replay checkpoint`);
     }
     const failedPhase = checkpoint.phases.find(
       phase =>
@@ -87,12 +115,12 @@ export class GameReplayService {
           (phase as { success?: unknown }).success !== true)
     );
     if (failedPhase) {
-      throw new Error(`Turn ${turn} contains an incomplete or failed replay phase`);
+      throw new Error(`Turn ${checkpoint.turn} contains an incomplete or failed replay phase`);
     }
     const snapshot = gameStateCodec.decode(checkpoint.snapshot);
-    if (snapshot.turn !== turn) {
+    if (snapshot.turn !== checkpoint.turn) {
       throw new Error(
-        `Replay checkpoint turn mismatch: expected ${turn}, received ${snapshot.turn}`
+        `Replay checkpoint turn mismatch: expected ${checkpoint.turn}, received ${snapshot.turn}`
       );
     }
     return snapshot;

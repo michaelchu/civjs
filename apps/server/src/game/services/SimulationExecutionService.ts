@@ -1,6 +1,6 @@
 import type { GameInstance, GameManager } from '@game/managers/GameManager';
 
-export type SimulationExecutionStopReason = 'turn_failure' | 'timeout' | 'cancelled';
+export type SimulationExecutionStopReason = 'max_turns' | 'turn_failure' | 'timeout' | 'cancelled';
 
 export class SimulationExecutionError extends Error {
   constructor(
@@ -54,7 +54,7 @@ export class SimulationExecutionService {
     this.assertNotStopped(options.signal, deadline);
     if (game.turnManager.getCurrentTurn() <= options.maxTurns) return;
     throw new SimulationExecutionError(
-      'turn_failure',
+      'max_turns',
       `Simulation remained active after max turn ${options.maxTurns}`
     );
   }

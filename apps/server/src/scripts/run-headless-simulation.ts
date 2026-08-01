@@ -1,6 +1,7 @@
 import { access, mkdir, readFile, stat } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { resolve } from 'node:path';
+import { z } from 'zod';
 import {
   headlessSimulationConfigSchema,
   type HeadlessSimulationConfig,
@@ -110,9 +111,15 @@ function requireDatabaseUrl(options: CliOptions): string {
 
 async function executePreparedRun(prepared: PreparedRun): Promise<number> {
   const abortController = new AbortController();
-  const cancel = () => abortController.abort();
-  process.once('SIGINT', cancel);
-  process.once('SIGTERM', cancel);
+  const cancel = (signal: 'SIGINT' | 'SIGTERM') => {
+    if (abortController.signal.aborted) return;
+    process.stderr.write(`${signal} received; requesting simulation cancellation\n`);
+    abortController.abort();
+  };
+  const cancelOnInterrupt = () => cancel('SIGINT');
+  const cancelOnTermination = () => cancel('SIGTERM');
+  process.once('SIGINT', cancelOnInterrupt);
+  process.once('SIGTERM', cancelOnTermination);
 
   let gameManager: import('@game/managers/GameManager').GameManager | undefined;
   try {
@@ -124,8 +131,8 @@ async function executePreparedRun(prepared: PreparedRun): Promise<number> {
     return exitCodeForError(error);
   } finally {
     gameManager?.clearAllGames();
-    process.removeListener('SIGINT', cancel);
-    process.removeListener('SIGTERM', cancel);
+    process.removeListener('SIGINT', cancelOnInterrupt);
+    process.removeListener('SIGTERM', cancelOnTermination);
     await closeRuntimeConnections();
   }
 }
@@ -175,11 +182,11 @@ const STATUS_EXIT_CODES: Record<SimulationRunBundle['result']['status'], number>
   cancelled: HEADLESS_EXIT_CODES.timeoutOrCancellation,
 };
 
-function exitCodeForStatus(status: SimulationRunBundle['result']['status']): number {
+export function exitCodeForStatus(status: SimulationRunBundle['result']['status']): number {
   return STATUS_EXIT_CODES[status];
 }
 
-function exitCodeForError(error: unknown): number {
+export function exitCodeForError(error: unknown): number {
   return error instanceof HeadlessSimulationOutputError
     ? HEADLESS_EXIT_CODES.outputFailure
     : HEADLESS_EXIT_CODES.turnFailure;
@@ -191,8 +198,7 @@ async function closeRuntimeConnections(): Promise<void> {
       import('@database'),
       import('@database/redis'),
     ]);
-    await closeConnection();
-    await redis.quit();
+    await Promise.allSettled([closeConnection(), redis.quit()]);
   } catch {
     // Preserve the simulation result; connection cleanup is best effort.
   }
@@ -266,16 +272,17 @@ async function loadConfig(options: CliOptions): Promise<HeadlessSimulationConfig
     string,
     unknown
   >;
-  const parsed = headlessSimulationConfigSchema.parse({
-    ...raw,
-    ...(options.maxTurns === undefined ? {} : { maxTurns: options.maxTurns }),
-  });
   const randomSeed = options.seed ?? readSeed(raw.seed ?? raw.randomSeed, 'config seed');
   const mapSeed = options.mapSeed ?? readMapSeed(raw.mapSeed);
   if (randomSeed === undefined) throw new Error('An explicit --seed or config seed is required');
   if (mapSeed === undefined)
     throw new Error('An explicit --map-seed or config mapSeed is required');
-  return { ...parsed, randomSeed, mapSeed };
+  return headlessSimulationConfigSchema.parse({
+    ...raw,
+    randomSeed,
+    mapSeed,
+    ...(options.maxTurns === undefined ? {} : { maxTurns: options.maxTurns }),
+  });
 }
 
 async function validateOutputDirectory(output?: string): Promise<string> {
@@ -297,10 +304,19 @@ function validateDatabaseTarget(options: CliOptions): void {
   if (!target) throw new Error('An explicit database target is required');
   if (
     options.noPersist &&
-    !/(test|isolat|sandbox)/i.test(target) &&
+    !isIsolatedDatabaseTarget(target) &&
     process.env.HEADLESS_SIMULATION_ISOLATED !== '1'
   ) {
     throw new Error('--no-persist requires a test, isolated, or sandbox database target');
+  }
+}
+
+export function isIsolatedDatabaseTarget(target: string): boolean {
+  try {
+    const databaseName = decodeURIComponent(new URL(target).pathname).replace(/^\/+/, '');
+    return /(test|isolat|sandbox)/i.test(databaseName);
+  } catch {
+    return false;
   }
 }
 
@@ -336,6 +352,7 @@ function parsePositiveInteger(value: string, option: string): number {
 }
 
 function errorMessage(error: unknown): string {
+  if (error instanceof z.ZodError) return z.prettifyError(error);
   return error instanceof Error ? error.message : String(error);
 }
 

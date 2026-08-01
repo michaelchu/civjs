@@ -1,4 +1,13 @@
-import { parseArguments } from '../../src/scripts/run-headless-simulation';
+import {
+  exitCodeForError,
+  exitCodeForStatus,
+  isIsolatedDatabaseTarget,
+  parseArguments,
+} from '../../src/scripts/run-headless-simulation';
+import {
+  HEADLESS_EXIT_CODES,
+  HeadlessSimulationOutputError,
+} from '@game/services/HeadlessSimulationRunner';
 
 describe('headless simulation CLI arguments', () => {
   it('parses the documented deterministic run options', () => {
@@ -40,5 +49,38 @@ describe('headless simulation CLI arguments', () => {
     expect(() =>
       parseArguments(['--config', 'simulation.json', '--output', 'out', '--seed', '-1'])
     ).toThrow('--seed must be an unsigned 32-bit integer');
+    expect(() => parseArguments(['--serd'])).toThrow('Unknown option: --serd');
+    expect(() =>
+      parseArguments(['--config', 'simulation.json', '--output', 'out', '--max-turns'])
+    ).toThrow('Missing value for --max-turns');
+    expect(() =>
+      parseArguments(['--config', 'simulation.json', '--output', 'out', '--max-turns', '0'])
+    ).toThrow('--max-turns must be a positive integer');
+    expect(() =>
+      parseArguments(['--config', 'simulation.json', '--output', 'out', '--map-seed', ' '])
+    ).toThrow('--map-seed must not be empty');
+  });
+
+  it('matches isolated database markers only in the database name', () => {
+    expect(isIsolatedDatabaseTarget('postgresql://localhost/civjs_test')).toBe(true);
+    expect(isIsolatedDatabaseTarget('postgresql://localhost/civjs-sandbox')).toBe(true);
+    expect(isIsolatedDatabaseTarget('postgresql://tester:secret@db.prod/civjs')).toBe(false);
+    expect(isIsolatedDatabaseTarget('not-a-database-url')).toBe(false);
+  });
+
+  it('keeps the documented exit-code contract centralized', () => {
+    expect(HEADLESS_EXIT_CODES).toEqual({
+      completed: 0,
+      invalidConfiguration: 2,
+      turnFailure: 3,
+      timeoutOrCancellation: 4,
+      outputFailure: 5,
+    });
+    expect(exitCodeForStatus('completed')).toBe(0);
+    expect(exitCodeForStatus('failed')).toBe(3);
+    expect(exitCodeForStatus('timed_out')).toBe(4);
+    expect(exitCodeForStatus('cancelled')).toBe(4);
+    expect(exitCodeForError(new HeadlessSimulationOutputError('disk full'))).toBe(5);
+    expect(exitCodeForError(new Error('unexpected'))).toBe(3);
   });
 });

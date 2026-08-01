@@ -104,6 +104,7 @@ export class TurnManager {
   private turnDeadline: number | null = null;
   private pausedTimerSeconds: number | null = null;
   private processingPromise: Promise<void> | null = null;
+  private processingSignal: AbortSignal | undefined;
   private timerPersistencePromise: Promise<void> = Promise.resolve();
   private onTurnAdvanced?: (turn: number) => void | Promise<void>;
   private endGameEvaluator?: (turn: number, year: number) => Promise<boolean>;
@@ -337,9 +338,16 @@ export class TurnManager {
   }
 
   public processTurn(signal?: AbortSignal): Promise<void> {
-    if (this.processingPromise) return this.processingPromise;
+    if (this.processingPromise) {
+      if (!signal || signal === this.processingSignal) return this.processingPromise;
+      return Promise.reject(
+        new Error('Cannot join an in-progress turn with a different abort signal')
+      );
+    }
+    this.processingSignal = signal;
     this.processingPromise = this.processTurnInternal(signal).finally(() => {
       this.processingPromise = null;
+      this.processingSignal = undefined;
     });
     return this.processingPromise;
   }

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { SettableAILevel } from '@game/ai/AIProfile';
+import { isSettableAILevel, type SettableAILevel } from '@game/ai/AIProfile';
 import type { TerrainSettings } from '@game/managers/GameManager';
 
 export const SIMULATION_RUN_SCHEMA_VERSION = 1;
@@ -28,6 +28,14 @@ const terrainSettingsSchema = z
     wrapId: z.number().int().optional(),
     scenarioId: z.string().min(1).optional(),
   })
+  .superRefine((value, context) => {
+    if (value.generator !== 'scenario' || value.scenarioId) return;
+    context.addIssue({
+      code: 'custom',
+      path: ['scenarioId'],
+      message: 'scenarioId is required when generator is "scenario"',
+    });
+  })
   .default({
     generator: 'random',
     landmass: 'normal',
@@ -44,17 +52,18 @@ export const headlessSimulationConfigSchema = z.object({
   mapWidth: z.number().int().min(20).max(200).default(80),
   mapHeight: z.number().int().min(20).max(200).default(50),
   ruleset: z.string().trim().min(1).default('civ2civ3'),
-  aiLevel: z.enum(['restricted', 'novice', 'easy', 'normal', 'hard', 'cheating']).default('easy'),
+  aiLevel: z
+    .custom<SettableAILevel>(isSettableAILevel, { message: 'Invalid settable AI level' })
+    .default('easy'),
+  randomSeed: z.number().int().min(0).max(0xffff_ffff),
+  mapSeed: z.string().trim().min(1),
   maxTurns: z.number().int().min(1).max(100_000),
   victoryConditions: simulationVictoryConditions,
   terrainSettings: terrainSettingsSchema,
   turnTimeLimit: z.number().int().min(0).max(86_400).default(0),
 });
 
-export type HeadlessSimulationConfig = z.infer<typeof headlessSimulationConfigSchema> & {
-  mapSeed: string;
-  randomSeed: number;
-};
+export type HeadlessSimulationConfig = z.infer<typeof headlessSimulationConfigSchema>;
 
 export type SimulationExecutionMode = 'headless' | 'server';
 
@@ -117,9 +126,9 @@ export interface HeadlessSimulationRunOptions {
 }
 
 export function toGameTerrainSettings(config: HeadlessSimulationConfig): TerrainSettings {
-  return config.terrainSettings as TerrainSettings;
+  return config.terrainSettings;
 }
 
 export function isSettableSimulationAILevel(value: string): value is SettableAILevel {
-  return ['restricted', 'novice', 'easy', 'normal', 'hard', 'cheating'].includes(value);
+  return isSettableAILevel(value);
 }

@@ -35,12 +35,13 @@ describe('SimulationExecutionService', () => {
       },
     });
 
-    expect(game.turnManager.processTurn).toBeDefined();
+    expect(game.turnManager.getCurrentTurn()).toBe(2);
+    expect(game.state).toBe('ended');
     expect(completed).toEqual([2]);
   });
 
   it('stops before mutating a cancelled run', async () => {
-    const { manager } = createFakeManager();
+    const { manager, game } = createFakeManager();
     const controller = new AbortController();
     controller.abort();
 
@@ -50,6 +51,8 @@ describe('SimulationExecutionService', () => {
         signal: controller.signal,
       })
     ).rejects.toMatchObject<Partial<SimulationExecutionError>>({ reason: 'cancelled' });
+    expect(game.turnManager.getCurrentTurn()).toBe(1);
+    expect(game.state).toBe('active');
   });
 
   it('reports cancellation requested during a turn at the completed boundary', async () => {
@@ -69,9 +72,13 @@ describe('SimulationExecutionService', () => {
   });
 
   it('reports a deadline crossed by the final turn as a timeout', async () => {
-    const { manager } = createFakeManager();
-    const now = jest.spyOn(Date, 'now');
-    now.mockReturnValueOnce(1_000).mockReturnValueOnce(1_000).mockReturnValue(2_000);
+    jest.useFakeTimers();
+    jest.setSystemTime(1_000);
+    const { manager, game } = createFakeManager();
+    game.turnManager.processTurn = jest.fn(async () => {
+      jest.setSystemTime(2_000);
+      game.state = 'ended';
+    });
 
     await expect(
       new SimulationExecutionService(manager).runToEnd('game', {
@@ -79,7 +86,40 @@ describe('SimulationExecutionService', () => {
         timeoutMs: 500,
       })
     ).rejects.toMatchObject<Partial<SimulationExecutionError>>({ reason: 'timeout' });
-    now.mockRestore();
+    jest.useRealTimers();
+  });
+
+  it('reports a missing game instance as a turn failure', async () => {
+    const manager = { getGameInstance: jest.fn().mockReturnValue(undefined) } as any;
+
+    await expect(
+      new SimulationExecutionService(manager).runToEnd('missing', { maxTurns: 2 })
+    ).rejects.toMatchObject<Partial<SimulationExecutionError>>({ reason: 'turn_failure' });
+  });
+
+  it('reports the exact max-turn boundary as a normal stop reason', async () => {
+    const { manager, game } = createFakeManager();
+    game.turnManager.processTurn = jest.fn(async () => {
+      game.turnManager.currentTurn += 1;
+    });
+
+    await expect(
+      new SimulationExecutionService(manager).runToEnd('game', { maxTurns: 1 })
+    ).rejects.toMatchObject<Partial<SimulationExecutionError>>({ reason: 'max_turns' });
+    expect(game.turnManager.getCurrentTurn()).toBe(2);
+    expect(game.turnManager.processTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it('maps an authoritative turn rejection to a turn failure', async () => {
+    const { manager, game } = createFakeManager();
+    game.turnManager.processTurn = jest.fn().mockRejectedValue(new Error('turn exploded'));
+
+    await expect(
+      new SimulationExecutionService(manager).runToEnd('game', { maxTurns: 2 })
+    ).rejects.toMatchObject<Partial<SimulationExecutionError>>({
+      reason: 'turn_failure',
+      message: 'turn exploded',
+    });
   });
 
   it('waits for an in-progress turn to acknowledge timeout before rejecting', async () => {

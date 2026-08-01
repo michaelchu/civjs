@@ -1,4 +1,5 @@
 import { GameManager } from '@game/managers/GameManager';
+import { games } from '@database/schema';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 import { createMockSocketServer } from '../utils/gameTestUtils';
 
@@ -42,11 +43,12 @@ describe('headless simulation lifecycle', () => {
 
     await manager.recoverGameInstance('simulation-id');
 
+    const database = databaseProvider.getDatabase() as any;
     expect(recovered.state).toBe('paused');
     expect(clearTurnTimer).toHaveBeenCalled();
-    expect((databaseProvider.getDatabase() as any).set).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'paused' })
-    );
+    expect(database.update).toHaveBeenCalledWith(games);
+    expect(database.set).toHaveBeenCalledWith(expect.objectContaining({ status: 'paused' }));
+    expect(database.where).toHaveBeenCalledTimes(1);
     expect(configure).toHaveBeenCalledWith('simulation-id', { startTurnTimer: false });
   });
 });

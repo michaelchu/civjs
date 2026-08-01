@@ -392,8 +392,23 @@ The minimum CLI surface is:
 | `--no-persist`         | Use only an explicitly isolated test runtime/database; never a live game |
 | `--help`               | Print the command contract and exit without side effects                 |
 
-The CLI must document stable exit codes for invalid configuration, completed
-simulation, turn failure, timeout/cancellation, and output failure. Re-running
+The CLI uses these stable exit codes:
+
+| Code | Outcome                 | Meaning                                                          |
+| ---: | ----------------------- | ---------------------------------------------------------------- |
+|    0 | Completed               | Victory, engine end condition, or the `maxTurns` cap was reached |
+|    2 | Invalid configuration   | Input, output target, or database target validation failed       |
+|    3 | Turn failure            | Authoritative processing or replay-integrity verification failed |
+|    4 | Timeout or cancellation | The run exceeded its deadline or received a cancellation request |
+|    5 | Output failure          | The final deterministic bundle could not be written              |
+
+Validation happens before mutation and therefore takes precedence over run
+outcomes. An output failure takes precedence once bundle writing begins.
+Replay-integrity failure takes precedence over a previously requested timeout
+or cancellation because the authoritative result can no longer be trusted.
+Otherwise, the first terminal execution outcome determines the code.
+
+Re-running
 the same normalized configuration, seeds, and build must produce semantically
 equivalent authoritative results and ordered diagnostic records.
 

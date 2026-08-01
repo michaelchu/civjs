@@ -59,11 +59,8 @@ type RunFailure = NonNullable<SimulationRunBundle['failure']>;
 interface ExecutionOutcome {
   status: RunStatus;
   failure?: RunFailure;
+  endReason?: string;
   aiSummaries: unknown[];
-}
-
-interface FailedExecutionOutcome extends ExecutionOutcome {
-  failure: RunFailure;
 }
 
 interface RunArtifacts {
@@ -142,11 +139,10 @@ export class HeadlessSimulationRunner {
     );
     const endReason = resolveSimulationEndReason(
       outcome.status,
-      artifacts.game?.endReason,
+      outcome.endReason ?? artifacts.game?.endReason,
       outcome.failure?.code
     );
-    await this.markCompletedRunIfNeeded(gameId, outcome.status);
-    const bundle = this.buildBundle(manifest, outcome, artifacts, progress, endReason);
+    await this.markCompletedRunIfNeeded(gameId, outcome.status, endReason);
 
     emitProgress({
       schemaVersion: SIMULATION_RUN_SCHEMA_VERSION,
@@ -157,10 +153,7 @@ export class HeadlessSimulationRunner {
       endReason,
       status: outcome.status,
     });
-    bundle.diagnostics = {
-      ...(bundle.diagnostics as Record<string, unknown>),
-      progress,
-    };
+    const bundle = this.buildBundle(manifest, outcome, artifacts, progress, endReason);
     await this.writeBundle(options.outputDirectory, bundle);
     return { bundle, outputPath: join(options.outputDirectory, 'run.json') };
   }
@@ -182,6 +175,7 @@ export class HeadlessSimulationRunner {
       return { status: 'completed', aiSummaries };
     } catch (error) {
       const outcome = executionFailureOutcome(error, aiSummaries);
+      if (!outcome.failure) return outcome;
       await this.pauseFailedRun(gameId);
       this.emitFailure(options.runId, gameId, outcome.failure, emitProgress);
       return outcome;
@@ -195,9 +189,9 @@ export class HeadlessSimulationRunner {
     emitProgress: (record: SimulationProgressRecord) => void
   ): () => Promise<void> {
     return async () => {
-      const replay = await this.readReplay(gameId);
-      const completedTurns = getCompletedTurns(replay);
-      const latest = completedTurns.at(-1);
+      const latest = await new GameReplayService(this.databaseProvider).getLatestCompletedTurn(
+        gameId
+      );
       if (!latest) return;
       aiSummaries.push({
         turn: latest.turn,
@@ -209,7 +203,7 @@ export class HeadlessSimulationRunner {
         runId,
         gameId,
         turn: latest.turn,
-        completedTurns: completedTurns.length,
+        completedTurns: latest.completedTurns,
       });
     };
   }
@@ -230,7 +224,7 @@ export class HeadlessSimulationRunner {
       completedTurns,
       stateHashes: completedTurns.map(turn => ({
         turn: turn.turn,
-        hash: hashState(turn.snapshot),
+        hash: hashSimulationState(turn.snapshot),
       })),
     };
   }
@@ -243,7 +237,7 @@ export class HeadlessSimulationRunner {
     emitProgress: (record: SimulationProgressRecord) => void
   ): Promise<ExecutionOutcome> {
     try {
-      await this.verifyReplayCheckpoints(gameId, completedTurns);
+      await this.verifyReplayCheckpoints(completedTurns);
       return outcome;
     } catch (error) {
       const failure = { code: 'TURN_FAILURE', message: errorMessage(error) } as const;
@@ -269,8 +263,12 @@ export class HeadlessSimulationRunner {
     });
   }
 
-  private async markCompletedRunIfNeeded(gameId: string, status: RunStatus): Promise<void> {
-    if (status === 'completed') await this.markCompletedRun(gameId);
+  private async markCompletedRunIfNeeded(
+    gameId: string,
+    status: RunStatus,
+    endReason: string
+  ): Promise<void> {
+    if (status === 'completed') await this.markCompletedRun(gameId, endReason);
   }
 
   private buildBundle(
@@ -356,17 +354,22 @@ export class HeadlessSimulationRunner {
       .update(games)
       .set({
         status: 'paused',
-        gameState: sql`jsonb_set(coalesce(${games.gameState}, '{}'::jsonb), '{simulation,runState}', '"paused"'::jsonb, true)`,
+        gameState: mergeSimulationRunState('paused'),
       })
       .where(eq(games.id, gameId));
   }
 
-  private async markCompletedRun(gameId: string): Promise<void> {
+  private async markCompletedRun(gameId: string, endReason: string): Promise<void> {
+    const game = this.gameManager.getGameInstance(gameId);
+    game?.turnManager.clearTurnTimer();
+    if (game?.state === 'active') game.state = 'ended';
     await this.databaseProvider
       .getDatabase()
       .update(games)
       .set({
-        gameState: sql`jsonb_set(coalesce(${games.gameState}, '{}'::jsonb), '{simulation,runState}', '"ended"'::jsonb, true)`,
+        status: 'ended',
+        endReason,
+        gameState: mergeSimulationRunState('ended'),
       })
       .where(eq(games.id, gameId));
   }
@@ -390,7 +393,8 @@ export class HeadlessSimulationRunner {
     }));
   }
 
-  private async verifyReplayCheckpoints(gameId: string, turns: GameReplay['turns']): Promise<void> {
+  private async verifyReplayCheckpoints(turns: GameReplay['turns']): Promise<void> {
+    const replayService = new GameReplayService(this.databaseProvider);
     for (const turn of turns) {
       if (!turn.snapshot || turn.endedAt === null) {
         throw new HeadlessSimulationError(
@@ -398,7 +402,7 @@ export class HeadlessSimulationRunner {
           `Turn ${turn.turn} does not have a complete replay checkpoint`
         );
       }
-      await this.gameManager.reconstructGameAtTurn(gameId, turn.turn);
+      replayService.reconstructCheckpoint(turn);
     }
   }
 
@@ -409,7 +413,7 @@ export class HeadlessSimulationRunner {
       await writeFile(join(outputDirectory, 'run.json'), serialized, 'utf8');
       await writeFile(
         join(outputDirectory, 'manifest.json'),
-        `${JSON.stringify(bundle.manifest, null, 2)}\n`,
+        `${JSON.stringify(sortKeys(bundle.manifest), null, 2)}\n`,
         'utf8'
       );
     } catch (error) {
@@ -421,7 +425,7 @@ export class HeadlessSimulationRunner {
 }
 
 const EXECUTION_FAILURE_BY_REASON: Record<
-  SimulationExecutionStopReason,
+  Exclude<SimulationExecutionStopReason, 'max_turns'>,
   { status: RunStatus; code: RunFailure['code'] }
 > = {
   turn_failure: { status: 'failed', code: 'TURN_FAILURE' },
@@ -429,8 +433,11 @@ const EXECUTION_FAILURE_BY_REASON: Record<
   cancelled: { status: 'cancelled', code: 'CANCELLED' },
 };
 
-function executionFailureOutcome(error: unknown, aiSummaries: unknown[]): FailedExecutionOutcome {
+function executionFailureOutcome(error: unknown, aiSummaries: unknown[]): ExecutionOutcome {
   if (!(error instanceof SimulationExecutionError)) throw error;
+  if (error.reason === 'max_turns') {
+    return { status: 'completed', endReason: 'max_turns', aiSummaries };
+  }
   const classification = EXECUTION_FAILURE_BY_REASON[error.reason];
   return {
     status: classification.status,
@@ -457,10 +464,12 @@ function buildLiveStandings(
       score: player.score,
       alive: player.isAlive,
     }))
-    .sort((left, right) => right.score - left.score || left.playerId.localeCompare(right.playerId));
+    .sort(
+      (left, right) => right.score - left.score || compareCodeUnits(left.playerId, right.playerId)
+    );
 }
 
-function hashState(snapshot: unknown): string {
+export function hashSimulationState(snapshot: unknown): string {
   return createHash('sha256')
     .update(JSON.stringify(sortKeys(sanitizeForHash(snapshot))))
     .digest('hex');
@@ -469,7 +478,7 @@ function hashState(snapshot: unknown): string {
 function sanitizeForHash(value: unknown, key?: string): unknown {
   if (
     key &&
-    ['id', 'gameId', 'createdAt', 'startedAt', 'endedAt', 'generatedAt', 'lastSeen'].includes(key)
+    ['gameId', 'createdAt', 'startedAt', 'endedAt', 'generatedAt', 'lastSeen'].includes(key)
   ) {
     return undefined;
   }
@@ -490,9 +499,22 @@ function sortKeys(value: unknown): unknown {
   if (!value || typeof value !== 'object') return value;
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
+      .sort(([left], [right]) => compareCodeUnits(left, right))
       .map(([key, entryValue]) => [key, sortKeys(entryValue)])
   );
+}
+
+function compareCodeUnits(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
+function mergeSimulationRunState(runState: 'paused' | 'ended') {
+  return sql`coalesce(${games.gameState}, '{}'::jsonb) || jsonb_build_object(
+    'simulation',
+    coalesce(${games.gameState}->'simulation', '{}'::jsonb) || ${JSON.stringify({ runState })}::jsonb
+  )`;
 }
 
 export function createRunId(): string {
