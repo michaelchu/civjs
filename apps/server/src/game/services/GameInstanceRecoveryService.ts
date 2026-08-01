@@ -385,6 +385,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
       mapManager,
       {
         foundCity: this.foundCity.bind(this),
+        canFoundCityAt: (x: number, y: number, playerId: string) =>
+          cityManager.canFoundCityAt(x, y, playerId),
         requestPath: this.requestPath.bind(this),
         broadcastUnitMoved: gid => {
           this.broadcastManager.broadcastVisibilityState(gid);
@@ -612,6 +614,8 @@ export class GameInstanceRecoveryService extends BaseGameService {
     cultureManager.setRuntimeState({
       getCity: cityId => cityManager.getCity(cityId),
       getPlayer: playerId => players.get(playerId),
+      getCities: playerId => cityManager.getPlayerCities(playerId),
+      getPlayerTechs: playerId => new Set(researchManager.getResearchedTechs(playerId)),
     });
     const economicManager = new EconomicManager(gameId, this.databaseProvider, effectsManager);
     economicManager.setGovernmentProvider(

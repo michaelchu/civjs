@@ -22,7 +22,7 @@ export function calculateDiplomatBribeCost(
   let cost = (baseBribeCost + ownerGold) / (distance + 2);
   cost *= valueOr(targetType?.cost, 10) / 10;
   cost *= 0.5 * (1 + target.health / 100);
-  const premium = getBribePremium(target, targetType, rulesetName);
+  const premium = getBribePremium(game, target, targetType, rulesetName);
   cost *= (100 + premium) / 100;
   return Math.max(1, Math.floor(cost));
 }
@@ -38,7 +38,13 @@ function valueOr(value: any, fallback: number): number {
   return value === undefined || value === null ? fallback : value;
 }
 
-function getBribePremium(target: Unit, targetType: any, rulesetName: string): number {
+function getBribePremium(
+  game: GameInstance,
+  target: Unit,
+  targetType: any,
+  rulesetName: string
+): number {
+  const cultureManager = game.turnManager.getCultureManager?.();
   return new EffectsManager(rulesetName).calculateEffect(EffectType.UNIT_BRIBE_COST_PCT, {
     playerId: target.playerId,
     unitId: target.id,
@@ -46,6 +52,7 @@ function getBribePremium(target: Unit, targetType: any, rulesetName: string): nu
     unitClass: targetType?.rulesetUnitClass,
     unitClassFlags: new Set(targetType?.rulesetUnitClassFlags ?? []),
     unitTypeFlags: new Set(targetType?.flags ?? []),
+    playerCulture: cultureManager?.getRuntimePlayerCulture(target.playerId),
   }).value;
 }
 
@@ -109,6 +116,8 @@ export async function calculateDiplomatInciteCost(
     cityId: city.id,
     cityBuildings: new Set(city.buildings),
     maxUnitsOnTile: game.unitManager.getUnitsAt(city.x, city.y).length,
+    cityCulture: game.turnManager.getCultureManager?.().getRuntimeCityCulture(city.id),
+    playerCulture: game.turnManager.getCultureManager?.().getRuntimePlayerCulture(city.playerId),
   }).value;
   return Math.max(1, Math.floor((costWithBaseFactors * (100 + premium)) / 100));
 }

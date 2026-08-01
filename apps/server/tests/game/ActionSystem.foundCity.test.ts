@@ -17,6 +17,23 @@ const makeSettler = (id: string, x: number, y: number): Unit => ({
 });
 
 describe('ActionSystem - automated city names', () => {
+  it('rejects a city tile that the authoritative city manager has invalidated', async () => {
+    const foundCity = jest.fn().mockResolvedValue('city-1');
+    const actionSystem = new ActionSystem('game-1', {
+      foundCity,
+      canFoundCityAt: jest.fn().mockReturnValue(false),
+      requestPath: jest.fn(),
+    });
+
+    const result = await actionSystem.executeAction(
+      makeSettler('settler-1', 15, 12),
+      ActionType.FOUND_CITY
+    );
+
+    expect(result.success).toBe(false);
+    expect(foundCity).not.toHaveBeenCalled();
+  });
+
   it('prefers the owning nation city list when available', async () => {
     const foundCity = jest.fn().mockResolvedValue('city-1');
     const actionSystem = new ActionSystem(

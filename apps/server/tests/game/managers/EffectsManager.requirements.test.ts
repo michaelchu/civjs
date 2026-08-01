@@ -204,6 +204,31 @@ describe('EffectsManager classic requirement evaluation', () => {
     expect(effects.calculateEffect(EffectType.GOV_CENTER, {}).value).toBe(0);
   });
 
+  it('evaluates MinCulture against the supplied city and player context', () => {
+    const effects = new EffectsManager();
+
+    expect(
+      effects.evaluateRequirements([{ type: 'MinCulture', name: '100', range: 'City' }], {
+        cityCulture: 99,
+      }).satisfied
+    ).toBe(false);
+    expect(
+      effects.evaluateRequirements([{ type: 'MinCulture', name: '100', range: 'City' }], {
+        cityCulture: 100,
+      }).satisfied
+    ).toBe(true);
+    expect(
+      effects.evaluateRequirements([{ type: 'MinCulture', name: '1000', range: 'Player' }], {
+        playerCulture: 1000,
+      }).satisfied
+    ).toBe(true);
+    expect(
+      effects.evaluateRequirements([{ type: 'MinCulture', name: '1000', range: 'Player' }], {
+        playerCulture: 999,
+      }).satisfied
+    ).toBe(false);
+  });
+
   it('evaluates terrain flags and known AI-level requirements', () => {
     mockedRulesetLoader.getEffects.mockReturnValueOnce({
       sea_bonus: {

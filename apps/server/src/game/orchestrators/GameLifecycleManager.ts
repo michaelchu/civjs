@@ -1398,6 +1398,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     cultureManager.setRuntimeState({
       getCity: cityId => cityManager.getCity(cityId),
       getPlayer: playerId => players.get(playerId),
+      getCities: playerId => cityManager.getPlayerCities(playerId),
+      getPlayerTechs: playerId => new Set(researchManager.getResearchedTechs(playerId)),
     });
     const economicManager = this.createEconomicManager(gameId, effectsManager);
     economicManager.setGovernmentProvider(
@@ -1528,6 +1530,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
               unitId?: string
             ) => this.onFoundCity!(gameId, playerId, name, x, y, unitId)
           : async () => '',
+        canFoundCityAt: (x: number, y: number, playerId: string) =>
+          cityManager.canFoundCityAt(x, y, playerId),
         requestPath: (playerId: string, unitId: string, targetX: number, targetY: number) =>
           this.requestPathDelegate(gameId, playerId, unitId, targetX, targetY),
         broadcastUnitMoved: gameId => {

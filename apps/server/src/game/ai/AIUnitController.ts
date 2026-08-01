@@ -259,7 +259,12 @@ export class FreecivAIUnitController {
         task.targetY !== undefined &&
         (typeof game.cityManager.canFoundCityAt !== 'function' ||
           game.cityManager.canFoundCityAt(task.targetX, task.targetY, playerId));
-      if (!valid) continue;
+      if (!valid) {
+        // Freeciv revalidates an AI city mission every turn and clears it when
+        // city_can_be_built_here() is no longer true.
+        if (task?.role === 'settle') delete state.unitTasks[settler.id];
+        continue;
+      }
       const key = `${task.targetX},${task.targetY}`;
       if (!sites.has(key)) sites.set(key, settler.id);
     }
@@ -275,9 +280,16 @@ export class FreecivAIUnitController {
   ): Promise<number | undefined> {
     const task = state.unitTasks[unit.id];
     const reached = task?.role === 'settle' && task.targetX === unit.x && task.targetY === unit.y;
-    if (!reached || !game.unitManager.canUnitPerformAction(unit.id, ActionType.FOUND_CITY)) {
+    if (!reached) return undefined;
+    const tileValid =
+      typeof game.cityManager.canFoundCityAt !== 'function' ||
+      game.cityManager.canFoundCityAt(unit.x, unit.y, playerId);
+    if (!tileValid) {
+      delete state.unitTasks[unit.id];
+      this.releaseSettlerReservation(reservedSites, unit.id);
       return undefined;
     }
+    if (!game.unitManager.canUnitPerformAction(unit.id, ActionType.FOUND_CITY)) return undefined;
     const result = await game.unitManager.executeUnitAction(
       unit.id,
       ActionType.FOUND_CITY,
@@ -285,7 +297,13 @@ export class FreecivAIUnitController {
       undefined,
       playerId
     );
-    if (!result.success) return 0;
+    if (!result.success) {
+      // A failed city action is recoverable: discard the stale mission and
+      // allow the settler to select another legal site this turn.
+      delete state.unitTasks[unit.id];
+      this.releaseSettlerReservation(reservedSites, unit.id);
+      return undefined;
+    }
     delete state.unitTasks[unit.id];
     this.releaseSettlerReservation(reservedSites, unit.id);
     return 1;
@@ -381,13 +399,28 @@ export class FreecivAIUnitController {
       delete state.unitTasks[unit.id];
       return false;
     }
-    const result = await game.unitManager.executeUnitAction(
-      unit.id,
-      action,
-      isCurrentTile ? undefined : candidate.tile.x,
-      isCurrentTile ? undefined : candidate.tile.y,
-      unit.playerId
-    );
+    const result = isCurrentTile
+      ? await game.unitManager.executeUnitAction(
+          unit.id,
+          action,
+          undefined,
+          undefined,
+          unit.playerId
+        )
+      : typeof game.unitManager.executeAIUnitGoto === 'function'
+        ? await game.unitManager.executeAIUnitGoto(
+            unit.id,
+            candidate.tile.x,
+            candidate.tile.y,
+            unit.playerId
+          )
+        : await game.unitManager.executeUnitAction(
+            unit.id,
+            action,
+            candidate.tile.x,
+            candidate.tile.y,
+            unit.playerId
+          );
     if (result.success) {
       if (isCurrentTile) {
         reservedSites.delete(key);

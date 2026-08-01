@@ -74,8 +74,19 @@ export interface CultureProcessingResult {
 }
 
 interface RuntimeCultureState {
-  getCity?: (cityId: string) => { history: number } | undefined;
+  getCity?: (cityId: string) => RuntimeCultureCity | undefined;
   getPlayer?: (playerId: string) => { history?: number } | undefined;
+  getCities?: (playerId: string) => RuntimeCultureCity[];
+  getPlayerTechs?: (playerId: string) => Set<string>;
+}
+
+interface RuntimeCultureCity {
+  id?: string;
+  playerId?: string;
+  x?: number;
+  y?: number;
+  history: number;
+  buildings?: string[];
 }
 
 /** Match C integer division, which truncates every term toward zero. */
@@ -104,6 +115,74 @@ export class CultureManager {
 
   public setRuntimeState(runtimeState: RuntimeCultureState): void {
     this.runtimeState = runtimeState;
+  }
+
+  /**
+   * Synchronous culture lookup for effect calculations that must remain
+   * synchronous (notably unit bribe-cost planning).
+   *
+   * @reference reference/freeciv/common/culture.c:29-60
+   */
+  public getRuntimeCityCulture(cityId: string): number | undefined {
+    const city = this.runtimeState.getCity?.(cityId);
+    if (
+      !city ||
+      city.id === undefined ||
+      city.playerId === undefined ||
+      city.x === undefined ||
+      city.y === undefined
+    ) {
+      return undefined;
+    }
+    return this.calculateRuntimeCityCulture(
+      city,
+      this.runtimeState.getPlayerTechs?.(city.playerId) ?? new Set()
+    );
+  }
+
+  public getRuntimePlayerCulture(playerId: string): number | undefined {
+    const player = this.runtimeState.getPlayer?.(playerId);
+    const cities = this.runtimeState.getCities?.(playerId);
+    if (!player || !cities) return undefined;
+
+    const playerTechs = this.runtimeState.getPlayerTechs?.(playerId) ?? new Set<string>();
+    const nationalPerformance = this.effectsManager.calculateEffect(EffectType.NATION_PERFORMANCE, {
+      playerId,
+      playerTechs,
+    }).value;
+    const culturePct = this.effectsManager.calculateEffect(EffectType.CULTURE_PCT, {
+      playerId,
+      playerTechs,
+    }).value;
+    const totalCityCulture = cities.reduce(
+      (sum, city) =>
+        sum +
+        (city.id !== undefined &&
+        city.playerId !== undefined &&
+        city.x !== undefined &&
+        city.y !== undefined
+          ? this.calculateRuntimeCityCulture(city, playerTechs)
+          : 0),
+      0
+    );
+
+    return (
+      (player.history ?? 0) + scaleCultureEffect(nationalPerformance, culturePct) + totalCityCulture
+    );
+  }
+
+  private calculateRuntimeCityCulture(city: RuntimeCultureCity, playerTechs: Set<string>): number {
+    const context: EffectContext = {
+      cityId: city.id!,
+      playerId: city.playerId!,
+      tileX: city.x!,
+      tileY: city.y!,
+      cityBuildings: new Set(city.buildings ?? []),
+      playerTechs,
+    };
+    const performance = this.effectsManager.calculateEffect(EffectType.PERFORMANCE, context).value;
+    const culturePct = this.effectsManager.calculateEffect(EffectType.CULTURE_PCT, context).value;
+    return city.history + scaleCultureEffect(performance, culturePct);
   }
 
   /**

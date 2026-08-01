@@ -208,6 +208,7 @@ export class UnitManager {
       y: number,
       unitId?: string
     ) => Promise<string>;
+    canFoundCityAt?: (x: number, y: number, playerId: string) => boolean;
     requestPath: (
       playerId: string,
       unitId: string,
@@ -307,6 +308,7 @@ export class UnitManager {
         y: number,
         unitId?: string
       ) => Promise<string>;
+      canFoundCityAt?: (x: number, y: number, playerId: string) => boolean;
       requestPath: (
         playerId: string,
         unitId: string,
@@ -3511,7 +3513,7 @@ export class UnitManager {
     targetX?: number,
     targetY?: number,
     actingPlayerId?: string,
-    options?: { preserveAutomation?: boolean }
+    options?: { preserveAutomation?: boolean; persistGotoOrder?: boolean }
   ): Promise<ActionResult> {
     const unit = this.units.get(unitId);
     if (!unit) {
@@ -3533,10 +3535,29 @@ export class UnitManager {
     ) {
       await this.clearAutomation(unit);
     }
+    // AI movement follows a freshly planned path for the current turn. Keep
+    // the persistent order for player-issued GOTO actions, but let AI callers
+    // opt into the reference behavior where an invalid path is simply
+    // replanned on the next turn.
+    if (actionType === ActionType.GOTO && options?.persistGotoOrder === false) {
+      return this.executeAuthoritativeGoto(unit, targetX, targetY, false);
+    }
     const directAction = this.getDirectUnitAction(unit, actionType);
     if (directAction) return directAction(targetX, targetY);
 
     return this.executeFallbackUnitAction(unit, actionType, targetX, targetY);
+  }
+
+  /** Execute one AI-planned GOTO without creating a persistent player order. */
+  public executeAIUnitGoto(
+    unitId: string,
+    targetX: number,
+    targetY: number,
+    actingPlayerId?: string
+  ): Promise<ActionResult> {
+    return this.executeUnitAction(unitId, ActionType.GOTO, targetX, targetY, actingPlayerId, {
+      persistGotoOrder: false,
+    });
   }
 
   private async executeFallbackUnitAction(
@@ -4491,7 +4512,8 @@ export class UnitManager {
   private async executeAuthoritativeGoto(
     unit: Unit,
     targetX?: number,
-    targetY?: number
+    targetY?: number,
+    persistOrder = true
   ): Promise<ActionResult> {
     const targetError = this.validateGotoTarget(unit, targetX, targetY);
     if (targetError) return targetError;
@@ -4535,7 +4557,16 @@ export class UnitManager {
     }
 
     const reached = unit.x === targetX && unit.y === targetY;
-    await this.persistGotoOrder(unit, reached, targetX!, targetY!);
+    if (persistOrder) {
+      await this.persistGotoOrder(unit, reached, targetX!, targetY!);
+    } else {
+      unit.orders = [];
+      await this.databaseProvider
+        .getDatabase()
+        .update(units)
+        .set({ orders: [], currentOrder: null })
+        .where(eq(units.id, unit.id));
+    }
     return {
       success: true,
       message: reached ? 'Unit reached destination' : 'Unit will continue next turn',
@@ -5385,7 +5416,7 @@ export class UnitManager {
     if (result.success) {
       await this.handleSuccessfulGoto(unit, order, result);
     } else {
-      this.handleFailedGoto(unit, result);
+      await this.handleFailedGoto(unit, result);
     }
   }
 
@@ -5404,10 +5435,21 @@ export class UnitManager {
   /**
    * Handle failed GOTO action result
    */
-  private handleFailedGoto(unit: Unit, result: any): void {
-    logger.warn(`Failed to process GOTO order for unit ${unit.id}: ${result.message}`);
-    // Clear failed orders
+  private async handleFailedGoto(unit: Unit, result: any): Promise<void> {
+    const message = String(result.message ?? 'Unknown GOTO failure');
+    // A path can become invalid after the order is created. Freeciv treats
+    // that as a recoverable planning miss rather than a persistent error.
+    if (/no valid path|pathfinding target is unavailable/i.test(message)) {
+      logger.debug(`Discarding invalid GOTO order for unit ${unit.id}: ${message}`);
+    } else {
+      logger.warn(`Failed to process GOTO order for unit ${unit.id}: ${message}`);
+    }
     unit.orders = [];
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ orders: [], currentOrder: null })
+      .where(eq(units.id, unit.id));
   }
 
   /**

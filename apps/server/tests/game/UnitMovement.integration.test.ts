@@ -185,6 +185,21 @@ describe('Unit Movement Integration Tests', () => {
       expect(updatedUnit?.orders).toEqual(result.newOrders);
     });
 
+    it('lets AI GOTO follow the current-turn path without persisting a player order', async () => {
+      const result = await unitManager.executeUnitAction(
+        testUnit.id,
+        ActionType.GOTO,
+        12,
+        12,
+        'player-1',
+        { persistGotoOrder: false }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.newPosition).toEqual({ x: 11, y: 11 });
+      expect(unitManager.getUnit(testUnit.id)?.orders).toEqual([]);
+    });
+
     it('should clear orders when reaching destination', async () => {
       const result = await unitManager.executeUnitAction(
         testUnit.id,

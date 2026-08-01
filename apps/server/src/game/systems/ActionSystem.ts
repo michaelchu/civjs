@@ -436,6 +436,7 @@ export class ActionSystem {
       y: number,
       unitId?: string
     ) => Promise<string>;
+    canFoundCityAt?: (x: number, y: number, playerId: string) => boolean;
     requestPath: (
       playerId: string,
       unitId: string,
@@ -464,6 +465,7 @@ export class ActionSystem {
         y: number,
         unitId?: string
       ) => Promise<string>;
+      canFoundCityAt?: (x: number, y: number, playerId: string) => boolean;
       requestPath: (
         playerId: string,
         unitId: string,
@@ -984,11 +986,11 @@ export class ActionSystem {
   /**
    * Check if a city can be founded at the given location
    */
-  private canFoundCityAtLocation(_unit: Unit, _x: number, _y: number): boolean {
-    // CityManager performs the authoritative terrain, bounds, occupancy, and
-    // city-distance checks in the foundCity callback. This local predicate
-    // deliberately avoids duplicating game-state validation.
-    return true;
+  private canFoundCityAtLocation(unit: Unit, x: number, y: number): boolean {
+    // Freeciv checks the tile-level city_can_be_built_here() predicate before
+    // dispatching ACTION_FOUND_CITY. The callback is authoritative and the
+    // unit-specific checks remain in this action system.
+    return this.gameManagerCallback?.canFoundCityAt?.(x, y, unit.playerId) ?? true;
   }
 
   /**

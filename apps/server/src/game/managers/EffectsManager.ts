@@ -160,6 +160,10 @@ export interface EffectContext {
   worldBuildings?: Set<string>; // Buildings owned anywhere in the world
   cityBuildings?: Set<string>; // Buildings in the city
   cityPopulation?: number;
+  /** Current culture values supplied by the owning runtime context. */
+  cityCulture?: number;
+  playerCulture?: number;
+  tradeRouteCulture?: number;
 }
 
 // Requirement evaluation result
@@ -727,6 +731,25 @@ export class EffectsManager {
           ? undefined
           : context.cityPopulation >= Number(req.name)
       );
+    // @reference reference/freeciv/common/requirements.c:2776-2838
+    // Freeciv evaluates MinCulture in the shared requirement evaluator. The
+    // effects path is synchronous, so callers provide the already-calculated
+    // value for the relevant requirement range in the effect context.
+    this.requirementHandlers['MinCulture'] = (req, context) => {
+      const range = this.normaliseRuleName(req.range);
+      const actual =
+        range === 'city'
+          ? context.cityCulture
+          : range === 'traderoute'
+            ? context.tradeRouteCulture
+            : ['player', 'team', 'alliance', 'world'].includes(range)
+              ? context.playerCulture
+              : undefined;
+      const required = Number(req.name);
+      const matches =
+        Number.isFinite(required) && actual !== undefined ? actual >= required : undefined;
+      return this.requirementResult('MinCulture', req, matches);
+    };
     this.requirementHandlers['NationGroup'] = (req, context) =>
       this.requirementResult(
         'NationGroup',
