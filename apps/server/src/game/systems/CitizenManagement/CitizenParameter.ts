@@ -93,6 +93,37 @@ export class CitizenParameterFactory {
   }
 
   /**
+   * Create Freeciv's default automatic citizen-manager parameters.
+   * This is the shared policy used after population changes for human and AI
+   * cities. AI strategy may request a later optimization with different
+   * weights, but population integrity must never depend on that later pass.
+   *
+   * @reference reference/freeciv/server/cityturn.c set_default_city_manager()
+   */
+  static createAutomaticCity(
+    population: number,
+    foodStock: number,
+    granarySize: number,
+    noTradeSize = 0
+  ): CitizenParameter {
+    const params = this.createDefault();
+    const granaryFull = foodStock === granarySize;
+    params.minimal_surplus[OutputType.FOOD] = granaryFull ? 0 : 1;
+    params.minimal_surplus[OutputType.SHIELD] = 1;
+    params.minimal_surplus[OutputType.GOLD] = -Infinity;
+    params.factor[OutputType.FOOD] =
+      population <= 1 ? 20 : population <= noTradeSize ? 15 : granaryFull ? 0 : 10;
+    params.factor[OutputType.SHIELD] = 5;
+    params.factor[OutputType.TRADE] = 0;
+    params.factor[OutputType.GOLD] = 2;
+    params.factor[OutputType.LUXURY] = 0;
+    params.factor[OutputType.SCIENCE] = 2;
+    params.happy_factor = 0;
+    params.allow_specialists = true;
+    return params;
+  }
+
+  /**
    * Create emergency parameters that always produce a valid result
    * @reference freeciv/common/aicore/cm.c - cm_init_emergency_parameter()
    */

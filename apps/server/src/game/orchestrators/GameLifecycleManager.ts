@@ -1413,7 +1413,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       random,
       identities,
       barbarianRate,
-      climateSettings
+      climateSettings,
+      players
     );
     const playerIds = Array.from(players.keys());
     await tm.initializeTurn(playerIds);

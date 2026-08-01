@@ -1367,9 +1367,9 @@ export class GameManager {
         isAlive: player.isAlive,
         hasConceded: player.hasConceded,
         history: player.history,
-        unitsBuilt: player.unitsBuilt,
-        unitsKilled: player.unitsKilled,
-        unitsLost: player.unitsLost,
+        unitsBuilt: player.unitsBuilt ?? 0,
+        unitsKilled: player.unitsKilled ?? 0,
+        unitsLost: player.unitsLost ?? 0,
         spaceshipState: player.spaceshipState,
       })),
     }));
@@ -1379,7 +1379,15 @@ export class GameManager {
         turn,
         year,
         victoryConditions: gameInstance.config.victoryConditions ?? ['conquest'],
-        playerIds: Array.from(gameInstance.players.keys()),
+        // Barbarians are runtime unit owners, but do not participate in
+        // ordinary-player victory standings.
+        playerIds: Array.from(gameInstance.players.values())
+          .filter(
+            player =>
+              player.nation !== 'barbarian' &&
+              !player.civilization?.toLowerCase().startsWith('barbarian')
+          )
+          .map(player => player.id),
         cityManager: gameInstance.cityManager,
         unitManager: gameInstance.unitManager,
         researchManager: gameInstance.researchManager,

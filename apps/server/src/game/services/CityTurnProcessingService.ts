@@ -138,6 +138,8 @@ export interface CityTurnProcessingDependencies {
   checkPollution: (cityId: string, currentTurn: number) => Promise<boolean>;
   canCityContinueProduction?: (cityId: string, kind: 'unit' | 'building', value: string) => boolean;
   forceGovernmentRevolution?: (playerId: string) => Promise<void>;
+  reconcileCitizenAssignments: (cityId: string, reason: string) => Promise<boolean>;
+  destroyCity: (cityId: string) => Promise<boolean>;
   saveCityToDatabase: (city: CityState) => Promise<void>;
 }
 
@@ -247,6 +249,7 @@ export class CityTurnProcessingService extends BaseGameService {
     recordStep('callbacks');
     await this.processFoodAndGrowth(city, currentTurn);
     recordStep('food_growth');
+    if (!this.dependencies.cities.has(cityId)) return;
     await this.processProduction(city, currentTurn);
     recordStep('production');
     city.wasHappy = this.isHappy(city);
@@ -327,11 +330,11 @@ export class CityTurnProcessingService extends BaseGameService {
     const { foodSurplus, newFoodStock, granarySize, effectContext, raptureGrowth } = food;
 
     if ((newFoodStock >= granarySize && foodSurplus > 0) || raptureGrowth) {
-      this.processGrowth(city, newFoodStock, granarySize, raptureGrowth, effectContext);
+      await this.processGrowth(city, newFoodStock, granarySize, raptureGrowth, effectContext);
       return;
     }
     if (newFoodStock < 0) {
-      this.processStarvation(city);
+      await this.processStarvation(city);
       return;
     }
     city.foodStock = newFoodStock;
@@ -347,6 +350,7 @@ export class CityTurnProcessingService extends BaseGameService {
       cityId: city.id,
       government,
       cityBuildings: new Set(city.buildings),
+      cityPopulation: city.population,
     };
     const celebrating = city.wasHappy === true && this.isHappy(city);
     const raptureGrowth =
@@ -356,13 +360,13 @@ export class CityTurnProcessingService extends BaseGameService {
     return { foodSurplus, newFoodStock, granarySize, effectContext, raptureGrowth };
   }
 
-  private processGrowth(
+  private async processGrowth(
     city: CityState,
     newFoodStock: number,
     granarySize: number,
     raptureGrowth: boolean,
     effectContext: any
-  ): void {
+  ): Promise<void> {
     const unlimited =
       this.effectsManager.calculateEffect(EffectType.SIZE_UNLIMIT, effectContext).value > 0;
     const configuredSize = this.effectsManager.calculateEffect(
@@ -378,31 +382,40 @@ export class CityTurnProcessingService extends BaseGameService {
     city.population += 1;
     city.size = city.population;
     const retention = this.effectsManager.calculateEffect(EffectType.GROWTH_FOOD, {
-      playerId: city.playerId,
-      cityId: city.id,
-      cityBuildings: new Set(city.buildings),
+      ...effectContext,
+      // Freeciv evaluates granary savings before increasing city size.
+      cityPopulation: oldSize,
     }).value;
     city.foodStock = raptureGrowth
       ? Math.min(newFoodStock, this.calculateGranarySize(city.population))
       : newFoodStock - granarySize + Math.floor((granarySize * retention) / 100);
     logger.info(`City ${city.name} grew from size ${oldSize} to ${city.population}`);
-    if (this.dependencies.tileManagementService && city.workableTiles)
-      this.dependencies.tileManagementService.reassignCitizensAfterGrowth(city);
-    this.dependencies.calculateCityOutputs(city.id);
+    if (!(await this.dependencies.reconcileCitizenAssignments(city.id, 'growth'))) {
+      throw new Error(`Failed to reconcile citizens after growth in ${city.name}`);
+    }
     this.dependencies.callbacks.onCityGrowth?.(city, oldSize);
   }
 
-  private processStarvation(city: CityState): void {
+  private async processStarvation(city: CityState): Promise<void> {
     city.foodStock = 0;
-    if (city.population <= 1) return;
-    city.population -= 1;
-    city.size = city.population;
+    if (city.population <= 1) {
+      await this.dependencies.destroyCity(city.id);
+      return;
+    }
+    const oldSize = city.population;
     const retention = this.effectsManager.calculateEffect(EffectType.SHRINK_FOOD, {
       playerId: city.playerId,
       cityId: city.id,
       cityBuildings: new Set(city.buildings),
+      // Freeciv evaluates shrink savings before reducing city size.
+      cityPopulation: oldSize,
     }).value;
+    city.population -= 1;
+    city.size = city.population;
     city.foodStock = Math.floor((this.calculateGranarySize(city.population) * retention) / 100);
+    if (!(await this.dependencies.reconcileCitizenAssignments(city.id, 'starvation'))) {
+      throw new Error(`Failed to reconcile citizens after starvation in ${city.name}`);
+    }
     logger.info(`City ${city.name} starved and lost population`);
   }
 
@@ -495,6 +508,9 @@ export class CityTurnProcessingService extends BaseGameService {
       if (populationCost > 0) {
         city.population -= populationCost;
         city.size = city.population;
+        if (!(await this.dependencies.reconcileCitizenAssignments(city.id, 'unit_built'))) {
+          throw new Error(`Failed to reconcile citizens after unit production in ${city.name}`);
+        }
       }
       await this.completeProduction(city.id, productionCost);
     } else {

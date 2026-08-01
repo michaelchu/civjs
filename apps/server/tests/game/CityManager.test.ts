@@ -458,6 +458,10 @@ describe('CityManager', () => {
       newCity.currentProduction = 'warriors';
       newCity.productionType = 'unit';
       newCity.productionStock = 1;
+      expect(cityManager.calculateBuyCost(newCity.id)).toMatchObject({
+        canBuy: false,
+        reason: 'Cannot rush production in a newly founded city',
+      });
       expect((await cityManager.buyProduction(newCity.id, 'player-123')).reason).toBe(
         'Cannot rush production in a newly founded city'
       );

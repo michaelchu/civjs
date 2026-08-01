@@ -64,6 +64,35 @@ function scenario(sea = false) {
 }
 
 describe('BarbarianManager', () => {
+  it('registers a persisted barbarian player with the live game state', async () => {
+    const barbarian = {
+      id: 'barbarian-player',
+      gameId: 'game',
+      civilization: 'barbarian-land',
+    };
+    const playerRegistrar = jest.fn();
+    const manager = new BarbarianManager(
+      'game',
+      { ...config },
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        getDatabase: () => ({
+          query: { players: { findFirst: jest.fn().mockResolvedValue(barbarian) } },
+        }),
+      } as any,
+      { next: () => 0 },
+      undefined,
+      playerRegistrar
+    );
+
+    await expect(
+      (manager as any).getOrCreateBarbarianPlayer(BarbarianType.LAND_BARBARIAN)
+    ).resolves.toBe('barbarian-player');
+    expect(playerRegistrar).toHaveBeenCalledWith(barbarian);
+  });
+
   it('uses authoritative map size and spawns a leader plus ruleset units in wilderness', async () => {
     const { createUnit, insert, manager } = scenario();
 

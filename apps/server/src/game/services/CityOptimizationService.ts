@@ -16,7 +16,12 @@
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { CitizenManagementService } from '@game/systems/CitizenManagement/CitizenManagementService';
-import { CitizenParameterFactory } from '@game/systems/CitizenManagement/CitizenParameter';
+import {
+  CitizenParameterFactory,
+  CitizenParameterUtils,
+  type CitizenParameter,
+} from '@game/systems/CitizenManagement/CitizenParameter';
+import { OutputType } from '@game/constants/GameConstants';
 import type { CityTileManagementService } from './CityTileManagementService';
 
 // Re-export shared types
@@ -198,7 +203,7 @@ export class CityOptimizationService extends BaseGameService {
    */
   async optimizeCitizens(
     cityId: string,
-    parameters?: OptimizationParameters
+    parameters?: OptimizationParameters | CitizenParameter
   ): Promise<OptimizationResult> {
     if (!this.citizenManagementService || !this.tileManagementService) {
       logger.warn(`Cannot optimize citizens for city ${cityId} - services not available`);
@@ -227,17 +232,7 @@ export class CityOptimizationService extends BaseGameService {
         }
       );
 
-      const canApplyCompleteFallback = result.fallback_used && result.assignment_complete;
-      if (canApplyCompleteFallback && !result.found_valid) {
-        logger.warn(`Applying degraded citizen fallback for city ${city.name}`, {
-          cityId,
-          failureReason: result.failure_reason ?? 'constraints',
-          timedOut: result.timed_out,
-          population: city.population,
-          surplus: result.surplus,
-        });
-      }
-      if (result.found_valid || canApplyCompleteFallback)
+      if (result.found_valid)
         return this.buildSuccessfulOptimization(
           city,
           cityId,
@@ -274,7 +269,7 @@ export class CityOptimizationService extends BaseGameService {
   private getOptimizationSetup(
     city: CityState,
     cityId: string,
-    parameters?: OptimizationParameters
+    parameters?: OptimizationParameters | CitizenParameter
   ): any | undefined {
     if (!this.tileManagementService?.getWorkableTiles(cityId)) return undefined;
     return {
@@ -292,11 +287,36 @@ export class CityOptimizationService extends BaseGameService {
   }
   private getOptimizationParameters(
     cityId: string,
-    parameters?: OptimizationParameters
-  ): OptimizationParameters {
-    return (
-      parameters || this.getCitizenParameters(cityId) || CitizenParameterFactory.createDefault()
-    );
+    parameters?: OptimizationParameters | CitizenParameter
+  ): CitizenParameter {
+    const selected: OptimizationParameters | CitizenParameter | null =
+      parameters ??
+      (this.getCitizenParameters(cityId) as OptimizationParameters | CitizenParameter | null);
+    if (this.isCitizenParameter(selected)) return selected;
+    const normalized = CitizenParameterFactory.createDefault();
+    if (!selected) return normalized;
+    normalized.minimal_surplus[OutputType.FOOD] = selected.preventStarvation
+      ? (selected.minimumFood ?? 0)
+      : -Infinity;
+    normalized.minimal_surplus[OutputType.SHIELD] = selected.minimumShields ?? 0;
+    normalized.allow_specialists = selected.preferSpecialists !== false;
+    const priorityOutput = {
+      food: OutputType.FOOD,
+      shields: OutputType.SHIELD,
+      trade: OutputType.TRADE,
+      science: OutputType.SCIENCE,
+      balanced: undefined,
+    }[selected.priority];
+    if (priorityOutput) {
+      normalized.factor[priorityOutput] = 3;
+    }
+    return normalized;
+  }
+
+  private isCitizenParameter(
+    value: OptimizationParameters | CitizenParameter | null
+  ): value is CitizenParameter {
+    return value !== null && 'minimal_surplus' in value && 'factor' in value;
   }
   private getPreviousOutputs(city: CityState): any {
     return {
@@ -351,9 +371,64 @@ export class CityOptimizationService extends BaseGameService {
 
   private applyWorkerPositions(city: CityState, positions: boolean[]): void {
     if (!city.workableTiles) return;
-    for (let i = 0; i < positions.length && i < city.workableTiles.length; i++) {
-      city.workableTiles[i].isWorked = Boolean(city.workableTiles[i].isCenter || positions[i]);
+    for (let i = 0; i < city.workableTiles.length; i++) {
+      city.workableTiles[i].isWorked = Boolean(
+        city.workableTiles[i].isCenter || positions[i] === true
+      );
     }
+  }
+
+  /**
+   * Reconcile a city's workers and specialists after any population change.
+   * Freeciv first tries its normal minimum surpluses, then relaxes those
+   * minima, and finally uses emergency parameters. Every accepted result must
+   * account for every citizen.
+   */
+  async reconcileCitizens(
+    cityId: string,
+    preferred: CitizenParameter
+  ): Promise<OptimizationResult> {
+    const city = this.cities.get(cityId);
+    if (!city) return this.failedOptimization(cityId, 'City not found');
+    this.citizenManagementService.clearCache(city);
+
+    // Match Freeciv's CMA behavior: honor an active player governor first,
+    // but release its constraints back to the automatic defaults if they can
+    // no longer be fulfilled after the population change.
+    const configured = this.getActiveCitizenParameters(cityId, city);
+    const attempts: CitizenParameter[] = configured ? [configured, preferred] : [preferred];
+    const relaxed = CitizenParameterUtils.copy(preferred);
+    for (const output of Object.values(OutputType)) relaxed.minimal_surplus[output] = 0;
+    relaxed.minimal_surplus[OutputType.GOLD] = -Infinity;
+    attempts.push(relaxed, CitizenParameterFactory.createEmergency());
+
+    let last = this.failedOptimization(cityId, 'No citizen assignment attempted');
+    for (const parameters of attempts) {
+      last = await this.optimizeCitizens(cityId, parameters);
+      if (!last.success) continue;
+      const workers =
+        city.workableTiles?.filter(tile => tile.isWorked && !tile.isCenter).length ?? 0;
+      const specialists = Object.values(city.specialists).reduce((sum, count) => sum + count, 0);
+      if (workers + specialists === city.population) return last;
+      logger.error('Citizen optimizer returned an incomplete persistent assignment', {
+        cityId,
+        population: city.population,
+        workers,
+        specialists,
+      });
+    }
+    return this.failedOptimization(
+      cityId,
+      last.reason ?? 'Unable to account for every city citizen'
+    );
+  }
+
+  private getActiveCitizenParameters(cityId: string, city: CityState): CitizenParameter | null {
+    const governor = city.governor;
+    if (!governor?.isEnabled || !governor.settings.autoManageTiles || !governor.citizenParameters) {
+      return null;
+    }
+    return this.getOptimizationParameters(cityId, governor.citizenParameters);
   }
 
   private calculateOutputChanges(city: CityState, previous: any): any {
@@ -372,7 +447,7 @@ export class CityOptimizationService extends BaseGameService {
    */
   async optimizeCityManually(
     cityId: string,
-    parameters?: OptimizationParameters
+    parameters?: OptimizationParameters | CitizenParameter
   ): Promise<OptimizationResult> {
     return this.optimizeCitizens(cityId, parameters);
   }

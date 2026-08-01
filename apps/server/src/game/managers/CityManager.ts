@@ -356,6 +356,8 @@ export class CityManager {
   private governorService?: CityGovernorService;
   private captureService?: CityCaptureService;
   private citizenManagementService?: CitizenManagementService;
+  private citiesNeedingCitizenReconciliation = new Set<string>();
+  private pendingWorkedTilesByCity = new Map<string, Array<{ x: number; y: number }> | null>();
 
   // Newly extracted services
   private turnProcessingService?: CityTurnProcessingService;
@@ -577,7 +579,8 @@ export class CityManager {
       this.updateTradeRoutesOnPlayerChange.bind(this),
       undefined,
       this.random,
-      this.buildingTypes
+      this.buildingTypes,
+      this.reconcileCitizenAssignments.bind(this)
     );
 
     // Initialize citizen management service
@@ -670,6 +673,21 @@ export class CityManager {
       this.tileManagementService.setPlayerGovernmentProvider(this.playerGovernmentProvider);
     }
     this.tileManagementService.setPlayerAIProvider(this.playerAIProvider);
+    this.tileManagementService.setCitizenReconciliationRequested(cityId => {
+      this.citiesNeedingCitizenReconciliation.add(cityId);
+    });
+    for (const city of this.cities.values()) {
+      if (!this.pendingWorkedTilesByCity.has(city.id)) continue;
+      const workedTiles = this.pendingWorkedTilesByCity.get(city.id) ?? null;
+      this.tileManagementService.initializeWorkableTiles(city);
+      this.restoreWorkedTilesFromDatabase(city, workedTiles);
+      this.pendingWorkedTilesByCity.delete(city.id);
+      if (!this.hasValidCitizenAssignment(city)) {
+        this.repairCitizenAssignmentCount(city);
+        this.citiesNeedingCitizenReconciliation.add(city.id);
+      }
+      this.calculateCityOutputs(city.id);
+    }
 
     // Update optimization service with tile management service
     if (this.optimizationService) {
@@ -700,6 +718,8 @@ export class CityManager {
           this.currentTurnProvider?.() ?? 0
         );
       },
+      reconcileCitizenAssignments: this.reconcileCitizenAssignments.bind(this),
+      destroyCity: this.destroyCity.bind(this),
       saveCityToDatabase: this.saveCityToDatabase.bind(this),
     });
   }
@@ -1017,6 +1037,11 @@ export class CityManager {
     }
 
     this.resetTurnScopedEconomicActions(this.cities.get(cityId), currentTurn);
+    if (this.citiesNeedingCitizenReconciliation.delete(cityId)) {
+      if (!(await this.reconcileCitizenAssignments(cityId, 'tile_occupancy_changed'))) {
+        throw new Error(`Failed to reconcile citizens after tile occupancy changed in ${cityId}`);
+      }
+    }
     // Delegate to CityTurnProcessingService for comprehensive turn processing
     await this.turnProcessingService.processCityTurn(cityId, currentTurn);
   }
@@ -1484,8 +1509,7 @@ export class CityManager {
           record.workedTiles as Array<{ x: number; y: number }> | null
         );
 
-        // Calculate city outputs to ensure all values are properly set
-        this.calculateCityOutputs(city.id);
+        await this.restoreLoadedCitizenAssignment(city);
       }
     } catch (error) {
       logger.error('Failed to load cities from database', {
@@ -1890,6 +1914,51 @@ export class CityManager {
   }
 
   /**
+   * Restore the authoritative worker/specialist invariant after any population
+   * change. This is deliberately shared by human and AI cities; AI policy may
+   * perform another strategic optimization later, but is not responsible for
+   * repairing city state.
+   *
+   * @reference reference/freeciv/server/cityturn.c auto_arrange_workers()
+   * @reference reference/freeciv/server/cityturn.c city_reduce_size()
+   */
+  private async reconcileCitizenAssignments(cityId: string, reason: string): Promise<boolean> {
+    const city = this.cities.get(cityId);
+    if (!city || !this.optimizationService) return false;
+    const parameters = CitizenParameterFactory.createAutomaticCity(
+      city.population,
+      city.foodStock ?? 0,
+      this.calculateGranarySize(city.population, this.effectsManager.getRulesetName())
+    );
+    const result = await this.optimizationService.reconcileCitizens(cityId, parameters);
+    if (!result.success) {
+      logger.error('Unable to reconcile city citizens after population change', {
+        cityId,
+        cityName: city.name,
+        population: city.population,
+        reason,
+        failure: result.reason,
+      });
+      return false;
+    }
+    this.assertCitizenAssignmentInvariant(city, reason);
+    this.calculateCityOutputs(cityId);
+    this.applyCityHappiness(cityId);
+    return true;
+  }
+
+  private assertCitizenAssignmentInvariant(city: CityState, reason: string): void {
+    const workers = city.workableTiles?.filter(tile => tile.isWorked && !tile.isCenter).length ?? 0;
+    const specialists = Object.values(city.specialists).reduce((sum, count) => sum + count, 0);
+    if (workers + specialists !== city.population) {
+      throw new Error(
+        `City citizen invariant failed after ${reason}: ${city.name} has ` +
+          `${workers} workers + ${specialists} specialists for population ${city.population}`
+      );
+    }
+  }
+
+  /**
    * Public method to manually optimize a city's citizens
    * @param cityId The city to optimize
    * @param parameters Optional optimization parameters
@@ -2151,6 +2220,27 @@ export class CityManager {
   } {
     if (!this.productionService)
       return { canBuy: false, goldCost: 0, shieldsRemaining: 0, reason: 'Service not available' };
+    const city = this.cities.get(cityId);
+    if (!city) {
+      return { canBuy: false, goldCost: 0, shieldsRemaining: 0, reason: 'City not found' };
+    }
+    const currentTurn = this.currentTurnProvider?.();
+    if (currentTurn !== undefined && city.founded === currentTurn) {
+      return {
+        canBuy: false,
+        goldCost: 0,
+        shieldsRemaining: 0,
+        reason: 'Cannot rush production in a newly founded city',
+      };
+    }
+    if (currentTurn !== undefined && city.didBuyTurn === currentTurn) {
+      return {
+        canBuy: false,
+        goldCost: 0,
+        shieldsRemaining: 0,
+        reason: 'City has already rushed production this turn',
+      };
+    }
     return this.productionService.calculateBuyCost(cityId);
   }
 
@@ -2251,6 +2341,7 @@ export class CityManager {
 
     const city = this.cities.get(cityId);
     if (result.success && city) {
+      city.size = city.population;
       await this.callbacks.onCityOwnershipChanged?.(
         city,
         oldPlayerId,
@@ -2261,8 +2352,6 @@ export class CityManager {
         await this.handleCapitalLoss(oldPlayerId, cityId);
       }
       city.rallyPoint = undefined;
-      this.calculateCityOutputs(cityId);
-      this.applyCityHappiness(cityId);
       await this.saveCityToDatabase(city);
       this.callbacks.onCityCaptured?.(city, oldPlayerId);
     }
@@ -2308,6 +2397,9 @@ export class CityManager {
       const populationLoss = Math.round((city.population * this.nuclearPopulationLossPct) / 100);
       city.population = Math.max(1, city.population - populationLoss);
       city.size = city.population;
+      if (!(await this.reconcileCitizenAssignments(city.id, 'nuclear_explosion'))) {
+        throw new Error(`Failed to reconcile citizens after nuclear loss in ${city.name}`);
+      }
       await this.saveCityToDatabase(city);
     }
     return affected;
@@ -2319,6 +2411,7 @@ export class CityManager {
     if (!city || city.population <= 1) return false;
     city.population -= 1;
     city.size = city.population;
+    if (!(await this.reconcileCitizenAssignments(city.id, 'combat_population_loss'))) return false;
     await this.saveCityToDatabase(city);
     return true;
   }
@@ -2521,8 +2614,9 @@ export class CityManager {
     if (city.size < 2) throw new Error('Target city must have at least two citizens');
     city.size -= 1;
     city.population = city.size;
-    this.calculateCityOutputs(city.id);
-    this.applyCityHappiness(city.id);
+    if (!(await this.reconcileCitizenAssignments(city.id, 'poison'))) {
+      throw new Error(`Failed to reconcile citizens after poisoning ${city.name}`);
+    }
     await this.saveCityToDatabase(city);
     return city;
   }
@@ -2536,8 +2630,7 @@ export class CityManager {
     if (!city || city.size <= 1) return false;
     city.size -= 1;
     city.population = city.size;
-    this.calculateCityOutputs(city.id);
-    this.applyCityHappiness(city.id);
+    if (!(await this.reconcileCitizenAssignments(city.id, 'disaster'))) return false;
     await this.saveCityToDatabase(city);
     return true;
   }
@@ -2685,8 +2778,7 @@ export class CityManager {
     if (!city || city.playerId !== playerId || population <= 0) return false;
     city.size += population;
     city.population = city.size;
-    this.calculateCityOutputs(city.id);
-    this.applyCityHappiness(city.id);
+    if (!(await this.reconcileCitizenAssignments(city.id, 'unit_joined'))) return false;
     await this.saveCityToDatabase(city);
     return true;
   }
@@ -2926,6 +3018,7 @@ export class CityManager {
       this.tileManagementService.initializeWorkableTiles(city);
       this.restoreWorkedTilesFromDatabase(city, workedTiles);
     } else {
+      this.pendingWorkedTilesByCity.set(city.id, workedTiles);
       this.createFallbackWorkableTiles(city);
     }
   }
@@ -2941,6 +3034,10 @@ export class CityManager {
       return;
     }
 
+    // initializeWorkableTiles() creates a provisional assignment. Clear it
+    // before applying authoritative persisted coordinates.
+    for (const tile of city.workableTiles) tile.isWorked = Boolean(tile.isCenter);
+
     for (const workedTileCoord of workedTiles) {
       const tile = city.workableTiles.find(
         t => t.x === workedTileCoord.x && t.y === workedTileCoord.y
@@ -2949,6 +3046,54 @@ export class CityManager {
         tile.isWorked = true;
       }
     }
+  }
+
+  private hasValidCitizenAssignment(city: CityState): boolean {
+    const workers = city.workableTiles?.filter(tile => tile.isWorked && !tile.isCenter).length ?? 0;
+    const specialists = Object.values(city.specialists).reduce((sum, count) => sum + count, 0);
+    return workers + specialists === city.population;
+  }
+
+  private async restoreLoadedCitizenAssignment(city: CityState): Promise<void> {
+    if (this.hasValidCitizenAssignment(city)) {
+      // Preserve valid manual assignments from the save.
+      this.calculateCityOutputs(city.id);
+      return;
+    }
+    this.repairCitizenAssignmentCount(city);
+    if (this.optimizationService && this.tileManagementService) {
+      if (await this.reconcileCitizenAssignments(city.id, 'recovery')) return;
+      throw new Error(`Failed to repair recovered citizen assignment in ${city.name}`);
+    }
+    this.citiesNeedingCitizenReconciliation.add(city.id);
+    this.calculateCityOutputs(city.id);
+  }
+
+  /** Repair only the accounting invariant; the constrained optimizer follows. */
+  private repairCitizenAssignmentCount(city: CityState): void {
+    let assigned =
+      (city.workableTiles?.filter(tile => tile.isWorked && !tile.isCenter).length ?? 0) +
+      Object.values(city.specialists).reduce((sum, count) => sum + count, 0);
+    for (const specialist of Object.values(SpecialistType).filter(
+      (value): value is SpecialistType => typeof value === 'number'
+    )) {
+      while (assigned > city.population && (city.specialists[specialist] ?? 0) > 0) {
+        city.specialists[specialist]--;
+        assigned--;
+      }
+    }
+    for (const tile of city.workableTiles ?? []) {
+      if (assigned <= city.population) break;
+      if (tile.isWorked && !tile.isCenter) {
+        tile.isWorked = false;
+        assigned--;
+      }
+    }
+    if (assigned < city.population) {
+      city.specialists[SpecialistType.ENTERTAINER] =
+        (city.specialists[SpecialistType.ENTERTAINER] ?? 0) + city.population - assigned;
+    }
+    this.assertCitizenAssignmentInvariant(city, 'assignment repair');
   }
 
   /**

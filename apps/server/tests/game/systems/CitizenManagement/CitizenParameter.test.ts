@@ -11,6 +11,21 @@ import { OutputType } from '@game/constants/GameConstants';
 
 describe('CitizenParameter', () => {
   describe('CitizenParameterFactory', () => {
+    it('matches Freeciv automatic food priorities', () => {
+      expect(CitizenParameterFactory.createAutomaticCity(1, 0, 20).factor[OutputType.FOOD]).toBe(
+        20
+      );
+      expect(CitizenParameterFactory.createAutomaticCity(2, 0, 30, 2).factor[OutputType.FOOD]).toBe(
+        15
+      );
+      const fullGranary = CitizenParameterFactory.createAutomaticCity(3, 40, 40);
+      expect(fullGranary.factor[OutputType.FOOD]).toBe(0);
+      expect(fullGranary.minimal_surplus[OutputType.FOOD]).toBe(0);
+      expect(CitizenParameterFactory.createAutomaticCity(3, 39, 40).factor[OutputType.FOOD]).toBe(
+        10
+      );
+    });
+
     it('should create default parameters with equal weighting', () => {
       const params = CitizenParameterFactory.createDefault();
 

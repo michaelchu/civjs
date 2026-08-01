@@ -155,6 +155,21 @@ describe('shared worker automation service', () => {
     expect(game.unitManager.executeUnitAction).not.toHaveBeenCalled();
   });
 
+  it('does not automate a city founder even when a ruleset also marks it as a worker', async () => {
+    const unit = worker({ unitTypeId: 'settlers' });
+    const game = gameFor(unit);
+    (game.unitManager.getUnitType as any) = () => ({
+      movement: 1,
+      canFoundCity: true,
+      canBuildImprovements: true,
+    });
+
+    await expect(processHumanWorkerAutomation(game, hostility)).resolves.toBe(0);
+
+    expect(game.unitManager.executeUnitAction).not.toHaveBeenCalled();
+    expect(game.unitManager.setWorkerAutomationTask).not.toHaveBeenCalled();
+  });
+
   it('falls back from a higher-ranked unreachable target to reachable work', async () => {
     const unit = worker({ x: 0, y: 0 });
     const game = gameFor(unit, { x: 2, y: 2 });

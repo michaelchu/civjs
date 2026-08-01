@@ -49,7 +49,8 @@ function city(overrides: Partial<CityState> = {}): CityState {
 function turnService(
   cityState: CityState,
   onComplete: jest.Mock = jest.fn(),
-  unitTypes = rulesetUnitsService.getUnitTypes()
+  unitTypes = rulesetUnitsService.getUnitTypes(),
+  reconcileCitizenAssignments: jest.Mock = jest.fn().mockResolvedValue(true)
 ): CityTurnProcessingService {
   const dependencies: CityTurnProcessingDependencies = {
     gameId: 'game-1',
@@ -60,6 +61,8 @@ function turnService(
     refreshCityWithGovernmentEffects: jest.fn(),
     calculateCityOutputs: jest.fn(),
     calculateHappiness: jest.fn(),
+    reconcileCitizenAssignments,
+    destroyCity: jest.fn().mockResolvedValue(true),
     checkPollution: jest.fn().mockResolvedValue(false),
     saveCityToDatabase: jest.fn().mockResolvedValue(undefined),
   };
@@ -87,6 +90,8 @@ describe('city production lifecycle', () => {
       refreshCityWithGovernmentEffects: jest.fn(),
       calculateCityOutputs: jest.fn(),
       calculateHappiness: jest.fn(),
+      reconcileCitizenAssignments: jest.fn().mockResolvedValue(true),
+      destroyCity: jest.fn().mockResolvedValue(true),
       applyCityHappiness: jest.fn(),
       getPlayerGovernment: () => 'despotism',
       checkPollution: jest.fn().mockResolvedValue(false),
@@ -208,6 +213,7 @@ describe('city production lifecycle', () => {
   });
 
   it('charges unit population cost without consuming the final citizen', async () => {
+    const reconcileCitizenAssignments = jest.fn().mockResolvedValue(true);
     const completed = city({
       population: 2,
       size: 2,
@@ -216,9 +222,15 @@ describe('city production lifecycle', () => {
       productionStock: 39,
       productionPerTurn: 2,
     });
-    await turnService(completed).processCityTurn(completed.id, 7);
+    await turnService(
+      completed,
+      jest.fn(),
+      rulesetUnitsService.getUnitTypes(),
+      reconcileCitizenAssignments
+    ).processCityTurn(completed.id, 7);
     expect(completed.population).toBe(1);
     expect(completed.currentProduction).toBeNull();
+    expect(reconcileCitizenAssignments).toHaveBeenCalledWith(completed.id, 'unit_built');
 
     const blocked = city({
       population: 1,

@@ -1081,6 +1081,40 @@ describe('FreecivAIOrchestrator', () => {
     });
   });
 
+  it('updates diplomacy memory in away mode without negotiating treaties', async () => {
+    const scenario = createScenario();
+    scenario.game.players.set('ai', {
+      id: 'ai',
+      isAI: true,
+      aiLevel: 'away',
+      aiTraits: { expansionist: 50, trader: 50, aggressive: 50, builder: 50 },
+      aiState: createAIState(),
+    } as any);
+    scenario.diplomacyManager.getSnapshot.mockResolvedValue({
+      nations: [
+        {
+          id: 'human',
+          known: true,
+          canMeet: true,
+          relation: {
+            state: 'peace',
+            attitude: 100,
+            reputation: 500,
+          },
+        },
+      ],
+    });
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect((scenario.game.players.get('ai') as any).aiState.diplomacy.human).toBeDefined();
+    expect(scenario.diplomacyManager.respondToTreaty).not.toHaveBeenCalled();
+    expect(scenario.diplomacyManager.proposeTreaty).not.toHaveBeenCalled();
+  });
+
   it('declares war when the persisted profitable-target countdown expires', async () => {
     const scenario = createScenario();
     scenario.units.delete('settler');
@@ -1985,7 +2019,7 @@ describe('FreecivAIOrchestrator', () => {
     ).toBeGreaterThanOrEqual(3);
   });
 
-  it('uses the shared worker plan when infrastructure outranks a new city site', async () => {
+  it('reserves a dual-capability settler for founding cities instead of infrastructure', async () => {
     const scenario = createScenario();
     scenario.units.delete('worker');
     scenario.units.delete('warrior');
@@ -2001,7 +2035,8 @@ describe('FreecivAIOrchestrator', () => {
       scenario.game as any
     );
 
-    expect(scenario.executeUnitAction).toHaveBeenCalledWith(
+    expect(scenario.executeUnitAction).toHaveBeenCalledWith('settler', ActionType.GOTO, 8, 8, 'ai');
+    expect(scenario.executeUnitAction).not.toHaveBeenCalledWith(
       'settler',
       ActionType.GOTO,
       3,
@@ -2009,18 +2044,10 @@ describe('FreecivAIOrchestrator', () => {
       'ai',
       { preserveAutomation: true }
     );
-    expect(scenario.executeUnitAction).not.toHaveBeenCalledWith(
-      'settler',
-      ActionType.GOTO,
-      8,
-      8,
-      'ai'
-    );
     expect((scenario.game.players.get('ai') as any).aiState.unitTasks.settler).toMatchObject({
-      role: 'worker',
-      action: ActionType.CLEAN_POLLUTION,
-      targetX: 3,
-      targetY: 3,
+      role: 'settle',
+      targetX: 8,
+      targetY: 8,
     });
   });
 
