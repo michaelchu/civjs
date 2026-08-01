@@ -119,4 +119,42 @@ describe('HeadlessSimulationRunner result metadata', () => {
       hashSimulationState({ cities: [{ id: 'city-b' }] })
     );
   });
+
+  it('canonicalizes random UUID suffixes on ordered gameplay ids', () => {
+    expect(
+      hashSimulationState({
+        players: [{ id: '00000001-1111-4111-8111-111111111111' }],
+      })
+    ).toBe(
+      hashSimulationState({
+        players: [{ id: '00000001-2222-4222-8222-222222222222' }],
+      })
+    );
+    expect(
+      hashSimulationState({
+        players: [{ id: '00000001-1111-4111-8111-111111111111' }],
+      })
+    ).not.toBe(
+      hashSimulationState({
+        players: [{ id: '00000002-1111-4111-8111-111111111111' }],
+      })
+    );
+    expect(
+      hashSimulationState({
+        research: {
+          '00000001-1111-4111-8111-111111111111': {
+            playerId: '00000001-1111-4111-8111-111111111111',
+          },
+        },
+      })
+    ).toBe(
+      hashSimulationState({
+        research: {
+          '00000001-2222-4222-8222-222222222222': {
+            playerId: '00000001-2222-4222-8222-222222222222',
+          },
+        },
+      })
+    );
+  });
 });

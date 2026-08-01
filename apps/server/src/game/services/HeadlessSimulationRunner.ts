@@ -1,11 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { eq, sql } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { DatabaseProvider } from '@database';
 import { games, players } from '@database/schema';
 import { PROTOCOL_VERSION } from '@app-types/packet';
 import type { GameManager } from '@game/managers/GameManager';
+import { identityNumberFromUuid } from '@game/random/FreecivIdentityAllocator';
 import { GameReplayService, type GameReplay } from './GameReplayService';
 import {
   SimulationExecutionError,
@@ -30,6 +31,8 @@ export const HEADLESS_EXIT_CODES = {
   timeoutOrCancellation: 4,
   outputFailure: 5,
 } as const;
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class HeadlessSimulationError extends Error {
   constructor(
@@ -66,7 +69,13 @@ interface ExecutionOutcome {
 interface RunArtifacts {
   replay: GameReplay | null;
   game?: { endReason: string | null; endGameReport: unknown };
-  aiPlayers: Array<{ id: string; civilization: string; score: number; isAlive: boolean }>;
+  aiPlayers: Array<{
+    id: string;
+    playerNumber: number;
+    civilization: string;
+    score: number;
+    isAlive: boolean;
+  }>;
   completedTurns: GameReplay['turns'];
   stateHashes: Array<{ turn: number; hash: string }>;
 }
@@ -215,6 +224,7 @@ export class HeadlessSimulationRunner {
     });
     const aiPlayers = await this.databaseProvider.getDatabase().query.players.findMany({
       where: eq(players.gameId, gameId),
+      orderBy: [asc(players.playerNumber), asc(players.id)],
     });
     const completedTurns = getCompletedTurns(replay);
     return {
@@ -381,6 +391,7 @@ export class HeadlessSimulationRunner {
   private async readAISummaries(gameId: string, turn: number): Promise<unknown[]> {
     const aiPlayers = await this.databaseProvider.getDatabase().query.players.findMany({
       where: eq(players.gameId, gameId),
+      orderBy: [asc(players.playerNumber), asc(players.id)],
     });
     return aiPlayers.map(player => ({
       playerId: player.id,
@@ -455,18 +466,28 @@ function errorMessage(error: unknown): string {
 }
 
 function buildLiveStandings(
-  playersToSummarize: Array<{ id: string; civilization: string; score: number; isAlive: boolean }>
+  playersToSummarize: Array<{
+    id: string;
+    playerNumber: number;
+    civilization: string;
+    score: number;
+    isAlive: boolean;
+  }>
 ) {
   return playersToSummarize
+    .slice()
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.playerNumber - right.playerNumber ||
+        compareCodeUnits(left.id, right.id)
+    )
     .map(player => ({
       playerId: player.id,
       civilization: player.civilization,
       score: player.score,
       alive: player.isAlive,
-    }))
-    .sort(
-      (left, right) => right.score - left.score || compareCodeUnits(left.playerId, right.playerId)
-    );
+    }));
 }
 
 export function hashSimulationState(snapshot: unknown): string {
@@ -482,16 +503,28 @@ function sanitizeForHash(value: unknown, key?: string): unknown {
   ) {
     return undefined;
   }
+  if (typeof value === 'string') {
+    return canonicalizeHashIdentifier(value);
+  }
   if (Array.isArray(value))
     return value.map(item => sanitizeForHash(item)).filter(item => item !== undefined);
   if (value && typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value)
-        .map(([entryKey, entryValue]) => [entryKey, sanitizeForHash(entryValue, entryKey)] as const)
+        .map(
+          ([entryKey, entryValue]) =>
+            [canonicalizeHashIdentifier(entryKey), sanitizeForHash(entryValue, entryKey)] as const
+        )
         .filter(([, entryValue]) => entryValue !== undefined)
     );
   }
   return value;
+}
+
+function canonicalizeHashIdentifier(value: string): string {
+  if (!UUID_PATTERN.test(value)) return value;
+  const identityNumber = identityNumberFromUuid(value);
+  return identityNumber === null ? value : `ordered-id:${identityNumber}`;
 }
 
 function sortKeys(value: unknown): unknown {

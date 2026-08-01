@@ -724,17 +724,19 @@ export class TurnPhaseService {
 
     for (const playerId of context.playerIds) {
       const playerStartTime = Date.now();
+      let timeout: ReturnType<typeof setTimeout> | undefined;
 
       try {
         // Create timeout promise
         const timeoutPromise = new Promise<number>((_, reject) => {
-          setTimeout(() => {
+          timeout = setTimeout(() => {
             reject(
               new Error(
                 `City production processing timed out for player ${playerId} after ${CITY_PRODUCTION_TIMEOUT}ms`
               )
             );
           }, CITY_PRODUCTION_TIMEOUT);
+          timeout.unref?.();
         });
 
         // Race between processing and timeout
@@ -793,6 +795,8 @@ export class TurnPhaseService {
 
         // Continue processing other players even if one fails
         continue;
+      } finally {
+        if (timeout) clearTimeout(timeout);
       }
     }
 

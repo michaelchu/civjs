@@ -588,13 +588,15 @@ export class TurnProcessingService {
 
     for (const city of playerCities) {
       const cityStartTime = Date.now();
+      let timeout: ReturnType<typeof setTimeout> | undefined;
 
       try {
         // Add per-city timeout to prevent individual cities from hanging the entire process
         const timeoutPromise = new Promise<void>((_, reject) => {
-          setTimeout(() => {
+          timeout = setTimeout(() => {
             reject(new Error(`City processing timed out after ${CITY_PROCESSING_TIMEOUT}ms`));
           }, CITY_PROCESSING_TIMEOUT);
+          timeout.unref?.();
         });
 
         // Race between city processing and timeout
@@ -636,6 +638,8 @@ export class TurnProcessingService {
 
         // Continue processing other cities - don't let one bad city break everything
         continue;
+      } finally {
+        if (timeout) clearTimeout(timeout);
       }
     }
 
