@@ -115,6 +115,8 @@ export interface GameConfig {
   researchPacing?: Partial<ResearchPacingSettings>;
   /** Freeciv-compatible seed for the authoritative gameplay random stream. */
   randomSeed?: number;
+  /** Selects timer and recovery behavior for application-owned simulations. */
+  executionMode?: 'headless' | 'server';
   /** Optional barbarian frequency override for presets such as Quick Start. */
   barbarianRate?: number;
   /** Optional global warming/nuclear-winter settings. */
@@ -408,6 +410,21 @@ export class GameManager {
     await this.configureMultiplayerInstance(gameId);
   }
 
+  /**
+   * Start an AI-only game without installing the normal wall-clock turn timer.
+   * Headless execution still uses the same lifecycle initialization and turn
+   * processing callbacks as a browser-backed game.
+   */
+  public async startHeadlessGame(gameId: string, hostId: string): Promise<void> {
+    await this.gameLifecycleManager.startGame(gameId, hostId);
+    await this.configureMultiplayerInstance(gameId, { startTurnTimer: false });
+  }
+
+  /** Add native AI players for an application-owned simulation setup. */
+  public async ensureMinimumPlayers(gameId: string, minimumPlayers?: number): Promise<void> {
+    await this.playerConnectionManager.ensureMinimumPlayers(gameId, minimumPlayers);
+  }
+
   // Moved to GameBroadcastManager - this method is no longer used
   /*
   private broadcastMapData(gameId: string, mapData: any): void {
@@ -559,7 +576,7 @@ export class GameManager {
   // Game recovery methods - delegates to GameInstanceRecoveryService
   public async recoverGameInstance(gameId: string): Promise<GameInstance | null> {
     const instance = await this.gameInstanceRecoveryService.recoverGameInstance(gameId);
-    if (instance) await this.configureMultiplayerInstance(gameId);
+    if (instance) await this.configureRecoveredInstance(gameId, instance);
     return instance;
   }
 
@@ -1273,7 +1290,10 @@ export class GameManager {
     return technology;
   }
 
-  private async configureMultiplayerInstance(gameId: string): Promise<void> {
+  private async configureMultiplayerInstance(
+    gameId: string,
+    { startTurnTimer = true }: { startTurnTimer?: boolean } = {}
+  ): Promise<void> {
     const gameInstance = this.games.get(gameId);
     if (!gameInstance) return;
     gameInstance.unitManager.setHostilityProvider((attackerPlayerId, defenderPlayerId) =>
@@ -1412,12 +1432,12 @@ export class GameManager {
       gameInstance.currentTurn = turn;
       for (const player of gameInstance.players.values()) player.hasEndedTurn = false;
       await this.gameBroadcastManager.broadcastPlayerInfo(gameId);
-      if (gameInstance.state === 'active') {
+      if (startTurnTimer && gameInstance.state === 'active') {
         gameInstance.turnManager.startTurnTimer(gameInstance.config.turnTimeLimit ?? 300);
       }
     });
     await this.refreshSharedVision(gameId);
-    if (gameInstance.state === 'active') {
+    if (startTurnTimer && gameInstance.state === 'active') {
       gameInstance.turnManager.restoreTurnTimer(
         gameInstance.turnDeadlineAt,
         gameInstance.pausedTimerSeconds,
@@ -1542,8 +1562,25 @@ export class GameManager {
 
   public async loadGame(gameId: string): Promise<GameInstance | null> {
     const instance = await this.gameInstanceRecoveryService.loadGame(gameId);
-    if (instance) await this.configureMultiplayerInstance(gameId);
+    if (instance) await this.configureRecoveredInstance(gameId, instance);
     return instance;
+  }
+
+  private async configureRecoveredInstance(gameId: string, instance: GameInstance): Promise<void> {
+    const isHeadless = instance.config.executionMode === 'headless';
+    if (isHeadless && instance.state === 'active') {
+      instance.state = 'paused';
+      instance.turnManager.clearTurnTimer();
+      await this.databaseProvider
+        .getDatabase()
+        .update(games)
+        .set({
+          status: 'paused',
+          gameState: sql`jsonb_set(coalesce(${games.gameState}, '{}'::jsonb), '{simulation,runState}', '"paused"'::jsonb, true)`,
+        })
+        .where(eq(games.id, gameId));
+    }
+    await this.configureMultiplayerInstance(gameId, { startTurnTimer: !isHeadless });
   }
 
   public getActiveGameInstances(): GameInstance[] {
