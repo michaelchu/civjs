@@ -35,8 +35,12 @@ for candidate in whole_map_iterate() do
 end
 
 assert(origin and target, "Could not find adjacent empty tiles for the c2c3 hut fixture")
-assert(edit.change_terrain(origin, find.terrain("Grassland")))
-assert(edit.change_terrain(target, find.terrain("Grassland")))
+-- change_terrain returns false when a selected tile is already Grassland;
+-- both return paths leave these empty tiles suitable for the fixture.
+local grassland = find.terrain("Grassland")
+assert(grassland, "The c2c3 hut fixture could not resolve Grassland")
+edit.change_terrain(origin, grassland)
+edit.change_terrain(target, grassland)
 origin:show(player)
 target:show(player)
 

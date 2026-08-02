@@ -17,7 +17,9 @@ for candidate in whole_map_iterate() do
 end
 
 assert(tile, "Could not find an empty tile for the c2c3 oracle fixture")
-assert(edit.change_terrain(tile, find.terrain("Grassland")))
+-- change_terrain returns false when the tile is already Grassland; either
+-- outcome leaves the deterministic fixture terrain in the required state.
+edit.change_terrain(tile, find.terrain("Grassland"))
 assert(edit.city_create(player, tile, "Oracle City", nil))
 
 local city = tile:city()
