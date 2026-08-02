@@ -184,6 +184,7 @@ const STATE_RANK: Record<DiplomaticState, number> = {
  */
 export class DiplomacyManager {
   private readonly pairLocks = new Map<string, Promise<unknown>>();
+  private readonly effectsManagersByRuleset = new Map<string, EffectsManager>();
   private eventSink?: (event: DiplomacyEvent) => void | Promise<void>;
   private transferExecutor?: (
     gameId: string,
@@ -200,7 +201,9 @@ export class DiplomacyManager {
       playerId: string
     ) => Set<string> = () => new Set(),
     private readonly effectsManager: EffectsManager = new EffectsManager(),
-    private readonly ruleset: Pick<RulesetLoader, 'getNation'> = rulesetLoader
+    private readonly ruleset: Pick<RulesetLoader, 'getNation'> = rulesetLoader,
+    private readonly rulesetNameProvider: (gameId: string) => string = () =>
+      this.effectsManager.getRulesetName()
   ) {}
 
   setTransferExecutor(
@@ -319,6 +322,12 @@ export class DiplomacyManager {
             first.id,
             second.id
           );
+          if (
+            this.getRelation(currentFirst, currentSecond.id).state === 'no_contact' &&
+            this.getRelation(currentSecond, currentFirst.id).state === 'no_contact'
+          ) {
+            return;
+          }
           let event: DiplomacyEvent | undefined;
           await this.persistPair(currentFirst, currentSecond, (firstRelation, secondRelation) => {
             const update = this.advancePairRelations(
@@ -341,6 +350,39 @@ export class DiplomacyManager {
       }
     }
     return events;
+  }
+
+  /**
+   * Give every living player contact with every other living player when a
+   * player-owned ruleset effect grants it (Marco Polo's Embassy in c2c3).
+   *
+   * @reference reference/freeciv/server/srv_main.c:784-798 do_have_contacts_effect()
+   * @reference reference/freeciv/server/plrhand.c:2305-2364 make_contact()
+   */
+  async applyEffectContacts(gameId: string): Promise<void> {
+    const db = this.databaseProvider.getDatabase();
+    const gamePlayers = (await db.query.players.findMany({
+      where: eq(players.gameId, gameId),
+    })) as DiplomacyPlayerRow[];
+    const effectsManager = this.getEffectsManager(gameId);
+
+    for (const player of gamePlayers) {
+      if (
+        !player.isAlive ||
+        effectsManager.calculateEffect(
+          EffectType.HAVE_CONTACTS,
+          this.getEffectContext(gameId, player)
+        ).value <= 0
+      ) {
+        continue;
+      }
+      for (const other of gamePlayers) {
+        if (player.id === other.id || !other.isAlive) continue;
+        await this.withPairLock(gameId, player.id, other.id, () =>
+          this.establishContactLocked(gameId, player.id, other.id, gamePlayers)
+        );
+      }
+    }
   }
 
   private advancePairRelations(
@@ -425,32 +467,41 @@ export class DiplomacyManager {
   private async establishContactLocked(
     gameId: string,
     playerId: string,
-    otherPlayerId: string
+    otherPlayerId: string,
+    gamePlayers?: DiplomacyPlayerRow[]
   ): Promise<void> {
     const [player, other] = await this.loadPair(gameId, playerId, otherPlayerId);
-    const wasKnown =
-      this.readKnownPlayers(player).has(other.id) && this.readKnownPlayers(other).has(player.id);
+    const firstContact = this.getRelation(player, other.id).state === 'no_contact';
+    const defaultState = firstContact
+      ? this.getDefaultContactState(
+          player,
+          other,
+          gamePlayers ??
+            ((await this.databaseProvider.getDatabase().query.players.findMany({
+              where: eq(players.gameId, gameId),
+            })) as DiplomacyPlayerRow[])
+        )
+      : undefined;
+    const contactTurns = this.canMaintainContact(gameId, player, other) ? CONTACT_TURNS : undefined;
     await this.persistPair(player, other, (firstRelation, secondRelation) => [
       {
         ...firstRelation,
-        state: firstRelation.state === 'no_contact' ? 'war' : firstRelation.state,
-        maxState:
-          firstRelation.state === 'no_contact'
-            ? this.maxState(firstRelation.maxState, 'war')
-            : firstRelation.maxState,
-        contactTurnsLeft: CONTACT_TURNS,
+        state: firstContact ? defaultState! : firstRelation.state,
+        maxState: firstContact
+          ? this.maxState(firstRelation.maxState, defaultState!)
+          : firstRelation.maxState,
+        contactTurnsLeft: contactTurns ?? firstRelation.contactTurnsLeft,
       },
       {
         ...secondRelation,
-        state: secondRelation.state === 'no_contact' ? 'war' : secondRelation.state,
-        maxState:
-          secondRelation.state === 'no_contact'
-            ? this.maxState(secondRelation.maxState, 'war')
-            : secondRelation.maxState,
-        contactTurnsLeft: CONTACT_TURNS,
+        state: firstContact ? defaultState! : secondRelation.state,
+        maxState: firstContact
+          ? this.maxState(secondRelation.maxState, defaultState!)
+          : secondRelation.maxState,
+        contactTurnsLeft: contactTurns ?? secondRelation.contactTurnsLeft,
       },
     ]);
-    if (!wasKnown) {
+    if (firstContact) {
       await this.emitEvent({
         type: 'first_contact',
         gameId,
@@ -753,8 +804,11 @@ export class DiplomacyManager {
       return;
     }
     const playerContext = this.getEffectContext(gameId, player);
-    const senate = this.effectsManager.calculateEffect(EffectType.HAS_SENATE, playerContext).value;
-    const noAnarchy = this.effectsManager.calculateEffect(
+    const senate = this.getEffectsManager(gameId).calculateEffect(
+      EffectType.HAS_SENATE,
+      playerContext
+    ).value;
+    const noAnarchy = this.getEffectsManager(gameId).calculateEffect(
       EffectType.NO_ANARCHY,
       playerContext
     ).value;
@@ -1063,7 +1117,7 @@ export class DiplomacyManager {
   ): void {
     const noDiplomacy = [first, second].some(
       player =>
-        this.effectsManager.calculateEffect(
+        this.getEffectsManager(gameId).calculateEffect(
           EffectType.NO_DIPLOMACY,
           this.getEffectContext(gameId, player)
         ).value > 0
@@ -1071,10 +1125,60 @@ export class DiplomacyManager {
     if (noDiplomacy) throw new Error('Diplomacy is not possible with this nation');
   }
 
+  private getRulesetName(gameId: string): string {
+    return this.rulesetNameProvider(gameId) || this.effectsManager.getRulesetName();
+  }
+
+  private getEffectsManager(gameId: string): EffectsManager {
+    const rulesetName = this.getRulesetName(gameId);
+    if (rulesetName === this.effectsManager.getRulesetName()) return this.effectsManager;
+
+    let effectsManager = this.effectsManagersByRuleset.get(rulesetName);
+    if (!effectsManager) {
+      effectsManager = new EffectsManager(rulesetName);
+      this.effectsManagersByRuleset.set(rulesetName, effectsManager);
+    }
+    return effectsManager;
+  }
+
+  private canMaintainContact(
+    gameId: string,
+    first: DiplomacyPlayerRow,
+    second: DiplomacyPlayerRow
+  ): boolean {
+    const effectsManager = this.getEffectsManager(gameId);
+    return [first, second].every(
+      player =>
+        effectsManager.calculateEffect(
+          EffectType.NO_DIPLOMACY,
+          this.getEffectContext(gameId, player)
+        ).value <= 0
+    );
+  }
+
+  private getDefaultContactState(
+    first: DiplomacyPlayerRow,
+    second: DiplomacyPlayerRow,
+    playersInGame: DiplomacyPlayerRow[]
+  ): 'war' | 'peace' {
+    const commonAlly = playersInGame.some(
+      other =>
+        other.isAlive &&
+        other.id !== first.id &&
+        other.id !== second.id &&
+        this.areAllied(first, other) &&
+        this.areAllied(second, other)
+    );
+    return commonAlly ? 'peace' : 'war';
+  }
+
   private getEffectContext(gameId: string, player: DiplomacyPlayerRow): EffectContext {
     let nationGroups = new Set<string>();
     try {
-      const nation = this.ruleset.getNation(player.nation ?? player.civilization);
+      const nation = this.ruleset.getNation(
+        player.nation ?? player.civilization,
+        this.getRulesetName(gameId)
+      );
       nationGroups = new Set([nation.class, ...(nation.groups ?? [])]);
     } catch {
       // Invalid/missing nation data fails closed for nation-group effects.
@@ -1292,6 +1396,14 @@ export class DiplomacyManager {
     return Boolean(first.teamId && second.teamId && first.teamId === second.teamId);
   }
 
+  private areAllied(first: DiplomacyPlayerRow, second: DiplomacyPlayerRow): boolean {
+    return (
+      this.areTeammates(first, second) ||
+      (this.getRelation(first, second.id).state === 'alliance' &&
+        this.getRelation(second, first.id).state === 'alliance')
+    );
+  }
+
   private canMeet(relation: DiplomaticRelation, reverseRelation?: DiplomaticRelation): boolean {
     return (
       relation.state === 'team' ||
@@ -1311,8 +1423,11 @@ export class DiplomacyManager {
     relation: DiplomaticRelation
   ): void {
     const playerContext = this.getEffectContext(gameId, player);
-    const senate = this.effectsManager.calculateEffect(EffectType.HAS_SENATE, playerContext).value;
-    const noAnarchy = this.effectsManager.calculateEffect(
+    const senate = this.getEffectsManager(gameId).calculateEffect(
+      EffectType.HAS_SENATE,
+      playerContext
+    ).value;
+    const noAnarchy = this.getEffectsManager(gameId).calculateEffect(
       EffectType.NO_ANARCHY,
       playerContext
     ).value;

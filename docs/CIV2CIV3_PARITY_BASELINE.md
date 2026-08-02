@@ -91,3 +91,12 @@ real embassy with a player who knows Alphabet, and verifies the c2c3
 Technology Leakage research cost. This is a working differential-test
 foundation, not a whole-game certificate; new scenarios must cover the
 remaining action and turn-state matrices before a parity claim is justified.
+
+The turn-time `Have_Contacts` effect is separately source-mapped in
+`DiplomacyManager.test.ts`. In c2c3, Marco Polo's Embassy grants that effect
+to its owner (`data/civ2civ3/effects.ruleset:3399-3420`); Freeciv applies it
+after player-phase processing (`server/srv_main.c:784-798`) through
+`make_contact` (`server/plrhand.c:2305-2364`). CivJS evaluates the selected
+game ruleset, grants contact only among living players, and refreshes the
+contact duration on each diplomacy turn. This is runtime parity evidence, not
+yet a native Freeciv differential fixture.

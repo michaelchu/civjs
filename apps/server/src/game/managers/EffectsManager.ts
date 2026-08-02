@@ -80,6 +80,7 @@ export enum EffectType {
   TECH_UPKEEP_FREE = 'Tech_Upkeep_Free',
   TECH_COST_FACTOR = 'Tech_Cost_Factor',
   TECH_LEAKAGE = 'Tech_Leakage',
+  HAVE_CONTACTS = 'Have_Contacts',
   HAVE_EMBASSIES = 'Have_Embassies',
   BUILDING_BUY_COST_PCT = 'Building_Buy_Cost_Pct',
   AIRLIFT = 'Airlift',

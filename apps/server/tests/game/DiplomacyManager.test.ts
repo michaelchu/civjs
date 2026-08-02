@@ -1,4 +1,5 @@
 import { DiplomacyManager } from '@game/managers/DiplomacyManager';
+import { EffectsManager } from '@game/managers/EffectsManager';
 
 const createPlayer = (id: string, playerNumber: number) => ({
   id,
@@ -19,11 +20,12 @@ describe('DiplomacyManager', () => {
   let rows: ReturnType<typeof createPlayer>[];
   let manager: DiplomacyManager;
   let failUpdates: boolean;
+  let database: any;
 
   beforeEach(() => {
     rows = [createPlayer('p1', 0), createPlayer('p2', 1)];
     failUpdates = false;
-    const database = {
+    database = {
       query: {
         players: {
           findMany: jest.fn(async () => rows),
@@ -43,6 +45,15 @@ describe('DiplomacyManager', () => {
     manager = new DiplomacyManager({ getDatabase: () => database } as any, () => 7);
   });
 
+  function useCiv2Civ3ContactEffects(effectOwners: Set<string>): void {
+    manager = new DiplomacyManager(
+      { getDatabase: () => database } as any,
+      () => 7,
+      (_gameId, playerId) => new Set(effectOwners.has(playerId) ? ['marco_polos_embassy'] : []),
+      new EffectsManager('civ2civ3')
+    );
+  }
+
   it('persists bilateral contact and returns nation intelligence', async () => {
     await manager.establishContact('game-1', 'p1', 'p2');
 
@@ -50,6 +61,87 @@ describe('DiplomacyManager', () => {
     const second = await manager.getSnapshot('game-1', 'p2');
     expect(first.nations[0]).toMatchObject({ id: 'p2', known: true, isAI: true });
     expect(second.nations[0]).toMatchObject({ id: 'p1', known: true });
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3399-3420
+   * @reference reference/freeciv/server/srv_main.c:784-798
+   * @reference reference/freeciv/server/plrhand.c:2305-2364
+   * @assertion Marco Polo's Embassy gives its living owner bilateral first contact with every living player and refreshes the configured contact duration after each turn.
+   * @c2c3-surface diplomacy-espionage
+   * @c2c3-surface-scenario normal, turn
+   */
+  it('applies c2c3 Marco Polo contacts to every living player each turn', async () => {
+    rows.push(createPlayer('p3', 2));
+    useCiv2Civ3ContactEffects(new Set(['p1']));
+
+    await manager.applyEffectContacts('game-1');
+
+    expect(await manager.getSnapshot('game-1', 'p1')).toEqual(
+      expect.objectContaining({
+        nations: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'p2',
+            known: true,
+            canMeet: true,
+            relation: expect.objectContaining({ state: 'war', contactTurnsLeft: 20 }),
+          }),
+          expect.objectContaining({
+            id: 'p3',
+            known: true,
+            canMeet: true,
+            relation: expect.objectContaining({ state: 'war', contactTurnsLeft: 20 }),
+          }),
+        ]),
+      })
+    );
+    expect((await manager.getSnapshot('game-1', 'p2')).nations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'p1', known: true, canMeet: true }),
+        expect.objectContaining({ id: 'p3', known: false, canMeet: false }),
+      ])
+    );
+
+    await manager.processTurn('game-1');
+    expect((await manager.getSnapshot('game-1', 'p1')).nations[0]?.relation.contactTurnsLeft).toBe(
+      19
+    );
+    await manager.applyEffectContacts('game-1');
+    expect((await manager.getSnapshot('game-1', 'p1')).nations[0]?.relation.contactTurnsLeft).toBe(
+      20
+    );
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3399-3420
+   * @reference reference/freeciv/server/srv_main.c:784-798
+   * @reference reference/freeciv/server/plrhand.c:2305-2364
+   * @assertion The contact effect has no target when no player owns Marco Polo's Embassy, and eliminated players are excluded from an owner's automatic contact list.
+   * @c2c3-surface diplomacy-espionage
+   * @c2c3-surface-scenario boundary
+   */
+  it('keeps non-owners and eliminated players outside c2c3 effect contacts', async () => {
+    rows.push({ ...createPlayer('p3', 2), isAlive: false });
+    useCiv2Civ3ContactEffects(new Set());
+
+    await manager.applyEffectContacts('game-1');
+    expect((await manager.getSnapshot('game-1', 'p1')).nations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'p2', known: false, canMeet: false }),
+        expect.objectContaining({ id: 'p3', known: false, canMeet: false }),
+      ])
+    );
+
+    useCiv2Civ3ContactEffects(new Set(['p1']));
+    await manager.applyEffectContacts('game-1');
+    expect((await manager.getSnapshot('game-1', 'p1')).nations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'p2', known: true, canMeet: true }),
+        expect.objectContaining({ id: 'p3', known: false, canMeet: false }),
+      ])
+    );
   });
 
   it('returns a stable omniscient replay snapshot without volatile proposal metadata', async () => {

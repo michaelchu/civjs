@@ -87,6 +87,7 @@ describe('Civ2Civ3 ruleset runtime routing', () => {
     expect(effectCoverage.unsupportedTypes).not.toContain('Airlift');
     expect(effectCoverage.unsupportedTypes).not.toContain('Incite_Cost_Pct');
     expect(effectCoverage.unsupportedTypes).not.toContain('Tech_Leakage');
+    expect(effectCoverage.unsupportedTypes).not.toContain('Have_Contacts');
     expect(effectCoverage.unsupportedTypes).not.toContain('Have_Embassies');
     expect(
       new EffectsManager('civ2civ3').calculateEffect(EffectType.AIRLIFT, {
@@ -107,6 +108,11 @@ describe('Civ2Civ3 ruleset runtime routing', () => {
     expect(new EffectsManager('civ2civ3').calculateEffect(EffectType.TECH_LEAKAGE, {}).value).toBe(
       1
     );
+    expect(
+      new EffectsManager('civ2civ3').calculateEffect(EffectType.HAVE_CONTACTS, {
+        playerBuildings: new Set(['marco_polos_embassy']),
+      }).value
+    ).toBe(1);
     expect(
       new EffectsManager('civ2civ3').calculateEffect(EffectType.HAVE_EMBASSIES, {
         playerBuildings: new Set(['marco_polos_embassy']),

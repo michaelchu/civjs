@@ -24,6 +24,7 @@ import type { NuclearPresentationEvent } from '@app-types/presentation';
 // Keep existing imports for delegation
 import type { CityState } from '@game/cities/CityTypes';
 import { MapManager } from '@game/managers/MapManager';
+import { EffectsManager } from '@game/managers/EffectsManager';
 import type { ResearchDiplomacyState } from '@game/managers/ResearchManager';
 import type { Unit } from '@game/units/UnitTypes';
 import {
@@ -53,6 +54,8 @@ import {
 } from '@game/services/DiplomatActionEconomics';
 import { rulesetUnitsService, type UnitType } from '@game/services/RulesetUnitsService';
 import { processHumanWorkerAutomation } from '@game/automation/WorkerAutomationService';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import type {
   GameConfig,
   GameInstance,
@@ -190,7 +193,10 @@ export class GameManager {
             .get(gameId)
             ?.cityManager.getCitiesByPlayer(playerId)
             .flatMap(city => city.buildings) ?? []
-        )
+        ),
+      new EffectsManager(DEFAULT_RULESET),
+      rulesetLoader,
+      gameId => this.games.get(gameId)?.config.ruleset ?? DEFAULT_RULESET
     );
     this.diplomacyManager.setTransferExecutor((gameId, proposerId, recipientId, clauses) =>
       this.executeTreatyTransfers(gameId, proposerId, recipientId, clauses)
@@ -1278,24 +1284,9 @@ export class GameManager {
       processHumanWorkerAutomation(gameInstance, this.hostilityPolicy)
     );
     let endGameTelemetry: EndGameTelemetry | null = null;
-    gameInstance.turnManager.setDiplomacyProcessor(async () => {
-      const events = await this.diplomacyManager.processTurn(gameId);
-      for (const event of events) {
-        if (event.type === 'armistice_completed') {
-          await this.removeIllegalPeaceUnits(gameId, event.playerIds[0], event.playerIds[1]);
-        }
-      }
-      await this.refreshSharedVision(gameId);
-      for (const firstPlayerId of gameInstance.players.keys()) {
-        for (const secondPlayerId of gameInstance.players.keys()) {
-          if (firstPlayerId >= secondPlayerId) continue;
-          await gameInstance.cityManager.updateTradeRoutesForDiplomacy(
-            firstPlayerId,
-            secondPlayerId
-          );
-        }
-      }
-    });
+    gameInstance.turnManager.setDiplomacyProcessor(() =>
+      this.processDiplomacyTurn(gameId, gameInstance)
+    );
     gameInstance.turnManager.setReplaySnapshotProvider(async () => ({
       map: gameInstance.mapManager.getMapData(),
       players: Array.from(gameInstance.players.values()).map(player => ({
@@ -1368,6 +1359,23 @@ export class GameManager {
       );
       gameInstance.turnDeadlineAt = null;
       gameInstance.pausedTimerSeconds = null;
+    }
+  }
+
+  private async processDiplomacyTurn(gameId: string, gameInstance: GameInstance): Promise<void> {
+    const events = await this.diplomacyManager.processTurn(gameId);
+    for (const event of events) {
+      if (event.type === 'armistice_completed') {
+        await this.removeIllegalPeaceUnits(gameId, event.playerIds[0], event.playerIds[1]);
+      }
+    }
+    await this.diplomacyManager.applyEffectContacts(gameId);
+    await this.refreshSharedVision(gameId);
+    for (const firstPlayerId of gameInstance.players.keys()) {
+      for (const secondPlayerId of gameInstance.players.keys()) {
+        if (firstPlayerId >= secondPlayerId) continue;
+        await gameInstance.cityManager.updateTradeRoutesForDiplomacy(firstPlayerId, secondPlayerId);
+      }
     }
   }
 
