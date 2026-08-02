@@ -1703,7 +1703,10 @@ describe('UnitManager', () => {
      * @evidence parity
      * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:74-79
      * @reference reference/freeciv/common/movement.c:117-128
-     * @assertion Civ2Civ3 units receive six movement fragments and its road and railroad costs are expressed in those fragments.
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1366-1372
+     * @assertion Civ2Civ3 Unit Move consumes six fragments on Grassland, one on a road, and zero on railroad; a unit with any positive fragment count can make the road step.
+     * @c2c3-action Unit Move
+     * @c2c3-scenario normal, boundary
      * @c2c3-surface movement-transport
      * @c2c3-surface-scenario normal, boundary
      */
@@ -1724,6 +1727,29 @@ describe('UnitManager', () => {
       const railUnit = await unitManager.createUnit('player-123', 'warriors', 20, 20);
       await unitManager.moveUnit(railUnit.id, 21, 20);
       expect(railUnit.movementLeft).toBe(6);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1366-1372
+     * @reference reference/freeciv/server/unithand.c:5830-5906
+     * @assertion A transported Civ2Civ3 passenger cannot perform Unit Move; movement dispatch must choose a disembark or embark action instead.
+     * @c2c3-action Unit Move
+     * @c2c3-scenario rejected
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario boundary
+     */
+    it('rejects regular movement for a Civ2Civ3 passenger', async () => {
+      terrain.set('10,10', 'grassland');
+      terrain.set('11,10', 'grassland');
+      cities.set('10,10', { id: 'port-city', playerId: 'player-123' });
+      const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const cargo = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      await unitManager.loadUnitOntoTransport(transport.id, cargo.id);
+
+      await expect(unitManager.moveUnit(cargo.id, 11, 10)).rejects.toThrow(
+        'Transported unit must unload before moving'
+      );
     });
 
     it('blocks a ground step between two enemy zones of control', async () => {
@@ -1897,6 +1923,332 @@ describe('UnitManager', () => {
 
       expect(unitManager.canLoadUnit(transport.id, cargo.id)).toBe(false);
       await expect(unitManager.loadUnitOntoTransport(transport.id, cargo.id)).resolves.toBe(false);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/doc/README.actions:641-667
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1303-1312
+     * @assertion A Civ2Civ3 Trireme accepts cargo through Transport Board until its two passenger slots are full, then rejects the next board action without changing the existing manifest.
+     * @c2c3-action Transport Board
+     * @c2c3-scenario boundary
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario boundary
+     */
+    it('enforces Civ2Civ3 transport-board capacity at the final passenger slot', async () => {
+      terrain.set('10,10', 'grassland');
+      cities.set('10,10', { id: 'port-city', playerId: 'player-123' });
+      const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const firstCargo = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      const secondCargo = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      const overflowCargo = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+
+      await expect(unitManager.loadUnitOntoTransport(transport.id, firstCargo.id)).resolves.toBe(
+        true
+      );
+      await expect(unitManager.loadUnitOntoTransport(transport.id, secondCargo.id)).resolves.toBe(
+        true
+      );
+      await expect(unitManager.loadUnitOntoTransport(transport.id, overflowCargo.id)).resolves.toBe(
+        false
+      );
+
+      expect(transport.cargoUnits).toEqual([firstCargo.id, secondCargo.id]);
+      expect(unitManager.getTransportCapacityRemaining(transport.id)).toBe(0);
+      expect(overflowCargo.transportedBy).toBeUndefined();
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1291-1301
+     * @reference reference/freeciv/common/unit.c:743-840
+     * @assertion Transport Deboard rejects a passenger on an Ocean transport tile because the cargo is not on a livable tile.
+     * @c2c3-action Transport Deboard
+     * @c2c3-scenario rejected
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario boundary
+     */
+    it('rejects Civ2Civ3 deboarding from a non-livable transport tile', async () => {
+      terrain.set('10,10', 'ocean');
+      const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const cargo = await unitManager.createUnit(
+        'player-123',
+        'warriors',
+        10,
+        10,
+        undefined,
+        transport.id
+      );
+
+      expect(unitManager.canUnloadUnit(cargo.id)).toBe(false);
+      await expect(unitManager.unloadUnit(cargo.id)).resolves.toBe(false);
+      expect(cargo.transportedBy).toBe(transport.id);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1314-1324
+     * @reference reference/freeciv/server/unithand.c:895-909
+     * @assertion Transport Unload uses the transport as the actor and releases its selected passenger on the current livable tile without spending movement.
+     * @c2c3-action Transport Unload
+     * @c2c3-scenario normal
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario normal
+     */
+    it('performs the Civ2Civ3 transport-actor unload action', async () => {
+      terrain.set('10,10', 'grassland');
+      cities.set('10,10', { id: 'port-city', playerId: 'player-123' });
+      const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const cargo = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      await unitManager.loadUnitOntoTransport(transport.id, cargo.id);
+      const movementBeforeUnload = cargo.movementLeft;
+
+      expect(unitManager.canTransportUnloadCargo(transport.id, cargo.id)).toBe(true);
+      await expect(unitManager.unloadCargoFromTransport(transport.id, cargo.id)).resolves.toBe(
+        true
+      );
+
+      expect(cargo).toMatchObject({ transportedBy: undefined, x: 10, y: 10 });
+      expect(cargo.movementLeft).toBe(movementBeforeUnload);
+      expect(transport.cargoUnits).toEqual([]);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1314-1324
+     * @reference reference/freeciv/server/unithand.c:895-909
+     * @assertion Transport Unload rejects a passenger that is not transported by its selected transport actor.
+     * @c2c3-action Transport Unload
+     * @c2c3-scenario rejected
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario boundary
+     */
+    it('rejects Civ2Civ3 transport unload for a cargo unit on another transport', async () => {
+      terrain.set('10,10', 'grassland');
+      cities.set('10,10', { id: 'port-city', playerId: 'player-123' });
+      const sourceTransport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const otherTransport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const cargo = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      await unitManager.loadUnitOntoTransport(sourceTransport.id, cargo.id);
+
+      expect(unitManager.canTransportUnloadCargo(otherTransport.id, cargo.id)).toBe(false);
+      await expect(unitManager.unloadCargoFromTransport(otherTransport.id, cargo.id)).resolves.toBe(
+        false
+      );
+      expect(cargo.transportedBy).toBe(sourceTransport.id);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1291-1301
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1314-1324
+     * @reference reference/freeciv/server/unithand.c:838-846
+     * @reference reference/freeciv/server/unithand.c:895-909
+     * @assertion Neither Transport Deboard nor Transport Unload requires a movement fragment: zero-movement cargo can leave its transport on a livable city tile through either actor form.
+     * @c2c3-action Transport Deboard
+     * @c2c3-scenario boundary
+     * @c2c3-action Transport Unload
+     * @c2c3-scenario boundary
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario boundary
+     */
+    it('allows zero-movement Civ2Civ3 cargo to leave a city transport through both unload forms', async () => {
+      terrain.set('10,10', 'grassland');
+      cities.set('10,10', { id: 'port-city', playerId: 'player-123' });
+      const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const deboardCargo = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      const unloadCargo = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      await unitManager.loadUnitOntoTransport(transport.id, deboardCargo.id);
+      await unitManager.loadUnitOntoTransport(transport.id, unloadCargo.id);
+      await unitManager.seedUnitState(deboardCargo.id, { movementLeft: 0 });
+      await unitManager.seedUnitState(unloadCargo.id, { movementLeft: 0 });
+
+      await expect(unitManager.unloadUnit(deboardCargo.id)).resolves.toBe(true);
+      await expect(
+        unitManager.unloadCargoFromTransport(transport.id, unloadCargo.id)
+      ).resolves.toBe(true);
+
+      expect(deboardCargo).toMatchObject({ transportedBy: undefined, movementLeft: 0 });
+      expect(unloadCargo).toMatchObject({ transportedBy: undefined, movementLeft: 0 });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1326-1343
+     * @reference reference/freeciv/server/unithand.c:918-941
+     * @assertion Transport Disembark rejects a native-city passenger with no movement fragments left.
+     * @c2c3-action Transport Disembark
+     * @c2c3-scenario rejected
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario boundary
+     */
+    it('rejects zero-movement Civ2Civ3 native disembarkation', async () => {
+      terrain.set('10,10', 'grassland');
+      terrain.set('11,10', 'grassland');
+      cities.set('10,10', { id: 'port-city', playerId: 'player-123' });
+      const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const cargo = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      await unitManager.loadUnitOntoTransport(transport.id, cargo.id);
+      await unitManager.seedUnitState(cargo.id, { movementLeft: 0 });
+
+      await expect(unitManager.unloadUnit(cargo.id, 11, 10)).resolves.toBe(false);
+      expect(cargo).toMatchObject({ transportedBy: transport.id, x: 10, y: 10, movementLeft: 0 });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1326-1343
+     * @reference reference/freeciv/common/movement.c:117-128
+     * @reference reference/freeciv/server/unithand.c:918-941
+     * @assertion The one-fragment MinMoveFrags boundary allows Transport Disembark from a city source; the Grassland step spends the remaining fragment.
+     * @c2c3-action Transport Disembark
+     * @c2c3-scenario boundary
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario boundary
+     */
+    it('allows one-fragment Civ2Civ3 native disembarkation', async () => {
+      terrain.set('10,10', 'grassland');
+      terrain.set('11,10', 'grassland');
+      cities.set('10,10', { id: 'port-city', playerId: 'player-123' });
+      const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const cargo = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      await unitManager.loadUnitOntoTransport(transport.id, cargo.id);
+      await unitManager.seedUnitState(cargo.id, { movementLeft: 1 });
+
+      await expect(unitManager.unloadUnit(cargo.id, 11, 10)).resolves.toBe(true);
+      expect(cargo).toMatchObject({ transportedBy: undefined, x: 11, y: 10, movementLeft: 0 });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1344-1352
+     * @reference reference/freeciv/server/unithand.c:918-941
+     * @assertion Transport Disembark 2 rejects a non-native transport passenger with no movement fragments left.
+     * @c2c3-action Transport Disembark 2
+     * @c2c3-scenario rejected
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario boundary
+     */
+    it('rejects zero-movement Civ2Civ3 non-native disembarkation', async () => {
+      terrain.set('10,10', 'ocean');
+      terrain.set('11,10', 'grassland');
+      const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const cargo = await unitManager.createUnit(
+        'player-123',
+        'warriors',
+        10,
+        10,
+        undefined,
+        transport.id
+      );
+      await unitManager.seedUnitState(cargo.id, { movementLeft: 0 });
+
+      await expect(unitManager.unloadUnit(cargo.id, 11, 10)).resolves.toBe(false);
+      expect(cargo).toMatchObject({ transportedBy: transport.id, x: 10, y: 10, movementLeft: 0 });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1344-1352
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4534-4542
+     * @reference reference/freeciv/server/unithand.c:918-941
+     * @assertion The one-fragment MinMoveFrags boundary allows Transport Disembark 2, after which the non-native action cost leaves no movement for the cargo.
+     * @c2c3-action Transport Disembark 2
+     * @c2c3-scenario boundary
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario boundary
+     */
+    it('allows one-fragment Civ2Civ3 non-native disembarkation', async () => {
+      terrain.set('10,10', 'ocean');
+      terrain.set('11,10', 'grassland');
+      const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const cargo = await unitManager.createUnit(
+        'player-123',
+        'warriors',
+        10,
+        10,
+        undefined,
+        transport.id
+      );
+      await unitManager.seedUnitState(cargo.id, { movementLeft: 1 });
+
+      await expect(unitManager.unloadUnit(cargo.id, 11, 10)).resolves.toBe(true);
+      expect(cargo).toMatchObject({ transportedBy: undefined, x: 11, y: 10, movementLeft: 0 });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1354-1364
+     * @reference reference/freeciv/doc/README.actions:668-700
+     * @reference reference/freeciv/server/unithand.c:976-1005
+     * @assertion A mobile Civ2Civ3 Alpine Troops unit enters its adjacent allied Helicopter through Transport Embark and pays the move-to-transport cost.
+     * @c2c3-action Transport Embark
+     * @c2c3-scenario normal
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario normal
+     */
+    it('embarks mobile Civ2Civ3 cargo into an adjacent helicopter', async () => {
+      terrain.set('10,10', 'grassland');
+      terrain.set('11,10', 'ocean');
+      const cargo = await unitManager.createUnit('player-123', 'alpine_troops', 10, 10);
+      const transport = await unitManager.createUnit('player-123', 'helicopter', 11, 10);
+
+      await expect(unitManager.moveUnit(cargo.id, 11, 10)).resolves.toBe(true);
+
+      expect(cargo).toMatchObject({
+        transportedBy: transport.id,
+        x: 11,
+        y: 10,
+        movementLeft: 0,
+      });
+      expect(transport.cargoUnits).toEqual([cargo.id]);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1354-1364
+     * @reference reference/freeciv/doc/README.actions:668-700
+     * @assertion Transport Embark rejects a target tile containing an unallied unit, even when the compatible transport itself is allied.
+     * @c2c3-action Transport Embark
+     * @c2c3-scenario rejected
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario boundary
+     */
+    it('rejects Civ2Civ3 embarkation into a tile with an unallied stack member', async () => {
+      terrain.set('10,10', 'grassland');
+      terrain.set('11,10', 'ocean');
+      const cargo = await unitManager.createUnit('player-123', 'alpine_troops', 10, 10);
+      await unitManager.createUnit('player-123', 'helicopter', 11, 10);
+      await unitManager.createUnit('player-456', 'helicopter', 11, 10);
+
+      await expect(unitManager.moveUnit(cargo.id, 11, 10)).rejects.toThrow(
+        'Unit cannot enter terrain'
+      );
+      expect(cargo).toMatchObject({ transportedBy: undefined, x: 10, y: 10 });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1354-1364
+     * @reference reference/freeciv/server/unithand.c:976-1005
+     * @assertion Transport Embark has a one-fragment minimum: zero movement rejects, while exactly one fragment can enter the adjacent Helicopter and is exhausted by the move cost.
+     * @c2c3-action Transport Embark
+     * @c2c3-scenario boundary
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario boundary
+     */
+    it('enforces the Civ2Civ3 one-fragment embarkation boundary', async () => {
+      terrain.set('10,10', 'grassland');
+      terrain.set('11,10', 'ocean');
+      const cargo = await unitManager.createUnit('player-123', 'alpine_troops', 10, 10);
+      const transport = await unitManager.createUnit('player-123', 'helicopter', 11, 10);
+      await unitManager.seedUnitState(cargo.id, { movementLeft: 0 });
+
+      await expect(unitManager.moveUnit(cargo.id, 11, 10)).rejects.toThrow('Not enough movement');
+      await unitManager.seedUnitState(cargo.id, { movementLeft: 1 });
+      await expect(unitManager.moveUnit(cargo.id, 11, 10)).resolves.toBe(true);
+
+      expect(cargo).toMatchObject({ transportedBy: transport.id, movementLeft: 0 });
     });
 
     it('rescues cargo to a legal tile when its transport is destroyed', async () => {

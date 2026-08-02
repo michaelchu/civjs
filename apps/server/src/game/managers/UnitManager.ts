@@ -3428,7 +3428,14 @@ export class UnitManager {
     targetX?: number,
     targetY?: number
   ): Promise<ActionResult> {
-    const transport = this.findAvailableTransportAt(unit, targetX ?? unit.x, targetY ?? unit.y);
+    const x = targetX ?? unit.x;
+    const y = targetY ?? unit.y;
+    // The player-facing Load action is Freeciv's Transport Board: its
+    // transport target must share the actor's tile. Moving to an adjacent
+    // transport is instead resolved by the movement path as Transport Embark.
+    // @reference reference/freeciv/doc/README.actions:641-700
+    const transport =
+      x === unit.x && y === unit.y ? this.findAvailableTransportAt(unit, x, y) : undefined;
     const loaded = transport ? await this.loadUnitOntoTransport(transport.id, unit.id) : false;
     return {
       success: loaded,
@@ -5115,7 +5122,11 @@ export class UnitManager {
   ): ((targetX?: number, targetY?: number) => boolean) | undefined {
     const checks: Partial<Record<ActionType, (targetX?: number, targetY?: number) => boolean>> = {
       [ActionType.LOAD_UNIT]: (targetX, targetY) =>
-        Boolean(this.findAvailableTransportAt(unit, targetX ?? unit.x, targetY ?? unit.y)),
+        targetX === undefined || targetY === undefined
+          ? Boolean(this.findAvailableTransportAt(unit, unit.x, unit.y))
+          : targetX === unit.x && targetY === unit.y
+            ? Boolean(this.findAvailableTransportAt(unit, targetX, targetY))
+            : false,
       [ActionType.UNLOAD_UNIT]: (targetX, targetY) =>
         this.canUnloadUnit(unit.id, targetX ?? unit.x, targetY ?? unit.y),
       [ActionType.PARADROP]: (targetX, targetY) => this.canParadrop(unit, targetX, targetY),
@@ -6213,6 +6224,23 @@ export class UnitManager {
     return this.canUnloadAt(unit, transport, x, y);
   }
 
+  /**
+   * Check Freeciv's Transport Unload form, where the transport is the actor
+   * and a passenger on its current tile is the target.
+   *
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1314-1324
+   * @reference reference/freeciv/server/unithand.c:895-909
+   */
+  canTransportUnloadCargo(transportId: string, cargoId: string): boolean {
+    const transport = this.units.get(transportId);
+    const cargo = this.units.get(cargoId);
+    return Boolean(
+      transport &&
+      cargo?.transportedBy === transport.id &&
+      this.canUnloadAt(cargo, transport, transport.x, transport.y)
+    );
+  }
+
   private canUnloadAt(unit: Unit, transport: Unit, x: number, y: number): boolean {
     if (!this.isValidPosition(x, y)) return false;
     const distance = this.calculateDistance(transport.x, transport.y, x, y);
@@ -6264,12 +6292,41 @@ export class UnitManager {
    * @reference reference/freeciv/server/unithand.c:856-875
    */
   private canCargoUseTransport(cargo: Unit, transport: Unit, requireSameTile: boolean): boolean {
+    if (!this.isEligibleTransportAssignment(cargo, transport, requireSameTile)) return false;
+    return this.canFreelyLoadInto(cargo, transport) || this.isTransportDocked(transport);
+  }
+
+  private isEligibleTransportAssignment(
+    cargo: Unit,
+    transport: Unit,
+    requireSameTile: boolean
+  ): boolean {
     if (cargo.id === transport.id || cargo.transportedBy === transport.id) return false;
     if (!this.playersCanShareTransport(cargo.playerId, transport.playerId)) return false;
     if (requireSameTile && (cargo.x !== transport.x || cargo.y !== transport.y)) return false;
+    if (!requireSameTile && !this.canEnterTransportTile(cargo, transport)) return false;
     if (this.getTransportCapacityRemaining(transport.id) <= 0) return false;
-    if (!this.isValidTransportCombination(transport.unitTypeId, cargo.unitTypeId)) return false;
-    return this.canFreelyLoadInto(cargo, transport) || this.isTransportDocked(transport);
+    return this.isValidTransportCombination(transport.unitTypeId, cargo.unitTypeId);
+  }
+
+  /**
+   * Freeciv's Transport Embark action rejects a target tile that contains an
+   * unallied unit or city. The regular destination validator only receives
+   * one unit, while a transport tile can be a stack, so check the complete
+   * authoritative tile before selecting an embark target.
+   *
+   * @reference reference/freeciv/doc/README.actions:668-700
+   */
+  private canEnterTransportTile(cargo: Unit, transport: Unit): boolean {
+    if (
+      this.getUnitsAt(transport.x, transport.y).some(
+        candidate => !this.playersCanShareTransport(cargo.playerId, candidate.playerId)
+      )
+    ) {
+      return false;
+    }
+    const city = this.gameManagerCallback?.getCityAt?.(transport.x, transport.y);
+    return !city || this.playersCanShareTransport(cargo.playerId, city.playerId);
   }
 
   private playersCanShareTransport(firstPlayerId: string, secondPlayerId: string): boolean {
@@ -6391,14 +6448,38 @@ export class UnitManager {
     const y = targetY ?? transport.y;
     if (!this.canUnloadUnit(unitId, x, y)) return false;
 
+    return this.unloadCargoAt(cargo, transport, x, y);
+  }
+
+  /**
+   * Perform Freeciv's Transport Unload form, where the selected transport
+   * releases one of its passengers without moving it to another tile.
+   *
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1314-1324
+   * @reference reference/freeciv/server/unithand.c:895-909
+   */
+  async unloadCargoFromTransport(transportId: string, cargoId: string): Promise<boolean> {
+    const transport = this.units.get(transportId);
+    const cargo = this.units.get(cargoId);
+    if (!transport || !cargo || !this.canTransportUnloadCargo(transportId, cargoId)) return false;
+
+    return this.unloadCargoAt(cargo, transport, transport.x, transport.y);
+  }
+
+  private async unloadCargoAt(
+    cargo: Unit,
+    transport: Unit,
+    x: number,
+    y: number
+  ): Promise<boolean> {
     const remainingMovement = this.getUnloadMovement(cargo, transport, x, y);
-    transport.cargoUnits = (transport.cargoUnits ?? []).filter(id => id !== unitId);
+    transport.cargoUnits = (transport.cargoUnits ?? []).filter(id => id !== cargo.id);
     cargo.transportedBy = undefined;
     cargo.x = x;
     cargo.y = y;
     cargo.movementLeft = remainingMovement;
 
-    await this.persistUnload(unitId, transport, x, y, remainingMovement);
+    await this.persistUnload(cargo.id, transport, x, y, remainingMovement);
     return true;
   }
 

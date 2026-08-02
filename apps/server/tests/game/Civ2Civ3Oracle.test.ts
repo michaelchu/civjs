@@ -297,6 +297,53 @@ async function civ2civ3NonNativeTransportDisembark(): Promise<Record<string, num
   };
 }
 
+async function civ2civ3TransportEmbark(): Promise<Record<string, number>> {
+  const mapWidth = 80;
+  const mapHeight = 50;
+  const topology = new MapTopology(mapWidth, mapHeight, {
+    topologyId: TopologyFlag.ISO | TopologyFlag.HEX,
+    wrapId: WrapFlag.X | WrapFlag.Y,
+  });
+  const origin = { x: 10, y: 10 };
+  const target = topology.getNeighbors(origin.x, origin.y)[0];
+  if (!target) throw new Error('Civ2Civ3 embark fixture has no adjacent target tile.');
+  const tiles = new Map<string, { x: number; y: number; terrain: string; improvements: string[] }>([
+    [`${origin.x},${origin.y}`, { ...origin, terrain: 'grassland', improvements: [] }],
+    [`${target.x},${target.y}`, { ...target, terrain: 'ocean', improvements: [] }],
+  ]);
+  const manager = new UnitManager(
+    'civ2civ3-oracle-transport-embark',
+    createMockDatabaseProvider(),
+    mapWidth,
+    mapHeight,
+    {
+      getTile: (x: number, y: number) =>
+        tiles.get(`${x},${y}`) ?? { x, y, terrain: 'grassland', improvements: [] },
+      getTopology: () => topology,
+    },
+    {
+      foundCity: async () => 'unused-city',
+      requestPath: async () => ({ success: false }),
+      broadcastUnitMoved: () => undefined,
+      getCityAt: () => null,
+    },
+    new EffectsManager('civ2civ3'),
+    Math.random,
+    rulesetUnitsService.getUnitTypes('civ2civ3')
+  );
+  const cargo = await manager.createUnit('oracle-player', 'alpine_troops', origin.x, origin.y);
+  const transport = await manager.createUnit('oracle-player', 'helicopter', target.x, target.y);
+  const embarked = await manager
+    .moveUnit(cargo.id, target.x, target.y)
+    .then(() => true)
+    .catch(() => false);
+
+  return {
+    transport_embark_succeeded: Number(embarked),
+    transport_embark_transported: Number(cargo.transportedBy === transport.id),
+  };
+}
+
 async function civ2civ3VeteranWarriorUpgrade(): Promise<Record<string, number>> {
   const databaseProvider = createMockDatabaseProvider();
   const manager = new UnitManager(
@@ -516,6 +563,25 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
         non_native_disembark_transported: oracle.results.non_native_disembark_transported,
         non_native_disembark_followup_move_succeeded:
           oracle.results.non_native_disembark_followup_move_succeeded,
+      });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1354-1364
+     * @reference reference/freeciv/data/civ2civ3/units.ruleset:913-943
+     * @reference reference/freeciv/server/unithand.c:976-1005
+     * @assertion CivJS and the pinned Freeciv c2c3 server both let Alpine Troops enter an adjacent Helicopter through Transport Embark and retain the passenger relationship.
+     * @c2c3-action Transport Embark
+     * @c2c3-scenario normal
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario differential
+     */
+    it('matches the batched pinned Freeciv transport-embark fixture', async () => {
+      expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
+      await expect(civ2civ3TransportEmbark()).resolves.toEqual({
+        transport_embark_succeeded: oracle.results.transport_embark_succeeded,
+        transport_embark_transported: oracle.results.transport_embark_transported,
       });
     });
 
