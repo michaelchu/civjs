@@ -4595,7 +4595,9 @@ export class UnitManager {
     if (baseNames) {
       const extras = rulesetLoader.getExtras(rulesetName);
       return baseNames.flatMap(name => {
-        const entry = Object.entries(extras).find(([id, extra]) => id === name || extra.name === name);
+        const entry = Object.entries(extras).find(
+          ([id, extra]) => id === name || extra.name === name
+        );
         return entry ? [{ storageKey: entry[0].replace(/^extra_/, ''), extra: entry[1] }] : [];
       });
     }
@@ -4609,9 +4611,7 @@ export class UnitManager {
       const entry = Object.entries(rulesetLoader.getExtras(rulesetName)).find(
         ([id, extra]) => id === namedExtra || extra.name === namedExtra
       );
-      return entry
-        ? [{ storageKey: entry[0].replace(/^extra_/, ''), extra: entry[1] }]
-        : [];
+      return entry ? [{ storageKey: entry[0].replace(/^extra_/, ''), extra: entry[1] }] : [];
     }
     if (actionType !== ActionType.BUILD_MINE) return [];
 
@@ -5476,7 +5476,10 @@ export class UnitManager {
    * Get activity duration in turns
    * @reference freeciv ruleset activity times
    */
-  private getActivityDuration(order: Pick<UnitOrder, 'type' | 'improvementType'>, unit: Unit): number {
+  private getActivityDuration(
+    order: Pick<UnitOrder, 'type' | 'improvementType'>,
+    unit: Unit
+  ): number {
     const tile = this.mapManager?.getTile(unit.x, unit.y);
     const terrain = tile
       ? rulesetLoader.getTerrain(tile.terrain, this.getRulesetName())

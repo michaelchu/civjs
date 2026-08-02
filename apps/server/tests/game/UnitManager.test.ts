@@ -540,7 +540,13 @@ describe('UnitManager', () => {
 
       expect(manager.canUnitPerformAction(worker.id, ActionType.CULTIVATE)).toBe(true);
       await expect(
-        manager.executeUnitAction(worker.id, ActionType.CULTIVATE, undefined, undefined, 'player-123')
+        manager.executeUnitAction(
+          worker.id,
+          ActionType.CULTIVATE,
+          undefined,
+          undefined,
+          'player-123'
+        )
       ).resolves.toMatchObject({ success: true });
       expect(worker.orders).toEqual([{ type: 'cultivate' }]);
     });
@@ -774,7 +780,13 @@ describe('UnitManager', () => {
 
       expect(manager.canUnitPerformAction(warrior.id, ActionType.PILLAGE)).toBe(true);
       await expect(
-        manager.executeUnitAction(warrior.id, ActionType.PILLAGE, undefined, undefined, 'player-123')
+        manager.executeUnitAction(
+          warrior.id,
+          ActionType.PILLAGE,
+          undefined,
+          undefined,
+          'player-123'
+        )
       ).resolves.toMatchObject({ success: true });
       expect(warrior.orders).toEqual([{ type: 'pillage' }]);
     });

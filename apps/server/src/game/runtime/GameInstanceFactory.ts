@@ -62,8 +62,7 @@ export function buildStoredGameConfig(
     mapHeight: game.mapHeight ?? undefined,
     mapSeed: game.mapSeed ?? undefined,
     ruleset: options.recovery ? ruleset : (game.ruleset ?? undefined),
-    nationSet:
-      typeof game.gameState?.nationSet === 'string' ? game.gameState.nationSet : undefined,
+    nationSet: typeof game.gameState?.nationSet === 'string' ? game.gameState.nationSet : undefined,
     turnTimeLimit: game.turnTimeLimit ?? undefined,
     maxTurns: game.maxTurns ?? 0,
     victoryConditions:

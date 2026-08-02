@@ -116,8 +116,9 @@ describe('PlayerConnectionManager - Nation Selection', () => {
         abkhaz: { id: 'abkhaz', name: 'Abkhaz', leaders: [{ name: 'Ardzinba' }] },
         animals: { id: 'animals', name: 'Animal Kingdom', is_playable: false },
       };
-      mockRulesetLoader.getNationsForSet.mockImplementation((_ruleset: string, nationSet?: string) =>
-        nationSet === 'all' ? extendedNations : mockNationsRuleset.nations
+      mockRulesetLoader.getNationsForSet.mockImplementation(
+        (_ruleset: string, nationSet?: string) =>
+          nationSet === 'all' ? extendedNations : mockNationsRuleset.nations
       );
       const validateMethod = (playerManager as any).validateAndSelectNation.bind(playerManager);
 
@@ -339,7 +340,7 @@ describe('PlayerConnectionManager - Nation Selection', () => {
       });
     });
 
-    it('uses the game\'s persisted nation set when a player joins', async () => {
+    it("uses the game's persisted nation set when a player joins", async () => {
       mockDatabase.query.games.findFirst.mockResolvedValue({
         id: mockGameId,
         status: 'waiting',

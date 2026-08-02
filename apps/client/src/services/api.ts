@@ -142,9 +142,7 @@ export const nationsApi = {
   ): Promise<ApiResponse<NationResponse>> {
     const query = new URLSearchParams({ ruleset });
     if (nationSet) query.set('nationSet', nationSet);
-    return fetchApi<NationResponse>(
-      `/nations/${encodeURIComponent(id)}?${query.toString()}`
-    );
+    return fetchApi<NationResponse>(`/nations/${encodeURIComponent(id)}?${query.toString()}`);
   },
 
   /**

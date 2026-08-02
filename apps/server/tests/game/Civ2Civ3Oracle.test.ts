@@ -109,7 +109,10 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
       const repositoryRoot = resolve(process.cwd(), '..', '..');
       const output = execFileSync(
         process.execPath,
-        [resolve(repositoryRoot, 'tools/run-freeciv-oracle.mjs'), '--scenario=civ2civ3-research-cost'],
+        [
+          resolve(repositoryRoot, 'tools/run-freeciv-oracle.mjs'),
+          '--scenario=civ2civ3-research-cost',
+        ],
         { encoding: 'utf8', env: process.env }
       );
       const oracle = JSON.parse(output) as {
