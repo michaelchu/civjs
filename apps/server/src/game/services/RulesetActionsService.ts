@@ -72,13 +72,22 @@ export class RulesetActionsService {
     private readonly requirements = new RulesetRequirementEvaluator()
   ) {}
 
-  getDiplomatActions(unitFlags: Iterable<string>): string[] {
-    const flags = new Set(unitFlags);
+  getDiplomatActions(actor: UnitType | Iterable<string>): string[] {
+    const unitType = this.asUnitType(actor);
+    const flags = new Set(unitType ? (unitType.flags ?? []) : (actor as Iterable<string>));
     return CLIENT_ACTIONS.filter(action =>
       action.upstream.some(upstream =>
         this.loader
           .getActionEnablersFor(upstream, this.rulesetName)
-          .some(enabler => this.matchesUnitTypeFlags(enabler, flags))
+          .some(enabler =>
+            this.matchesStaticActorFacts(
+              enabler,
+              flags,
+              unitType?.rulesetUnitClass,
+              new Set(unitType?.rulesetUnitClassFlags ?? []),
+              unitType?.id
+            )
+          )
       )
     ).map(action => action.id);
   }
@@ -101,7 +110,8 @@ export class RulesetActionsService {
               enabler,
               flags,
               unitClass,
-              new Set(unitType.rulesetUnitClassFlags)
+              new Set(unitType.rulesetUnitClassFlags),
+              unitType.id
             )
           )
       );
@@ -115,25 +125,25 @@ export class RulesetActionsService {
     return actions;
   }
 
-  private matchesUnitTypeFlags(enabler: ActionEnabler, flags: Set<string>): boolean {
-    return this.requirements.evaluateAll(
-      enabler.actor_reqs.filter(requirement => requirement.type === 'UnitTypeFlag'),
-      { Local: { unitTypeFlags: flags } }
-    );
-  }
-
   private matchesStaticActorFacts(
     enabler: ActionEnabler,
     flags: Set<string>,
     unitClass: string | undefined,
-    unitClassFlags: Set<string>
+    unitClassFlags: Set<string>,
+    unitType: string | undefined
   ): boolean {
     const staticRequirements = enabler.actor_reqs.filter(requirement =>
-      ['UnitTypeFlag', 'UnitClass', 'UnitClassFlag'].includes(requirement.type)
+      ['UnitType', 'UnitTypeFlag', 'UnitClass', 'UnitClassFlag'].includes(requirement.type)
     );
     return this.requirements.evaluateAll(staticRequirements, {
-      Local: { unitTypeFlags: flags, unitClass, unitClassFlags },
+      Local: { unitType, unitTypeFlags: flags, unitClass, unitClassFlags },
     });
+  }
+
+  private asUnitType(actor: UnitType | Iterable<string>): UnitType | undefined {
+    return typeof actor === 'object' && actor !== null && 'id' in actor && 'flags' in actor
+      ? (actor as UnitType)
+      : undefined;
   }
 }
 

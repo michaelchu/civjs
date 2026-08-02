@@ -10,7 +10,7 @@ import { logger } from '@utils/logger';
 import type { Server as SocketServer } from 'socket.io';
 import { PacketType, PACKET_NAMES, PROTOCOL_VERSION } from '@app-types/packet';
 import type { GameInstance } from '@game/runtime/GameTypes';
-import { rulesetActionsService } from '@game/services/RulesetActionsService';
+import { RulesetActionsService } from '@game/services/RulesetActionsService';
 import { resolveCityPresentations } from '@game/services/CityPresentationService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
@@ -19,6 +19,7 @@ import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService'
 import { visibleResourceForPlayer } from '@game/services/ResourceVisibilityService';
 import { resolveNationGraphic } from '@game/services/NationPresentationService';
 import type { CombatPresentationEvent, NuclearPresentationEvent } from '@app-types/presentation';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 const LOBBY_EVENTS = new Set(['player-joined', 'player-connection-changed']);
 
@@ -39,6 +40,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   private io: SocketServer;
   private games = new Map<string, GameInstance>();
   private debugVisibilityPlayers = new Set<string>();
+  private rulesetActionServices = new Map<string, RulesetActionsService>();
 
   constructor(io: SocketServer) {
     super(logger);
@@ -446,7 +448,12 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         );
 
     return units.map((unit: any) =>
-      this.formatUnitForClient(unit, gameInstance.unitManager, playerId)
+      this.formatUnitForClient(
+        unit,
+        gameInstance.unitManager,
+        playerId,
+        gameInstance.config.ruleset ?? DEFAULT_RULESET
+      )
     );
   }
 
@@ -661,7 +668,12 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
           gameInstance.visibilityManager.getDetectionTiles?.(playerId)
         );
     const units = visibleUnits.map((unit: any) =>
-      this.formatUnitForClient(unit, gameInstance.unitManager, playerId)
+      this.formatUnitForClient(
+        unit,
+        gameInstance.unitManager,
+        playerId,
+        gameInstance.config.ruleset ?? DEFAULT_RULESET
+      )
     );
     this.sendPacketToPlayer(gameInstance, playerId, PacketType.UNIT_INFO, {
       units,
@@ -933,11 +945,16 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
    * Format unit data for client transmission
    * @reference Original GameManager.ts:800-832 formatUnitForClient()
    */
-  private formatUnitForClient(unit: any, unitManager: any, recipientPlayerId?: string): any {
+  private formatUnitForClient(
+    unit: any,
+    unitManager: any,
+    recipientPlayerId?: string,
+    rulesetName = 'classic'
+  ): any {
     const unitTypeId = this.getUnitTypeId(unit);
     const unitType =
       unitManager.getUnitType?.(unitTypeId) ??
-      rulesetUnitsService.getUnitType(unitTypeId, 'classic');
+      rulesetUnitsService.getUnitType(unitTypeId, rulesetName);
     return {
       id: unit.id,
       owner: unit.playerId,
@@ -963,7 +980,8 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       cargoUnits: this.unitValue(unit.cargoUnits, []),
       capabilities: this.getUnitCapabilities(
         unitType,
-        unitManager.getAvailableWorkerActions?.(unit.id)
+        unitManager.getAvailableWorkerActions?.(unit.id),
+        rulesetName
       ),
       actionDecisionWant: Boolean(unit.actionDecisionWant),
       nationality: this.unitValue(unit.nationality, unit.playerId),
@@ -1002,7 +1020,11 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     return value === undefined || value === null ? fallback : value;
   }
 
-  private getUnitCapabilities(unitType: any, availableWorkerActions?: string[]): any {
+  private getUnitCapabilities(
+    unitType: any,
+    availableWorkerActions?: string[],
+    rulesetName = 'classic'
+  ): any {
     const flags = unitType?.rulesetUnitClassFlags ?? [];
     return {
       canFortify: this.canFortify(unitType, flags),
@@ -1010,8 +1032,8 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       canBuildImprovements: Boolean(unitType?.canBuildImprovements),
       canPillage: flags.includes('CanPillage'),
       canTrade: Boolean(unitType?.flags?.includes('TradeRoute')),
-      diplomatActions: this.getDiplomatActions(unitType),
-      unitActions: this.getUnitActions(unitType),
+      diplomatActions: this.getDiplomatActions(unitType, rulesetName),
+      unitActions: this.getUnitActions(unitType, rulesetName),
       availableWorkerActions,
     };
   }
@@ -1020,14 +1042,21 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     return flags.includes('CanFortify') && !unitType?.flags?.includes('Cant_Fortify');
   }
 
-  private getDiplomatActions(unitType: any): any[] {
-    return unitType?.flags?.includes('Diplomat')
-      ? rulesetActionsService.getDiplomatActions(unitType.flags)
-      : [];
+  private getDiplomatActions(unitType: any, rulesetName: string): any[] {
+    return unitType ? this.getRulesetActionService(rulesetName).getDiplomatActions(unitType) : [];
   }
 
-  private getUnitActions(unitType: any): any[] {
-    return unitType ? rulesetActionsService.getUnitActions(unitType) : [];
+  private getUnitActions(unitType: any, rulesetName: string): any[] {
+    return unitType ? this.getRulesetActionService(rulesetName).getUnitActions(unitType) : [];
+  }
+
+  private getRulesetActionService(rulesetName: string): RulesetActionsService {
+    let service = this.rulesetActionServices.get(rulesetName);
+    if (!service) {
+      service = new RulesetActionsService(rulesetLoader, rulesetName);
+      this.rulesetActionServices.set(rulesetName, service);
+    }
+    return service;
   }
 
   /**

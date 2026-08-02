@@ -15,6 +15,7 @@ describe('GameManager classic espionage actions', () => {
     manager = GameManager.getInstance(mockIo, createMockDatabaseProvider());
     (manager as any).diplomacyManager = {
       establishContact: jest.fn(),
+      establishEmbassy: jest.fn(),
       getSnapshot: jest.fn().mockResolvedValue({
         nations: [{ id: targetPlayerId, relation: { state: 'war' } }],
       }),
@@ -29,7 +30,10 @@ describe('GameManager classic espionage actions', () => {
 
   afterEach(() => manager.clearAllGames());
 
-  function installGame(actorType: 'diplomat' | 'spy', overrides: Record<string, unknown> = {}) {
+  function installGame(
+    actorType: 'diplomat' | 'spy' | 'explorer',
+    overrides: Record<string, unknown> = {}
+  ) {
     const actor = {
       id: 'actor',
       gameId,
@@ -128,6 +132,92 @@ describe('GameManager classic espionage actions', () => {
     expect(game.unitManager.removeUnit).toHaveBeenCalledWith('actor');
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:449-461
+   * @reference reference/freeciv/common/actions.c:177-186
+   * @reference reference/freeciv/server/diplomats.c:476-541
+   * @assertion The distinct c2c3 Explorer enabler may also perform Establish Embassy Stay, creating the same real embassy and consuming the explorer actor.
+   * @c2c3-action Establish Embassy Stay
+   * @c2c3-scenario boundary
+   * @c2c3-surface diplomacy-espionage
+   * @c2c3-surface-scenario boundary
+   */
+  it('accepts the c2c3 Explorer alternate embassy actor', async () => {
+    const city = {
+      id: 'city-1',
+      name: 'Target',
+      playerId: targetPlayerId,
+      x: 5,
+      y: 5,
+      size: 3,
+      buildings: [],
+    };
+    const { game } = installGame('explorer');
+    game.cityManager.getCityAt.mockReturnValue(city);
+
+    await expect(
+      manager.executeDiplomatAction(
+        gameId,
+        actorPlayerId,
+        'actor',
+        ActionType.ESTABLISH_EMBASSY,
+        5,
+        5
+      )
+    ).resolves.toMatchObject({ success: true, unitDestroyed: true });
+
+    expect((manager as any).diplomacyManager.establishEmbassy).toHaveBeenCalledWith(
+      gameId,
+      actorPlayerId,
+      targetPlayerId
+    );
+    expect(game.unitManager.removeUnit).toHaveBeenCalledWith('actor');
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:421-433
+   * @assertion Establish Embassy Stay is unavailable after the acting player already has a real embassy with the target nation.
+   * @c2c3-action Establish Embassy Stay
+   * @c2c3-scenario rejected
+   * @c2c3-surface diplomacy-espionage
+   * @c2c3-surface-scenario boundary
+   */
+  it('rejects a duplicate c2c3 embassy before consuming the actor', async () => {
+    const city = {
+      id: 'city-1',
+      name: 'Target',
+      playerId: targetPlayerId,
+      x: 5,
+      y: 5,
+      size: 3,
+      buildings: [],
+    };
+    const { game } = installGame('diplomat');
+    game.cityManager.getCityAt.mockReturnValue(city);
+    (manager as any).diplomacyManager.getSnapshot.mockResolvedValue({
+      nations: [{ id: targetPlayerId, relation: { state: 'war', embassy: true } }],
+    });
+
+    await expect(
+      manager.executeDiplomatAction(
+        gameId,
+        actorPlayerId,
+        'actor',
+        ActionType.ESTABLISH_EMBASSY,
+        5,
+        5
+      )
+    ).resolves.toMatchObject({
+      success: false,
+      message: 'A real embassy already exists with this nation',
+    });
+
+    expect((manager as any).diplomacyManager.establishEmbassy).not.toHaveBeenCalled();
+    expect(game.unitManager.removeUnit).not.toHaveBeenCalled();
+  });
+
   it('uses a Super Spy as the city defender even without the Diplomat flag', async () => {
     const city = {
       id: 'city-1',
@@ -172,6 +262,54 @@ describe('GameManager classic espionage actions', () => {
       ActionType.POISON_WATER,
       'super-spy'
     );
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:421-433
+   * @reference reference/freeciv/common/actions.c:177-186
+   * @reference reference/freeciv/server/diplomats.c:476-541
+   * @assertion The c2c3 Diplomat-only Establish Embassy Stay action creates a real embassy in an adjacent foreign city and consumes its actor.
+   * @c2c3-action Establish Embassy Stay
+   * @c2c3-scenario normal
+   * @c2c3-surface diplomacy-espionage
+   * @c2c3-surface-scenario normal
+   */
+  it('creates a real embassy and consumes the c2c3 diplomat actor', async () => {
+    const city = {
+      id: 'city-1',
+      name: 'Target',
+      playerId: targetPlayerId,
+      x: 5,
+      y: 5,
+      size: 3,
+      buildings: [],
+    };
+    const { game } = installGame('diplomat');
+    game.cityManager.getCityAt.mockReturnValue(city);
+
+    await expect(
+      manager.executeDiplomatAction(
+        gameId,
+        actorPlayerId,
+        'actor',
+        ActionType.ESTABLISH_EMBASSY,
+        5,
+        5
+      )
+    ).resolves.toMatchObject({ success: true, unitDestroyed: true });
+
+    expect((manager as any).diplomacyManager.establishContact).toHaveBeenCalledWith(
+      gameId,
+      actorPlayerId,
+      targetPlayerId
+    );
+    expect((manager as any).diplomacyManager.establishEmbassy).toHaveBeenCalledWith(
+      gameId,
+      actorPlayerId,
+      targetPlayerId
+    );
+    expect(game.unitManager.removeUnit).toHaveBeenCalledWith('actor');
   });
 
   it('bribes a lone eligible unit and charges the calculated cost', async () => {

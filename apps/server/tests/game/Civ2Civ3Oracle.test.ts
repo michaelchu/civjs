@@ -1,4 +1,5 @@
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
+import { DiplomacyManager } from '@game/managers/DiplomacyManager';
 import { loadRulesetTechnologies, ResearchManager } from '@game/managers/ResearchManager';
 import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
@@ -54,6 +55,63 @@ async function civ2civ3EmbassyTechnologyLeakageCost(): Promise<number> {
   const required = manager.getResearchProgress('learner')?.required;
   if (required === undefined) throw new Error('Civ2Civ3 leakage fixture has no research target.');
   return required;
+}
+
+async function civ2civ3EmbassyStayRealEmbassy(): Promise<number> {
+  const rows = [
+    {
+      id: 'learner',
+      gameId: 'civ2civ3-oracle-embassy',
+      playerNumber: 0,
+      nation: 'french',
+      civilization: 'french',
+      leaderName: 'Learner',
+      government: 'despotism',
+      isAlive: true,
+      isAI: false,
+      teamId: null,
+      knownPlayers: [],
+      diplomaticRelations: {},
+    },
+    {
+      id: 'peer',
+      gameId: 'civ2civ3-oracle-embassy',
+      playerNumber: 1,
+      nation: 'german',
+      civilization: 'german',
+      leaderName: 'Peer',
+      government: 'despotism',
+      isAlive: true,
+      isAI: true,
+      teamId: null,
+      knownPlayers: [],
+      diplomaticRelations: {},
+    },
+  ];
+  const database = {
+    query: { players: { findMany: async () => rows } },
+    update: () => ({
+      set: (data: any) => ({
+        where: async () => {
+          const relationTarget = Object.keys(data.diplomaticRelations)[0];
+          const row = rows.find(candidate => candidate.id !== relationTarget);
+          if (!row) throw new Error('Civ2Civ3 embassy fixture could not persist a player.');
+          Object.assign(row, data);
+        },
+      }),
+    }),
+  };
+  const manager = new DiplomacyManager(
+    { getDatabase: () => database } as any,
+    () => 0,
+    () => new Set(),
+    new EffectsManager('civ2civ3')
+  );
+
+  await manager.establishContact('civ2civ3-oracle-embassy', 'learner', 'peer');
+  await manager.establishEmbassy('civ2civ3-oracle-embassy', 'learner', 'peer');
+  const learner = await manager.getSnapshot('civ2civ3-oracle-embassy', 'learner');
+  return Number(learner.nations[0]?.relation.embassy);
 }
 
 describe('Civ2Civ3 Freeciv oracle parity', () => {
@@ -146,12 +204,31 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
         oracle.results.tech_leakage_embassy_cost
       );
     });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:421-433
+     * @reference reference/freeciv/common/actions.c:177-186
+     * @reference reference/freeciv/server/diplomats.c:476-541
+     * @reference reference/freeciv/server/diplhand.c:696-714
+     * @assertion CivJS and the pinned Freeciv c2c3 server both persist a real unilateral embassy after the Diplomat Establish Embassy Stay fixture.
+     * @c2c3-surface diplomacy-espionage
+     * @c2c3-surface-scenario differential
+     */
+    it('matches the batched pinned Freeciv Establish Embassy Stay fixture', async () => {
+      expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
+      await expect(civ2civ3EmbassyStayRealEmbassy()).resolves.toBe(
+        oracle.results.embassy_stay_real_embassy
+      );
+    });
   } else {
     it.skip('matches the batched pinned Freeciv City Walls fixture when an oracle bundle exists', () =>
       undefined);
     it.skip('matches the batched pinned Freeciv research-cost fixture when an oracle bundle exists', () =>
       undefined);
     it.skip('matches the batched pinned Freeciv embassy Technology Leakage fixture when an oracle bundle exists', () =>
+      undefined);
+    it.skip('matches the batched pinned Freeciv Establish Embassy Stay fixture when an oracle bundle exists', () =>
       undefined);
   }
 });

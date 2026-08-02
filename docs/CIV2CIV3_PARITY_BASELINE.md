@@ -86,11 +86,12 @@ runs in one Freeciv server session. Jest then reads the resulting JSON bundle;
 individual parity assertions never start their own native server process.
 The fixture set creates a controlled city and ground defender, then confirms
 that City Walls produce the reference `Defend_Bonus` of 150 (the normal city
-50 plus City Walls 100). It also fixes a three-player state, establishes a
-real embassy with a player who knows Alphabet, and verifies the c2c3
-Technology Leakage research cost. This is a working differential-test
-foundation, not a whole-game certificate; new scenarios must cover the
-remaining action and turn-state matrices before a parity claim is justified.
+50 plus City Walls 100). It also fixes a three-player state, performs the
+c2c3 Diplomat `Establish Embassy Stay` action, confirms the resulting real
+embassy, and verifies the Technology Leakage research cost it enables. This
+is a working differential-test foundation, not a whole-game certificate; new
+scenarios must cover the remaining action and turn-state matrices before a
+parity claim is justified.
 
 The turn-time `Have_Contacts` effect is separately source-mapped in
 `DiplomacyManager.test.ts`. In c2c3, Marco Polo's Embassy grants that effect

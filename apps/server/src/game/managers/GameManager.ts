@@ -53,6 +53,7 @@ import {
   calculateDiplomatInciteCost,
 } from '@game/services/DiplomatActionEconomics';
 import { rulesetUnitsService, type UnitType } from '@game/services/RulesetUnitsService';
+import { RulesetActionsService } from '@game/services/RulesetActionsService';
 import { processHumanWorkerAutomation } from '@game/automation/WorkerAutomationService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
@@ -584,8 +585,12 @@ export class GameManager {
     const unit = game.unitManager.getUnit(unitId);
     const unitType = unit ? this.getGameUnitType(game, unit.unitTypeId) : undefined;
     const unitFlags = unitType?.flags ?? [];
-    if (!unit || unit.playerId !== playerId || !unitFlags.includes('Diplomat')) {
-      return { success: false, message: 'A diplomat or spy owned by the player is required' };
+    if (
+      !unit ||
+      unit.playerId !== playerId ||
+      !this.canPerformDiplomatAction(game, unitType, actionType)
+    ) {
+      return { success: false, message: 'A ruleset-capable diplomatic unit is required' };
     }
     const topology = (game.mapManager as Partial<MapManager>).getTopology?.();
     const targetDistance =
@@ -650,6 +655,9 @@ export class GameManager {
       };
     };
     if (actionType === ActionType.ESTABLISH_EMBASSY) {
+      if (await this.hasRealEmbassy(gameId, playerId, targetOwnerId)) {
+        return { success: false, message: 'A real embassy already exists with this nation' };
+      }
       const failure = await attemptMission();
       if (failure) return failure;
       await this.diplomacyManager.establishEmbassy(gameId, playerId, city.playerId);
@@ -1475,6 +1483,27 @@ export class GameManager {
       unitManager.getUnitType?.(unitTypeId) ??
       rulesetUnitsService.getUnitType(unitTypeId, game.config?.ruleset ?? 'civ2civ3')
     );
+  }
+
+  private canPerformDiplomatAction(
+    game: GameInstance,
+    unitType: UnitType | undefined,
+    actionType: ActionType
+  ): boolean {
+    if (!unitType) return false;
+    const rulesetName = game.config?.ruleset ?? DEFAULT_RULESET;
+    return new RulesetActionsService(rulesetLoader, rulesetName)
+      .getDiplomatActions(unitType)
+      .includes(actionType);
+  }
+
+  private async hasRealEmbassy(
+    gameId: string,
+    playerId: string,
+    otherPlayerId: string
+  ): Promise<boolean> {
+    const snapshot = await this.diplomacyManager.getSnapshot(gameId, playerId);
+    return Boolean(snapshot.nations.find(nation => nation.id === otherPlayerId)?.relation.embassy);
   }
 
   public async getGame(gameId: string): Promise<any | null> {

@@ -59,6 +59,7 @@ assert(
 )
 assert(learner:has_embassy(peer), "Learner has no embassy with Technology Leakage peer")
 
+log.normal("CIVJS_ORACLE_RESULT embassy_stay_real_embassy=1")
 log.normal(
   string.format("CIVJS_ORACLE_RESULT tech_leakage_embassy_cost=%d", learner:tech_cost(alphabet))
 )

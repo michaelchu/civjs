@@ -30,6 +30,7 @@ export interface RulesetRequirementFacts {
   unitClassFlags?: ReadonlySet<string>;
   unitsOnTile?: number;
   unitStates?: ReadonlySet<string>;
+  unitType?: string;
   unitTypeFlags?: ReadonlySet<string>;
 }
 
@@ -69,6 +70,7 @@ export class RulesetRequirementEvaluator {
       Terrain: facts.terrain,
       TerrainClass: facts.terrainClass,
       UnitClass: facts.unitClass,
+      UnitType: facts.unitType,
     };
     const containedFacts: Record<string, ReadonlySet<string> | undefined> = {
       Building: facts.buildings,

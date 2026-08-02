@@ -719,6 +719,35 @@ describe('GameBroadcastManager visibility sync', () => {
     ]);
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:449-486
+   * @assertion CivJS advertises c2c3's UnitType-based Explorer city actions rather than requiring the Diplomat unit flag.
+   * @c2c3-surface diplomacy-espionage
+   * @c2c3-surface-scenario normal
+   */
+  it('advertises c2c3 Explorer embassy and investigation actions', () => {
+    const formatted = (manager as any).formatUnitForClient(
+      {
+        id: 'explorer-1',
+        playerId: playerOne,
+        unitTypeId: 'explorer',
+        x: 0,
+        y: 0,
+        movementLeft: 3,
+        health: 100,
+      },
+      { getUnitMaxMovement: () => 1 },
+      playerOne,
+      'civ2civ3'
+    );
+
+    expect(formatted.capabilities.diplomatActions).toEqual([
+      'establish_embassy',
+      'investigate_city',
+    ]);
+  });
+
   it('sends worker automation state only to the owning player', () => {
     const unit = {
       id: 'worker-1',
