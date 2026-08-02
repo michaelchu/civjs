@@ -222,6 +222,81 @@ async function civ2civ3ZeroMoveSelfNuclear(): Promise<Record<string, number>> {
   };
 }
 
+async function civ2civ3NonNativeTransportDisembark(): Promise<Record<string, number>> {
+  const mapWidth = 80;
+  const mapHeight = 50;
+  const topology = new MapTopology(mapWidth, mapHeight, {
+    topologyId: TopologyFlag.ISO | TopologyFlag.HEX,
+    wrapId: WrapFlag.X | WrapFlag.Y,
+  });
+  const origin = { x: 10, y: 10 };
+  const target = topology.getNeighbors(origin.x, origin.y)[0];
+  if (!target) throw new Error('Civ2Civ3 transport fixture has no adjacent target tile.');
+  const followup = topology
+    .getNeighbors(target.x, target.y)
+    .find(position => position.x !== origin.x || position.y !== origin.y);
+  if (!followup) throw new Error('Civ2Civ3 transport fixture has no follow-up tile.');
+
+  const tiles = new Map<
+    string,
+    { x: number; y: number; terrain: string; improvements: string[] }
+  >();
+  for (const position of [origin, target, followup]) {
+    tiles.set(`${position.x},${position.y}`, {
+      ...position,
+      terrain: position === origin ? 'ocean' : 'grassland',
+      improvements: [],
+    });
+  }
+  const manager = new UnitManager(
+    'civ2civ3-oracle-transport-disembark',
+    createMockDatabaseProvider(),
+    mapWidth,
+    mapHeight,
+    {
+      getTile: (x: number, y: number) =>
+        tiles.get(`${x},${y}`) ?? { x, y, terrain: 'grassland', improvements: [] },
+      getTopology: () => topology,
+    },
+    {
+      foundCity: async () => 'unused-city',
+      requestPath: async () => ({ success: false }),
+      broadcastUnitMoved: () => undefined,
+      getCityAt: () => null,
+    },
+    new EffectsManager('civ2civ3'),
+    Math.random,
+    rulesetUnitsService.getUnitTypes('civ2civ3')
+  );
+  const transport = await manager.createUnit('oracle-player', 'trireme', origin.x, origin.y);
+  const cargo = await manager.createUnit(
+    'oracle-player',
+    'horsemen',
+    origin.x,
+    origin.y,
+    undefined,
+    transport.id
+  );
+  await manager.seedUnitState(cargo.id, { movementLeft: 12 });
+  const disembark = await manager.executeUnitAction(
+    cargo.id,
+    ActionType.UNLOAD_UNIT,
+    target.x,
+    target.y,
+    'oracle-player'
+  );
+  const followupMoveSucceeded = await manager
+    .moveUnit(cargo.id, followup.x, followup.y)
+    .then(() => true)
+    .catch(() => false);
+
+  return {
+    non_native_disembark_succeeded: Number(disembark.success),
+    non_native_disembark_transported: Number(Boolean(cargo.transportedBy)),
+    non_native_disembark_followup_move_succeeded: Number(followupMoveSucceeded),
+  };
+}
+
 async function civ2civ3VeteranWarriorUpgrade(): Promise<Record<string, number>> {
   const databaseProvider = createMockDatabaseProvider();
   const manager = new UnitManager(
@@ -423,6 +498,29 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
 
     /**
      * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1344-1352
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4534-4542
+     * @reference reference/freeciv/common/unit.c:2199-2217
+     * @reference reference/freeciv/server/actiontools.c:64-110
+     * @reference reference/freeciv/server/unithand.c:918-941
+     * @assertion CivJS and the pinned Freeciv c2c3 server both move a Horsemen passenger off its ocean transport with Transport Disembark 2, remove its transport state, and exhaust the movement required for a follow-up step.
+     * @c2c3-action Transport Disembark 2
+     * @c2c3-scenario normal
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario differential
+     */
+    it('matches the batched pinned Freeciv non-native transport-disembark fixture', async () => {
+      expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
+      await expect(civ2civ3NonNativeTransportDisembark()).resolves.toEqual({
+        non_native_disembark_succeeded: oracle.results.non_native_disembark_succeeded,
+        non_native_disembark_transported: oracle.results.non_native_disembark_transported,
+        non_native_disembark_followup_move_succeeded:
+          oracle.results.non_native_disembark_followup_move_succeeded,
+      });
+    });
+
+    /**
+     * @evidence parity
      * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1034-1039
      * @reference reference/freeciv/data/civ2civ3/effects.ruleset:465-473
      * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4618-4625
@@ -511,6 +609,8 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
     it.skip('matches the batched pinned Freeciv Magellan Veteran_Combat fixture when an oracle bundle exists', () =>
       undefined);
     it.skip('matches the batched pinned Freeciv zero-movement self-nuclear fixture when an oracle bundle exists', () =>
+      undefined);
+    it.skip('matches the batched pinned Freeciv non-native transport-disembark fixture when an oracle bundle exists', () =>
       undefined);
     it.skip('matches the batched pinned Freeciv Upgrade Unit fixture when an oracle bundle exists', () =>
       undefined);

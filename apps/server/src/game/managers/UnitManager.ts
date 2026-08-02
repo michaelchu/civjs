@@ -1352,17 +1352,21 @@ export class UnitManager {
       .where(eq(units.id, unitId));
   }
 
-  private getActionSuccessMovementCost(unit: Unit, unitType: UnitType, action: string): number {
+  private getActionSuccessMovementCost(
+    unit: Unit,
+    unitType: UnitType,
+    action: string,
+    context: Partial<EffectContext> = {}
+  ): number {
     const result = this.effectsManager?.calculateEffect(EffectType.ACTION_SUCCESS_ACTOR_MOVE_COST, {
-      action,
-      unitId: unit.id,
-      unitType: unitType.id,
-      unitClass: unitType.rulesetUnitClass,
-      unitClassFlags: new Set(unitType.rulesetUnitClassFlags),
-      unitTypeFlags: new Set(unitType.flags ?? []),
+      ...this.getUnitEffectContext(unit, unitType, action),
+      ...context,
     });
     if (result?.effects.length) return Math.max(0, result.value);
-    return unitType.flags?.includes('OneAttack') ? 65535 : 6;
+    // Attack always has a movement cost even if the caller has no loaded
+    // effects manager. Other actions must opt into a source-defined effect;
+    // using the attack fallback for them would fabricate a cost.
+    return action === 'Attack' ? (unitType.flags?.includes('OneAttack') ? 65535 : 6) : 0;
   }
 
   private async resolveDefenderDestruction(
@@ -6401,7 +6405,60 @@ export class UnitManager {
   private getUnloadMovement(cargo: Unit, transport: Unit, x: number, y: number): number {
     if (x === transport.x && y === transport.y) return cargo.movementLeft;
     const movementCost = this.calculateTerrainMovementCost(cargo, transport.x, transport.y, x, y);
-    return Math.max(0, cargo.movementLeft - Math.max(0, movementCost));
+    const cargoType = this.unitTypes[cargo.unitTypeId];
+    const action = cargoType ? this.getDisembarkAction(cargoType, transport) : undefined;
+    const actionCost =
+      cargoType && action
+        ? this.getActionSuccessMovementCost(cargo, cargoType, action, {
+            // Freeciv charges Action_Success_Actor_Move_Cost after unit_move()
+            // reaches the target tile. Its AI temporarily assigns the target
+            // tile before evaluating this exact UnitState requirement.
+            // @reference reference/freeciv/server/unithand.c:918-941
+            // @reference reference/freeciv/common/unit.c:2199-2217
+            unitIsOnNativeTile: this.isUnitOnNativeTile(cargoType, x, y),
+          })
+        : 0;
+    return Math.max(0, cargo.movementLeft - Math.max(0, movementCost) - actionCost);
+  }
+
+  /**
+   * Civ2Civ3 splits ordinary disembarkation into native/city-source and
+   * non-native-source actions. The latter can carry a distinct post-action
+   * movement cost, so preserve the source action identity until pricing.
+   *
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1327-1364
+   */
+  private getDisembarkAction(cargoType: UnitType, transport: Unit): string {
+    const sourceIsCity = Boolean(this.gameManagerCallback?.getCityAt?.(transport.x, transport.y));
+    return this.isUnitOnNativeTile(cargoType, transport.x, transport.y) || sourceIsCity
+      ? 'Transport Disembark'
+      : 'Transport Disembark 2';
+  }
+
+  /**
+   * Match Freeciv's is_native_tile(): native terrain or any native extra.
+   *
+   * @reference reference/freeciv/common/movement.c:358-367
+   * @reference reference/freeciv/common/extras.c:855-869
+   */
+  private isUnitOnNativeTile(unitType: UnitType, x: number, y: number): boolean {
+    if (this.canUnitEnterTerrain(this.getTerrainAt(x, y), unitType.id)) return true;
+    const tile = this.mapManager?.getTile?.(x, y);
+    const unitClass = unitType.rulesetUnitClass;
+    if (!unitClass) return false;
+    const extras = Array.isArray(tile?.improvements) ? (tile.improvements as string[]) : [];
+    return extras.some(extraId => this.isExtraNativeToUnitClass(extraId, unitClass));
+  }
+
+  private isExtraNativeToUnitClass(extraId: string, unitClass: string): boolean {
+    try {
+      const extra = rulesetLoader.getExtra(extraId, this.getRulesetName()) as {
+        native_to?: string[];
+      };
+      return extra.native_to?.includes(unitClass) === true;
+    } catch {
+      return false;
+    }
   }
 
   private async persistUnload(

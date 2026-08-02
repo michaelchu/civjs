@@ -155,6 +155,8 @@ export interface EffectContext {
   unitTypeFlags?: Set<string>;
   unitActivity?: string;
   unitHasHomeCity?: boolean;
+  /** Whether the unit is on terrain or an extra native to its unit class. */
+  unitIsOnNativeTile?: boolean;
   tileTerrain?: string;
   tileTerrainClass?: string;
   tileTerrainFlags?: Set<string>;
@@ -725,13 +727,9 @@ export class EffectsManager {
         req,
         this.setContains(context.unitTypeFlags, req.name)
       );
-    // @reference reference/freeciv/common/requirements.c:4803-4828
+    // @reference reference/freeciv/common/requirements.c:4803-4845
     this.requirementHandlers['UnitState'] = (req, context) =>
-      this.requirementResult(
-        'UnitState',
-        req,
-        this.matches(req.name, 'HasHomeCity') === true ? context.unitHasHomeCity : undefined
-      );
+      this.requirementResult('UnitState', req, this.getUnitStateValue(req.name, context));
     this.requirementHandlers['Activity'] = (req, context) =>
       this.requirementResult('Activity', req, this.matches(context.unitActivity, req.name));
     this.requirementHandlers['Terrain'] = (req, context) =>
@@ -843,6 +841,24 @@ export class EffectsManager {
     return actual === undefined
       ? undefined
       : this.normaliseRuleName(actual) === this.normaliseRuleName(expected);
+  }
+
+  /**
+   * Resolve the unit-state requirements that have an authoritative runtime
+   * context. Unsupported states deliberately remain unknown so effects fail
+   * closed instead of being granted from incomplete context.
+   *
+   * @reference reference/freeciv/common/requirements.c:4817-4845
+   */
+  private getUnitStateValue(name: string, context: EffectContext): boolean | undefined {
+    switch (this.normaliseRuleName(name)) {
+      case 'hashomecity':
+        return context.unitHasHomeCity;
+      case 'onnativetile':
+        return context.unitIsOnNativeTile;
+      default:
+        return undefined;
+    }
   }
 
   private setContains(values: Set<string> | undefined, expected: string): boolean | undefined {

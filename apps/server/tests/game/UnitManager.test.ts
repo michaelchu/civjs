@@ -1748,8 +1748,8 @@ describe('UnitManager', () => {
      * @reference reference/freeciv/common/unit.c:743-840
      * @reference reference/freeciv/server/unithand.c:918-941
      * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1327-1364
-     * @assertion Civ2Civ3 cargo boards in a city, sails with its transport, then disembarks to a legal adjacent tile while spending terrain movement.
-     * @c2c3-action Transport Disembark
+     * @assertion Civ2Civ3 cargo boards in a city, sails with its transport, then disembarks from the resulting non-native transport tile to a legal adjacent tile while spending terrain movement.
+     * @c2c3-action Transport Disembark 2
      * @c2c3-scenario normal
      * @c2c3-surface movement-transport
      * @c2c3-surface-scenario normal
@@ -1773,6 +1773,72 @@ describe('UnitManager', () => {
       expect(cargo.transportedBy).toBeUndefined();
       expect({ x: cargo.x, y: cargo.y }).toEqual({ x: 12, y: 10 });
       expect(cargo.movementLeft).toBe(0);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1327-1364
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4534-4542
+     * @reference reference/freeciv/common/unit.c:2199-2217
+     * @reference reference/freeciv/server/actiontools.c:64-110
+     * @reference reference/freeciv/server/unithand.c:918-941
+     * @assertion A c2c3 Horsemen passenger with two movement points disembarks from ocean through Transport Disembark 2, spends the Grassland terrain cost, then loses its remaining movement through the source Action_Success_Actor_Move_Cost effect.
+     * @c2c3-action Transport Disembark 2
+     * @c2c3-scenario normal
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario normal
+     */
+    it('exhausts fast cargo after Civ2Civ3 non-native disembarkation', async () => {
+      terrain.set('10,10', 'ocean');
+      terrain.set('11,10', 'grassland');
+      const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const cargo = await unitManager.createUnit(
+        'player-123',
+        'horsemen',
+        10,
+        10,
+        undefined,
+        transport.id
+      );
+      await unitManager.seedUnitState(cargo.id, { movementLeft: 12 });
+
+      await expect(unitManager.unloadUnit(cargo.id, 11, 10)).resolves.toBe(true);
+
+      expect(cargo).toMatchObject({
+        transportedBy: undefined,
+        x: 11,
+        y: 10,
+        movementLeft: 0,
+      });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1327-1343
+     * @reference reference/freeciv/server/unithand.c:918-941
+     * @assertion A c2c3 Horsemen passenger disembarking from a city source uses Transport Disembark rather than the non-native variant, so it keeps the movement remaining after the destination terrain cost.
+     * @c2c3-action Transport Disembark
+     * @c2c3-scenario normal
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario normal
+     */
+    it('keeps post-terrain movement after Civ2Civ3 native-city disembarkation', async () => {
+      terrain.set('10,10', 'grassland');
+      terrain.set('11,10', 'grassland');
+      cities.set('10,10', { id: 'port-city', playerId: 'player-123' });
+      const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const cargo = await unitManager.createUnit('player-123', 'horsemen', 10, 10);
+      await expect(unitManager.loadUnitOntoTransport(transport.id, cargo.id)).resolves.toBe(true);
+      await unitManager.seedUnitState(cargo.id, { movementLeft: 12 });
+
+      await expect(unitManager.unloadUnit(cargo.id, 11, 10)).resolves.toBe(true);
+
+      expect(cargo).toMatchObject({
+        transportedBy: undefined,
+        x: 11,
+        y: 10,
+        movementLeft: 6,
+      });
     });
 
     /**
