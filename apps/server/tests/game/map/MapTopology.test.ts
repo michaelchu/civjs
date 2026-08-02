@@ -1,6 +1,23 @@
-import { MapTopology, TopologyFlag, WrapFlag } from '@game/map/MapTopology';
+import { MapTopology, normalizeTopologyId, TopologyFlag, WrapFlag } from '@game/map/MapTopology';
 
 describe('MapTopology', () => {
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/javascript/map.js:35-38
+   * @assertion CivJS uses Freeciv's serialized ISO and HEX flag positions in MAP_INFO, while preserving maps written with its former internal positions.
+   * @c2c3-surface map-generation
+   * @c2c3-surface-scenario boundary
+   */
+  it('uses Freeciv topology packet flags and upgrades legacy CivJS map values', () => {
+    expect(TopologyFlag).toEqual({ ISO: 4, HEX: 8 });
+    expect(normalizeTopologyId(1)).toBe(TopologyFlag.ISO);
+    expect(normalizeTopologyId(2)).toBe(TopologyFlag.HEX);
+    expect(normalizeTopologyId(3)).toBe(TopologyFlag.ISO | TopologyFlag.HEX);
+    expect(new MapTopology(10, 8, { topologyId: 3 }).topologyId).toBe(
+      TopologyFlag.ISO | TopologyFlag.HEX
+    );
+  });
+
   it('returns eight neighbors for the interior of a square map', () => {
     const topology = new MapTopology(10, 8);
 
@@ -55,5 +72,38 @@ describe('MapTopology', () => {
       ])
     );
     expect(topology.getNeighbors(0, 0)).toHaveLength(3);
+  });
+
+  it('separates Freeciv square and squared-circle iterator radii', () => {
+    const topology = new MapTopology(10, 8);
+
+    expect(topology.getPositionsWithinSquareRadius(4, 3, 2)).toHaveLength(25);
+    expect(topology.getPositionsWithinSquaredRadius(4, 3, 2)).toEqual(
+      expect.arrayContaining([
+        { x: 4, y: 3 },
+        { x: 3, y: 2 },
+        { x: 5, y: 4 },
+      ])
+    );
+    expect(topology.getPositionsWithinSquaredRadius(4, 3, 2)).toHaveLength(9);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/game.ruleset:810-815
+   * @reference reference/freeciv/common/map.h:396-424
+   * @assertion Civ2Civ3's default ISO-hex topology interprets the nuclear squared radius of two as its six-tile first hex ring plus the center.
+   * @c2c3-surface combat
+   * @c2c3-surface-scenario boundary
+   */
+  it('uses the c2c3 default ISO-hex squared blast circle', () => {
+    const topology = new MapTopology(10, 8, {
+      topologyId: TopologyFlag.ISO | TopologyFlag.HEX,
+      wrapId: WrapFlag.X | WrapFlag.Y,
+    });
+
+    expect(topology.getPositionsWithinSquaredRadius(4, 3, 2)).toHaveLength(7);
+    expect(topology.getPositionsWithinSquaredRadius(4, 3, 2)).not.toContainEqual({ x: 5, y: 2 });
+    expect(topology.getPositionsWithinSquaredRadius(4, 3, 2)).toContainEqual({ x: 5, y: 4 });
   });
 });

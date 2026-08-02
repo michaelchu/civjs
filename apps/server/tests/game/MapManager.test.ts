@@ -7,7 +7,7 @@ import {
   TerrainProperty,
   TerrainType,
 } from '@game/managers/MapManager';
-import { WrapFlag } from '@game/map/MapTopology';
+import { TopologyFlag, WrapFlag } from '@game/map/MapTopology';
 import { MapStartpos } from '@game/map/MapTypes';
 
 // Mock island terrain functions for tests
@@ -90,6 +90,24 @@ describe('MapManager', () => {
       expect(wrappedMap.getTopology().wrapId).toBe(WrapFlag.X);
       expect(wrappedMap.isValidPosition(-1, 3)).toBe(true);
       expect(wrappedMap.getDistance(0, 3, 9, 3)).toBe(1);
+    });
+
+    it('upgrades legacy stored ISO-hex topology before it is reused or broadcast', () => {
+      mapManager.setMapData({
+        width: 2,
+        height: 2,
+        // CivJS used 1 and 2 internally before matching Freeciv's 4 and 8
+        // topology packet flags.
+        topologyId: 3,
+        wrapId: WrapFlag.X | WrapFlag.Y,
+        tiles: [[], []],
+        startingPositions: [],
+        seed: 'legacy-topology',
+        generatedAt: new Date(0),
+      });
+
+      expect(mapManager.getTopology().topologyId).toBe(TopologyFlag.ISO | TopologyFlag.HEX);
+      expect(mapManager.getMapData()).toMatchObject({ topologyId: 12, wrapId: 3 });
     });
   });
 

@@ -245,6 +245,41 @@ describe('GameBroadcastManager visibility sync', () => {
     ]);
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/game.ruleset:810-815
+   * @reference reference/freeciv-web/javascript/map.js:35-38
+   * @assertion The live-map snapshot carries Civ2Civ3's independent ISO|HEX (12) and WrapX|WrapY (3) Freeciv packet flags to every player.
+   * @c2c3-surface map-generation
+   * @c2c3-surface-scenario normal
+   */
+  it('sends Civ2Civ3 ISO-hex topology in each MAP_INFO packet', () => {
+    manager.broadcastMapData(gameId, {
+      width: 2,
+      height: 1,
+      topologyId: 12,
+      wrapId: 3,
+      tiles: [
+        [{ terrain: 'grassland', elevation: 0, riverMask: 0 }],
+        [{ terrain: 'hills', elevation: 0, riverMask: 0 }],
+      ],
+    });
+
+    const mapInfoPackets = emitted.filter(
+      emission => emission.event === 'packet' && emission.data.type === PacketType.MAP_INFO
+    );
+    expect(mapInfoPackets).toHaveLength(2);
+    expect(mapInfoPackets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          data: expect.objectContaining({
+            data: { xsize: 2, ysize: 1, topology_id: 12, wrap_id: 3 },
+          }),
+        }),
+      ])
+    );
+  });
+
   it('routes nuclear effects by visible affected tiles without exposing a hidden center', () => {
     manager.broadcastNuclearExplosion(gameId, {
       eventId: 'nuke-1',

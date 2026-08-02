@@ -43,6 +43,11 @@ export class MapAccessService {
         topologyId: mapData.topologyId ?? this.topology.topologyId,
         wrapId: mapData.wrapId ?? this.topology.wrapId,
       });
+      // Keep the retained/broadcast map data in the same canonical Freeciv
+      // representation used by the topology service. This also upgrades
+      // maps persisted before CivJS used Freeciv's ISO/HEX wire bits.
+      mapData.topologyId = this.topology.topologyId;
+      mapData.wrapId = this.topology.wrapId;
     }
   }
 

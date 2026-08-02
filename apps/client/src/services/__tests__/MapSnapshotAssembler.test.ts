@@ -3,6 +3,22 @@ import { MapSnapshotAssembler } from '../MapSnapshotAssembler';
 import { mapTileFromWire } from '../MapTileReducer';
 
 describe('map snapshot boundaries', () => {
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/javascript/map.js:35-38
+   * @assertion The client preserves Freeciv's ISO|HEX topology value 12 and separate WrapX|WrapY value 3 from MAP_INFO.
+   * @c2c3-surface map-generation
+   * @c2c3-surface-scenario normal
+   */
+  it('retains the Civ2Civ3 ISO-hex MAP_INFO flags', () => {
+    const assembler = new MapSnapshotAssembler();
+
+    expect(assembler.begin({ xsize: 80, ysize: 50, topology_id: 12, wrap_id: 3 })).toMatchObject({
+      topology_id: 12,
+      wrap_id: 3,
+    });
+  });
+
   it('maps wire visibility into the typed domain tile', () => {
     expect(mapTileFromWire({ x: 2, y: 3, terrain: 'plains', known: 1, owner: 'player-1' })).toEqual(
       expect.objectContaining({

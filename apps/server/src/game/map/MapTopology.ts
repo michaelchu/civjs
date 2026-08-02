@@ -11,9 +11,17 @@
  * @reference reference/freeciv/common/map.c base_map_distance_vector()
  */
 
+/**
+ * Serialized Freeciv topology flags. Bits zero and one are retained for the
+ * legacy WrapX/WrapY topology values, so ISO and HEX start at bits two and
+ * three on the wire.
+ *
+ * @reference reference/freeciv-web/javascript/map.js:35-38
+ * @reference reference/freeciv/common/fc_types.h:452-465
+ */
 export const TopologyFlag = {
-  ISO: 1 << 0,
-  HEX: 1 << 1,
+  ISO: 1 << 2,
+  HEX: 1 << 3,
 } as const;
 
 export const WrapFlag = {
@@ -34,6 +42,25 @@ export interface MapVector {
 export interface MapTopologyOptions {
   topologyId?: number;
   wrapId?: number;
+}
+
+/**
+ * Translate the topology values written by CivJS before it adopted Freeciv's
+ * serialized flag positions. Those values were only ever used internally:
+ * 1 = ISO, 2 = HEX, and 3 = ISO|HEX. Freeciv's topology packet has always
+ * used 4 and 8 for ISO and HEX respectively.
+ */
+export function normalizeTopologyId(topologyId: number): number {
+  switch (topologyId) {
+    case 1:
+      return TopologyFlag.ISO;
+    case 2:
+      return TopologyFlag.HEX;
+    case 3:
+      return TopologyFlag.ISO | TopologyFlag.HEX;
+    default:
+      return topologyId;
+  }
 }
 
 const SQUARE_DIRECTIONS: ReadonlyArray<MapVector> = [
@@ -60,7 +87,7 @@ export class MapTopology {
 
     this.width = width;
     this.height = height;
-    this.topologyId = options.topologyId ?? 0;
+    this.topologyId = normalizeTopologyId(options.topologyId ?? 0);
     this.wrapId = options.wrapId ?? 0;
   }
 
@@ -140,6 +167,51 @@ export class MapTopology {
       for (let dy = -radius; dy <= radius; dy++) {
         const position = this.normalize(x + dx, y + dy);
         if (position && this.realDistance(x, y, position.x, position.y) <= radius) {
+          positions.set(`${position.x},${position.y}`, position);
+        }
+      }
+    }
+    return [...positions.values()];
+  }
+
+  /**
+   * Return every position in Freeciv's square iterator radius.
+   *
+   * Unlike a movement radius, this intentionally retains every normalized
+   * coordinate in the dx/dy square.  Effects such as SDI interception use
+   * `square_iterate()` rather than a circular or real-distance search.
+   *
+   * @reference reference/freeciv/common/map.h:372-391
+   */
+  getPositionsWithinSquareRadius(x: number, y: number, radius: number): MapPosition[] {
+    const positions = new Map<string, MapPosition>();
+    const boundedRadius = Math.max(0, Math.floor(radius));
+    for (let dx = -boundedRadius; dx <= boundedRadius; dx++) {
+      for (let dy = -boundedRadius; dy <= boundedRadius; dy++) {
+        const position = this.normalize(x + dx, y + dy);
+        if (position) positions.set(`${position.x},${position.y}`, position);
+      }
+    }
+    return [...positions.values()];
+  }
+
+  /**
+   * Return every position in Freeciv's circular, squared-distance radius.
+   *
+   * Freeciv's `circle_iterate()` accepts a squared radius rather than a
+   * movement radius. This matters for effects such as
+   * `Nuke_Blast_Radius_1_Sq = 2`: it includes the eight neighbouring tiles
+   * on a square map, including diagonals.
+   *
+   * @reference reference/freeciv/common/map.h:396-424
+   */
+  getPositionsWithinSquaredRadius(x: number, y: number, radiusSquared: number): MapPosition[] {
+    const positions = new Map<string, MapPosition>();
+    const radius = Math.floor(Math.sqrt(Math.max(0, radiusSquared)));
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        const position = this.normalize(x + dx, y + dy);
+        if (position && this.squaredDistance(x, y, position.x, position.y) <= radiusSquared) {
           positions.set(`${position.x},${position.y}`, position);
         }
       }
