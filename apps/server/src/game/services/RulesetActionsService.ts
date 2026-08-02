@@ -30,6 +30,7 @@ const CLIENT_ACTIONS: ReadonlyArray<{ id: string; upstream: readonly string[] }>
   },
   { id: 'poison_water', upstream: ['Poison City Escape'] },
   { id: 'sabotage_unit', upstream: ['Sabotage Unit Escape'] },
+  { id: 'spy_attack', upstream: ['Spy Attack'] },
 ];
 
 const CLASSIC_UNIT_ACTIONS: ReadonlyArray<{

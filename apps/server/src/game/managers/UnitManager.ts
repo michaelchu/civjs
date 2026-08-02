@@ -1744,9 +1744,12 @@ export class UnitManager {
    * source-defined, effect-adjusted veterancy opportunity as Freeciv.
    * @reference reference/freeciv/server/diplomats.c:2414-2426
    */
-  async maybePromoteAfterDiplomaticAction(unitId: string): Promise<boolean> {
+  async maybePromoteAfterDiplomaticAction(
+    unitId: string,
+    baseChance: number = 100
+  ): Promise<boolean> {
     const unit = this.units.get(unitId);
-    return unit ? this.maybeGainVeteranLevel(unit, 100, false) : false;
+    return unit ? this.maybeGainVeteranLevel(unit, baseChance, false) : false;
   }
 
   private getVeterancyEffectContext(unit: Unit, unitType: UnitType): EffectContext {
@@ -3109,6 +3112,28 @@ export class UnitManager {
   }
 
   /**
+   * Spy Attack stays on the actor tile but a won diplomatic battle spends a
+   * single movement fragment. Unlike escape missions, it neither teleports
+   * nor exhausts the actor.
+   *
+   * @reference reference/freeciv/common/actions.c:696-699
+   * @reference reference/freeciv/server/diplomats.c:2187-2300
+   */
+  async finishSpyAttack(unitId: string): Promise<void> {
+    const unit = this.units.get(unitId);
+    if (!unit) return;
+    unit.movementLeft = Math.max(0, unit.movementLeft - this.getMoveFragments());
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({
+        movementPoints: String(unit.movementLeft),
+        lastActionTurn: this.currentTurnProvider?.() ?? 1,
+      })
+      .where(eq(units.id, unitId));
+  }
+
+  /**
    * Complete C2C3 Bribe Unit's forced move after the target has changed
    * ownership. The action itself spends all movement rather than relying on
    * the general terrain move path.
@@ -3324,6 +3349,7 @@ export class UnitManager {
       ActionType.STEAL_TECH,
       ActionType.SABOTAGE_CITY,
       ActionType.SABOTAGE_UNIT,
+      ActionType.SPY_ATTACK,
       ActionType.POISON_WATER,
     ]);
     const escapeChancePercent = isSpy

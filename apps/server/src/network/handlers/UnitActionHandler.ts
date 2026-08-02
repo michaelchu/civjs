@@ -595,6 +595,7 @@ export class UnitActionHandler extends BaseSocketHandler {
       ActionType.INCITE_CITY,
       ActionType.POISON_WATER,
       ActionType.SABOTAGE_UNIT,
+      ActionType.SPY_ATTACK,
     ]);
     if (data.actionType === ActionType.GOTO && data.declareWarIfNeeded) {
       const city =

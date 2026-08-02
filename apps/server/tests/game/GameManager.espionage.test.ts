@@ -1,5 +1,6 @@
 import { GameManager } from '@game/managers/GameManager';
 import { ActionType } from '@app-types/shared/actions';
+import { MapTopology, TopologyFlag } from '@game/map/MapTopology';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 import { GoldSpendingType } from '@game/systems/Economic/types/EconomicTypes';
 
@@ -66,6 +67,7 @@ describe('GameManager classic espionage actions', () => {
         removeUnit: jest.fn(),
         finishDiplomatMission: jest.fn(),
         finishBribeMission: jest.fn(),
+        finishSpyAttack: jest.fn(),
         maybePromoteAfterDiplomaticAction: jest.fn().mockResolvedValue(false),
         bribeUnit: jest.fn(),
         sabotageUnit: jest.fn(),
@@ -1761,5 +1763,127 @@ describe('GameManager classic espionage actions', () => {
       'actor',
       'Sabotage Unit Escape'
     );
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:622-636
+   * @reference reference/freeciv/common/actions.c:696-699
+   * @reference reference/freeciv/common/combat.c:947-991
+   * @reference reference/freeciv/server/diplomats.c:2072-2300
+   * @assertion A C2C3 Spy at ISO-hex range one fights the first foreign diplomatic defender, removes it on a winning roll, and pays one movement fragment rather than moving into the target tile.
+   * @c2c3-action Spy Attack
+   * @c2c3-scenario normal
+   */
+  it('performs C2C3 Spy Attack as a diplomatic battle on an ISO-hex stack', async () => {
+    const defender = {
+      id: 'defender',
+      gameId,
+      playerId: targetPlayerId,
+      unitTypeId: 'diplomat',
+      x: 5,
+      y: 5,
+      movementLeft: 3,
+      health: 100,
+      veteranLevel: 0,
+      experience: 0,
+      fortified: false,
+    };
+    const { game } = installGame('spy');
+    game.config = { ruleset: 'civ2civ3' };
+    game.mapManager = {
+      getTile: jest.fn(() => ({ terrain: 'grassland', improvements: [] })),
+      getTopology: jest.fn(
+        () =>
+          new MapTopology(20, 20, {
+            topologyId: TopologyFlag.ISO | TopologyFlag.HEX,
+          })
+      ),
+    };
+    game.unitManager.getUnitsAt.mockReturnValue([defender]);
+
+    await expect(
+      manager.executeDiplomatAction(gameId, actorPlayerId, 'actor', ActionType.SPY_ATTACK, 5, 5)
+    ).resolves.toMatchObject({ success: true, targetDestroyed: true });
+
+    expect(game.unitManager.removeUnit).toHaveBeenCalledWith(defender.id);
+    expect(game.unitManager.maybePromoteAfterDiplomaticAction).toHaveBeenCalledWith('actor', 50);
+    expect(game.unitManager.finishSpyAttack).toHaveBeenCalledWith('actor');
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:622-636
+   * @assertion Spy Attack rejects a stack owned by an allied or team player before either diplomatic unit is removed.
+   * @c2c3-action Spy Attack
+   * @c2c3-scenario rejected
+   */
+  it('rejects C2C3 Spy Attack against an allied stack', async () => {
+    const defender = {
+      id: 'defender',
+      gameId,
+      playerId: targetPlayerId,
+      unitTypeId: 'diplomat',
+      x: 5,
+      y: 5,
+      movementLeft: 3,
+      health: 100,
+      veteranLevel: 0,
+      experience: 0,
+      fortified: false,
+    };
+    const { game } = installGame('spy');
+    game.unitManager.getUnitsAt.mockReturnValue([defender]);
+    setRelation('alliance');
+
+    await expect(
+      manager.executeDiplomatAction(gameId, actorPlayerId, 'actor', ActionType.SPY_ATTACK, 5, 5)
+    ).resolves.toMatchObject({ success: false });
+
+    expect(game.unitManager.removeUnit).not.toHaveBeenCalled();
+    expect(game.unitManager.finishSpyAttack).not.toHaveBeenCalled();
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:622-636
+   * @reference reference/freeciv/common/actions.c:696-699
+   * @assertion Spy Attack accepts its MinMoveFrags boundary of one remaining movement fragment at the exact ISO-hex range of one.
+   * @c2c3-action Spy Attack
+   * @c2c3-scenario boundary
+   */
+  it('accepts C2C3 Spy Attack at its ISO-hex distance and movement boundaries', async () => {
+    const defender = {
+      id: 'defender',
+      gameId,
+      playerId: targetPlayerId,
+      unitTypeId: 'diplomat',
+      x: 5,
+      y: 5,
+      movementLeft: 3,
+      health: 100,
+      veteranLevel: 0,
+      experience: 0,
+      fortified: false,
+    };
+    const { actor, game } = installGame('spy');
+    actor.movementLeft = 1;
+    game.config = { ruleset: 'civ2civ3' };
+    game.mapManager = {
+      getTile: jest.fn(() => ({ terrain: 'grassland', improvements: [] })),
+      getTopology: jest.fn(
+        () =>
+          new MapTopology(20, 20, {
+            topologyId: TopologyFlag.ISO | TopologyFlag.HEX,
+          })
+      ),
+    };
+    game.unitManager.getUnitsAt.mockReturnValue([defender]);
+
+    await expect(
+      manager.executeDiplomatAction(gameId, actorPlayerId, 'actor', ActionType.SPY_ATTACK, 5, 5)
+    ).resolves.toMatchObject({ success: true });
+
+    expect(game.unitManager.finishSpyAttack).toHaveBeenCalledWith('actor');
   });
 });

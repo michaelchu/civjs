@@ -94,6 +94,7 @@ export enum EffectType {
   UPGRADE_PRICE_PCT = 'Upgrade_Price_Pct',
   UPGRADE_UNIT = 'Upgrade_Unit',
   ACTION_SUCCESS_ACTOR_MOVE_COST = 'Action_Success_Actor_Move_Cost',
+  SPY_RESISTANT = 'Spy_Resistant',
   UNIT_BRIBE_COST_PCT = 'Unit_Bribe_Cost_Pct',
   INCITE_COST_PCT = 'Incite_Cost_Pct',
   INSPIRE_PARTISANS = 'Inspire_Partisans',

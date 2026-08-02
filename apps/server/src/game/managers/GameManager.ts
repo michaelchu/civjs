@@ -24,7 +24,7 @@ import type { NuclearPresentationEvent } from '@app-types/presentation';
 // Keep existing imports for delegation
 import type { CityState } from '@game/cities/CityTypes';
 import { MapManager } from '@game/managers/MapManager';
-import { EffectsManager } from '@game/managers/EffectsManager';
+import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import type { ResearchDiplomacyState } from '@game/managers/ResearchManager';
 import type { Unit } from '@game/units/UnitTypes';
 import {
@@ -64,6 +64,8 @@ import type {
   TerrainSettings,
 } from '@game/runtime/GameTypes';
 import { bindGameRuntimeEvents } from '@game/runtime/GameRuntimeEventBindings';
+import { randomInt } from '@game/random/FreecivRandom';
+import { getVeteranLevel } from '@game/units/UnitVeterancy';
 
 export type {
   GameConfig,
@@ -85,7 +87,15 @@ const AI_INCIDENT_SEVERITY: Partial<Record<ActionType, number>> = {
   [ActionType.INCITE_CITY]: 286,
   [ActionType.BRIBE_UNIT]: 143,
   [ActionType.SABOTAGE_UNIT]: 86,
+  [ActionType.SPY_ATTACK]: 86,
 };
+
+interface SpyAttackResolution {
+  actorWins: boolean;
+  successChance: number;
+  actorVeteranChance: number;
+  defenderVeteranChance: number;
+}
 
 /**
  * GameManager - Refactored to use extracted service components as facade
@@ -601,6 +611,9 @@ export class GameManager {
     if (targetDistance > 1) {
       return { success: false, message: 'Target must be adjacent' };
     }
+    if (actionType === ActionType.SPY_ATTACK && targetDistance !== 1) {
+      return { success: false, message: 'Spy Attack must target an adjacent stack' };
+    }
     if (unit.movementLeft < 1) {
       return { success: false, message: 'The diplomat has no movement remaining' };
     }
@@ -609,6 +622,10 @@ export class GameManager {
       !this.isDiplomatOnLivableTile(game, unit)
     ) {
       return { success: false, message: 'The diplomatic unit must be on a livable tile' };
+    }
+
+    if (actionType === ActionType.SPY_ATTACK) {
+      return this.executeSpyAttack(gameId, playerId, unit, targetX, targetY);
     }
 
     const unitTargetActions = new Set([ActionType.BRIBE_UNIT, ActionType.SABOTAGE_UNIT]);
@@ -944,6 +961,175 @@ export class GameManager {
     };
   }
 
+  /**
+   * Resolve C2C3's stack-targeted Spy Attack. It is a diplomatic battle,
+   * rather than ordinary unit combat: only a defending Diplomat, Spy, or
+   * SuperSpy can be eliminated, while a stack without one is a successful
+   * no-op. A winning attacker spends exactly one movement fragment.
+   *
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:622-636
+   * @reference reference/freeciv/common/actions.c:696-699
+   * @reference reference/freeciv/common/combat.c:947-991
+   * @reference reference/freeciv/server/diplomats.c:927-963
+   * @reference reference/freeciv/server/diplomats.c:2072-2154
+   */
+  private async executeSpyAttack(
+    gameId: string,
+    playerId: string,
+    actor: Unit,
+    targetX: number,
+    targetY: number
+  ): Promise<ActionResult> {
+    const game = this.games.get(gameId)!;
+    if (game.cityManager.getCityAt(targetX, targetY)) {
+      return { success: false, message: 'Spy Attack cannot target a city center' };
+    }
+
+    const targets = game.unitManager.getUnitsAt(targetX, targetY);
+    if (targets.length === 0) {
+      return { success: false, message: 'Spy Attack requires a foreign unit stack' };
+    }
+
+    const relations = new Map<string, string>();
+    for (const target of targets) {
+      if (target.playerId === playerId) {
+        return { success: false, message: 'Spy Attack cannot target a domestic stack' };
+      }
+      if (!relations.has(target.playerId)) {
+        relations.set(
+          target.playerId,
+          await this.getDiplomaticState(gameId, playerId, target.playerId)
+        );
+      }
+      const relation = relations.get(target.playerId);
+      if (relation === 'alliance' || relation === 'team') {
+        return { success: false, message: 'Spy Attack cannot target an allied or team stack' };
+      }
+    }
+
+    const defender = targets.find(target => {
+      const type = this.getGameUnitType(game, target.unitTypeId);
+      return type?.flags?.includes('Diplomat') || type?.flags?.includes('SuperSpy');
+    });
+    if (!defender) {
+      return { success: true, message: 'No diplomatic defender was present' };
+    }
+
+    const resolution = this.calculateSpyAttackResolution(game, actor, defender, targetX, targetY);
+    const relation = relations.get(defender.playerId) ?? 'no_contact';
+    if (resolution.actorWins) {
+      await game.unitManager.removeUnit(defender.id);
+      await game.unitManager.maybePromoteAfterDiplomaticAction(
+        actor.id,
+        resolution.actorVeteranChance
+      );
+      await game.unitManager.finishSpyAttack(actor.id);
+      if (relation !== 'war') {
+        await this.diplomacyManager.recordIncident(
+          gameId,
+          playerId,
+          defender.playerId,
+          AI_INCIDENT_SEVERITY[ActionType.SPY_ATTACK]
+        );
+      }
+      await this.refreshSharedVision(gameId);
+      return {
+        success: true,
+        message: `Eliminated defending ${this.getGameUnitType(game, defender.unitTypeId)?.name ?? defender.unitTypeId}`,
+        targetDestroyed: true,
+      };
+    }
+
+    await game.unitManager.maybePromoteAfterDiplomaticAction(
+      defender.id,
+      resolution.defenderVeteranChance
+    );
+    await game.unitManager.removeUnit(actor.id);
+    if (relation !== 'war') {
+      await this.diplomacyManager.recordIncident(
+        gameId,
+        playerId,
+        defender.playerId,
+        AI_INCIDENT_SEVERITY[ActionType.SPY_ATTACK]
+      );
+    }
+    await this.refreshSharedVision(gameId);
+    return {
+      success: false,
+      message: `The ${this.getGameUnitType(game, actor.unitTypeId)?.name ?? actor.unitTypeId} was eliminated by a defending ${this.getGameUnitType(game, defender.unitTypeId)?.name ?? defender.unitTypeId}`,
+      unitDestroyed: true,
+    };
+  }
+
+  private calculateSpyAttackResolution(
+    game: GameInstance,
+    actor: Unit,
+    defender: Unit,
+    targetX: number,
+    targetY: number
+  ): SpyAttackResolution {
+    const actorType = this.getGameUnitType(game, actor.unitTypeId);
+    const defenderType = this.getGameUnitType(game, defender.unitTypeId);
+    if (!actorType || !defenderType) {
+      return {
+        actorWins: false,
+        successChance: 0,
+        actorVeteranChance: 0,
+        defenderVeteranChance: 0,
+      };
+    }
+
+    if (defenderType.flags?.includes('SuperSpy')) {
+      return {
+        actorWins: false,
+        successChance: 0,
+        actorVeteranChance: 0,
+        defenderVeteranChance: 0,
+      };
+    }
+    if (actorType.flags?.includes('SuperSpy')) {
+      return {
+        actorWins: true,
+        successChance: 100,
+        actorVeteranChance: 0,
+        defenderVeteranChance: 0,
+      };
+    }
+
+    let successChance = 50;
+    if (actorType.flags?.includes('Spy')) successChance += 25;
+    if (defenderType.flags?.includes('Spy')) successChance -= 25;
+    successChance += Math.round(
+      (getVeteranLevel(actorType, actor.veteranLevel).powerFactor -
+        getVeteranLevel(defenderType, defender.veteranLevel).powerFactor) *
+        100
+    );
+
+    const targetCity = game.cityManager.getCityAt(targetX, targetY);
+    const targetTile = (game.mapManager as Partial<MapManager>).getTile?.(targetX, targetY);
+    const resistance = new EffectsManager(game.config?.ruleset ?? DEFAULT_RULESET).calculateEffect(
+      EffectType.SPY_RESISTANT,
+      {
+        playerId: targetTile?.owner ?? defender.playerId,
+        cityId: targetCity?.id,
+        cityBuildings: new Set(targetCity?.buildings ?? []),
+        cityCulture: targetCity
+          ? game.turnManager.getCultureManager?.().getRuntimeCityCulture(targetCity.id)
+          : undefined,
+        tileExtras: new Set(targetTile?.improvements ?? []),
+      }
+    ).value;
+    successChance -= Math.trunc((successChance * resistance) / 100);
+    successChance = Math.max(0, Math.min(100, successChance));
+
+    return {
+      actorWins: randomInt(game.random, 100) < successChance,
+      successChance,
+      actorVeteranChance: (100 - successChance) * 2,
+      defenderVeteranChance: successChance * 2,
+    };
+  }
+
   private async executeDiplomatUnitAction(
     gameId: string,
     playerId: string,
@@ -1107,6 +1293,7 @@ export class GameManager {
       ActionType.SABOTAGE_CITY,
       ActionType.SABOTAGE_CITY_PRODUCTION,
       ActionType.SABOTAGE_UNIT,
+      ActionType.SPY_ATTACK,
       ActionType.STEAL_TECH,
     ]).has(actionType);
   }
