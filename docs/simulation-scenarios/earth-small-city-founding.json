@@ -24,5 +24,15 @@
     "initialYear": -4000,
     "replaceDefaultStartingUnits": false
   },
+  "expect": {
+    "minCompletedTurns": 40,
+    "endReason": "max_turns",
+    "events": [
+      {
+        "type": "city_founded",
+        "minCount": 1
+      }
+    ]
+  },
   "turnTimeLimit": 0
 }

@@ -6,6 +6,7 @@ const fixturesDirectory = resolve(__dirname, '../../../../../docs/simulation-sce
 const expectedFixtureNames = [
   'earth-small-bootstrap.json',
   'earth-small-city-founding.json',
+  'earth-small-combat.json',
   'earth-small-research.json',
   'earth-small-victory.json',
   'earth-small-war-declaration.json',

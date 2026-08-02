@@ -50,12 +50,14 @@ function turnService(
   cityState: CityState,
   onComplete: jest.Mock = jest.fn(),
   unitTypes = rulesetUnitsService.getUnitTypes(),
-  reconcileCitizenAssignments: jest.Mock = jest.fn().mockResolvedValue(true)
+  reconcileCitizenAssignments: jest.Mock = jest.fn().mockResolvedValue(true),
+  onGameplayEvent: jest.Mock = jest.fn()
 ): CityTurnProcessingService {
   const dependencies: CityTurnProcessingDependencies = {
     gameId: 'game-1',
     cities: new Map([[cityState.id, cityState]]),
     callbacks: { onCityProductionComplete: onComplete },
+    onGameplayEvent,
     effectsManager: new EffectsManager(),
     unitTypes,
     refreshCityWithGovernmentEffects: jest.fn(),
@@ -125,6 +127,31 @@ describe('city production lifecycle', () => {
     expect(onComplete).toHaveBeenCalledWith(
       cityState,
       expect.objectContaining({ kind: 'building', value: 'granary' })
+    );
+  });
+
+  it('publishes a gameplay event after production completion callbacks finish', async () => {
+    const cityState = city({
+      currentProduction: 'granary',
+      productionType: 'building',
+      productionStock: 38,
+      productionPerTurn: 5,
+    });
+    const onComplete = jest.fn().mockResolvedValue(undefined);
+    const onGameplayEvent = jest.fn();
+
+    await turnService(cityState, onComplete, undefined, undefined, onGameplayEvent).processCityTurn(
+      cityState.id,
+      7
+    );
+
+    expect(onGameplayEvent).toHaveBeenCalledWith({
+      type: 'production_completed',
+      city: cityState,
+      item: { kind: 'building', value: 'granary' },
+    });
+    expect(onComplete.mock.invocationCallOrder[0]).toBeLessThan(
+      onGameplayEvent.mock.invocationCallOrder[0]
     );
   });
 

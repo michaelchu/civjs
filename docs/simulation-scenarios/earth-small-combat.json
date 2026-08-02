@@ -1,0 +1,91 @@
+{
+  "name": "Scenario combat telemetry",
+  "aiPlayerCount": 2,
+  "mapWidth": 80,
+  "mapHeight": 50,
+  "ruleset": "civ2civ3",
+  "aiLevel": "hard",
+  "randomSeed": 31006,
+  "mapSeed": "scenario-earth-small-combat",
+  "maxTurns": 8,
+  "victoryConditions": ["max_turns"],
+  "terrainSettings": {
+    "generator": "scenario",
+    "landmass": "normal",
+    "huts": 15,
+    "temperature": 50,
+    "wetness": 50,
+    "rivers": 50,
+    "resources": "normal",
+    "scenarioId": "earth-small"
+  },
+  "scenarioSetup": {
+    "initialTurn": 1,
+    "initialYear": -4000,
+    "replaceDefaultStartingUnits": true,
+    "diplomacy": [
+      {
+        "playerNumber": 1,
+        "otherPlayerNumber": 2,
+        "state": "war",
+        "maxState": "war",
+        "sinceTurn": 1,
+        "attitude": -500
+      }
+    ],
+    "cities": [
+      {
+        "playerNumber": 1,
+        "name": "Combat Alpha",
+        "x": 15,
+        "y": 15,
+        "population": 3,
+        "currentProduction": "warriors",
+        "productionType": "unit",
+        "productionStock": 10
+      },
+      {
+        "playerNumber": 2,
+        "name": "Combat Beta",
+        "x": 30,
+        "y": 15,
+        "population": 3,
+        "currentProduction": "warriors",
+        "productionType": "unit",
+        "productionStock": 10
+      }
+    ],
+    "units": [
+      {
+        "playerNumber": 1,
+        "unitType": "legion",
+        "x": 15,
+        "y": 18,
+        "movementLeft": 3
+      },
+      {
+        "playerNumber": 2,
+        "unitType": "warriors",
+        "x": 15,
+        "y": 18,
+        "movementLeft": 3,
+        "health": 1
+      }
+    ]
+  },
+  "expect": {
+    "minCompletedTurns": 1,
+    "endReason": "max_turns",
+    "events": [
+      {
+        "type": "combat_occurred",
+        "minCount": 1
+      },
+      {
+        "type": "unit_killed",
+        "minCount": 1
+      }
+    ]
+  },
+  "turnTimeLimit": 0
+}

@@ -27,7 +27,7 @@ import type { Server as SocketServer } from 'socket.io';
 import type { CityGovernorService } from './CityGovernorService';
 import type { CityTileManagementService } from './CityTileManagementService';
 import { isSpaceshipPart } from './SpaceshipService';
-import type { BuildingType } from '@game/managers/CityManager';
+import type { BuildingType, TradeRoute } from '@game/managers/CityManager';
 
 // Import types from CityManager (we'll need to make these available)
 export interface CityState {
@@ -86,6 +86,17 @@ export interface ProductionItem {
   remainingCost?: number;
 }
 
+export type CityGameplayEvent =
+  | { type: 'founded'; city: CityState }
+  | { type: 'growth'; city: CityState; oldSize: number }
+  | { type: 'production_completed'; city: CityState; item: ProductionItem }
+  | {
+      type: 'trade_route_established';
+      sourceCity: CityState;
+      partnerCity: CityState;
+      route: TradeRoute;
+    };
+
 export interface CityManagerCallbacks {
   onCityGrowth?: (city: CityState, oldSize: number) => void;
   onCityProductionComplete?: (city: CityState, item: ProductionItem) => void | Promise<void>;
@@ -122,6 +133,7 @@ export interface CityTurnProcessingDependencies {
   gameId: string;
   cities: Map<string, CityState>;
   callbacks: CityManagerCallbacks;
+  onGameplayEvent?: (event: CityGameplayEvent) => void;
   effectsManager: EffectsManager;
   unitTypes?: Record<string, UnitType>;
   buildingTypes?: Record<string, BuildingType>;
@@ -394,6 +406,7 @@ export class CityTurnProcessingService extends BaseGameService {
       throw new Error(`Failed to reconcile citizens after growth in ${city.name}`);
     }
     this.dependencies.callbacks.onCityGrowth?.(city, oldSize);
+    this.dependencies.onGameplayEvent?.({ type: 'growth', city, oldSize });
   }
 
   private async processStarvation(city: CityState): Promise<void> {
@@ -628,8 +641,8 @@ export class CityTurnProcessingService extends BaseGameService {
 
   private async notifyProductionComplete(city: CityState, item: ProductionItem): Promise<void> {
     const callback = this.dependencies.callbacks.onCityProductionComplete;
-    if (!callback) return;
-    await callback(city, item);
+    if (callback) await callback(city, item);
+    this.dependencies.onGameplayEvent?.({ type: 'production_completed', city, item });
   }
 
   private promoteProductionAfterCompletion(city: CityState): void {

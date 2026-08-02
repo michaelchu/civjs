@@ -72,6 +72,24 @@
         "type": "phase_end",
         "data": { "phase": "research", "success": true },
         "minCount": 60
+      },
+      {
+        "type": "tech_researched",
+        "data": { "source": "research" },
+        "minCount": 1
+      },
+      {
+        "type": "city_production_complete",
+        "data": { "productionType": "unit" },
+        "minCount": 1
+      },
+      {
+        "type": "unit_created",
+        "minCount": 1
+      },
+      {
+        "type": "city_growth",
+        "minCount": 1
       }
     ]
   },

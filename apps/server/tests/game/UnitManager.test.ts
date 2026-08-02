@@ -1233,12 +1233,23 @@ describe('UnitManager', () => {
     });
 
     it('should conduct combat successfully', async () => {
+      const combatObserver = jest.fn();
+      unitManager.setCombatObserver(combatObserver);
+
       const result = await unitManager.attackUnit(attackerUnitId, defenderUnitId);
 
       expect(result.attackerId).toBe(attackerUnitId);
       expect(result.defenderId).toBe(defenderUnitId);
       expect(result.attackerDamage + result.defenderDamage).toBeGreaterThan(0);
       expect(result.attackerDestroyed || result.defenderDestroyed).toBe(true);
+      expect(combatObserver).toHaveBeenCalledWith(
+        expect.objectContaining({
+          result: expect.objectContaining({
+            attackerId: attackerUnitId,
+            defenderId: defenderUnitId,
+          }),
+        })
+      );
 
       const attacker = unitManager.getUnit(attackerUnitId);
       if (attacker) {

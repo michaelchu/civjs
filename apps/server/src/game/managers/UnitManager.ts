@@ -152,6 +152,12 @@ export interface CombatResult {
   };
 }
 
+export interface UnitCombatEvent {
+  attacker: Unit;
+  defender: Unit;
+  result: CombatResult;
+}
+
 interface CombatSetup {
   attackerId: string;
   defenderId: string;
@@ -283,6 +289,7 @@ export class UnitManager {
     removed: string[];
   }) => void;
   private unitLifecycleObserver?: (event: UnitLifecycleEvent) => void;
+  private combatObserver?: (event: UnitCombatEvent) => void;
   private combatPresentationCallback?: (event: CombatPresentationEvent) => void;
   private nuclearPresentationCallback?: (event: NuclearPresentationEvent) => void;
   private diplomatActionExecutor?: (
@@ -392,6 +399,10 @@ export class UnitManager {
 
   public setUnitLifecycleObserver(observer: (event: UnitLifecycleEvent) => void): void {
     this.unitLifecycleObserver = observer;
+  }
+
+  public setCombatObserver(observer?: (event: UnitCombatEvent) => void): void {
+    this.combatObserver = observer;
   }
 
   public getMapManager(): MapManager | undefined {
@@ -1228,6 +1239,16 @@ export class UnitManager {
     const outcome = this.resolveCombatRounds(setup);
     const result = await this.finalizeCombat(setup, outcome);
     this.emitCombatPresentation(attackerBefore, defenderBefore, result);
+    try {
+      this.combatObserver?.({ attacker: attackerBefore, defender: defenderBefore, result });
+    } catch (error) {
+      logger.warn('Failed to notify combat observer after authoritative combat', {
+        gameId: this.gameId,
+        attackerId: attackerBefore.id,
+        defenderId: defenderBefore.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
     return result;
   }
 

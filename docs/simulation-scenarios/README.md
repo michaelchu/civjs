@@ -62,10 +62,21 @@ An expectation failure is written to `diagnostics.expectations`, emitted as a
 Generic `events` expectations match persisted replay events by type and can
 optionally filter by exact turn, turn range, player numbers, and a partial
 nested `data` object. Use `minCount` and `maxCount` to assert that an event
-occurred, or that an unexpected event never occurred. Events currently include
-the turn and phase lifecycle records emitted by the simulator; as gameplay
-systems publish richer events, the same assertion form covers production,
-research, combat, city founding, and trade.
+occurred, or that an unexpected event never occurred. The simulator publishes
+turn/phase lifecycle events plus city founding, growth, production/building,
+research, unit creation/movement/destruction, combat/kills, and trade-route
+events. These are emitted after the authoritative manager operation succeeds,
+so the same assertion form can validate both AI decisions and their gameplay
+effects.
+
+The event producers follow the corresponding reference operations: city
+founding and production use `reference/freeciv/server/citytools.c:639-690` and
+`reference/freeciv/server/cityturn.c:2784-3062`; research uses
+`reference/freeciv/server/techtools.c:650-726`; unit lifecycle and combat use
+`reference/freeciv/server/unittools.c:1215-1280,283-322` and
+`reference/freeciv/server/unithand.c:4535-4555,4992-5357`; and trade routes
+use `reference/freeciv/common/traderoutes.c:332-363` and
+`reference/freeciv/server/unithand.c:6415`.
 The phase ordering follows the server turn sequence in
 `reference/freeciv/server/srv_main.c`; the simulator's lifecycle event types
 are defined in `apps/server/src/game/services/GameEventService.ts`.
@@ -113,6 +124,7 @@ heuristic behavior should still be tested with an unseeded setup.
 | Fixture                            | Focus                                             |
 | ---------------------------------- | ------------------------------------------------- |
 | `earth-small-city-founding.json`   | Default settlers and AI city founding             |
+| `earth-small-combat.json`          | Adjacent wartime units and combat telemetry       |
 | `earth-small-war.json`             | Seeded war relation and military turns            |
 | `earth-small-war-declaration.json` | AI war countdown and declaration event            |
 | `earth-small-research.json`        | Different science rates and seeded technologies   |

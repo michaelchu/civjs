@@ -1343,7 +1343,35 @@ export class GameManager {
       const player = gameInstance.players.get(playerId);
       return player?.isAI ? createAIProfile(player.aiLevel, player.aiTraits).scienceCost : 100;
     });
+    const gameEventService = gameInstance.turnManager.getGameEventService();
+    gameInstance.researchManager.setTechnologyCompletionObserver((playerId, techId, source) => {
+      gameEventService.recordTechnologyCompleted(playerId, techId, source);
+    });
+    gameInstance.cityManager.setGameplayEventObserver(event => {
+      switch (event.type) {
+        case 'founded':
+          gameEventService.recordCityFounded(event.city);
+          break;
+        case 'growth':
+          gameEventService.recordCityGrowth(event.city, event.oldSize);
+          break;
+        case 'production_completed':
+          gameEventService.recordCityProductionCompleted(event.city, event.item);
+          break;
+        case 'trade_route_established':
+          gameEventService.recordTradeRouteEstablished(
+            event.sourceCity,
+            event.partnerCity,
+            event.route
+          );
+          break;
+      }
+    });
+    gameInstance.unitManager.setCombatObserver(event => {
+      gameEventService.recordCombatOccurred(event);
+    });
     gameInstance.unitManager.setUnitLifecycleObserver(event => {
+      gameEventService.recordUnitLifecycle(event);
       if (event.type === 'moved') {
         gameInstance.cityManager.refreshTileOccupancy(event.previousX, event.previousY);
       }

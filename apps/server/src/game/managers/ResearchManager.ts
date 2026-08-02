@@ -63,6 +63,11 @@ export class ResearchManager {
   private scienceCostProvider: (playerId: string) => number = () => 100;
   private playerBuildingsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
   private technologyLossHandler?: (playerId: string) => Promise<void>;
+  private technologyCompletionObserver?: (
+    playerId: string,
+    techId: string,
+    source: 'research' | 'grant'
+  ) => void;
   private readonly researchPacing: ResearchPacingSettings;
 
   constructor(
@@ -96,6 +101,13 @@ export class ResearchManager {
 
   public setTechnologyLossHandler(handler: (playerId: string) => Promise<void>): void {
     this.technologyLossHandler = handler;
+  }
+
+  /** Observe every authoritative technology acquisition for telemetry/replay. */
+  public setTechnologyCompletionObserver(
+    observer?: (playerId: string, techId: string, source: 'research' | 'grant') => void
+  ): void {
+    this.technologyCompletionObserver = observer;
   }
 
   /**
@@ -363,6 +375,7 @@ export class ResearchManager {
     }
 
     await this.saveResearchState(playerResearch);
+    this.technologyCompletionObserver?.(playerId, techId, 'research');
   }
 
   private recordCompletedTechnology(research: PlayerResearch, techId: string): boolean {
@@ -568,6 +581,7 @@ export class ResearchManager {
       techId,
       researchedTurn: this.getCurrentTurn(),
     });
+    this.technologyCompletionObserver?.(playerId, techId, 'grant');
     return true;
   }
 

@@ -252,6 +252,15 @@ describe('ResearchManager', () => {
       expect(research!.currentTech).toBeDefined(); // Auto-selects next available tech
     });
 
+    it('notifies telemetry observers when research completes', async () => {
+      const observer = jest.fn();
+      researchManager.setTechnologyCompletionObserver(observer);
+
+      await expect(researchManager.addResearchPoints('player-123', 10)).resolves.toBe('pottery');
+
+      expect(observer).toHaveBeenCalledWith('player-123', 'pottery', 'research');
+    });
+
     it('should save excess bulbs when completing technology', async () => {
       const completedTech = await researchManager.addResearchPoints('player-123', 15);
 

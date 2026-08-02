@@ -41,6 +41,9 @@ export enum GameEventType {
   COMBAT_OCCURRED = 'combat_occurred',
   UNIT_KILLED = 'unit_killed',
 
+  // Trade events
+  TRADE_ROUTE_ESTABLISHED = 'trade_route_established',
+
   // Achievement events
   ACHIEVEMENT_UNLOCKED = 'achievement_unlocked',
   MILESTONE_REACHED = 'milestone_reached',
@@ -272,6 +275,7 @@ export class GameEventService {
       [GameEventType.RESEARCH_STARTED]: 'research',
       [GameEventType.COMBAT_OCCURRED]: 'combat',
       [GameEventType.UNIT_KILLED]: 'combat',
+      [GameEventType.TRADE_ROUTE_ESTABLISHED]: 'trade',
       [GameEventType.ACHIEVEMENT_UNLOCKED]: 'achievement',
       [GameEventType.MILESTONE_REACHED]: 'achievement',
       [GameEventType.CUSTOM_EVENT]: 'custom',
@@ -287,6 +291,8 @@ export class GameEventService {
       [GameEventType.CITY_FOUNDED]: data => `City "${data.cityName || 'Unknown'}" founded`,
       [GameEventType.UNIT_CREATED]: data => `${data.unitType || 'Unit'} created`,
       [GameEventType.TECH_RESEARCHED]: data => `${data.techName || 'Technology'} researched`,
+      [GameEventType.TRADE_ROUTE_ESTABLISHED]: data =>
+        `Trade route established from ${data.sourceCityId || 'city'} to ${data.partnerCityId || 'city'}`,
       [GameEventType.ACHIEVEMENT_UNLOCKED]: data =>
         `Achievement: ${data.achievementName || 'Unknown'}`,
       [GameEventType.TURN_BEGIN]: data => `Turn ${data.turn} began`,
@@ -320,6 +326,7 @@ export class GameEventService {
       GameEventType.TECH_RESEARCHED,
       GameEventType.ACHIEVEMENT_UNLOCKED,
       GameEventType.COMBAT_OCCURRED,
+      GameEventType.TRADE_ROUTE_ESTABLISHED,
     ];
     return visibleEvents.includes(eventType);
   }
@@ -400,6 +407,190 @@ export class GameEventService {
       queueSize: this.eventQueue.length,
     });
 
+    return eventId;
+  }
+
+  private getCityEventData(city: {
+    id: string;
+    name: string;
+    playerId: string;
+    x: number;
+    y: number;
+  }): Pick<GameEventData, 'playerId' | 'cityId' | 'cityName' | 'x' | 'y'> {
+    return {
+      playerId: city.playerId,
+      cityId: city.id,
+      cityName: city.name,
+      x: city.x,
+      y: city.y,
+    };
+  }
+
+  recordCityFounded(city: {
+    id: string;
+    name: string;
+    playerId: string;
+    x: number;
+    y: number;
+  }): string {
+    return this.emitEvent(GameEventType.CITY_FOUNDED, this.getCityEventData(city));
+  }
+
+  recordCityGrowth(
+    city: { id: string; name: string; playerId: string; x: number; y: number; size: number },
+    oldSize: number
+  ): string {
+    return this.emitEvent(GameEventType.CITY_GROWTH, {
+      ...this.getCityEventData(city),
+      oldSize,
+      newSize: city.size,
+    });
+  }
+
+  recordCityProductionCompleted(
+    city: { id: string; name: string; playerId: string; x: number; y: number },
+    item: { kind: 'unit' | 'building' | 'wonder'; value: string }
+  ): string {
+    const data = {
+      ...this.getCityEventData(city),
+      productionType: item.kind,
+      productionId: item.value,
+    };
+    const eventId = this.emitEvent(GameEventType.CITY_PRODUCTION_COMPLETE, data);
+    if (item.kind === 'building' || item.kind === 'wonder') {
+      this.emitEvent(GameEventType.CITY_BUILDING_BUILT, data);
+    }
+    return eventId;
+  }
+
+  recordTradeRouteEstablished(
+    sourceCity: { id: string; playerId: string },
+    partnerCity: { id: string; playerId: string },
+    route: {
+      id?: string;
+      value: number;
+      establishedTurn: number;
+      distance?: number;
+      routeType?: string;
+      goods?: string;
+    }
+  ): string {
+    return this.emitEvent(GameEventType.TRADE_ROUTE_ESTABLISHED, {
+      playerId: sourceCity.playerId,
+      targetPlayerId: partnerCity.playerId,
+      sourceCityId: sourceCity.id,
+      partnerCityId: partnerCity.id,
+      routeId: route.id,
+      value: route.value,
+      establishedTurn: route.establishedTurn,
+      distance: route.distance,
+      routeType: route.routeType,
+      goods: route.goods,
+    });
+  }
+
+  recordTechnologyCompleted(
+    playerId: string,
+    techId: string,
+    source: 'research' | 'grant'
+  ): string {
+    return this.emitEvent(GameEventType.TECH_RESEARCHED, {
+      playerId,
+      techId,
+      source,
+    });
+  }
+
+  recordUnitLifecycle(event: {
+    type: 'created' | 'moved' | 'owner_changed' | 'destroyed';
+    unit: {
+      id: string;
+      playerId: string;
+      unitTypeId: string;
+      x: number;
+      y: number;
+      createdTurn?: number;
+    };
+    previousX?: number;
+    previousY?: number;
+    previousPlayerId?: string;
+  }): string {
+    const data = {
+      playerId: event.unit.playerId,
+      unitId: event.unit.id,
+      unitTypeId: event.unit.unitTypeId,
+      x: event.unit.x,
+      y: event.unit.y,
+      createdTurn: event.unit.createdTurn,
+      previousX: event.previousX,
+      previousY: event.previousY,
+      previousPlayerId: event.previousPlayerId,
+    };
+    const eventType =
+      event.type === 'created'
+        ? GameEventType.UNIT_CREATED
+        : event.type === 'moved'
+          ? GameEventType.UNIT_MOVED
+          : event.type === 'destroyed'
+            ? GameEventType.UNIT_DESTROYED
+            : GameEventType.CUSTOM_EVENT;
+    return this.emitEvent(eventType, {
+      ...data,
+      ...(event.type === 'owner_changed' ? { eventName: 'unit_owner_changed' } : {}),
+    });
+  }
+
+  recordCombatOccurred(event: {
+    attacker: { id: string; playerId: string; unitTypeId: string; x: number; y: number };
+    defender: { id: string; playerId: string; unitTypeId: string; x: number; y: number };
+    result: {
+      attackerDamage: number;
+      defenderDamage: number;
+      attackerDestroyed: boolean;
+      defenderDestroyed: boolean;
+      collateralDestroyedIds?: string[];
+    };
+  }): string {
+    const data = {
+      playerId: event.attacker.playerId,
+      targetPlayerId: event.defender.playerId,
+      attackerId: event.attacker.id,
+      defenderId: event.defender.id,
+      attackerUnitTypeId: event.attacker.unitTypeId,
+      defenderUnitTypeId: event.defender.unitTypeId,
+      x: event.defender.x,
+      y: event.defender.y,
+      attackerDamage: event.result.attackerDamage,
+      defenderDamage: event.result.defenderDamage,
+      attackerDestroyed: event.result.attackerDestroyed,
+      defenderDestroyed: event.result.defenderDestroyed,
+      collateralDestroyedIds: event.result.collateralDestroyedIds ?? [],
+    };
+    const eventId = this.emitEvent(GameEventType.COMBAT_OCCURRED, data);
+    if (event.result.defenderDestroyed) {
+      this.emitEvent(GameEventType.UNIT_KILLED, {
+        playerId: event.defender.playerId,
+        targetPlayerId: event.attacker.playerId,
+        unitId: event.defender.id,
+        unitTypeId: event.defender.unitTypeId,
+        killerUnitId: event.attacker.id,
+        x: event.defender.x,
+        y: event.defender.y,
+        role: 'defender',
+      });
+    }
+    if (event.result.attackerDestroyed) {
+      this.emitEvent(GameEventType.UNIT_KILLED, {
+        playerId: event.attacker.playerId,
+        targetPlayerId: event.defender.playerId,
+        unitId: event.attacker.id,
+        unitTypeId: event.attacker.unitTypeId,
+        killerUnitId: event.defender.id,
+        x: event.attacker.x,
+        y: event.attacker.y,
+        role: 'attacker',
+      });
+    }
     return eventId;
   }
 

@@ -51,7 +51,10 @@ import {
 import { OutputType } from '@game/constants/GameConstants';
 
 // Import the newly extracted services
-import { CityTurnProcessingService } from '@game/services/CityTurnProcessingService';
+import {
+  CityTurnProcessingService,
+  type CityGameplayEvent,
+} from '@game/services/CityTurnProcessingService';
 import { CityCalculationService } from '@game/services/CityCalculationService';
 import { CityHappinessService } from '@game/services/CityHappinessService';
 import { CityOptimizationService } from '@game/services/CityOptimizationService';
@@ -335,6 +338,7 @@ export class CityManager {
   private gameId: string;
   private databaseProvider: DatabaseProvider;
   private callbacks: CityManagerCallbacks;
+  private gameplayEventObserver?: (event: CityGameplayEvent) => void;
   private mapManager?: MapManager;
   private io?: SocketServer; // Socket.IO server for emitting events
   private validationService?: CityFoundingValidationService;
@@ -428,6 +432,23 @@ export class CityManager {
    */
   setCallbacks(newCallbacks: Partial<CityManagerCallbacks>): void {
     Object.assign(this.callbacks, newCallbacks);
+  }
+
+  /** Register an observer for authoritative city gameplay events. */
+  public setGameplayEventObserver(observer?: (event: CityGameplayEvent) => void): void {
+    this.gameplayEventObserver = observer;
+  }
+
+  private notifyGameplayEvent(event: CityGameplayEvent): void {
+    try {
+      this.gameplayEventObserver?.(event);
+    } catch (error) {
+      logger.warn('Failed to notify city gameplay event observer', {
+        gameId: this.gameId,
+        eventType: event.type,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   public setCurrentTurnProvider(provider: () => number): void {
@@ -699,6 +720,7 @@ export class CityManager {
       gameId: this.gameId,
       cities: this.cities,
       callbacks: this.callbacks,
+      onGameplayEvent: this.notifyGameplayEvent.bind(this),
       effectsManager: this.effectsManager,
       unitTypes: this.unitTypes,
       buildingTypes: this.buildingTypes,
@@ -987,6 +1009,7 @@ export class CityManager {
     }
 
     // Trigger callback
+    this.notifyGameplayEvent({ type: 'founded', city });
     if (this.callbacks.onCityFounded) {
       this.callbacks.onCityFounded(city);
     }
@@ -2162,6 +2185,15 @@ export class CityManager {
       await Promise.all([...this.cities.values()].map(city => this.saveCityToDatabase(city)));
       this.calculateCityOutputs(sourceCityId);
       this.calculateCityOutputs(partnerCityId);
+      const route = source.tradeRoutes?.find(candidate => candidate.partnerCity === partnerCityId);
+      if (route) {
+        this.notifyGameplayEvent({
+          type: 'trade_route_established',
+          sourceCity: source,
+          partnerCity: partner,
+          route: { ...route },
+        });
+      }
     }
     return established;
   }
