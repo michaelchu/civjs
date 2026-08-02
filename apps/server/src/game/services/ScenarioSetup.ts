@@ -11,6 +11,7 @@ import type { TurnManager } from '@game/managers/TurnManager';
 import type { UnitManager } from '@game/managers/UnitManager';
 import type { EconomicManager } from '@game/systems/Economic/EconomicManager';
 import type { DiplomaticState, DiplomaticRelation } from '@game/managers/DiplomacyManager';
+import { createAIState, type FreecivAIState } from '@game/ai/AIStateStore';
 
 const scenarioPlayerSetupSchema = z.object({
   playerNumber: z.number().int().min(1),
@@ -89,6 +90,25 @@ const scenarioDiplomacySetupSchema = z.object({
   attitude: z.number().int().optional(),
 });
 
+const scenarioAIDiplomacySetupSchema = z
+  .object({
+    playerNumber: z.number().int().min(1),
+    otherPlayerNumber: z.number().int().min(1),
+    love: z.number().int().min(-1000).max(1000).default(0),
+    warDesire: z.number().int().min(-1000).max(1000).default(0),
+    countdown: z.number().int().min(0).default(0),
+    warCountdown: z.number().int().min(0).optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.playerNumber === value.otherPlayerNumber) {
+      context.addIssue({
+        code: 'custom',
+        path: ['otherPlayerNumber'],
+        message: 'must reference a different player',
+      });
+    }
+  });
+
 export const scenarioSetupSchema = z.object({
   initialTurn: z.number().int().min(1).default(1),
   initialYear: z.number().int().optional(),
@@ -97,6 +117,7 @@ export const scenarioSetupSchema = z.object({
   cities: z.array(scenarioCitySetupSchema).default([]),
   units: z.array(scenarioUnitSetupSchema).default([]),
   diplomacy: z.array(scenarioDiplomacySetupSchema).default([]),
+  aiDiplomacy: z.array(scenarioAIDiplomacySetupSchema).default([]),
 });
 
 export type ScenarioSetup = z.infer<typeof scenarioSetupSchema>;
@@ -104,6 +125,7 @@ export type ScenarioPlayerSetup = z.infer<typeof scenarioPlayerSetupSchema>;
 export type ScenarioCitySetup = z.infer<typeof scenarioCitySetupSchema>;
 export type ScenarioUnitSetup = z.infer<typeof scenarioUnitSetupSchema>;
 export type ScenarioDiplomacySetup = z.infer<typeof scenarioDiplomacySetupSchema>;
+export type ScenarioAIDiplomacySetup = z.infer<typeof scenarioAIDiplomacySetupSchema>;
 
 export interface ScenarioSetupContext {
   databaseProvider: DatabaseProvider;
@@ -133,6 +155,7 @@ export async function applyScenarioSetup(
 
   await applyPlayerSetup(setup.players, playersByNumber, context);
   await applyDiplomacySetup(setup.diplomacy, playersByNumber, context, setup.initialTurn);
+  await applyAIDiplomacySetup(setup.aiDiplomacy, playersByNumber, context);
 
   const citiesByName = await applyCitySetup(setup.cities, playersByNumber, context);
   await applyUnitSetup(setup.units, playersByNumber, citiesByName, context);
@@ -151,6 +174,7 @@ function validatePlayerReferences(
     ...setup.cities.map(city => city.playerNumber),
     ...setup.units.map(unit => unit.playerNumber),
     ...setup.diplomacy.flatMap(pair => [pair.playerNumber, pair.otherPlayerNumber]),
+    ...setup.aiDiplomacy.flatMap(pair => [pair.playerNumber, pair.otherPlayerNumber]),
   ];
   const unknown = references.find(playerNumber => !playersByNumber.has(playerNumber));
   if (unknown !== undefined) {
@@ -163,6 +187,11 @@ function validatePlayerReferences(
   for (const pair of setup.diplomacy) {
     if (pair.playerNumber === pair.otherPlayerNumber) {
       throw new Error('Scenario diplomacy cannot relate a player to itself');
+    }
+  }
+  for (const pair of setup.aiDiplomacy) {
+    if (pair.playerNumber === pair.otherPlayerNumber) {
+      throw new Error('Scenario AI diplomacy cannot relate a player to itself');
     }
   }
 }
@@ -214,6 +243,49 @@ async function applyPlayerSetup(
     await applyGovernmentSetup(setup, player, context);
     await applyEconomicSetup(setup, player, context);
   }
+}
+
+async function applyAIDiplomacySetup(
+  setups: ScenarioAIDiplomacySetup[],
+  playersByNumber: Map<number, PlayerState>,
+  context: ScenarioSetupContext
+): Promise<void> {
+  if (setups.length === 0) return;
+  const updatedStates = new Map<string, FreecivAIState>();
+  for (const setup of setups) {
+    const player = playersByNumber.get(setup.playerNumber)!;
+    const otherPlayer = playersByNumber.get(setup.otherPlayerNumber)!;
+    if (!player.isAI) {
+      throw new Error(`Scenario AI diplomacy requires AI player ${setup.playerNumber}`);
+    }
+    const current = (player.aiState ?? {}) as Partial<FreecivAIState>;
+    const aiState: FreecivAIState = {
+      ...createAIState(),
+      ...current,
+      diplomacy: { ...(current.diplomacy ?? {}) },
+      unitTasks: { ...(current.unitTasks ?? {}) },
+      cityWants: { ...(current.cityWants ?? {}) },
+      techWants: { ...(current.techWants ?? {}) },
+    };
+    aiState.diplomacy[otherPlayer.id] = {
+      love: setup.love,
+      warDesire: setup.warDesire,
+      countdown: setup.countdown,
+      ...(setup.warCountdown === undefined ? {} : { warCountdown: setup.warCountdown }),
+    };
+    player.aiState = aiState as unknown as Record<string, unknown>;
+    updatedStates.set(player.id, aiState);
+  }
+
+  await Promise.all(
+    [...updatedStates.entries()].map(([playerId, aiState]) =>
+      context.databaseProvider
+        .getDatabase()
+        .update(playersTable)
+        .set({ aiState })
+        .where(and(eq(playersTable.id, playerId), eq(playersTable.gameId, context.gameId)))
+    )
+  );
 }
 
 async function applyGovernmentSetup(

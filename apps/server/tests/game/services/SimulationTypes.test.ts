@@ -116,4 +116,27 @@ describe('headless simulation configuration', () => {
       })
     ).toThrow();
   });
+
+  it('normalizes declarative gameplay outcome expectations', () => {
+    const config = headlessSimulationConfigSchema.parse({
+      aiPlayerCount: 2,
+      randomSeed: 42,
+      mapSeed: 'earth-small-42',
+      maxTurns: 20,
+      expect: {
+        minCompletedTurns: 10,
+        diplomacy: [{ playerNumber: 1, otherPlayerNumber: 2, state: 'war' }],
+        diplomacyEvents: [{ type: 'war_declared', playerNumber: 1, otherPlayerNumber: 2 }],
+      },
+    });
+
+    expect(config.expect).toEqual({
+      minCompletedTurns: 10,
+      players: [],
+      diplomacy: [{ playerNumber: 1, otherPlayerNumber: 2, state: 'war' }],
+      diplomacyEvents: [
+        { type: 'war_declared', playerNumber: 1, otherPlayerNumber: 2, minCount: 1 },
+      ],
+    });
+  });
 });

@@ -21,13 +21,50 @@ jq '{result, firstCheckpoint: .replay.turns[0].snapshot}' \
   ./artifacts/earth-small-bootstrap/run.json
 ```
 
-| Fixture                          | Focus                                             |
-| -------------------------------- | ------------------------------------------------- |
-| `earth-small-city-founding.json` | Default settlers and AI city founding             |
-| `earth-small-war.json`           | Seeded war relation and military turns            |
-| `earth-small-research.json`      | Different science rates and seeded technologies   |
-| `earth-small-victory.json`       | Scenario-declared winner flag                     |
-| `earth-small-bootstrap.json`     | Combined state bootstrap and deterministic replay |
+Add an `expect` block to make a run fail when gameplay does not reach the
+intended outcome. Expectations are checked against the final replay state;
+`diplomacyEvents` scans all completed checkpoints, so it can distinguish a
+seeded war from an AI declaration:
+
+```json
+{
+  "expect": {
+    "endReason": "max_turns",
+    "players": [{ "playerNumber": 1, "minCities": 2 }],
+    "diplomacy": [
+      {
+        "playerNumber": 1,
+        "otherPlayerNumber": 2,
+        "state": "war"
+      }
+    ],
+    "diplomacyEvents": [
+      {
+        "type": "war_declared",
+        "playerNumber": 1,
+        "otherPlayerNumber": 2
+      }
+    ]
+  }
+}
+```
+
+An expectation failure is written to `diagnostics.expectations`, emitted as a
+`run_failed` progress record, and exits with code `6`.
+
+For deterministic AI decision tests, `scenarioSetup.aiDiplomacy` can seed a
+player's persisted diplomacy memory (including `warDesire` and
+`warCountdown`). This is useful for exercising a specific decision path;
+heuristic behavior should still be tested with an unseeded setup.
+
+| Fixture                            | Focus                                             |
+| ---------------------------------- | ------------------------------------------------- |
+| `earth-small-city-founding.json`   | Default settlers and AI city founding             |
+| `earth-small-war.json`             | Seeded war relation and military turns            |
+| `earth-small-war-declaration.json` | AI war countdown and declaration event            |
+| `earth-small-research.json`        | Different science rates and seeded technologies   |
+| `earth-small-victory.json`         | Scenario-declared winner flag                     |
+| `earth-small-bootstrap.json`       | Combined state bootstrap and deterministic replay |
 
 `maxTurns` is an absolute hard turn cap. If `initialTurn` is greater than 1,
 set `maxTurns` above it to allow turns to execute. Repeating a run with the

@@ -1,0 +1,106 @@
+{
+  "name": "Scenario AI war declaration",
+  "aiPlayerCount": 2,
+  "mapWidth": 80,
+  "mapHeight": 50,
+  "ruleset": "civ2civ3",
+  "aiLevel": "normal",
+  "randomSeed": 31005,
+  "mapSeed": "scenario-earth-small-war-declaration",
+  "maxTurns": 12,
+  "victoryConditions": ["max_turns"],
+  "terrainSettings": {
+    "generator": "scenario",
+    "landmass": "normal",
+    "huts": 15,
+    "temperature": 50,
+    "wetness": 50,
+    "rivers": 50,
+    "resources": "normal",
+    "scenarioId": "earth-small"
+  },
+  "scenarioSetup": {
+    "initialTurn": 1,
+    "initialYear": -4000,
+    "replaceDefaultStartingUnits": true,
+    "players": [
+      { "playerNumber": 1, "gold": 200, "scienceRate": 60 },
+      { "playerNumber": 2, "gold": 200, "scienceRate": 60 }
+    ],
+    "cities": [
+      {
+        "playerNumber": 1,
+        "name": "Aggressor Base",
+        "x": 15,
+        "y": 18,
+        "population": 3,
+        "currentProduction": "warriors",
+        "productionType": "unit"
+      },
+      {
+        "playerNumber": 2,
+        "name": "Target Capital",
+        "x": 36,
+        "y": 17,
+        "population": 3,
+        "currentProduction": "warriors",
+        "productionType": "unit"
+      }
+    ],
+    "units": [
+      { "playerNumber": 1, "unitType": "warriors", "x": 15, "y": 18 },
+      { "playerNumber": 1, "unitType": "warriors", "x": 16, "y": 18 }
+    ],
+    "diplomacy": [
+      {
+        "playerNumber": 1,
+        "otherPlayerNumber": 2,
+        "state": "peace",
+        "maxState": "peace",
+        "sinceTurn": 1,
+        "contactTurnsLeft": 20,
+        "attitude": -500
+      }
+    ],
+    "aiDiplomacy": [
+      {
+        "playerNumber": 1,
+        "otherPlayerNumber": 2,
+        "warDesire": 1000,
+        "warCountdown": 0
+      }
+    ]
+  },
+  "expect": {
+    "minCompletedTurns": 8,
+    "endReason": "max_turns",
+    "diplomacy": [
+      {
+        "playerNumber": 1,
+        "otherPlayerNumber": 2,
+        "state": "war"
+      }
+    ],
+    "diplomacyEvents": [
+      {
+        "type": "war_declared",
+        "playerNumber": 1,
+        "otherPlayerNumber": 2,
+        "minCount": 1
+      },
+      {
+        "type": "proposal",
+        "playerNumber": 2,
+        "otherPlayerNumber": 1,
+        "minCount": 1
+      },
+      {
+        "type": "rejected",
+        "playerNumber": 2,
+        "otherPlayerNumber": 1,
+        "minCount": 1
+      }
+    ]
+  },
+  "turnTimeLimit": 0
+}

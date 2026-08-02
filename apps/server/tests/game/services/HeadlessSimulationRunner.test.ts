@@ -5,6 +5,7 @@ import {
 } from '@game/services/HeadlessSimulationRunner';
 import { GameReplayService } from '@game/services/GameReplayService';
 import { SimulationExecutionError } from '@game/services/SimulationExecutionService';
+import { headlessSimulationConfigSchema } from '@game/services/SimulationTypes';
 
 describe('HeadlessSimulationRunner result metadata', () => {
   it('uses the failure reason instead of a previously persisted normal end reason', () => {
@@ -14,6 +15,49 @@ describe('HeadlessSimulationRunner result metadata', () => {
 
   it('preserves the game end reason for completed runs', () => {
     expect(resolveSimulationEndReason('completed', 'conquest')).toBe('conquest');
+  });
+
+  it('uses expectation failure as the end reason after a completed game misses an assertion', () => {
+    expect(resolveSimulationEndReason('failed', 'max_turns', 'EXPECTATION_FAILED')).toBe(
+      'expectation_failed'
+    );
+  });
+
+  it('converts failed gameplay expectations into a structured run failure', async () => {
+    const runner = new HeadlessSimulationRunner({} as any, {} as any);
+    const pauseFailedRun = jest.spyOn(runner as any, 'pauseFailedRun').mockResolvedValue(undefined);
+    const emitProgress = jest.fn();
+    const expectations = headlessSimulationConfigSchema.parse({
+      aiPlayerCount: 2,
+      randomSeed: 1,
+      mapSeed: 'map',
+      maxTurns: 2,
+      expect: { minCompletedTurns: 2 },
+    }).expect;
+
+    const outcome = await (runner as any).verifyExpectedOutcomes(
+      'game-id',
+      'run-id',
+      [{ turn: 1, snapshot: {} }],
+      {},
+      { status: 'completed', aiSummaries: [] },
+      expectations,
+      'max_turns',
+      emitProgress
+    );
+
+    expect(outcome).toMatchObject({
+      status: 'failed',
+      failure: {
+        code: 'EXPECTATION_FAILED',
+        message: 'minCompletedTurns: expected at least 2, observed 1',
+      },
+      expectationFailures: ['minCompletedTurns: expected at least 2, observed 1'],
+    });
+    expect(pauseFailedRun).toHaveBeenCalledWith('game-id');
+    expect(emitProgress).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'run_failed', code: 'EXPECTATION_FAILED' })
+    );
   });
 
   it('emits a replacement failure when replay verification changes the final result', async () => {

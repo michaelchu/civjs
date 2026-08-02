@@ -7,6 +7,7 @@ import {
 import {
   HEADLESS_EXIT_CODES,
   HeadlessSimulationOutputError,
+  exitCodeForBundle,
 } from '@game/services/HeadlessSimulationRunner';
 
 describe('headless simulation CLI arguments', () => {
@@ -75,6 +76,7 @@ describe('headless simulation CLI arguments', () => {
       turnFailure: 3,
       timeoutOrCancellation: 4,
       outputFailure: 5,
+      expectationFailure: 6,
     });
     expect(exitCodeForStatus('completed')).toBe(0);
     expect(exitCodeForStatus('failed')).toBe(3);
@@ -82,5 +84,11 @@ describe('headless simulation CLI arguments', () => {
     expect(exitCodeForStatus('cancelled')).toBe(4);
     expect(exitCodeForError(new HeadlessSimulationOutputError('disk full'))).toBe(5);
     expect(exitCodeForError(new Error('unexpected'))).toBe(3);
+    expect(
+      exitCodeForBundle({
+        failure: { code: 'EXPECTATION_FAILED', message: 'war was not declared' },
+        result: { status: 'failed' },
+      } as any)
+    ).toBe(6);
   });
 });

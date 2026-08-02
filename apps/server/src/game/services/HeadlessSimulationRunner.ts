@@ -13,6 +13,7 @@ import {
   SimulationExecutionService,
   type SimulationExecutionStopReason,
 } from './SimulationExecutionService';
+import { evaluateSimulationExpectations } from './SimulationExpectations';
 import { SimulationGameService } from './SimulationGameService';
 import {
   SIMULATION_DIAGNOSTIC_SCHEMA_VERSION,
@@ -30,6 +31,7 @@ export const HEADLESS_EXIT_CODES = {
   turnFailure: 3,
   timeoutOrCancellation: 4,
   outputFailure: 5,
+  expectationFailure: 6,
 } as const;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -65,6 +67,7 @@ interface ExecutionOutcome {
   failure?: RunFailure;
   endReason?: string;
   aiSummaries: unknown[];
+  expectationFailures?: string[];
 }
 
 interface RunArtifacts {
@@ -140,16 +143,31 @@ export class HeadlessSimulationRunner {
     });
     const initialOutcome = await this.executeGame(gameId, options, executionService, emitProgress);
     const artifacts = await this.readArtifacts(gameId);
-    const outcome = await this.verifyExecutionOutcome(
+    const verifiedOutcome = await this.verifyExecutionOutcome(
       gameId,
       options.runId,
       artifacts.completedTurns,
       initialOutcome,
       emitProgress
     );
+    const completedEndReason = resolveSimulationEndReason(
+      verifiedOutcome.status,
+      verifiedOutcome.endReason ?? artifacts.game?.endReason,
+      verifiedOutcome.failure?.code
+    );
+    const outcome = await this.verifyExpectedOutcomes(
+      gameId,
+      options.runId,
+      artifacts.completedTurns,
+      artifacts.game?.endGameReport,
+      verifiedOutcome,
+      options.config.expect,
+      completedEndReason,
+      emitProgress
+    );
     const endReason = resolveSimulationEndReason(
       outcome.status,
-      outcome.endReason ?? artifacts.game?.endReason,
+      completedEndReason,
       outcome.failure?.code
     );
     await this.markCompletedRunIfNeeded(gameId, outcome.status, endReason);
@@ -274,6 +292,38 @@ export class HeadlessSimulationRunner {
     });
   }
 
+  private async verifyExpectedOutcomes(
+    gameId: string,
+    runId: string,
+    completedTurns: GameReplay['turns'],
+    standings: unknown,
+    outcome: ExecutionOutcome,
+    expectations: HeadlessSimulationConfig['expect'],
+    endReason: string,
+    emitProgress: (record: SimulationProgressRecord) => void
+  ): Promise<ExecutionOutcome> {
+    if (!expectations || outcome.status !== 'completed') return outcome;
+    const evaluation = evaluateSimulationExpectations(expectations, {
+      completedTurns,
+      endReason,
+      standings,
+    });
+    if (evaluation.passed) return outcome;
+
+    const failure = {
+      code: 'EXPECTATION_FAILED',
+      message: evaluation.failures.join('; '),
+    } as const;
+    await this.pauseFailedRun(gameId);
+    this.emitFailure(runId, gameId, failure, emitProgress);
+    return {
+      ...outcome,
+      status: 'failed',
+      failure,
+      expectationFailures: evaluation.failures,
+    };
+  }
+
   private async markCompletedRunIfNeeded(
     gameId: string,
     status: RunStatus,
@@ -301,12 +351,12 @@ export class HeadlessSimulationRunner {
       },
       replay: artifacts.replay,
       aiSummaries: outcome.aiSummaries,
-      diagnostics: {
-        schemaVersion: SIMULATION_DIAGNOSTIC_SCHEMA_VERSION,
+      diagnostics: buildSimulationDiagnostics(
+        manifest.normalizedConfig.expect,
         progress,
-        phases: artifacts.replay?.turns.flatMap(turn => turn.phases) ?? [],
-        events: artifacts.replay?.turns.flatMap(turn => turn.events) ?? [],
-      },
+        artifacts,
+        outcome
+      ),
       ...(outcome.failure ? { failure: outcome.failure } : {}),
     };
   }
@@ -495,6 +545,28 @@ function buildLiveStandings(
     }));
 }
 
+function buildSimulationDiagnostics(
+  expectations: HeadlessSimulationConfig['expect'],
+  progress: SimulationProgressRecord[],
+  artifacts: RunArtifacts,
+  outcome: ExecutionOutcome
+): Record<string, unknown> {
+  return {
+    schemaVersion: SIMULATION_DIAGNOSTIC_SCHEMA_VERSION,
+    progress,
+    phases: artifacts.replay?.turns.flatMap(turn => turn.phases) ?? [],
+    events: artifacts.replay?.turns.flatMap(turn => turn.events) ?? [],
+    ...(expectations
+      ? {
+          expectations: {
+            passed: !outcome.expectationFailures?.length,
+            failures: outcome.expectationFailures ?? [],
+          },
+        }
+      : {}),
+  };
+}
+
 export function hashSimulationState(snapshot: unknown): string {
   return createHash('sha256')
     .update(JSON.stringify(sortKeys(sanitizeForHash(snapshot))))
@@ -576,8 +648,18 @@ export function createRunId(): string {
 export function resolveSimulationEndReason(
   status: SimulationRunBundle['result']['status'],
   gameEndReason?: string | null,
-  failureCode?: 'TURN_FAILURE' | 'TIMEOUT' | 'CANCELLED'
+  failureCode?: 'TURN_FAILURE' | 'TIMEOUT' | 'CANCELLED' | 'EXPECTATION_FAILED'
 ): string {
   if (status !== 'completed' && failureCode) return failureCode.toLowerCase();
   return gameEndReason ?? 'completed';
+}
+
+export function exitCodeForBundle(bundle: SimulationRunBundle): number {
+  return bundle.failure?.code === 'EXPECTATION_FAILED'
+    ? HEADLESS_EXIT_CODES.expectationFailure
+    : bundle.result.status === 'completed'
+      ? HEADLESS_EXIT_CODES.completed
+      : bundle.result.status === 'failed'
+        ? HEADLESS_EXIT_CODES.turnFailure
+        : HEADLESS_EXIT_CODES.timeoutOrCancellation;
 }

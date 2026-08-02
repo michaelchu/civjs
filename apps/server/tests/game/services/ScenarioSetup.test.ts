@@ -22,4 +22,20 @@ describe('scenario setup', () => {
       { playerNumber: 1 },
     ]);
   });
+
+  it('normalizes deterministic AI diplomacy memory seeds', () => {
+    expect(
+      scenarioSetupSchema.parse({
+        aiDiplomacy: [{ playerNumber: 1, otherPlayerNumber: 2, warDesire: 500 }],
+      }).aiDiplomacy
+    ).toEqual([
+      {
+        playerNumber: 1,
+        otherPlayerNumber: 2,
+        love: 0,
+        warDesire: 500,
+        countdown: 0,
+      },
+    ]);
+  });
 });

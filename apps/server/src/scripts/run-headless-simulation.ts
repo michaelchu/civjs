@@ -10,6 +10,7 @@ import {
 } from '@game/services/SimulationTypes';
 import {
   createRunId,
+  exitCodeForBundle,
   HEADLESS_EXIT_CODES,
   HeadlessSimulationRunner,
   HeadlessSimulationOutputError,
@@ -162,7 +163,7 @@ async function runSimulation(
     onProgress: createProgressReporter(prepared.options.jsonl),
   });
   process.stderr.write(`simulation bundle: ${result.outputPath}\n`);
-  return exitCodeForStatus(result.bundle.result.status);
+  return exitCodeForBundle(result.bundle);
 }
 
 function createProgressReporter(jsonl: boolean): HeadlessSimulationRunOptions['onProgress'] {
