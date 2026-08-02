@@ -737,13 +737,20 @@ export class ActionSystem {
 
     const tile = this.mapManager?.getTile(unit.x, unit.y);
     const terrain = tile && this.getTerrain(tile.terrain);
-    const cardinalNeighbors = this.getCardinalNeighborTiles(unit);
+    // Non-classic rulesets are validated by UnitManager's complete
+    // source-derived action enablers. In particular, civ2civ3 allows a
+    // Worker with Electricity to irrigate without an adjacent water source.
+    // Retain the legacy source check only for classic, whose dedicated
+    // validator remains the authority for that ruleset.
+    const hasRequiredWaterSource =
+      this.rulesetName !== 'classic' ||
+      hasClassicIrrigationSource(this.getCardinalNeighborTiles(unit));
     return Boolean(
       tile &&
       terrain &&
       terrain.irrigationTime > 0 &&
       !tile.improvements.includes('irrigation') &&
-      hasClassicIrrigationSource(cardinalNeighbors)
+      hasRequiredWaterSource
     );
   }
 
@@ -799,7 +806,16 @@ export class ActionSystem {
     const unitType = this.unitTypes[unit.unitTypeId];
     if (!tile || !unitType) return false;
     if (!this.canBuildBaseOnTile(unit, tile, extraName)) return false;
-    if (extraName === 'Airbase' && !unitType.flags?.includes('Airbase')) return false;
+    // c2c3's source-defined Build Base extras decide whether a Worker can
+    // construct Airstrip/Airbase. The legacy Classic Airbase flag is only a
+    // Classic constraint and must not veto those ruleset requirements.
+    if (
+      this.rulesetName === 'classic' &&
+      extraName === 'Airbase' &&
+      !unitType.flags?.includes('Airbase')
+    ) {
+      return false;
+    }
     return true;
   }
 

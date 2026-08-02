@@ -163,6 +163,11 @@ interface MovePlan {
   previousY: number;
 }
 
+interface RulesetWorkerActionEvaluation {
+  allowed: boolean;
+  improvementType?: string;
+}
+
 export class UnitManager {
   private units: Map<string, Unit> = new Map();
   private gameId: string;
@@ -4437,8 +4442,13 @@ export class UnitManager {
       ActionType.BUILD_RAILROAD,
       ActionType.BUILD_IRRIGATION,
       ActionType.BUILD_MINE,
+      ActionType.CULTIVATE,
+      ActionType.PLANT,
       ActionType.BUILD_FORTRESS,
       ActionType.BUILD_AIRBASE,
+      ActionType.PILLAGE,
+      ActionType.TRANSFORM_TERRAIN,
+      ActionType.CLEAN_POLLUTION,
     ]).has(actionType);
   }
 
@@ -4452,11 +4462,20 @@ export class UnitManager {
     // requirement vectors used by civ2civ3. Preserve its existing dedicated
     // validators; apply the universal evaluator whenever the active ruleset
     // supplies the reference vectors.
-    if (this.getRulesetName() === 'classic') return true;
+    return this.evaluateRulesetWorkerAction(unit, actionType, targetX, targetY).allowed;
+  }
+
+  private evaluateRulesetWorkerAction(
+    unit: Unit,
+    actionType: ActionType,
+    targetX?: number,
+    targetY?: number
+  ): RulesetWorkerActionEvaluation {
+    if (this.getRulesetName() === 'classic') return { allowed: true };
     const effectiveX = targetX ?? unit.x;
     const effectiveY = targetY ?? unit.y;
     const tile = this.mapManager?.getTile(effectiveX, effectiveY) as any;
-    if (!tile) return false;
+    if (!tile) return { allowed: false };
     const rulesetName = this.getRulesetName();
     const unitType = this.unitTypes[unit.unitTypeId];
     const terrain = rulesetLoader.getTerrain(tile.terrain, rulesetName) as any;
@@ -4470,6 +4489,9 @@ export class UnitManager {
     const adjacentTiles = adjacent
       .map(({ x, y }: { x: number; y: number }) => this.mapManager?.getTile(x, y))
       .filter(Boolean) as any[];
+    const tileCityTiles = this.gameManagerCallback?.getCityAt?.(effectiveX, effectiveY)
+      ? new Set(['Center'])
+      : new Set<string>();
     const facts = {
       Local: {
         unitTypeFlags: new Set([
@@ -4486,6 +4508,7 @@ export class UnitManager {
         terrain: tile.terrain,
         terrainClass: terrain.class,
         terrainAlterations: this.getTerrainAlterations(terrain),
+        cityTiles: tileCityTiles,
         extras: new Set<string>(tileExtras),
         extraFlags: this.getExtraFlags(tileExtras, rulesetName),
       },
@@ -4493,6 +4516,7 @@ export class UnitManager {
         terrain: tile.terrain,
         terrainClass: terrain.class,
         terrainAlterations: this.getTerrainAlterations(terrain),
+        cityTiles: tileCityTiles,
         extras: new Set<string>(tileExtras),
         extraFlags: this.getExtraFlags(tileExtras, rulesetName),
       },
@@ -4517,22 +4541,29 @@ export class UnitManager {
       [ActionType.BUILD_RAILROAD]: 'Build Road',
       [ActionType.BUILD_IRRIGATION]: 'Build Irrigation',
       [ActionType.BUILD_MINE]: 'Build Mine',
+      [ActionType.CULTIVATE]: 'Cultivate',
+      [ActionType.PLANT]: 'Plant',
       [ActionType.BUILD_FORTRESS]: 'Build Base',
       [ActionType.BUILD_AIRBASE]: 'Build Base',
+      [ActionType.PILLAGE]: 'Pillage',
+      [ActionType.TRANSFORM_TERRAIN]: 'Transform Terrain',
+      [ActionType.CLEAN_POLLUTION]: 'Clean',
     };
     const actionName = actionNames[actionType];
     const actionEnablers = actionName
       ? rulesetLoader.getActionEnablersFor(actionName, rulesetName)
       : [];
-    const extraName: Partial<Record<ActionType, string>> = {
-      [ActionType.BUILD_ROAD]: 'Road',
-      [ActionType.BUILD_RAILROAD]: 'Railroad',
-      [ActionType.BUILD_IRRIGATION]: 'Irrigation',
-      [ActionType.BUILD_MINE]: 'Mine',
-      [ActionType.BUILD_FORTRESS]: 'Fortress',
-      [ActionType.BUILD_AIRBASE]: 'Airbase',
-    };
-    const extra = rulesetLoader.getExtra(extraName[actionType] ?? '', rulesetName) as any;
+    const extraCandidates = this.getRulesetWorkerExtraCandidates(actionType, rulesetName);
+    const presentExtraKeys = new Set(
+      tileExtras.map(extra => extra.toLowerCase().replace(/[^a-z0-9]/g, ''))
+    );
+    const selectedExtra = extraCandidates.find(candidate => {
+      const candidateKey = candidate.storageKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return (
+        !presentExtraKeys.has(candidateKey) &&
+        (!candidate.extra.reqs || this.rulesetRequirements.evaluateAll(candidate.extra.reqs, facts))
+      );
+    });
     const actionAllowed =
       actionEnablers.length === 0 ||
       actionEnablers.some(
@@ -4540,9 +4571,56 @@ export class UnitManager {
           this.rulesetRequirements.evaluateAll(enabler.actor_reqs, facts) &&
           this.rulesetRequirements.evaluateAll(enabler.target_reqs, facts)
       );
-    return (
-      actionAllowed && (!extra?.reqs || this.rulesetRequirements.evaluateAll(extra.reqs, facts))
-    );
+    return {
+      allowed: actionAllowed && (extraCandidates.length === 0 || selectedExtra !== undefined),
+      ...(selectedExtra ? { improvementType: selectedExtra.storageKey } : {}),
+    };
+  }
+
+  /**
+   * Resolve the concrete extra that a generic Freeciv activity will create.
+   * A single action can legally create several extras: for example c2c3's
+   * Build Mine produces Mine on land but Oil Platform on Deep Ocean after
+   * Miniaturization. The source extra requirements choose among them.
+   */
+  private getRulesetWorkerExtraCandidates(
+    actionType: ActionType,
+    rulesetName: string
+  ): Array<{ storageKey: string; extra: { causes?: string | string[]; reqs?: any[] } }> {
+    const baseExtraNames: Partial<Record<ActionType, string[]>> = {
+      [ActionType.BUILD_FORTRESS]: ['Fort', 'Fortress'],
+      [ActionType.BUILD_AIRBASE]: ['Airstrip', 'Airbase'],
+    };
+    const baseNames = baseExtraNames[actionType];
+    if (baseNames) {
+      const extras = rulesetLoader.getExtras(rulesetName);
+      return baseNames.flatMap(name => {
+        const entry = Object.entries(extras).find(([id, extra]) => id === name || extra.name === name);
+        return entry ? [{ storageKey: entry[0].replace(/^extra_/, ''), extra: entry[1] }] : [];
+      });
+    }
+    const namedExtras: Partial<Record<ActionType, string>> = {
+      [ActionType.BUILD_ROAD]: 'Road',
+      [ActionType.BUILD_RAILROAD]: 'Railroad',
+      [ActionType.BUILD_IRRIGATION]: 'Irrigation',
+    };
+    const namedExtra = namedExtras[actionType];
+    if (namedExtra) {
+      const entry = Object.entries(rulesetLoader.getExtras(rulesetName)).find(
+        ([id, extra]) => id === namedExtra || extra.name === namedExtra
+      );
+      return entry
+        ? [{ storageKey: entry[0].replace(/^extra_/, ''), extra: entry[1] }]
+        : [];
+    }
+    if (actionType !== ActionType.BUILD_MINE) return [];
+
+    return Object.entries(rulesetLoader.getExtras(rulesetName))
+      .filter(([, extra]) => {
+        const causes = Array.isArray(extra.causes) ? extra.causes : [extra.causes];
+        return causes.some(cause => cause === 'Mine');
+      })
+      .map(([id, extra]) => ({ storageKey: id.replace(/^extra_/, ''), extra }));
   }
 
   private getTerrainAlterations(terrain: any): Set<string> {
@@ -4786,8 +4864,22 @@ export class UnitManager {
     };
     const orderType = orderTypes[actionType];
     if (!orderType) return {};
+    const improvementType = this.evaluateRulesetWorkerAction(unit, actionType).improvementType;
+    const defaultImprovementByOrder: Partial<Record<UnitOrder['type'], string>> = {
+      road: 'road',
+      railroad: 'railroad',
+      irrigate: 'irrigation',
+      mine: 'mine',
+      fortress: 'fortress',
+      airbase: 'airbase',
+    };
     unit.orders = [
-      { type: orderType },
+      {
+        type: orderType,
+        ...(improvementType && improvementType !== defaultImprovementByOrder[orderType]
+          ? { improvementType }
+          : {}),
+      },
       ...(unit.automation === 'worker' ? ([{ type: 'autoSettler' }] as UnitOrder[]) : []),
     ];
     unit.activity = undefined;
@@ -4878,7 +4970,7 @@ export class UnitManager {
     for (const unit of group) {
       const order = unit.orders![0]!;
       if (!order.activity || order.activity.type === 'idle') {
-        const turnsRequired = this.getActivityDuration(orderType, unit);
+        const turnsRequired = this.getActivityDuration(order, unit);
         order.activity = {
           type: this.getActivityTypeFromOrder(orderType),
           turnsRemaining: turnsRequired,
@@ -5184,7 +5276,7 @@ export class UnitManager {
     // Initialize activity if not already started
     if (!order.activity || order.activity.type === 'idle') {
       const activityType = this.getActivityTypeFromOrder(order.type);
-      const turnsRequired = this.getActivityDuration(order.type, unit);
+      const turnsRequired = this.getActivityDuration(order, unit);
 
       order.activity = {
         type: activityType,
@@ -5384,30 +5476,40 @@ export class UnitManager {
    * Get activity duration in turns
    * @reference freeciv ruleset activity times
    */
-  private getActivityDuration(orderType: string, unit: Unit): number {
+  private getActivityDuration(order: Pick<UnitOrder, 'type' | 'improvementType'>, unit: Unit): number {
     const tile = this.mapManager?.getTile(unit.x, unit.y);
     const terrain = tile
       ? rulesetLoader.getTerrain(tile.terrain, this.getRulesetName())
       : undefined;
-    const baseTurns = this.getBaseActivityDuration(orderType, tile, terrain);
+    const baseTurns = this.getBaseActivityDuration(order, tile, terrain);
     const adjustedTurns = unit.unitTypeId === 'engineers' ? Math.ceil(baseTurns / 2) : baseTurns;
     return Math.max(1, adjustedTurns);
   }
 
   private getBaseActivityDuration(
-    orderType: string,
+    order: Pick<UnitOrder, 'type' | 'improvementType'>,
     tile: { terrain: string; improvements?: string[] } | undefined,
     terrain: ReturnType<typeof rulesetLoader.getTerrain> | undefined
   ): number {
+    const orderType = order.type;
+    const extraBuildDuration = (fallbackExtra: string, fallbackDuration: number): number => {
+      const extra = rulesetLoader.getExtra(
+        order.improvementType ?? fallbackExtra,
+        this.getRulesetName()
+      );
+      const configuredDuration = Number(extra.build_time ?? 0);
+      if (configuredDuration > 0) return configuredDuration;
+      return Math.max(1, fallbackDuration * Number(extra.build_time_factor ?? 1));
+    };
     const baseTimes: Record<string, () => number> = {
-      road: () => terrain?.roadTime ?? 0,
-      railroad: () => rulesetLoader.getExtra('Railroad').build_time ?? 0,
-      irrigate: () => terrain?.irrigationTime ?? 0,
-      mine: () => terrain?.miningTime ?? 0,
+      road: () => extraBuildDuration('Road', terrain?.roadTime ?? 0),
+      railroad: () => extraBuildDuration('Railroad', terrain?.roadTime ?? 0),
+      irrigate: () => extraBuildDuration('Irrigation', terrain?.irrigationTime ?? 0),
+      mine: () => extraBuildDuration('Mine', terrain?.miningTime ?? 0),
       cultivate: () => terrain?.cultivateTime ?? 0,
       plant: () => terrain?.plantTime ?? 0,
-      fortress: () => rulesetLoader.getExtra('Fortress').build_time ?? 0,
-      airbase: () => rulesetLoader.getExtra('Airbase').build_time ?? 0,
+      fortress: () => extraBuildDuration('Fortress', Number((terrain as any)?.base_time ?? 0)),
+      airbase: () => extraBuildDuration('Airbase', Number((terrain as any)?.base_time ?? 0)),
       transform: () => terrain?.transformTime ?? 0,
       pillage: () => 1,
       cleanPollution: () => this.getCleanupDuration(tile),
@@ -5420,8 +5522,8 @@ export class UnitManager {
   ): number {
     const extra = this.getCleanupExtraName(tile);
     return (
-      rulesetLoader.getTerrainExtraRemovalTime(tile?.terrain ?? '', extra) ??
-      rulesetLoader.getExtra(extra).removal_time ??
+      rulesetLoader.getTerrainExtraRemovalTime(tile?.terrain ?? '', extra, this.getRulesetName()) ??
+      rulesetLoader.getExtra(extra, this.getRulesetName()).removal_time ??
       0
     );
   }
@@ -5437,7 +5539,7 @@ export class UnitManager {
 
     const previousExtras = new Set<string>(tile.improvements as string[]);
     const extras = new Set<string>(previousExtras);
-    this.applyActivityTileChange(unit, order.type, tile, extras);
+    this.applyActivityTileChange(unit, order, tile, extras);
     this.mapManager.updateTileProperty(unit.x, unit.y, 'improvements', [...extras]);
     const added = [...extras].filter(extra => !previousExtras.has(extra));
     const removed = [...previousExtras].filter(extra => !extras.has(extra));
@@ -5467,10 +5569,11 @@ export class UnitManager {
 
   private applyActivityTileChange(
     unit: Unit,
-    orderType: UnitOrder['type'],
+    order: UnitOrder,
     tile: { terrain: string; improvements: string[]; hasRoad?: boolean; hasRailroad?: boolean },
     extras: Set<string>
   ): void {
+    const orderType = order.type;
     const handlers: Partial<Record<UnitOrder['type'], () => void>> = {
       road: () => {
         extras.add('road');
@@ -5486,12 +5589,12 @@ export class UnitManager {
       },
       mine: () => {
         extras.delete('irrigation');
-        extras.add('mine');
+        extras.add(order.improvementType ?? 'mine');
       },
       cultivate: () => this.applyTerrainActivity(unit, tile, extras, 'cultivateTo'),
       plant: () => this.applyTerrainActivity(unit, tile, extras, 'plantTo'),
-      fortress: () => extras.add('fortress'),
-      airbase: () => extras.add('airbase'),
+      fortress: () => extras.add(order.improvementType ?? 'fortress'),
+      airbase: () => extras.add(order.improvementType ?? 'airbase'),
       transform: () => this.applyTerrainActivity(unit, tile, extras, 'transformTo'),
       pillage: () => this.applyPillage(unit, tile, extras),
       cleanPollution: () => extras.delete(extras.has('pollution') ? 'pollution' : 'fallout'),

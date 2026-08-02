@@ -47,7 +47,11 @@ export class UnitHutService {
       changed = true;
       const frightens =
         this.getUnitTypes()[unit.unitTypeId].rulesetUnitClassFlags.includes('HutFrighten');
-      if (!frightens) await this.resolveReward(unit);
+      if (frightens) {
+        this.broadcast(unit, 'Your overflight frightens the tribe; they scatter in terror.');
+      } else {
+        await this.resolveReward(unit);
+      }
     }
 
     const conquerableExtras = improvements.filter(

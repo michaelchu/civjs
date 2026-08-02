@@ -876,7 +876,7 @@ describe('CityManager', () => {
   });
 
   describe('services access', () => {
-    it('founds a city when the player has explored the tile through visibility state', async () => {
+    it('founds a c2c3 city without consulting legacy exploration state', async () => {
       const targetTile = {
         x: 10,
         y: 10,
@@ -898,13 +898,13 @@ describe('CityManager', () => {
         movementLeft: 3,
       } as any;
       cityManager.setUnitProvider(() => new Map([[settler.id, settler]]));
-      const isTileExplored = jest.fn().mockReturnValue(true);
+      const isTileExplored = jest.fn().mockReturnValue(false);
       cityManager.setTileExplorationProvider(isTileExplored);
 
       const city = await cityManager.foundCity(10, 10, 'Visibility City', 'player-123', settler.id);
 
       expect(city.name).toBe('Visibility City');
-      expect(isTileExplored).toHaveBeenCalledWith('player-123', 10, 10);
+      expect(isTileExplored).not.toHaveBeenCalled();
     });
 
     it('uses the founding unit and authoritative tile occupancy checks', async () => {

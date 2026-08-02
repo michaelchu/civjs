@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process';
+import { resolve } from 'node:path';
 import { UnitManager } from '@game/managers/UnitManager';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { EffectsManager } from '@game/managers/EffectsManager';
@@ -198,6 +200,19 @@ describe('UnitManager', () => {
       unitManager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, mapManager);
     });
 
+    const createCiv2Civ3Manager = () =>
+      new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        mapManager,
+        undefined,
+        new EffectsManager('civ2civ3'),
+        undefined,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+
     it('cancels a persisted terrain activity on a city founder', async () => {
       const settler = await unitManager.createUnit('player-123', 'settlers', 10, 10);
       settler.automation = 'worker';
@@ -251,6 +266,660 @@ describe('UnitManager', () => {
       expect(tile.hasRoad).toBe(true);
       expect(tile.improvements).toContain('road');
       expect(worker.orders).toEqual([]);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1110-1119
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:574-614
+     * @reference reference/freeciv/common/unit.c:969-1118
+     * @assertion A c2c3 Worker can start Build Road on roadable Grassland and queues the authoritative road activity.
+     * @c2c3-action Build Road
+     * @c2c3-scenario normal
+     */
+    it('starts Build Road from the c2c3 Worker and terrain enablers', async () => {
+      const manager = createCiv2Civ3Manager();
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(manager.canUnitPerformAction(worker.id, ActionType.BUILD_ROAD)).toBe(true);
+      await expect(
+        manager.executeUnitAction(
+          worker.id,
+          ActionType.BUILD_ROAD,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: true });
+      expect(worker.orders).toEqual([{ type: 'road' }]);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1110-1119
+     * @reference reference/freeciv/common/unit.c:969-1118
+     * @assertion A c2c3 non-Worker cannot start Build Road even on a terrain where roads are possible.
+     * @c2c3-action Build Road
+     * @c2c3-scenario rejected
+     */
+    it('rejects Build Road from a c2c3 non-Worker', async () => {
+      const manager = createCiv2Civ3Manager();
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      expect(manager.canUnitPerformAction(warrior.id, ActionType.BUILD_ROAD)).toBe(false);
+      await expect(
+        manager.executeUnitAction(
+          warrior.id,
+          ActionType.BUILD_ROAD,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: false });
+      expect(warrior.orders).toBeUndefined();
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1110-1119
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:574-614
+     * @reference reference/freeciv/common/unit.c:969-1118
+     * @assertion C2c3 Grassland road_time is exactly two turns: its road activity remains incomplete after one turn and completes after the second.
+     * @c2c3-action Build Road
+     * @c2c3-scenario boundary
+     * @c2c3-surface workers-extras
+     * @c2c3-surface-scenario turn
+     */
+    it('uses the exact two-turn c2c3 Grassland road duration', async () => {
+      const manager = createCiv2Civ3Manager();
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      await manager.executeUnitAction(
+        worker.id,
+        ActionType.BUILD_ROAD,
+        undefined,
+        undefined,
+        'player-123'
+      );
+      await manager.processUnitOrders('player-123');
+
+      expect(tile.hasRoad).toBe(false);
+      expect(worker.orders?.[0].activity).toMatchObject({
+        type: 'building_road',
+        turnsRemaining: 1,
+        totalTurns: 2,
+      });
+
+      await manager.processUnitOrders('player-123');
+
+      expect(tile.hasRoad).toBe(true);
+      expect(tile.improvements).toContain('road');
+      expect(worker.orders).toEqual([]);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1179-1205
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:586-614
+     * @assertion A c2c3 Worker can start Build Irrigation on Grassland when an ocean tile shares an edge with the worksite.
+     * @c2c3-action Build Irrigation
+     * @c2c3-scenario normal
+     */
+    it('starts c2c3 Build Irrigation beside an ocean source', async () => {
+      const manager = createCiv2Civ3Manager();
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+      mapManager.getTile.mockImplementation((x: number, y: number) =>
+        x === 10 && y === 9 ? ({ ...tile, x, y, terrain: 'ocean' } as typeof tile) : tile
+      );
+
+      expect(manager.canUnitPerformAction(worker.id, ActionType.BUILD_IRRIGATION)).toBe(true);
+      await expect(
+        manager.executeUnitAction(
+          worker.id,
+          ActionType.BUILD_IRRIGATION,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: true });
+      expect(worker.orders).toEqual([{ type: 'irrigate' }]);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1179-1205
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:586-614
+     * @assertion A c2c3 Worker without Electricity cannot start Build Irrigation on Grassland without an edge-adjacent ocean or IrrigationSource extra.
+     * @c2c3-action Build Irrigation
+     * @c2c3-scenario rejected
+     */
+    it('rejects c2c3 Build Irrigation without a source before Electricity', async () => {
+      const manager = createCiv2Civ3Manager();
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(manager.canUnitPerformAction(worker.id, ActionType.BUILD_IRRIGATION)).toBe(false);
+      await expect(
+        manager.executeUnitAction(
+          worker.id,
+          ActionType.BUILD_IRRIGATION,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: false });
+      expect(worker.orders).toBeUndefined();
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1165-1177
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:586-614
+     * @assertion Electricity lets a c2c3 Worker start Grassland irrigation with no edge-adjacent water or IrrigationSource extra.
+     * @c2c3-action Build Irrigation
+     * @c2c3-scenario boundary
+     */
+    it('allows c2c3 Build Irrigation without a source after Electricity', async () => {
+      const manager = createCiv2Civ3Manager();
+      manager.setPlayerTechsProvider(() => new Set(['Electricity']));
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(manager.canUnitPerformAction(worker.id, ActionType.BUILD_IRRIGATION)).toBe(true);
+      await expect(
+        manager.executeUnitAction(
+          worker.id,
+          ActionType.BUILD_IRRIGATION,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: true });
+      expect(worker.orders).toEqual([{ type: 'irrigate' }]);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1131-1142
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:637-666
+     * @assertion A c2c3 Worker can start Build Mine on Hills, where the terrain exposes CanMine.
+     * @c2c3-action Build Mine
+     * @c2c3-scenario normal
+     */
+    it('starts c2c3 Build Mine for a Worker on Hills', async () => {
+      tile.terrain = 'hills';
+      const manager = createCiv2Civ3Manager();
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(manager.canUnitPerformAction(worker.id, ActionType.BUILD_MINE)).toBe(true);
+      await expect(
+        manager.executeUnitAction(
+          worker.id,
+          ActionType.BUILD_MINE,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: true });
+      expect(worker.orders).toEqual([{ type: 'mine' }]);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1131-1142
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:637-666
+     * @assertion A c2c3 non-Worker cannot start Build Mine even on a mineable Hills tile.
+     * @c2c3-action Build Mine
+     * @c2c3-scenario rejected
+     */
+    it('rejects c2c3 Build Mine from a non-Worker', async () => {
+      tile.terrain = 'hills';
+      const manager = createCiv2Civ3Manager();
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      expect(manager.canUnitPerformAction(warrior.id, ActionType.BUILD_MINE)).toBe(false);
+      await expect(
+        manager.executeUnitAction(
+          warrior.id,
+          ActionType.BUILD_MINE,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: false });
+      expect(warrior.orders).toBeUndefined();
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1144-1154
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:368-397
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:1355-1372
+     * @reference reference/freeciv/data/civ2civ3/units.ruleset:2267-2280
+     * @assertion A c2c3 Transport with Miniaturization can start Build Mine on Deep Ocean, selecting an Oil Platform rather than a land Mine.
+     * @c2c3-action Build Mine
+     * @c2c3-scenario boundary
+     */
+    it('selects the c2c3 Oil Platform mine result on Deep Ocean', async () => {
+      tile.terrain = 'deep_ocean';
+      const manager = createCiv2Civ3Manager();
+      manager.setPlayerTechsProvider(() => new Set(['Miniaturization']));
+      const transport = await manager.createUnit('player-123', 'transport', 10, 10);
+
+      expect(manager.canUnitPerformAction(transport.id, ActionType.BUILD_MINE)).toBe(true);
+      await expect(
+        manager.executeUnitAction(
+          transport.id,
+          ActionType.BUILD_MINE,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: true });
+      expect(transport.orders).toEqual([{ type: 'mine', improvementType: 'oil_platform' }]);
+
+      for (let turn = 0; turn < 10; turn++) {
+        await manager.processUnitOrders('player-123');
+      }
+
+      expect(tile.improvements).toContain('oil_platform');
+      expect(tile.improvements).not.toContain('mine');
+      expect(transport.orders).toEqual([]);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1060-1066
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:532-561
+     * @assertion A c2c3 Worker can start Cultivate only on terrain with a cultivate result, such as Forest.
+     * @c2c3-action Cultivate
+     * @c2c3-scenario normal
+     */
+    it('starts c2c3 Cultivate for a Worker on Forest', async () => {
+      tile.terrain = 'forest';
+      const manager = createCiv2Civ3Manager();
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(manager.canUnitPerformAction(worker.id, ActionType.CULTIVATE)).toBe(true);
+      await expect(
+        manager.executeUnitAction(worker.id, ActionType.CULTIVATE, undefined, undefined, 'player-123')
+      ).resolves.toMatchObject({ success: true });
+      expect(worker.orders).toEqual([{ type: 'cultivate' }]);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1060-1066
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:532-561
+     * @assertion A c2c3 non-Worker cannot start Cultivate even when Forest has a cultivate result.
+     * @c2c3-action Cultivate
+     * @c2c3-scenario rejected
+     */
+    it('rejects c2c3 Cultivate from a non-Worker', async () => {
+      tile.terrain = 'forest';
+      const manager = createCiv2Civ3Manager();
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      expect(manager.canUnitPerformAction(warrior.id, ActionType.CULTIVATE)).toBe(false);
+      await expect(
+        manager.executeUnitAction(
+          warrior.id,
+          ActionType.CULTIVATE,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: false });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1060-1066
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:586-614
+     * @assertion A c2c3 Worker cannot start Cultivate on Grassland because it has no cultivate result or duration.
+     * @c2c3-action Cultivate
+     * @c2c3-scenario boundary
+     */
+    it('rejects c2c3 Cultivate on terrain without a cultivate result', async () => {
+      const manager = createCiv2Civ3Manager();
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(manager.canUnitPerformAction(worker.id, ActionType.CULTIVATE)).toBe(false);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1068-1074
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:532-561
+     * @assertion A c2c3 Worker can start Plant on Forest, which has Grassland as its plant result.
+     * @c2c3-action Plant
+     * @c2c3-scenario normal
+     */
+    it('starts c2c3 Plant for a Worker on Forest', async () => {
+      tile.terrain = 'forest';
+      const manager = createCiv2Civ3Manager();
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(manager.canUnitPerformAction(worker.id, ActionType.PLANT)).toBe(true);
+      await expect(
+        manager.executeUnitAction(worker.id, ActionType.PLANT, undefined, undefined, 'player-123')
+      ).resolves.toMatchObject({ success: true });
+      expect(worker.orders).toEqual([{ type: 'plant' }]);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1068-1074
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:532-561
+     * @assertion A c2c3 non-Worker cannot start Plant even when Forest has a plant result.
+     * @c2c3-action Plant
+     * @c2c3-scenario rejected
+     */
+    it('rejects c2c3 Plant from a non-Worker', async () => {
+      tile.terrain = 'forest';
+      const manager = createCiv2Civ3Manager();
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      expect(manager.canUnitPerformAction(warrior.id, ActionType.PLANT)).toBe(false);
+      await expect(
+        manager.executeUnitAction(warrior.id, ActionType.PLANT, undefined, undefined, 'player-123')
+      ).resolves.toMatchObject({ success: false });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1068-1074
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:637-666
+     * @assertion A c2c3 Worker cannot start Plant on Hills because Hills has no plant result or duration.
+     * @c2c3-action Plant
+     * @c2c3-scenario boundary
+     */
+    it('rejects c2c3 Plant on terrain without a plant result', async () => {
+      tile.terrain = 'hills';
+      const manager = createCiv2Civ3Manager();
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(manager.canUnitPerformAction(worker.id, ActionType.PLANT)).toBe(false);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1051-1058
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:532-561
+     * @reference reference/freeciv/data/civ2civ3/units.ruleset:612-654
+     * @assertion An Engineer with Fusion Power can start c2c3 Transform Terrain on Forest.
+     * @c2c3-action Transform Terrain
+     * @c2c3-scenario normal
+     */
+    it('starts c2c3 Transform Terrain for an Engineer with Fusion Power', async () => {
+      tile.terrain = 'forest';
+      const manager = createCiv2Civ3Manager();
+      manager.setPlayerTechsProvider(() => new Set(['Fusion Power']));
+      const engineer = await manager.createUnit('player-123', 'engineers', 10, 10);
+
+      expect(manager.canUnitPerformAction(engineer.id, ActionType.TRANSFORM_TERRAIN)).toBe(true);
+      await expect(
+        manager.executeUnitAction(
+          engineer.id,
+          ActionType.TRANSFORM_TERRAIN,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: true });
+      expect(engineer.orders).toEqual([{ type: 'transform' }]);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1051-1058
+     * @reference reference/freeciv/data/civ2civ3/units.ruleset:573-609
+     * @assertion A Worker lacks c2c3's Transform unit flag and cannot start Transform Terrain even after Fusion Power.
+     * @c2c3-action Transform Terrain
+     * @c2c3-scenario rejected
+     */
+    it('rejects c2c3 Transform Terrain from a Worker without the Transform flag', async () => {
+      tile.terrain = 'forest';
+      const manager = createCiv2Civ3Manager();
+      manager.setPlayerTechsProvider(() => new Set(['Fusion Power']));
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(manager.canUnitPerformAction(worker.id, ActionType.TRANSFORM_TERRAIN)).toBe(false);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1051-1058
+     * @reference reference/freeciv/data/civ2civ3/units.ruleset:612-654
+     * @assertion An Engineer without Fusion Power cannot start c2c3 Transform Terrain.
+     * @c2c3-action Transform Terrain
+     * @c2c3-scenario boundary
+     */
+    it('requires Fusion Power before c2c3 Transform Terrain', async () => {
+      tile.terrain = 'forest';
+      const manager = createCiv2Civ3Manager();
+      const engineer = await manager.createUnit('player-123', 'engineers', 10, 10);
+
+      expect(manager.canUnitPerformAction(engineer.id, ActionType.TRANSFORM_TERRAIN)).toBe(false);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1083-1088
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:586-620
+     * @assertion A c2c3 Worker can start Clean when Pollution is present on the tile.
+     * @c2c3-action Clean
+     * @c2c3-scenario normal
+     */
+    it('starts c2c3 Clean for a Worker on Pollution', async () => {
+      tile.improvements = ['pollution'];
+      const manager = createCiv2Civ3Manager();
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(manager.canUnitPerformAction(worker.id, ActionType.CLEAN_POLLUTION)).toBe(true);
+      await expect(
+        manager.executeUnitAction(
+          worker.id,
+          ActionType.CLEAN_POLLUTION,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: true });
+      expect(worker.orders).toEqual([{ type: 'cleanPollution' }]);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1083-1088
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:586-620
+     * @assertion A c2c3 non-Worker cannot start Clean even when Pollution is present.
+     * @c2c3-action Clean
+     * @c2c3-scenario rejected
+     */
+    it('rejects c2c3 Clean from a non-Worker', async () => {
+      tile.improvements = ['pollution'];
+      const manager = createCiv2Civ3Manager();
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      expect(manager.canUnitPerformAction(warrior.id, ActionType.CLEAN_POLLUTION)).toBe(false);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1083-1088
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:586-620
+     * @assertion A c2c3 Worker cannot start Clean on a tile with neither Pollution nor Fallout.
+     * @c2c3-action Clean
+     * @c2c3-scenario boundary
+     */
+    it('requires a c2c3 nuisance extra before starting Clean', async () => {
+      const manager = createCiv2Civ3Manager();
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(manager.canUnitPerformAction(worker.id, ActionType.CLEAN_POLLUTION)).toBe(false);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1076-1081
+     * @reference reference/freeciv/data/civ2civ3/units.ruleset:157-175
+     * @assertion A Land-class c2c3 Warrior can start Pillage when a road is present.
+     * @c2c3-action Pillage
+     * @c2c3-scenario normal
+     */
+    it('starts c2c3 Pillage for a CanPillage unit on a road', async () => {
+      tile.hasRoad = true;
+      tile.improvements = ['road'];
+      const manager = createCiv2Civ3Manager();
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      expect(manager.canUnitPerformAction(warrior.id, ActionType.PILLAGE)).toBe(true);
+      await expect(
+        manager.executeUnitAction(warrior.id, ActionType.PILLAGE, undefined, undefined, 'player-123')
+      ).resolves.toMatchObject({ success: true });
+      expect(warrior.orders).toEqual([{ type: 'pillage' }]);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1076-1081
+     * @reference reference/freeciv/data/civ2civ3/units.ruleset:167-175
+     * @assertion A Small Land c2c3 Worker lacks CanPillage and cannot start Pillage even when a road is present.
+     * @c2c3-action Pillage
+     * @c2c3-scenario rejected
+     */
+    it('rejects c2c3 Pillage from a unit class without CanPillage', async () => {
+      tile.hasRoad = true;
+      tile.improvements = ['road'];
+      const manager = createCiv2Civ3Manager();
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(manager.canUnitPerformAction(worker.id, ActionType.PILLAGE)).toBe(false);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1076-1081
+     * @reference reference/freeciv/data/civ2civ3/units.ruleset:157-175
+     * @assertion A c2c3 CanPillage unit cannot start Pillage without an existing removable extra.
+     * @c2c3-action Pillage
+     * @c2c3-scenario boundary
+     */
+    it('requires a removable c2c3 extra before starting Pillage', async () => {
+      const manager = createCiv2Civ3Manager();
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      expect(manager.canUnitPerformAction(warrior.id, ActionType.PILLAGE)).toBe(false);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1121-1129
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:1547-1580
+     * @assertion A c2c3 Worker with Construction starts Build Base by creating the prerequisite Fort on a legal land tile.
+     * @c2c3-action Build Base
+     * @c2c3-scenario normal
+     */
+    it('starts the c2c3 Fort stage of Build Base before Fortress', async () => {
+      const manager = createCiv2Civ3Manager();
+      manager.setPlayerTechsProvider(() => new Set(['Construction']));
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(manager.canUnitPerformAction(worker.id, ActionType.BUILD_FORTRESS)).toBe(true);
+      await expect(
+        manager.executeUnitAction(
+          worker.id,
+          ActionType.BUILD_FORTRESS,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: true });
+      expect(worker.orders).toEqual([{ type: 'fortress', improvementType: 'fort' }]);
+
+      await manager.processUnitOrders('player-123');
+      expect(worker.orders?.[0].activity).toMatchObject({ turnsRemaining: 1, totalTurns: 2 });
+      await manager.processUnitOrders('player-123');
+      expect(tile.improvements).toContain('fort');
+      expect(tile.improvements).not.toContain('fortress');
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1121-1129
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:1547-1580
+     * @assertion c2c3 Build Base rejects a Worker without the Construction technology required to create Fort.
+     * @c2c3-action Build Base
+     * @c2c3-scenario rejected
+     */
+    it('requires Construction before c2c3 Build Base can create Fort', async () => {
+      const manager = createCiv2Civ3Manager();
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(manager.canUnitPerformAction(worker.id, ActionType.BUILD_FORTRESS)).toBe(false);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1121-1129
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:1581-1626
+     * @assertion Once a c2c3 Fort is present, the same Build Base action advances to Fortress instead of placing another Fort.
+     * @c2c3-action Build Base
+     * @c2c3-scenario boundary
+     */
+    it('advances c2c3 Build Base from Fort to Fortress', async () => {
+      tile.improvements = ['fort'];
+      const manager = createCiv2Civ3Manager();
+      manager.setPlayerTechsProvider(() => new Set(['Construction']));
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(manager.canUnitPerformAction(worker.id, ActionType.BUILD_FORTRESS)).toBe(true);
+      await expect(
+        manager.executeUnitAction(
+          worker.id,
+          ActionType.BUILD_FORTRESS,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: true });
+      expect(worker.orders).toEqual([{ type: 'fortress' }]);
+
+      await manager.processUnitOrders('player-123');
+      await manager.processUnitOrders('player-123');
+      expect(tile.improvements).toEqual(expect.arrayContaining(['fort', 'fortress']));
+    });
+
+    it('uses the same c2c3 Build Base progression for Airstrip and Airbase', async () => {
+      const manager = createCiv2Civ3Manager();
+      manager.setPlayerTechsProvider(() => new Set(['Radio']));
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(manager.canUnitPerformAction(worker.id, ActionType.BUILD_AIRBASE)).toBe(true);
+      await manager.executeUnitAction(
+        worker.id,
+        ActionType.BUILD_AIRBASE,
+        undefined,
+        undefined,
+        'player-123'
+      );
+      expect(worker.orders).toEqual([{ type: 'airbase', improvementType: 'airstrip' }]);
+      await manager.processUnitOrders('player-123');
+      await manager.processUnitOrders('player-123');
+      expect(tile.improvements).toContain('airstrip');
+
+      const upgrader = await manager.createUnit('player-123', 'worker', 10, 10);
+      expect(manager.canUnitPerformAction(upgrader.id, ActionType.BUILD_AIRBASE)).toBe(true);
+      await manager.executeUnitAction(
+        upgrader.id,
+        ActionType.BUILD_AIRBASE,
+        undefined,
+        undefined,
+        'player-123'
+      );
+      expect(upgrader.orders).toEqual([{ type: 'airbase' }]);
+      await manager.processUnitOrders('player-123');
+      await manager.processUnitOrders('player-123');
+      expect(tile.improvements).toEqual(expect.arrayContaining(['airstrip', 'airbase']));
     });
 
     it('validates a planned worker activity against its future worksite', async () => {
@@ -1719,6 +2388,11 @@ describe('UnitManager', () => {
       expect(inFortress).toBe(unfortified * 2);
     });
 
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/classic/effects.ruleset:953-962
+     * @assertion City Walls and city fortification effects produce the same integer defense multiplier for a land defender.
+     */
     it('applies the classic City Walls defense bonus to a land defender in the city', async () => {
       const cityAwareUnitManager = new UnitManager(
         gameId,
@@ -2844,6 +3518,12 @@ describe('UnitManager', () => {
       };
     };
 
+    const oracleConfigured = [
+      process.env.FREECIV_ORACLE_BIN,
+      process.env.FREECIV_ORACLE_DATA,
+      process.env.FREECIV_ORACLE_SOURCE,
+    ].every(Boolean);
+
     it('detonates a nuclear actor, destroys the blast stack, damages cities, and adds fallout', async () => {
       const map = makeMap();
       const applyNuclearCityDamage = jest.fn(async () => ['city-1']);
@@ -2986,6 +3666,118 @@ describe('UnitManager', () => {
       );
     });
 
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/script.lua:12-15
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1402-1428
+     * @reference reference/freeciv/server/unittools.c:3357-3380
+     * @reference reference/freeciv/data/default/default.lua:177-185
+     * @assertion A c2c3 HutFrighten-class unit on a non-native tile removes a hut without rolling a hut reward, and emits the inherited tribe-scatter event.
+     * @c2c3-action Frighten Hut 2
+     * @c2c3-scenario normal
+     * @c2c3-surface workers-extras
+     * @c2c3-surface-scenario boundary
+     * @c2c3-script-hook hut_frighten
+     */
+    it('frightens a hut instead of claiming its reward for a c2c3 aircraft', async () => {
+      const map = makeMap(true);
+      const broadcastHutEvent = jest.fn();
+      const random = jest.fn(() => {
+        throw new Error('Frightening a hut must not roll a hut reward');
+      });
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        map.manager,
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          broadcastMapChanged: jest.fn(),
+          broadcastHutEvent,
+        },
+        new EffectsManager('civ2civ3'),
+        random,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      const fighter = await manager.createUnit('player-123', 'fighter', 10, 10);
+
+      await manager.moveUnit(fighter.id, 11, 10);
+
+      expect(map.tiles.get('11,10').improvements).not.toContain('Hut');
+      expect(random).not.toHaveBeenCalled();
+      expect(broadcastHutEvent).toHaveBeenCalledWith(
+        gameId,
+        'player-123',
+        'Your overflight frightens the tribe; they scatter in terror.'
+      );
+    });
+
+    if (oracleConfigured) {
+      /**
+       * @evidence parity
+       * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1402-1428
+       * @reference reference/freeciv/server/unittools.c:3357-3380
+       * @reference reference/freeciv/data/default/default.lua:177-185
+       * @assertion CivJS and the pinned Freeciv c2c3 server both preserve the aircraft and remove the hut on the HutFrighten movement path.
+       * @c2c3-surface workers-extras
+       * @c2c3-surface-scenario differential
+       */
+      it('matches the pinned Freeciv hut-frighten fixture', async () => {
+        const map = makeMap(true);
+        const manager = new UnitManager(
+          gameId,
+          mockDbProvider,
+          mapWidth,
+          mapHeight,
+          map.manager,
+          {
+            foundCity: jest.fn(),
+            requestPath: jest.fn(),
+            broadcastUnitMoved: jest.fn(),
+            broadcastMapChanged: jest.fn(),
+            broadcastHutEvent: jest.fn(),
+          },
+          new EffectsManager('civ2civ3'),
+          () => {
+            throw new Error('Frightening a hut must not roll a hut reward');
+          },
+          rulesetUnitsService.getUnitTypes('civ2civ3')
+        );
+        const fighter = await manager.createUnit('player-123', 'fighter', 10, 10);
+
+        await manager.moveUnit(fighter.id, 11, 10);
+
+        const repositoryRoot = resolve(process.cwd(), '..', '..');
+        const output = execFileSync(
+          process.execPath,
+          [
+            resolve(repositoryRoot, 'tools/run-freeciv-oracle.mjs'),
+            '--scenario=civ2civ3-hut-frighten',
+          ],
+          { encoding: 'utf8', env: process.env }
+        );
+        const oracle = JSON.parse(output) as {
+          baseline: { commit: string; version: string };
+          results: Record<string, number>;
+        };
+
+        expect(oracle.baseline).toEqual({
+          version: '3.3.90.5-dev',
+          commit: '440b3c9650d3052792296868cb15591bd40612ea',
+        });
+        expect(manager.getUnit(fighter.id)).toBeDefined();
+        expect(map.tiles.get('11,10').improvements).not.toContain('Hut');
+        expect(oracle.results.hut_frighten_unit_survived).toBe(1);
+        expect(oracle.results.hut_frighten_hut_removed).toBe(1);
+      });
+    } else {
+      it.skip('matches the pinned Freeciv hut-frighten fixture when the oracle is configured', () =>
+        undefined);
+    }
+
     it('delegates the barbarian hut roll without killing a protected explorer', async () => {
       const spawnHutBarbarians = jest.fn().mockResolvedValue(true);
       const manager = new UnitManager(
@@ -3035,6 +3827,17 @@ describe('UnitManager', () => {
       ).toBe(true);
     });
 
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/script.lua:12-15
+     * @reference reference/freeciv/data/default/default.lua:145-175
+     * @assertion Civ2Civ3's inherited hut-enter script uses the same fourteen deterministic outcome slots: gold, technology, mercenaries, barbarians, city, and map reveal.
+     * @c2c3-action Enter Hut
+     * @c2c3-scenario normal
+     * @c2c3-surface workers-extras
+     * @c2c3-surface-scenario normal
+     * @c2c3-script-hook hut_enter
+     */
     it('covers every deterministic hut roll outcome', async () => {
       const grantHutTechnology = jest.fn().mockResolvedValue('writing');
       const revealHutMap = jest.fn().mockReturnValue(['10,10', '11,10']);
@@ -3057,8 +3860,9 @@ describe('UnitManager', () => {
           spawnHutBarbarians,
           broadcastHutEvent,
         },
-        undefined,
-        () => rolls.shift() ?? 0
+        new EffectsManager('civ2civ3'),
+        () => rolls.shift() ?? 0,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
       );
       const explorer = await manager.createUnit('player-123', 'warriors', 10, 10);
 
