@@ -37,6 +37,8 @@ export interface UnitType {
   requiredTech?: string;
   transport_capacity?: number;
   cargoClasses: string[];
+  embarks?: string[];
+  disembarks?: string[];
   targetClasses?: string[];
   combatBonuses?: UnitCombatBonus[];
   // Additional freeciv fields
@@ -152,6 +154,8 @@ export class RulesetUnitsService {
       requiredTech: this.firstValue(unit.required_tech, unit.requiredTech),
       transport_capacity: unit.transport_cap,
       cargoClasses: [...unit.cargo],
+      embarks: [...unit.embarks],
+      disembarks: [...unit.disembarks],
       targetClasses: [...unit.targets],
       combatBonuses: [...unit.bonuses],
       // Additional freeciv fields

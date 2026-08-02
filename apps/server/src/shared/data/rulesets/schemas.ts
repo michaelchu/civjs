@@ -203,6 +203,16 @@ export const UnitTypeRulesetSchema = z
     vision_layer: z.enum(['Main', 'Stealth', 'Subsurface']).optional().default('Main'),
     transport_cap: z.number().min(0).optional().default(0),
     cargo: z.array(UnitClassSchema).optional().default([]),
+    embarks: z
+      .union([z.string(), z.array(UnitClassSchema)])
+      .transform(value => (Array.isArray(value) ? value : [value]))
+      .optional()
+      .default([]),
+    disembarks: z
+      .union([z.string(), z.array(UnitClassSchema)])
+      .transform(value => (Array.isArray(value) ? value : [value]))
+      .optional()
+      .default([]),
     targets: z
       .union([z.array(UnitClassSchema), UnitClassSchema])
       .transform(value => (Array.isArray(value) ? value : [value]))

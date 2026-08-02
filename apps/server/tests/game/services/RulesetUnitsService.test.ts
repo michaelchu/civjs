@@ -103,6 +103,18 @@ describe('RulesetUnitsService', () => {
     );
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/units.ruleset:290-295
+   * @reference reference/freeciv/data/civ2civ3/units.ruleset:1085-1106
+   * @assertion The source embarks and disembarks declarations are normalized into the runtime unit catalogue without losing the designated transport class.
+   */
+  it('preserves Civ2Civ3 free helicopter embark and disembark classes', () => {
+    expect(rulesetUnitsService.getUnitType('paratroopers', 'civ2civ3')).toEqual(
+      expect.objectContaining({ embarks: ['Helicopter'], disembarks: ['Helicopter'] })
+    );
+  });
+
   it('keeps Settlers focused on founding cities rather than worker improvements', () => {
     expect(rulesetUnitsService.getUnitType('settlers')).toEqual(
       expect.objectContaining({

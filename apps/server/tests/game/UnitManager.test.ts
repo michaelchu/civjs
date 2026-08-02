@@ -1320,7 +1320,9 @@ describe('UnitManager', () => {
         foundCity: jest.fn(),
         requestPath: jest.fn(),
         broadcastUnitMoved: jest.fn(),
-        getCityAt: jest.fn(() => null),
+        getCityAt: jest.fn((x, y) =>
+          x === 10 && y === 10 ? { id: 'city-1', playerId: 'player-456' } : null
+        ),
       });
       const transport = await unitManager.createUnit('player-456', 'trireme', 10, 10, 'city-1');
       const cargo = await unitManager.createUnit('player-456', 'warriors', 10, 10, 'city-1');
@@ -1640,6 +1642,7 @@ describe('UnitManager', () => {
     const terrain = new Map<string, string>();
     const roads = new Set<string>();
     const railroads = new Set<string>();
+    const cities = new Map<string, { id: string; playerId: string }>();
     const mapManager = {
       getTile: jest.fn((x: number, y: number) => ({
         x,
@@ -1655,6 +1658,7 @@ describe('UnitManager', () => {
       terrain.clear();
       roads.clear();
       railroads.clear();
+      cities.clear();
       mapManager.getTile.mockClear();
       unitManager = new UnitManager(
         gameId,
@@ -1662,7 +1666,12 @@ describe('UnitManager', () => {
         mapWidth,
         mapHeight,
         mapManager,
-        undefined,
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          getCityAt: (x, y) => cities.get(`${x},${y}`) ?? null,
+        },
         new EffectsManager('civ2civ3'),
         Math.random,
         rulesetUnitsService.getUnitTypes('civ2civ3')
@@ -1734,10 +1743,22 @@ describe('UnitManager', () => {
       await expect(unitManager.moveUnit(mover.id, 11, 10)).resolves.toBe(true);
     });
 
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/common/unit.c:743-840
+     * @reference reference/freeciv/server/unithand.c:918-941
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1327-1364
+     * @assertion Civ2Civ3 cargo boards in a city, sails with its transport, then disembarks to a legal adjacent tile while spending terrain movement.
+     * @c2c3-action Transport Disembark
+     * @c2c3-scenario normal
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario normal
+     */
     it('loads ruleset-compatible cargo, moves it, and unloads onto land', async () => {
-      terrain.set('10,10', 'ocean');
+      terrain.set('10,10', 'grassland');
       terrain.set('11,10', 'ocean');
       terrain.set('12,10', 'grassland');
+      cities.set('10,10', { id: 'port-city', playerId: 'player-123' });
       const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
       const cargo = await unitManager.createUnit('player-123', 'warriors', 10, 10);
 
@@ -1751,12 +1772,77 @@ describe('UnitManager', () => {
       await expect(unitManager.unloadUnit(cargo.id, 12, 10)).resolves.toBe(true);
       expect(cargo.transportedBy).toBeUndefined();
       expect({ x: cargo.x, y: cargo.y }).toEqual({ x: 12, y: 10 });
+      expect(cargo.movementLeft).toBe(0);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/common/unit.c:743-840
+     * @reference reference/freeciv/server/unithand.c:838-917
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1292-1325
+     * @assertion Transport Board permits allied cargo and transfers it directly between compatible transports on a shared city tile; Transport Deboard preserves movement on that tile.
+     * @c2c3-action Transport Board
+     * @c2c3-scenario normal
+     * @c2c3-action Transport Deboard
+     * @c2c3-scenario normal
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario normal
+     */
+    it('boards allied transports, transfers cargo, and deboards without spending movement', async () => {
+      terrain.set('10,10', 'grassland');
+      cities.set('10,10', { id: 'port-city', playerId: 'player-123' });
+      unitManager.setAlliedPlayersProvider(
+        playerId => new Set(playerId === 'player-123' ? ['player-456'] : ['player-123'])
+      );
+      const firstTransport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const alliedTransport = await unitManager.createUnit('player-456', 'trireme', 10, 10);
+      const cargo = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+
+      await expect(unitManager.loadUnitOntoTransport(firstTransport.id, cargo.id)).resolves.toBe(
+        true
+      );
+      const movementBeforeTransfer = cargo.movementLeft;
+      await expect(unitManager.loadUnitOntoTransport(alliedTransport.id, cargo.id)).resolves.toBe(
+        true
+      );
+      expect(firstTransport.cargoUnits).toEqual([]);
+      expect(alliedTransport.cargoUnits).toEqual([cargo.id]);
+      expect(cargo.transportedBy).toBe(alliedTransport.id);
+
+      await expect(unitManager.unloadUnit(cargo.id, 10, 10)).resolves.toBe(true);
+      expect(cargo.transportedBy).toBeUndefined();
+      expect(cargo.movementLeft).toBe(movementBeforeTransfer);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/common/unit.c:743-789
+     * @reference reference/freeciv/data/civ2civ3/units.ruleset:290-294
+     * @assertion A cargo unit without an embarks declaration cannot board its transport away from a city or compatible native base.
+     * @c2c3-action Transport Board
+     * @c2c3-scenario rejected
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario boundary
+     */
+    it('rejects Civ2Civ3 boarding away from a city or native base', async () => {
+      terrain.set('10,10', 'ocean');
+      const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
+      const cargo = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+
+      expect(unitManager.canLoadUnit(transport.id, cargo.id)).toBe(false);
+      await expect(unitManager.loadUnitOntoTransport(transport.id, cargo.id)).resolves.toBe(false);
     });
 
     it('rescues cargo to a legal tile when its transport is destroyed', async () => {
       const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
-      const cargo = await unitManager.createUnit('player-123', 'warriors', 10, 10);
-      await unitManager.loadUnitOntoTransport(transport.id, cargo.id);
+      const cargo = await unitManager.createUnit(
+        'player-123',
+        'warriors',
+        10,
+        10,
+        undefined,
+        transport.id
+      );
 
       await unitManager.removeUnit(transport.id);
 
@@ -1774,10 +1860,22 @@ describe('UnitManager', () => {
         for (let y = 9; y <= 11; y++) terrain.set(`${x},${y}`, 'ocean');
       }
       const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
-      const ordinary = await unitManager.createUnit('player-123', 'warriors', 10, 10);
-      const leader = await unitManager.createUnit('player-123', 'leader', 10, 10);
-      await unitManager.loadUnitOntoTransport(transport.id, ordinary.id);
-      await unitManager.loadUnitOntoTransport(transport.id, leader.id);
+      const ordinary = await unitManager.createUnit(
+        'player-123',
+        'warriors',
+        10,
+        10,
+        undefined,
+        transport.id
+      );
+      const leader = await unitManager.createUnit(
+        'player-123',
+        'leader',
+        10,
+        10,
+        undefined,
+        transport.id
+      );
       const rescueTransport = await unitManager.createUnit('player-123', 'helicopter', 11, 10);
 
       await unitManager.removeUnit(transport.id);
@@ -1794,8 +1892,14 @@ describe('UnitManager', () => {
         for (let y = 9; y <= 11; y++) terrain.set(`${x},${y}`, 'ocean');
       }
       const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
-      const cargo = await unitManager.createUnit('player-123', 'warriors', 10, 10);
-      await unitManager.loadUnitOntoTransport(transport.id, cargo.id);
+      const cargo = await unitManager.createUnit(
+        'player-123',
+        'warriors',
+        10,
+        10,
+        undefined,
+        transport.id
+      );
 
       await unitManager.removeUnit(transport.id);
 
@@ -1804,15 +1908,22 @@ describe('UnitManager', () => {
 
     it('preserves missile movement when launching from a compatible transport', async () => {
       terrain.set('10,10', 'ocean');
+      terrain.set('11,10', 'ocean');
       const transport = await unitManager.createUnit('player-123', 'submarine', 10, 10);
-      const missile = await unitManager.createUnit('player-123', 'cruise_missile', 10, 10);
+      const missile = await unitManager.createUnit(
+        'player-123',
+        'cruise_missile',
+        10,
+        10,
+        undefined,
+        transport.id
+      );
 
-      await expect(unitManager.loadUnitOntoTransport(transport.id, missile.id)).resolves.toBe(true);
-      missile.movementLeft = UNIT_TYPES.cruise_missile.movement;
-      await expect(unitManager.unloadUnit(missile.id, 10, 10)).resolves.toBe(true);
+      missile.movementLeft = unitManager.getUnitMaxMovement('cruise_missile');
+      await expect(unitManager.unloadUnit(missile.id, 11, 10)).resolves.toBe(true);
 
       expect(missile.transportedBy).toBeUndefined();
-      expect(missile.movementLeft).toBe(UNIT_TYPES.cruise_missile.movement);
+      expect(missile.movementLeft).toBe(unitManager.getUnitMaxMovement('cruise_missile') - 6);
     });
 
     it('allows Marines to attack from a transport and disembark after victory', async () => {
@@ -1830,8 +1941,15 @@ describe('UnitManager', () => {
         rulesetUnitsService.getUnitTypes('civ2civ3')
       );
       const transport = await marineManager.createUnit('player-123', 'trireme', 10, 10);
-      const marine = await marineManager.createUnit('player-123', 'marines', 10, 10);
-      await marineManager.loadUnitOntoTransport(transport.id, marine.id);
+      const marine = await marineManager.createUnit(
+        'player-123',
+        'marines',
+        10,
+        10,
+        undefined,
+        transport.id
+      );
+      marine.movementLeft = marineManager.getUnitMaxMovement('marines');
       const defender = await marineManager.createUnit('player-456', 'warriors', 11, 10);
       defender.health = 1;
 
@@ -1847,8 +1965,14 @@ describe('UnitManager', () => {
       terrain.set('10,10', 'ocean');
       terrain.set('11,10', 'grassland');
       const transport = await unitManager.createUnit('player-123', 'trireme', 10, 10);
-      const warrior = await unitManager.createUnit('player-123', 'warriors', 10, 10);
-      await unitManager.loadUnitOntoTransport(transport.id, warrior.id);
+      const warrior = await unitManager.createUnit(
+        'player-123',
+        'warriors',
+        10,
+        10,
+        undefined,
+        transport.id
+      );
       const defender = await unitManager.createUnit('player-456', 'warriors', 11, 10);
 
       await expect(unitManager.attackUnit(warrior.id, defender.id)).rejects.toThrow(
@@ -3055,16 +3179,22 @@ describe('UnitManager', () => {
       expect(manager.getUnit(bomber.id)?.fuel).toBe(UNIT_TYPES.bomber.fuel);
     });
 
-    it('lets a fueled aircraft launch from a carrier with its movement intact', async () => {
+    it('spends air movement when a fueled aircraft launches from a carrier', async () => {
       const carrier = await unitManager.createUnit('player-123', 'carrier', 10, 10);
-      const bomber = await unitManager.createUnit('player-123', 'bomber', 10, 10);
-      expect(await unitManager.loadUnitOntoTransport(carrier.id, bomber.id)).toBe(true);
-      bomber.movementLeft = UNIT_TYPES.bomber.movement;
+      const bomber = await unitManager.createUnit(
+        'player-123',
+        'bomber',
+        10,
+        10,
+        undefined,
+        carrier.id
+      );
+      bomber.movementLeft = unitManager.getUnitMaxMovement('bomber');
 
-      expect(await unitManager.unloadUnit(bomber.id, 10, 10)).toBe(true);
+      expect(await unitManager.unloadUnit(bomber.id, 11, 10)).toBe(true);
 
       expect(bomber.transportedBy).toBeUndefined();
-      expect(bomber.movementLeft).toBe(UNIT_TYPES.bomber.movement);
+      expect(bomber.movementLeft).toBe(unitManager.getUnitMaxMovement('bomber') - 3);
     });
   });
 
@@ -3141,6 +3271,99 @@ describe('UnitManager', () => {
         unit: { health: 37 },
       });
       expect(unitManager.getUnit(unit.id)?.health).toBe(37);
+    });
+  });
+
+  describe('Civ2Civ3 transport-sensitive relocation actions', () => {
+    const actionMap = {
+      getTile: jest.fn((x: number, y: number) => ({
+        x,
+        y,
+        terrain: 'grassland',
+        improvements: [],
+      })),
+    };
+
+    const createManager = () => {
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        actionMap,
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          getCityAt: (x, y) => {
+            if (x === 10 && y === 10)
+              return { id: 'source-city', playerId: 'player-123', buildings: ['airport'] };
+            if (x === 30 && y === 20)
+              return { id: 'destination-city', playerId: 'player-123', buildings: [] };
+            return null;
+          },
+          reserveAirlift: jest.fn().mockResolvedValue(true),
+        },
+        new EffectsManager('civ2civ3'),
+        Math.random,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      return manager;
+    };
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:983-1013
+     * @reference reference/freeciv/server/unittools.c:4083-4122
+     * @assertion A transported paratrooper can paradrop from a city when it has no cargo of its own; the relocation unloads it from the former transport.
+     * @c2c3-action Paradrop Unit Enter
+     * @c2c3-scenario normal
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario normal
+     */
+    it('unloads a transported Civ2Civ3 paratrooper when it paradrops', async () => {
+      const manager = createManager();
+      const transport = await manager.createUnit('player-123', 'trireme', 10, 10);
+      const paratrooper = await manager.createUnit('player-123', 'paratroopers', 10, 10);
+      await expect(manager.loadUnitOntoTransport(transport.id, paratrooper.id)).resolves.toBe(true);
+
+      await expect(
+        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 16, 10, 'player-123')
+      ).resolves.toMatchObject({ success: true, newPosition: { x: 16, y: 10 } });
+
+      expect(paratrooper).toMatchObject({ x: 16, y: 10, transportedBy: undefined });
+      expect(transport.cargoUnits).toEqual([]);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1043-1049
+     * @reference reference/freeciv/server/unittools.c:3062-3095
+     * @reference reference/freeciv/server/unittools.c:4083-4122
+     * @assertion Airlift Unit accepts an Airliftable passenger, rejects an actor carrying cargo, and unit_move unloads the passenger before relocation.
+     * @c2c3-action Airlift Unit
+     * @c2c3-scenario normal, rejected
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario boundary
+     */
+    it('airlifts a passenger but not a cargo-carrying Civ2Civ3 actor', async () => {
+      const manager = createManager();
+      const transport = await manager.createUnit('player-123', 'trireme', 10, 10);
+      const passenger = await manager.createUnit('player-123', 'warriors', 10, 10);
+      await expect(manager.loadUnitOntoTransport(transport.id, passenger.id)).resolves.toBe(true);
+
+      await expect(
+        manager.executeUnitAction(passenger.id, ActionType.AIRLIFT, 30, 20, 'player-123')
+      ).resolves.toMatchObject({ success: true, newPosition: { x: 30, y: 20 } });
+      expect(passenger).toMatchObject({ x: 30, y: 20, movementLeft: 0, transportedBy: undefined });
+      expect(transport.cargoUnits).toEqual([]);
+
+      const helicopter = await manager.createUnit('player-123', 'helicopter', 10, 10);
+      const helicopterCargo = await manager.createUnit('player-123', 'warriors', 10, 10);
+      await expect(manager.loadUnitOntoTransport(helicopter.id, helicopterCargo.id)).resolves.toBe(
+        true
+      );
+      expect(manager.canUnitPerformAction(helicopter.id, ActionType.AIRLIFT, 30, 20)).toBe(false);
     });
   });
 

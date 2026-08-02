@@ -2944,6 +2944,18 @@ export class UnitManager {
   }
 
   /**
+   * Freeciv's unit_move() automatically unloads a passenger before moving it
+   * by a non-transport action, including paradrop and airlift.
+   * @reference reference/freeciv/server/unittools.c:4083-4122
+   */
+  private async releaseTransportedUnit(unit: Unit): Promise<void> {
+    if (!unit.transportedBy) return;
+    const transport = this.units.get(unit.transportedBy);
+    if (transport) await this.detachCargoFromTransport(unit, transport);
+    unit.transportedBy = undefined;
+  }
+
+  /**
    * Remove a unit from the game
    * @reference freeciv/server/unittools.c server_remove_unit()
    * @param unitId The ID of the unit to remove
@@ -3685,6 +3697,7 @@ export class UnitManager {
   }
 
   private async commitParadrop(unit: Unit, x: number, y: number): Promise<void> {
+    await this.releaseTransportedUnit(unit);
     unit.x = x;
     unit.y = y;
     unit.fortified = false;
@@ -3692,7 +3705,13 @@ export class UnitManager {
     await this.databaseProvider
       .getDatabase()
       .update(units)
-      .set({ x, y, isFortified: false, lastActionTurn: this.currentTurnProvider?.() ?? 1 })
+      .set({
+        transportedBy: null,
+        x,
+        y,
+        isFortified: false,
+        lastActionTurn: this.currentTurnProvider?.() ?? 1,
+      })
       .where(eq(units.id, unit.id));
     this.gameManagerCallback?.broadcastUnitMoved(this.gameId, unit.id, x, y, unit.movementLeft);
   }
@@ -3732,10 +3751,12 @@ export class UnitManager {
   }
 
   private canAirlift(unit: Unit, targetX?: number, targetY?: number): boolean {
-    const actorInvalid =
-      this.unitTypes[unit.unitTypeId].rulesetUnitClass !== 'Land' ||
-      unit.transportedBy ||
-      unit.movementLeft <= 0;
+    const unitType = this.unitTypes[unit.unitTypeId];
+    const isAirliftable = Boolean(
+      unitType?.rulesetUnitClassFlags.includes('Airliftable') ||
+      unitType?.rulesetUnitClass === 'Land'
+    );
+    const actorInvalid = !isAirliftable || this.unitHasCargo(unit.id) || unit.movementLeft <= 0;
     if (actorInvalid || targetX === undefined || targetY === undefined) return false;
     const source = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
     const destination = this.gameManagerCallback?.getCityAt?.(targetX, targetY);
@@ -3826,6 +3847,7 @@ export class UnitManager {
       return { success: false, message: 'An endpoint airport already airlifted this turn' };
     }
 
+    await this.releaseTransportedUnit(unit);
     unit.x = targetX as number;
     unit.y = targetY as number;
     unit.movementLeft = 0;
@@ -3834,6 +3856,7 @@ export class UnitManager {
       .getDatabase()
       .update(units)
       .set({
+        transportedBy: null,
         x: unit.x,
         y: unit.y,
         movementPoints: '0',
@@ -5994,11 +6017,22 @@ export class UnitManager {
 
   private canUnloadAt(unit: Unit, transport: Unit, x: number, y: number): boolean {
     if (!this.isValidPosition(x, y)) return false;
-    if (this.calculateDistance(transport.x, transport.y, x, y) > 1) return false;
+    const distance = this.calculateDistance(transport.x, transport.y, x, y);
+    if (distance > 1) return false;
     if (!this.canUnitEnterTerrain(this.getTerrainAt(x, y), unit.unitTypeId)) return false;
-    if (this.getUnitsAt(x, y).some(candidate => candidate.playerId !== unit.playerId)) return false;
+    if (
+      this.getUnitsAt(x, y).some(
+        candidate => !this.playersCanShareTransport(unit.playerId, candidate.playerId)
+      )
+    ) {
+      return false;
+    }
     const city = this.gameManagerCallback?.getCityAt?.(x, y);
-    return Boolean(this.unitTypes[unit.unitTypeId] && (!city || city.playerId === unit.playerId));
+    if (city && !this.playersCanShareTransport(unit.playerId, city.playerId)) return false;
+    if (distance === 0) {
+      return this.canFreelyUnloadFrom(unit, transport) || this.isTransportDocked(transport);
+    }
+    return unit.movementLeft > 0;
   }
 
   /**
@@ -6007,36 +6041,7 @@ export class UnitManager {
   canLoadUnit(transportId: string, cargoId: string): boolean {
     const transport = this.units.get(transportId);
     const cargo = this.units.get(cargoId);
-
-    if (!transport || !cargo) {
-      return false;
-    }
-    if (transport.playerId !== cargo.playerId) {
-      return false;
-    }
-
-    // Units must be on the same tile
-    if (transport.x !== cargo.x || transport.y !== cargo.y) {
-      return false;
-    }
-
-    // Unit can't transport itself
-    if (transportId === cargoId) {
-      return false;
-    }
-
-    // Cargo must not already be transported
-    if (cargo.transportedBy) {
-      return false;
-    }
-
-    // Transport must have capacity
-    if (this.getTransportCapacityRemaining(transportId) <= 0) {
-      return false;
-    }
-
-    // Check transport compatibility
-    return this.isValidTransportCombination(transport.unitTypeId, cargo.unitTypeId);
+    return Boolean(transport && cargo && this.canCargoUseTransport(cargo, transport, true));
   }
 
   /**
@@ -6054,12 +6059,65 @@ export class UnitManager {
     );
   }
 
+  /**
+   * Freeciv permits allied cargo to use a compatible transport. Board can
+   * also transfer a passenger directly between two transports on one tile.
+   * @reference reference/freeciv/common/unit.c:743-789
+   * @reference reference/freeciv/server/unithand.c:856-875
+   */
+  private canCargoUseTransport(cargo: Unit, transport: Unit, requireSameTile: boolean): boolean {
+    if (cargo.id === transport.id || cargo.transportedBy === transport.id) return false;
+    if (!this.playersCanShareTransport(cargo.playerId, transport.playerId)) return false;
+    if (requireSameTile && (cargo.x !== transport.x || cargo.y !== transport.y)) return false;
+    if (this.getTransportCapacityRemaining(transport.id) <= 0) return false;
+    if (!this.isValidTransportCombination(transport.unitTypeId, cargo.unitTypeId)) return false;
+    return this.canFreelyLoadInto(cargo, transport) || this.isTransportDocked(transport);
+  }
+
+  private playersCanShareTransport(firstPlayerId: string, secondPlayerId: string): boolean {
+    return (
+      firstPlayerId === secondPlayerId ||
+      this.alliedPlayersProvider?.(firstPlayerId).has(secondPlayerId) === true
+    );
+  }
+
+  private canFreelyLoadInto(cargo: Unit, transport: Unit): boolean {
+    const cargoType = this.unitTypes[cargo.unitTypeId];
+    const transportClass = this.unitTypes[transport.unitTypeId]?.rulesetUnitClass;
+    return Boolean(transportClass && cargoType?.embarks?.includes(transportClass));
+  }
+
+  private canFreelyUnloadFrom(cargo: Unit, transport: Unit): boolean {
+    const cargoType = this.unitTypes[cargo.unitTypeId];
+    const transportClass = this.unitTypes[transport.unitTypeId]?.rulesetUnitClass;
+    return Boolean(transportClass && cargoType?.disembarks?.includes(transportClass));
+  }
+
+  private isTransportDocked(transport: Unit): boolean {
+    if (this.gameManagerCallback?.getCityAt?.(transport.x, transport.y)) return true;
+    const tile = this.mapManager?.getTile?.(transport.x, transport.y);
+    const extras = tile?.improvements ?? [];
+    const transportClass = this.unitTypes[transport.unitTypeId]?.rulesetUnitClass;
+    if (!transportClass) return false;
+    return extras.some((extraId: string) => this.isNativeTransportBase(extraId, transportClass));
+  }
+
+  private isNativeTransportBase(extraId: string, transportClass: string): boolean {
+    try {
+      const extra = rulesetLoader.getExtra(extraId, this.getRulesetName()) as {
+        causes?: string | string[];
+        native_to?: string[];
+      };
+      const causes = Array.isArray(extra.causes) ? extra.causes : [extra.causes];
+      return causes.includes('Base') && extra.native_to?.includes(transportClass) === true;
+    } catch {
+      return false;
+    }
+  }
+
   private findAvailableTransportAt(cargo: Unit, x: number, y: number): Unit | undefined {
-    return this.getUnitsAt(x, y).find(
-      transport =>
-        transport.playerId === cargo.playerId &&
-        this.getTransportCapacityRemaining(transport.id) > 0 &&
-        this.isValidTransportCombination(transport.unitTypeId, cargo.unitTypeId)
+    return this.getUnitsAt(x, y).find(transport =>
+      this.canCargoUseTransport(cargo, transport, false)
     );
   }
 
@@ -6074,8 +6132,15 @@ export class UnitManager {
     const transport = this.units.get(transportId)!;
     const cargo = this.units.get(cargoId)!;
 
-    // Update cargo unit
+    const previousTransport = cargo.transportedBy ? this.units.get(cargo.transportedBy) : undefined;
+    if (previousTransport) await this.detachCargoFromTransport(cargo, previousTransport);
+
+    // Update cargo unit. Freeciv's Transport Board action unloads cargo from
+    // its former transport before boarding the selected compatible transport.
+    // @reference reference/freeciv/server/unithand.c:856-875
     cargo.transportedBy = transportId;
+    cargo.x = transport.x;
+    cargo.y = transport.y;
     cargo.automationTask = undefined;
     // Boarding is a state change, not movement.  Freeciv keeps the cargo's
     // movement points, which matters for rulesets with tired_attack enabled
@@ -6085,7 +6150,7 @@ export class UnitManager {
     if (!transport.cargoUnits) {
       transport.cargoUnits = [];
     }
-    transport.cargoUnits.push(cargoId);
+    if (!transport.cargoUnits.includes(cargoId)) transport.cargoUnits.push(cargoId);
 
     // Update database
     await this.databaseProvider
@@ -6093,6 +6158,8 @@ export class UnitManager {
       .update(units)
       .set({
         transportedBy: transportId,
+        x: cargo.x,
+        y: cargo.y,
         movementPoints: String(cargo.movementLeft),
         automationTask: null,
       })
@@ -6126,7 +6193,7 @@ export class UnitManager {
     const y = targetY ?? transport.y;
     if (!this.canUnloadUnit(unitId, x, y)) return false;
 
-    const remainingMovement = this.getUnloadMovement(cargo);
+    const remainingMovement = this.getUnloadMovement(cargo, transport, x, y);
     transport.cargoUnits = (transport.cargoUnits ?? []).filter(id => id !== unitId);
     cargo.transportedBy = undefined;
     cargo.x = x;
@@ -6137,13 +6204,10 @@ export class UnitManager {
     return true;
   }
 
-  private getUnloadMovement(cargo: Unit): number {
-    const cargoType = this.unitTypes[cargo.unitTypeId];
-    const canKeepMovement =
-      cargoType.unitClass === 'air' ||
-      cargoType.rulesetUnitClass === 'Missile' ||
-      cargoType.rulesetUnitClassFlags.includes('Missile');
-    return canKeepMovement ? cargo.movementLeft : 0;
+  private getUnloadMovement(cargo: Unit, transport: Unit, x: number, y: number): number {
+    if (x === transport.x && y === transport.y) return cargo.movementLeft;
+    const movementCost = this.calculateTerrainMovementCost(cargo, transport.x, transport.y, x, y);
+    return Math.max(0, cargo.movementLeft - Math.max(0, movementCost));
   }
 
   private async persistUnload(
