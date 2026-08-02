@@ -1,0 +1,106 @@
+{
+  "name": "Scenario trade and luxury accounting",
+  "aiPlayerCount": 2,
+  "mapWidth": 80,
+  "mapHeight": 50,
+  "ruleset": "civ2civ3",
+  "aiLevel": "easy",
+  "randomSeed": 31007,
+  "mapSeed": "scenario-earth-small-trade-luxury",
+  "maxTurns": 4,
+  "victoryConditions": ["max_turns"],
+  "terrainSettings": {
+    "generator": "scenario",
+    "landmass": "normal",
+    "huts": 15,
+    "temperature": 50,
+    "wetness": 50,
+    "rivers": 50,
+    "resources": "normal",
+    "scenarioId": "earth-small"
+  },
+  "scenarioSetup": {
+    "initialTurn": 1,
+    "initialYear": -4000,
+    "replaceDefaultStartingUnits": true,
+    "players": [
+      {
+        "playerNumber": 1,
+        "gold": 200,
+        "taxRate": 0,
+        "luxuryRate": 100,
+        "scienceRate": 0,
+        "lockEconomicRates": true
+      },
+      {
+        "playerNumber": 2,
+        "gold": 200,
+        "taxRate": 40,
+        "luxuryRate": 0,
+        "scienceRate": 60
+      }
+    ],
+    "cities": [
+      {
+        "playerNumber": 1,
+        "name": "Trade Home",
+        "x": 15,
+        "y": 18,
+        "population": 3
+      },
+      {
+        "playerNumber": 2,
+        "name": "Trade Partner",
+        "x": 36,
+        "y": 17,
+        "population": 3
+      }
+    ],
+    "units": [
+      {
+        "playerNumber": 1,
+        "unitType": "caravan",
+        "x": 36,
+        "y": 17,
+        "homeCityName": "Trade Home",
+        "movementLeft": 1
+      }
+    ],
+    "diplomacy": [
+      {
+        "playerNumber": 1,
+        "otherPlayerNumber": 2,
+        "state": "peace",
+        "maxState": "peace",
+        "sinceTurn": 1
+      }
+    ]
+  },
+  "expect": {
+    "minCompletedTurns": 1,
+    "endReason": "max_turns",
+    "cities": [
+      {
+        "playerNumber": 1,
+        "name": "Trade Home",
+        "minTradeRoutes": 1,
+        "maxTradeRoutes": 1,
+        "minTradePerTurn": 1,
+        "minLuxuryPerTurn": 1
+      }
+    ],
+    "events": [
+      {
+        "type": "trade_route_established",
+        "playerNumber": 1,
+        "otherPlayerNumber": 2,
+        "data": {
+          "routeType": "INIC",
+          "goods": "good"
+        },
+        "minCount": 1
+      }
+    ]
+  },
+  "turnTimeLimit": 0
+}

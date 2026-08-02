@@ -136,7 +136,7 @@ export class CityTileManagementService extends BaseGameService {
         },
         terrain: mapTile.terrain,
         resource: mapTile.resource,
-        improvements: [], // Could be roads, irrigation, etc.
+        improvements: this.getMapTileImprovements(mapTile),
       };
 
       // City center is always worked
@@ -478,6 +478,11 @@ export class CityTileManagementService extends BaseGameService {
     tile: WorkableTile
   ): { food: number; shields: number; trade: number } {
     const mapTile = this.mapManager?.getTile(tile.x, tile.y);
+    if (mapTile) {
+      tile.terrain = mapTile.terrain;
+      tile.resource = mapTile.resource;
+      tile.improvements = this.getMapTileImprovements(mapTile);
+    }
     let outputs = this.getBaseTileOutputs(mapTile, tile);
     const terrain = mapTile?.terrain ?? tile.terrain ?? '';
     const rules = mapTile ? this.ruleset.getTerrain(mapTile.terrain, this.rulesetName) : undefined;
@@ -535,13 +540,27 @@ export class CityTileManagementService extends BaseGameService {
         road_trade_incr_pct?: number;
       };
       const roadTradePct = rules.road_trade_incr_pct ?? 0;
-      // Freeciv's road increment is expressed as a percentage of the
-      // terrain's one-trade baseline, so a 100% road bonus still contributes
-      // one trade on terrains whose raw trade output is zero.
-      outputs.trade += Math.floor((Math.max(1, outputs.trade) * roadTradePct) / 100);
+      // Freeciv applies the terrain percentage to the road's fixed trade
+      // increment, not to the tile's complete trade output. Resource trade
+      // must therefore remain unchanged apart from the road's +1 bonus.
+      outputs.trade += Math.floor(roadTradePct / 100);
     }
     if ((mapTile?.riverMask ?? 0) !== 0) outputs.trade += 1;
     return outputs;
+  }
+
+  private getMapTileImprovements(mapTile: {
+    improvements?: string[];
+    hasRoad?: boolean;
+    hasRailroad?: boolean;
+  }): string[] {
+    return [
+      ...new Set([
+        ...(mapTile.improvements ?? []),
+        ...(mapTile.hasRoad ? ['road'] : []),
+        ...(mapTile.hasRailroad ? ['railroad'] : []),
+      ]),
+    ];
   }
 
   /**

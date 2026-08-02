@@ -271,6 +271,31 @@ describe('ruleset-backed city values', () => {
     expect(service.calculateCityOutputs(cityState.id).trade).toBe(1);
   });
 
+  it('adds the road increment without multiplying a resource trade yield', () => {
+    const cityState = city({ population: 1 });
+    const cities = new Map([[cityState.id, cityState]]);
+    const map = mapFor('tundra', 'furs');
+    const mapTile = (map.getTile as jest.Mock)();
+    mapTile.improvements = ['road'];
+    mapTile.hasRoad = true;
+    const service = new CityTileManagementService(
+      cities,
+      map,
+      5,
+      {
+        getTerrain: (terrainName: string) => rulesetLoader.getTerrain(terrainName, 'civ2civ3'),
+        getCivstyle: () => rulesetLoader.getCivstyle('civ2civ3'),
+        getResource: (resourceName: string) => rulesetLoader.getResource(resourceName, 'civ2civ3'),
+      },
+      new EffectsManager('civ2civ3')
+    );
+
+    service.initializeWorkableTiles(cityState);
+
+    // Furs contributes 3 trade and the tundra road contributes one fixed trade.
+    expect(service.calculateCityOutputs(cityState.id).trade).toBe(4);
+  });
+
   it('recalculates worked-tile output after an improvement changes the map', () => {
     const cityState = city({ population: 1 });
     const cities = new Map([[cityState.id, cityState]]);

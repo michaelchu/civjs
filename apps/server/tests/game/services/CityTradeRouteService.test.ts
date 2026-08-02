@@ -3,6 +3,7 @@
  * @reference reference/freeciv/common/traderoutes.c:332-363 trade_base_between_cities()
  */
 import { CityTradeRouteService } from '@game/services/CityTradeRouteService';
+import { EffectsManager } from '@game/managers/EffectsManager';
 import type { CityState } from '@game/managers/CityManager';
 
 function city(id: string, playerId: string, x: number, y: number, population: number): CityState {
@@ -67,6 +68,40 @@ describe('CityTradeRouteService', () => {
 
     expect(sameContinent.calculateTradeRouteValue(source, partner).totalValue).toBe(4);
     expect(intercontinental.calculateTradeRouteValue(source, partner).totalValue).toBe(8);
+  });
+
+  it('uses the active ruleset world-distance setting', () => {
+    const sameContinent = new CityTradeRouteService(
+      new Map([
+        [source.id, source],
+        [partner.id, partner],
+      ]),
+      3,
+      {
+        width: 80,
+        height: 50,
+        getContinentId: () => 1,
+        getCurrentTurn: () => 7,
+      },
+      new EffectsManager('civ2civ3')
+    );
+    const intercontinental = new CityTradeRouteService(
+      new Map([
+        [source.id, source],
+        [partner.id, partner],
+      ]),
+      3,
+      {
+        width: 80,
+        height: 50,
+        getContinentId: x => (x === 0 ? 1 : 2),
+        getCurrentTurn: () => 7,
+      },
+      new EffectsManager('civ2civ3')
+    );
+
+    expect(sameContinent.calculateTradeRouteValue(source, partner).totalValue).toBe(1);
+    expect(intercontinental.calculateTradeRouteValue(source, partner).totalValue).toBe(3);
   });
 
   it('creates reciprocal routes with the authoritative turn', async () => {

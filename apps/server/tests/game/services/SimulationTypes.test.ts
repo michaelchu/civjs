@@ -133,6 +133,7 @@ describe('headless simulation configuration', () => {
     expect(config.expect).toEqual({
       minCompletedTurns: 10,
       players: [],
+      cities: [],
       diplomacy: [{ playerNumber: 1, otherPlayerNumber: 2, state: 'war' }],
       diplomacyEvents: [
         { type: 'war_declared', playerNumber: 1, otherPlayerNumber: 2, minCount: 1 },

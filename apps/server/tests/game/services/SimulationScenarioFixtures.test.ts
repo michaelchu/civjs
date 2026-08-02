@@ -8,6 +8,7 @@ const expectedFixtureNames = [
   'earth-small-city-founding.json',
   'earth-small-combat.json',
   'earth-small-research.json',
+  'earth-small-trade-luxury.json',
   'earth-small-victory.json',
   'earth-small-war-declaration.json',
   'earth-small-war.json',

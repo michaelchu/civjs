@@ -358,6 +358,12 @@ export class FreecivAIDomesticController {
     playerId: string,
     state: FreecivAIState
   ): Promise<number> {
+    const playerNumber = game.players.get(playerId)?.playerNumber;
+    const ratesLocked = game.config?.scenarioSetup?.players.some(
+      setup => setup.playerNumber === playerNumber && setup.lockEconomicRates
+    );
+    if (ratesLocked) return 0;
+
     const planning = await this.createTreasuryPlan(game, playerId, state);
     if (!planning) return 0;
     state.treasuryGoal = planning.plan.savingsGoal;

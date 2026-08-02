@@ -16,6 +16,7 @@ import type { TradeRules } from '@shared/data/rulesets/schemas';
 export class CityTradeRouteService extends BaseGameService {
   private playerTechsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
   private readonly tradeRules: TradeRules;
+  private readonly tradeWorldRelativePct: number;
 
   constructor(
     private cities: Map<string, CityState>,
@@ -38,6 +39,7 @@ export class CityTradeRouteService extends BaseGameService {
   ) {
     super(logger);
     this.tradeRules = tradeRules ?? rulesetLoader.getTradeRules(effectsManager.getRulesetName());
+    this.tradeWorldRelativePct = this.getTradeWorldRelativePct(effectsManager.getRulesetName());
   }
 
   getServiceName(): string {
@@ -56,7 +58,12 @@ export class CityTradeRouteService extends BaseGameService {
       cityBuildings: new Set(city.buildings),
       playerTechs: new Set(techs),
     }).value;
-    return Math.max(0, configured || this.MAX_TRADE_ROUTES_PER_CITY);
+    return Math.max(
+      0,
+      typeof configured === 'number' && Number.isFinite(configured)
+        ? configured
+        : this.MAX_TRADE_ROUTES_PER_CITY
+    );
   }
 
   /**
@@ -68,8 +75,8 @@ export class CityTradeRouteService extends BaseGameService {
     partnerCity: CityState,
     relation: string = 'no_contact'
   ): TradeRouteCalculation {
-    // Classic revenue uses real (Chebyshev) distance, with half of the
-    // distance normalized to a 40-tile-wide world by the default setting.
+    // Classic revenue uses real (Chebyshev) distance, blended with distance
+    // normalized to a 40-tile-wide world by the ruleset setting.
     // @reference reference/freeciv/common/traderoutes.c:332-363
     const distance =
       this.mapContext.getRealDistance?.(sourceCity.x, sourceCity.y, partnerCity.x, partnerCity.y) ??
@@ -77,16 +84,10 @@ export class CityTradeRouteService extends BaseGameService {
     const relativeDistance = Math.floor(
       (distance * 40) / Math.max(this.mapContext.width, this.mapContext.height)
     );
-    const weightedDistance = Math.floor((50 * distance + 50 * relativeDistance) / 100);
-    const sourceContinent = this.mapContext.getContinentId(sourceCity.x, sourceCity.y);
-    const partnerContinent = this.mapContext.getContinentId(partnerCity.x, partnerCity.y);
-    const intercontinental =
-      sourceContinent !== undefined &&
-      partnerContinent !== undefined &&
-      sourceContinent !== partnerContinent;
+    const weightedDistance = this.getWeightedDistance(distance, relativeDistance);
+    const intercontinental = this.isIntercontinental(sourceCity, partnerCity);
     const routeType = this.getRouteType(sourceCity, partnerCity, relation, intercontinental);
-    const tradePercent =
-      this.tradeRules.settings.find(setting => setting.type === routeType)?.pct ?? 0;
+    const tradePercent = this.getTradePercent(routeType);
     const sizeValue = sourceCity.population + partnerCity.population;
     const beforeTypeBonus = weightedDistance + sizeValue;
     const totalValue = Math.max(
@@ -117,16 +118,12 @@ export class CityTradeRouteService extends BaseGameService {
     const relativeDistance = Math.floor(
       (distance * 40) / Math.max(this.mapContext.width, this.mapContext.height)
     );
-    const weightedDistance = Math.floor((50 * distance + 50 * relativeDistance) / 100);
-    const sourceContinent = this.mapContext.getContinentId(sourceCity.x, sourceCity.y);
-    const partnerContinent = this.mapContext.getContinentId(partnerCity.x, partnerCity.y);
+    const weightedDistance = this.getWeightedDistance(distance, relativeDistance);
     const routeType = this.getRouteType(
       sourceCity,
       partnerCity,
       relation,
-      sourceContinent !== undefined &&
-        partnerContinent !== undefined &&
-        sourceContinent !== partnerContinent
+      this.isIntercontinental(sourceCity, partnerCity)
     );
     const setting = this.tradeRules.settings.find(candidate => candidate.type === routeType);
     return {
@@ -188,7 +185,7 @@ export class CityTradeRouteService extends BaseGameService {
       return false;
     }
 
-    if (!this.isTradeRoutePairValid(sourceCity, partnerCity, sourceCityId, partnerCityId))
+    if (!this.isTradeRoutePairValid(sourceCity, partnerCity, sourceCityId, partnerCityId, relation))
       return false;
 
     // Calculate trade value
@@ -250,7 +247,8 @@ export class CityTradeRouteService extends BaseGameService {
     sourceCity: CityState,
     partnerCity: CityState,
     sourceCityId: string,
-    partnerCityId: string
+    partnerCityId: string,
+    relation: string
   ): boolean {
     if (sourceCityId === partnerCityId) {
       logger.warn('Cannot establish trade route: cannot trade with same city');
@@ -272,12 +270,35 @@ export class CityTradeRouteService extends BaseGameService {
       });
       return false;
     }
+    if (this.getMaxTradeRoutes(sourceCity) <= 0 || this.getMaxTradeRoutes(partnerCity) <= 0) {
+      logger.warn('Cannot establish trade route: one city has no trade-route capacity', {
+        sourceCityId,
+        partnerCityId,
+      });
+      return false;
+    }
+    const routeType = this.getRouteType(
+      sourceCity,
+      partnerCity,
+      relation,
+      this.isIntercontinental(sourceCity, partnerCity)
+    );
+    if (this.getTradePercent(routeType) <= 0) {
+      logger.warn('Cannot establish trade route: route type is not tradable', {
+        sourceCityId,
+        partnerCityId,
+        routeType,
+      });
+      return false;
+    }
     return true;
   }
 
   private canMakeRoomForRoute(city: CityState, newValue: number): boolean {
     city.tradeRoutes ??= [];
-    if (city.tradeRoutes.length < this.getMaxTradeRoutes(city)) return true;
+    const maxRoutes = this.getMaxTradeRoutes(city);
+    if (maxRoutes <= 0) return false;
+    if (city.tradeRoutes.length < maxRoutes) return true;
     const weakest = city.tradeRoutes.reduce((candidate, route) =>
       route.value < candidate.value ? route : candidate
     );
@@ -285,7 +306,8 @@ export class CityTradeRouteService extends BaseGameService {
   }
 
   private makeRoomForRoute(city: CityState): void {
-    if (city.tradeRoutes.length < this.getMaxTradeRoutes(city)) return;
+    const maxRoutes = this.getMaxTradeRoutes(city);
+    if (maxRoutes <= 0 || city.tradeRoutes.length < maxRoutes) return;
     const weakest = city.tradeRoutes.reduce((candidate, route) =>
       route.value < candidate.value ? route : candidate
     );
@@ -444,7 +466,7 @@ export class CityTradeRouteService extends BaseGameService {
    */
   public getAvailableTradePartners(cityId: string): CityState[] {
     const sourceCity = this.cities.get(cityId);
-    if (!sourceCity) {
+    if (!sourceCity || this.getMaxTradeRoutes(sourceCity) <= 0) {
       return [];
     }
 
@@ -462,6 +484,14 @@ export class CityTradeRouteService extends BaseGameService {
 
       const distance = this.getMapDistance(sourceCity, partnerCity);
       if (partnerCity.playerId === sourceCity.playerId && distance < 9) continue;
+      if (this.getMaxTradeRoutes(partnerCity) <= 0) continue;
+      const routeType = this.getRouteType(
+        sourceCity,
+        partnerCity,
+        'no_contact',
+        this.isIntercontinental(sourceCity, partnerCity)
+      );
+      if (this.getTradePercent(routeType) <= 0) continue;
 
       availablePartners.push(partnerCity);
     }
@@ -554,6 +584,48 @@ export class CityTradeRouteService extends BaseGameService {
    * Check if a city can establish more trade routes
    */
   public canEstablishMoreTradeRoutes(cityId: string): boolean {
-    return this.getCityTradeRouteCount(cityId) < this.MAX_TRADE_ROUTES_PER_CITY;
+    const city = this.cities.get(cityId);
+    return Boolean(city && this.getCityTradeRouteCount(cityId) < this.getMaxTradeRoutes(city));
+  }
+
+  private getTradeWorldRelativePct(rulesetName: string): number {
+    const settings = rulesetLoader.loadGameRulesRuleset(rulesetName).settings;
+    const configured = Array.isArray(settings.set)
+      ? settings.set.find(
+          setting =>
+            setting &&
+            typeof setting === 'object' &&
+            (setting as { name?: unknown }).name === 'tradeworldrelpct'
+        )
+      : undefined;
+    const value =
+      configured && typeof configured === 'object'
+        ? (configured as { value?: unknown }).value
+        : undefined;
+    return typeof value === 'number' && Number.isFinite(value)
+      ? Math.max(0, Math.min(100, value))
+      : 50;
+  }
+
+  private getWeightedDistance(distance: number, relativeDistance: number): number {
+    return Math.floor(
+      ((100 - this.tradeWorldRelativePct) * distance +
+        this.tradeWorldRelativePct * relativeDistance) /
+        100
+    );
+  }
+
+  private getTradePercent(routeType: string): number {
+    return this.tradeRules.settings.find(setting => setting.type === routeType)?.pct ?? 0;
+  }
+
+  private isIntercontinental(sourceCity: CityState, partnerCity: CityState): boolean {
+    const sourceContinent = this.mapContext.getContinentId(sourceCity.x, sourceCity.y);
+    const partnerContinent = this.mapContext.getContinentId(partnerCity.x, partnerCity.y);
+    return (
+      sourceContinent !== undefined &&
+      partnerContinent !== undefined &&
+      sourceContinent !== partnerContinent
+    );
   }
 }

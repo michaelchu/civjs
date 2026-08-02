@@ -38,4 +38,12 @@ describe('scenario setup', () => {
       },
     ]);
   });
+
+  it('preserves scenario economic-rate locks for deterministic UAT runs', () => {
+    expect(
+      scenarioSetupSchema.parse({
+        players: [{ playerNumber: 1, luxuryRate: 100, lockEconomicRates: true }],
+      }).players
+    ).toEqual([{ playerNumber: 1, luxuryRate: 100, lockEconomicRates: true }]);
+  });
 });

@@ -574,6 +574,9 @@ export class ActionSystem {
           unit.homeCityId &&
           targetX !== undefined &&
           targetY !== undefined &&
+          unit.x === targetX &&
+          unit.y === targetY &&
+          this.gameManagerCallback?.getCityAt?.(targetX, targetY) &&
           this.gameManagerCallback?.establishTradeRoute
         ),
     ],

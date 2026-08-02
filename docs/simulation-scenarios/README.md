@@ -73,6 +73,32 @@ unit's origin and final destination; semantic events are persisted in batches
 rather than one database insert per event. Combat telemetry includes individual
 kill events for attackers, defenders, and collateral victims.
 
+Use `cities` expectations for final per-city economic assertions. A city can
+be selected by player number and optional name, with bounds for population,
+worked trade, luxury output, and established trade-route count:
+
+```json
+{
+  "cities": [
+    {
+      "playerNumber": 1,
+      "name": "Trade Home",
+      "minTradeRoutes": 1,
+      "minTradePerTurn": 1,
+      "minLuxuryPerTurn": 1
+    }
+  ]
+}
+```
+
+The `earth-small-trade-luxury.json` fixture uses a caravan already inside a
+foreign city and asserts the route event plus the resulting city trade and
+luxury conversion. It intentionally has no road path: Freeciv roads modify
+worked-tile yields, but do not create or gate city trade routes.
+For deterministic economic assertions, set `lockEconomicRates: true` on the
+scenario player; this prevents the AI treasury controller from changing the
+seeded rates during the run.
+
 Replay checkpoints expose `snapshot.eventTelemetry` with cumulative dropped-event
 and persistence-failure counts, plus pending event and movement-summary counts.
 A trustworthy long run should finish with all four values at zero.
@@ -136,6 +162,7 @@ heuristic behavior should still be tested with an unseeded setup.
 | `earth-small-war.json`             | Seeded war relation and military turns            |
 | `earth-small-war-declaration.json` | AI war countdown and declaration event            |
 | `earth-small-research.json`        | Different science rates and seeded technologies   |
+| `earth-small-trade-luxury.json`    | Caravan route and luxury conversion               |
 | `earth-small-victory.json`         | Scenario-declared winner flag                     |
 | `earth-small-bootstrap.json`       | Combined state bootstrap and deterministic replay |
 

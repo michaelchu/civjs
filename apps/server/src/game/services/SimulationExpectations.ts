@@ -42,6 +42,26 @@ const playerExpectationSchema = z
     addRangeIssue(context, value.minTechnologies, value.maxTechnologies, 'technologies');
   });
 
+const cityExpectationSchema = z
+  .object({
+    playerNumber: z.number().int().min(1),
+    name: z.string().trim().min(1).optional(),
+    minPopulation: z.number().int().min(1).optional(),
+    maxPopulation: z.number().int().min(1).optional(),
+    minTradePerTurn: z.number().min(0).optional(),
+    maxTradePerTurn: z.number().min(0).optional(),
+    minLuxuryPerTurn: z.number().min(0).optional(),
+    maxLuxuryPerTurn: z.number().min(0).optional(),
+    minTradeRoutes: z.number().int().min(0).optional(),
+    maxTradeRoutes: z.number().int().min(0).optional(),
+  })
+  .superRefine((value, context) => {
+    addRangeIssue(context, value.minPopulation, value.maxPopulation, 'population');
+    addRangeIssue(context, value.minTradePerTurn, value.maxTradePerTurn, 'tradePerTurn');
+    addRangeIssue(context, value.minLuxuryPerTurn, value.maxLuxuryPerTurn, 'luxuryPerTurn');
+    addRangeIssue(context, value.minTradeRoutes, value.maxTradeRoutes, 'tradeRoutes');
+  });
+
 const diplomacyExpectationSchema = z
   .object({
     playerNumber: z.number().int().min(1),
@@ -123,6 +143,7 @@ export const simulationExpectationSchema = z
     maxCompletedTurns: z.number().int().min(0).optional(),
     endReason: z.string().trim().min(1).optional(),
     players: z.array(playerExpectationSchema).default([]),
+    cities: z.array(cityExpectationSchema).default([]),
     diplomacy: z.array(diplomacyExpectationSchema).default([]),
     diplomacyEvents: z.array(diplomacyEventExpectationSchema).default([]),
     events: z.array(eventExpectationSchema).default([]),
@@ -208,6 +229,10 @@ export function evaluateSimulationExpectations(
       failures,
       `players[${index}]`
     );
+  }
+
+  for (const [index, expected] of expectations.cities.entries()) {
+    checkCityExpectation(expected, finalState, playersByNumber, failures, `cities[${index}]`);
   }
 
   for (const [index, expected] of expectations.diplomacy.entries()) {
@@ -440,6 +465,61 @@ function checkPlayerExpectation(
   }
 }
 
+function checkCityExpectation(
+  expected: SimulationExpectations['cities'][number],
+  finalState: FinalState,
+  playersByNumber: Map<number, ReplayPlayer>,
+  failures: string[],
+  path: string
+): void {
+  const player = playersByNumber.get(expected.playerNumber);
+  if (!player) {
+    failures.push(`${path}: player ${expected.playerNumber} is missing from the final snapshot`);
+    return;
+  }
+
+  const city = finalState.cities.find(
+    candidate =>
+      candidate.playerId === player.playerId &&
+      (expected.name === undefined || candidate.name === expected.name)
+  );
+  if (!city) {
+    failures.push(
+      `${path}: city ${expected.name ?? '(any)'} for player ${expected.playerNumber} is missing from the final snapshot`
+    );
+    return;
+  }
+
+  checkNumericBounds(
+    expected.minPopulation,
+    expected.maxPopulation,
+    city.population,
+    `${path}.population`,
+    failures
+  );
+  checkNumericBounds(
+    expected.minTradePerTurn,
+    expected.maxTradePerTurn,
+    city.tradePerTurn,
+    `${path}.tradePerTurn`,
+    failures
+  );
+  checkNumericBounds(
+    expected.minLuxuryPerTurn,
+    expected.maxLuxuryPerTurn,
+    city.luxuryPerTurn,
+    `${path}.luxuryPerTurn`,
+    failures
+  );
+  checkNumericBounds(
+    expected.minTradeRoutes,
+    expected.maxTradeRoutes,
+    Array.isArray(city.tradeRoutes) ? city.tradeRoutes.length : undefined,
+    `${path}.tradeRoutes`,
+    failures
+  );
+}
+
 function checkDiplomacyExpectation(
   expected: SimulationExpectations['diplomacy'][number],
   playersByNumber: Map<number, ReplayPlayer>,
@@ -532,6 +612,21 @@ function checkCountBounds(
   if (maximum !== undefined && observed > maximum) {
     failures.push(`${path}: expected at most ${maximum}, observed ${observed}`);
   }
+}
+
+function checkNumericBounds(
+  minimum: number | undefined,
+  maximum: number | undefined,
+  observed: unknown,
+  path: string,
+  failures: string[]
+): void {
+  if (minimum === undefined && maximum === undefined) return;
+  if (typeof observed !== 'number' || !Number.isFinite(observed)) {
+    failures.push(`${path}: expected a numeric value, observed ${String(observed)}`);
+    return;
+  }
+  checkCountBounds(minimum, maximum, observed, path, failures);
 }
 
 function checkOptionalValue<T>(

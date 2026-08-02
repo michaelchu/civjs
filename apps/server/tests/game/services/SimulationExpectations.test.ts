@@ -70,6 +70,7 @@ describe('simulation outcome expectations', () => {
       })
     ).toEqual({
       players: [{ playerNumber: 1, minCities: 1 }],
+      cities: [],
       diplomacy: [],
       diplomacyEvents: [
         { type: 'war_declared', playerNumber: 1, otherPlayerNumber: 2, minCount: 1 },
@@ -128,6 +129,48 @@ describe('simulation outcome expectations', () => {
         ],
         endReason: 'max_turns',
         standings: { winnerPlayerIds: [playerOneId] },
+      }
+    );
+
+    expect(result).toEqual({ passed: true, failures: [] });
+  });
+
+  it('asserts final city trade, luxury, and route accounting', () => {
+    const result = evaluateSimulationExpectations(
+      simulationExpectationSchema.parse({
+        cities: [
+          {
+            playerNumber: 1,
+            name: 'Trade Home',
+            minTradePerTurn: 2,
+            minLuxuryPerTurn: 2,
+            minTradeRoutes: 1,
+            maxTradeRoutes: 1,
+          },
+        ],
+      }),
+      {
+        completedTurns: [
+          {
+            turn: 4,
+            snapshot: snapshot({
+              cities: [
+                {
+                  id: 'city-1',
+                  name: 'Trade Home',
+                  playerId: playerOneId,
+                  population: 3,
+                  tradePerTurn: 2,
+                  luxuryPerTurn: 2,
+                  tradeRoutes: [{ partnerCity: 'city-2' }],
+                },
+                { id: 'city-2', playerId: playerTwoId },
+              ],
+            }),
+          },
+        ],
+        endReason: 'max_turns',
+        standings: [],
       }
     );
 

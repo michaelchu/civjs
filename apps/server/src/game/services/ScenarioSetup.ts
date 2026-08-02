@@ -20,6 +20,7 @@ const scenarioPlayerSetupSchema = z.object({
   taxRate: z.number().int().min(0).max(100).optional(),
   luxuryRate: z.number().int().min(0).max(100).optional(),
   scienceRate: z.number().int().min(0).max(100).optional(),
+  lockEconomicRates: z.boolean().optional(),
   government: z.string().trim().min(1).optional(),
   revolutionTurns: z.number().int().min(0).optional(),
   technologies: z.array(z.string().trim().min(1)).optional(),
