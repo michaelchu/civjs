@@ -83,7 +83,11 @@ file, the upstream source commit, and the binary version before it runs. It
 keeps saves in an isolated temporary directory and emits structured results.
 CI invokes it once without a scenario filter, so every deterministic fixture
 runs in one Freeciv server session. Jest then reads the resulting JSON bundle;
-individual parity assertions never start their own native server process.
+individual parity assertions never start their own native server process. The
+CI job caches the pinned source checkout and server build by Freeciv revision,
+runner platform, and build-profile version. A cold cache builds once; a warm
+cache skips the source fetch, build-tool installation, and native compilation
+while retaining the runner's source revision and binary-version validation.
 The fixture set creates a controlled city and ground defender, then confirms
 that City Walls produce the reference `Defend_Bonus` of 150 (the normal city
 50 plus City Walls 100). It also fixes a three-player state, performs the

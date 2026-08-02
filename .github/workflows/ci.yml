@@ -124,7 +124,20 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
+      - name: Restore pinned Freeciv server oracle
+        id: freeciv-oracle-cache
+        uses: actions/cache@v4
+        with:
+          # The oracle runner validates both the binary and this exact pinned
+          # source checkout. Keep the cache-key version in sync with a source
+          # pin or Meson option change below.
+          path: |
+            ${{ runner.temp }}/freeciv-source
+            ${{ runner.temp }}/freeciv-build
+          key: freeciv-oracle-${{ runner.os }}-${{ runner.arch }}-v1-440b3c9650d3052792296868cb15591bd40612ea
+
       - name: Install Freeciv build dependencies
+        if: steps.freeciv-oracle-cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -142,6 +155,7 @@ jobs:
             zlib1g-dev
 
       - name: Fetch pinned upstream Freeciv source
+        if: steps.freeciv-oracle-cache.outputs.cache-hit != 'true'
         run: |
           git init "$RUNNER_TEMP/freeciv-source"
           git -C "$RUNNER_TEMP/freeciv-source" remote add origin https://github.com/freeciv/freeciv.git
@@ -149,6 +163,7 @@ jobs:
           git -C "$RUNNER_TEMP/freeciv-source" checkout --detach FETCH_HEAD
 
       - name: Build pinned Freeciv server oracle
+        if: steps.freeciv-oracle-cache.outputs.cache-hit != 'true'
         run: |
           meson setup "$RUNNER_TEMP/freeciv-build" "$RUNNER_TEMP/freeciv-source" \
             '-Dclients=[]' \
@@ -162,6 +177,14 @@ jobs:
             -Dserver=enabled \
             -Ddefault_library=static
           ninja -C "$RUNNER_TEMP/freeciv-build"
+
+      - name: Summarize Freeciv oracle cache use
+        run: |
+          if [ "${{ steps.freeciv-oracle-cache.outputs.cache-hit }}" = "true" ]; then
+            echo "Freeciv oracle cache hit: skipped the pinned-source fetch and native server compilation." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Freeciv oracle cache miss: this run populated the reusable pinned source and server build cache." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Install server dependencies
         run: cd apps/server && npm ci
