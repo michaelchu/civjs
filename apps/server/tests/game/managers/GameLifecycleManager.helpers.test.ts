@@ -2,6 +2,7 @@ import { GameLifecycleManager } from '@game/orchestrators/GameLifecycleManager';
 import { GameStateManager } from '@game/orchestrators/GameStateManager';
 import { FreecivRandom } from '@game/random/FreecivRandom';
 import { buildStoredGameConfig } from '@game/runtime/GameInstanceFactory';
+import { TopologyFlag, WrapFlag } from '@game/map/MapTopology';
 
 // Minimal stubs for dependencies
 const stubIo = {} as any;
@@ -129,6 +130,68 @@ describe('GameLifecycleManager helper behavior', () => {
 
     expect(first.getSeed()).toBe('ai-validation-seed');
     expect(second.getSeed()).toBe(first.getSeed());
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/game.ruleset:810-827
+   * @reference reference/freeciv/server/settings.c:game_ruleset_load()
+   * @assertion A new Civ2Civ3 game persists and uses the ruleset's FRACTAL, 60-temperature, ISO-hex, fully wrapped map defaults unless the creator explicitly overrides them.
+   * @c2c3-surface map-generation
+   * @c2c3-surface-scenario normal, boundary
+   */
+  test('derives Civ2Civ3 map defaults from the source ruleset', () => {
+    const manager = createManager();
+    const gameData = (manager as any).buildGameData(
+      { name: 'c2c3 map', hostId: 'host' },
+      'civ2civ3'
+    );
+
+    expect(gameData.gameState.terrainSettings).toMatchObject({
+      generator: 'fractal',
+      temperature: 60,
+      topologyId: TopologyFlag.ISO | TopologyFlag.HEX,
+      wrapId: WrapFlag.X | WrapFlag.Y,
+    });
+    // The Freeciv MAP_INFO protocol reserves bits 0-1 for legacy wrapping,
+    // leaving ISO|HEX as 4|8 and independent WrapX|WrapY as 1|2.
+    expect(gameData.gameState.terrainSettings).toMatchObject({ topologyId: 12, wrapId: 3 });
+    expect(
+      (manager as any)
+        .createMapManager(
+          { mapWidth: 20, mapHeight: 20, mapSeed: 'c2c3-topology', ruleset: 'civ2civ3' },
+          gameData.gameState.terrainSettings
+        )
+        .getTopology()
+    ).toMatchObject({
+      topologyId: TopologyFlag.ISO | TopologyFlag.HEX,
+      wrapId: WrapFlag.X | WrapFlag.Y,
+    });
+
+    const overridden = (manager as any).buildGameData(
+      {
+        name: 'custom topology',
+        hostId: 'host',
+        terrainSettings: {
+          generator: 'random',
+          landmass: 'normal',
+          huts: 15,
+          temperature: 50,
+          wetness: 50,
+          rivers: 50,
+          resources: 'normal',
+          topologyId: 0,
+          wrapId: WrapFlag.X,
+        },
+      },
+      'civ2civ3'
+    );
+    expect(overridden.gameState.terrainSettings).toMatchObject({
+      generator: 'random',
+      temperature: 50,
+      topologyId: 0,
+      wrapId: WrapFlag.X,
+    });
   });
 
   test('map persistence failures propagate to the game-start caller', async () => {

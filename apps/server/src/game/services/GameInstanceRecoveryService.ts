@@ -53,6 +53,7 @@ import {
 } from '@game/services/PartisanService';
 import { getClimateSettingsFromGameState } from '@game/services/ClimateManager';
 import { researchPacingFromGameState } from '@game/services/ResearchPacing';
+import { resolveRulesetTerrainSettings } from '@game/services/RulesetTerrainDefaults';
 import {
   FreecivRandom,
   generateFreecivGameSeed,
@@ -215,7 +216,10 @@ export class GameInstanceRecoveryService extends BaseGameService {
   }
 
   private async createAndRestoreMapManager(game: any): Promise<MapManager> {
-    const storedTerrainSettings = (game.gameState as any)?.terrainSettings;
+    const storedTerrainSettings = resolveRulesetTerrainSettings(
+      game.ruleset ?? DEFAULT_RULESET,
+      (game.gameState as any)?.terrainSettings
+    );
     const { temperatureParam, startPosMode } = this.getRecoveryMapConfig(storedTerrainSettings);
     const mapManager = new MapManager(
       game.mapWidth,

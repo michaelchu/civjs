@@ -88,6 +88,7 @@ import {
   resolveResearchPacingSettings,
   type ResearchPacingSettings,
 } from '@game/services/ResearchPacing';
+import { resolveRulesetTerrainSettings } from '@game/services/RulesetTerrainDefaults';
 
 function configuredVictoryConditions(gameConfig: GameConfig): string[] {
   return gameConfig.victoryConditions?.length ? gameConfig.victoryConditions : ['conquest'];
@@ -235,6 +236,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     const { randomSeed, randomState } = this.createInitialRandomState(gameConfig.randomSeed);
     const researchPacing = resolveResearchPacingSettings(rulesetName, gameConfig.researchPacing);
     const nationSet = rulesetLoader.resolveNationSet(rulesetName, gameConfig.nationSet);
+    const terrainSettings = resolveRulesetTerrainSettings(rulesetName, gameConfig.terrainSettings);
     return {
       name: gameConfig.name,
       hostId: gameConfig.hostId,
@@ -257,15 +259,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         identityNumber: FREECIV_IDENTITY_NUMBER_SKIP,
         barbarianRate: gameConfig.barbarianRate,
         climateSettings: gameConfig.climate ?? { enabled: true },
-        terrainSettings: gameConfig.terrainSettings || {
-          generator: 'random',
-          landmass: 'normal',
-          huts: 15,
-          temperature: 50,
-          wetness: 50,
-          rivers: 50,
-          resources: 'normal',
-        },
+        terrainSettings,
         scenarioSetup: gameConfig.scenarioSetup,
       },
     };
@@ -1244,8 +1238,16 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   }
 
   private createMapManager(game: any, terrainSettings?: TerrainSettings): MapManager {
-    const { mapGenerator, temperatureParam, startPosMode } = this.getMapConfig(terrainSettings);
-    const generationOptions = this.getMapGenerationOptions(terrainSettings, temperatureParam);
+    const resolvedTerrainSettings = resolveRulesetTerrainSettings(
+      game.ruleset ?? DEFAULT_RULESET,
+      terrainSettings
+    );
+    const { mapGenerator, temperatureParam, startPosMode } =
+      this.getMapConfig(resolvedTerrainSettings);
+    const generationOptions = this.getMapGenerationOptions(
+      resolvedTerrainSettings,
+      temperatureParam
+    );
     return new MapManager(
       game.mapWidth,
       game.mapHeight,
@@ -1256,10 +1258,10 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       false,
       temperatureParam,
       {
-        topologyId: terrainSettings?.topologyId,
-        wrapId: terrainSettings?.wrapId,
+        topologyId: resolvedTerrainSettings.topologyId,
+        wrapId: resolvedTerrainSettings.wrapId,
       },
-      terrainSettings?.scenarioId,
+      resolvedTerrainSettings.scenarioId,
       generationOptions,
       game.ruleset ?? DEFAULT_RULESET
     );
