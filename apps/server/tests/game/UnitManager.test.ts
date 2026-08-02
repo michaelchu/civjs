@@ -3054,6 +3054,123 @@ describe('UnitManager', () => {
       expect(unit!.movementLeft).toBe(3); // Reset to warrior's full movement in fragments
     });
 
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/server/unittools.c:429-465
+     * @reference reference/freeciv/server/unittools.c:1558-1597
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3280-3286
+     * @reference reference/freeciv/data/civ2civ3/game.ruleset:127-128
+     * @assertion Leonardo's Workshop upgrades one otherwise eligible Civ2Civ3 unit for free outside a city before its new type receives movement for the next usable turn and the auto-upgrade veteran loss.
+     * @c2c3-surface cities
+     * @c2c3-surface-scenario turn
+     */
+    it("applies Leonardo's Workshop's free Civ2Civ3 upgrade when movement resets", async () => {
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          getPlayerBuildings: () => ['leonardos_workshop'],
+        },
+        new EffectsManager('civ2civ3'),
+        () => 0,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      manager.setPlayerTechsProvider(() => new Set(['gunpowder']));
+      const warrior = await manager.createUnit('player-123', 'warriors', 15, 10);
+      warrior.veteranLevel = 2;
+      warrior.movementLeft = 0;
+      const database = mockDbProvider.getDatabase() as any;
+
+      await manager.resetMovement('player-123');
+
+      expect(warrior).toMatchObject({
+        unitTypeId: 'musketeers',
+        veteranLevel: 1,
+        movementLeft: 6,
+      });
+      expect(database.select).not.toHaveBeenCalled();
+      expect(database.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          unitType: 'musketeers',
+          veteranLevel: 1,
+          maxMovementPoints: '6',
+        })
+      );
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/server/unittools.c:429-465
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3280-3286
+     * @assertion Leonardo's Workshop only upgrades as many eligible Civ2Civ3 units as its Upgrade_Unit effect value each turn.
+     * @c2c3-surface cities
+     * @c2c3-surface-scenario turn
+     */
+    it("limits Leonardo's Workshop to one free Civ2Civ3 upgrade per turn", async () => {
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          getPlayerBuildings: () => ['leonardos_workshop'],
+        },
+        new EffectsManager('civ2civ3'),
+        () => 0,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      manager.setPlayerTechsProvider(() => new Set(['gunpowder']));
+      const warrior = await manager.createUnit('player-123', 'warriors', 15, 10);
+      const archer = await manager.createUnit('player-123', 'archers', 16, 10);
+
+      await manager.resetMovement('player-123');
+
+      expect([warrior, archer].filter(unit => unit.unitTypeId === 'musketeers')).toHaveLength(1);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/server/unittools.c:429-465
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3280-3286
+     * @assertion An obsolete Civ2Civ3 unit remains unchanged at turn start without the player-scoped Leonardo's Workshop Upgrade_Unit effect.
+     * @c2c3-surface cities
+     * @c2c3-surface-scenario turn
+     */
+    it("does not grant a free upgrade without Leonardo's Workshop", async () => {
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          getPlayerBuildings: () => [],
+        },
+        new EffectsManager('civ2civ3'),
+        () => 0,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      manager.setPlayerTechsProvider(() => new Set(['gunpowder']));
+      const warrior = await manager.createUnit('player-123', 'warriors', 15, 10);
+
+      await manager.resetMovement('player-123');
+
+      expect(warrior).toMatchObject({ unitTypeId: 'warriors', movementLeft: 6 });
+    });
+
     it('scales damaged DamageSlows units while preserving class minimum speed', async () => {
       const manager = new UnitManager(
         gameId,

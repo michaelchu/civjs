@@ -1758,6 +1758,7 @@ export class UnitManager {
    */
   async resetMovement(playerId: string): Promise<void> {
     await this.retireEligibleUnits(playerId);
+    await this.applyAutomaticUpgrades(playerId);
     for (const unit of [...this.units.values()]) {
       if (unit.playerId === playerId) {
         const unitType = this.unitTypes[unit.unitTypeId];
@@ -3553,14 +3554,70 @@ export class UnitManager {
     if (!player || player.gold < goldCost) {
       return { success: false, message: `Upgrade requires ${goldCost} gold` };
     }
+    const veteranLoss = rulesetLoader.loadGameRulesRuleset(this.getRulesetName()).game_parameters
+      .upgrade_veteran_loss;
+    await db
+      .update(players)
+      .set({ gold: sql`${players.gold} - ${goldCost}` })
+      .where(and(eq(players.id, unit.playerId), eq(players.gameId, this.gameId)));
+    await this.transformUnit(unit, from, to, veteranLoss);
+    return { success: true, message: `${from.name} upgraded to ${to.name} for ${goldCost} gold` };
+  }
+
+  /**
+   * Leonardo's Workshop upgrades up to Upgrade_Unit eligible units for free
+   * before Freeciv restores movement and fuel for the player's next usable
+   * turn.
+   * @reference reference/freeciv/server/unittools.c:429-465
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3280-3286
+   */
+  private async applyAutomaticUpgrades(playerId: string): Promise<void> {
+    const upgradeCount = Math.max(
+      0,
+      Math.trunc(
+        this.effectsManager?.calculateEffect(EffectType.UPGRADE_UNIT, {
+          playerId,
+          playerTechs: this.playerTechsProvider(playerId),
+          playerBuildings: new Set(this.gameManagerCallback?.getPlayerBuildings?.(playerId) ?? []),
+        }).value ?? 0
+      )
+    );
+    if (upgradeCount === 0) return;
+
+    const candidates = [...this.units.values()]
+      .filter(unit => unit.playerId === playerId)
+      .flatMap(unit => {
+        const upgrade = this.getUpgradeTarget(unit, true);
+        return upgrade ? [{ unit, ...upgrade }] : [];
+      });
+    const veteranLoss = rulesetLoader.loadGameRulesRuleset(this.getRulesetName()).game_parameters
+      .autoupgrade_veteran_loss;
+
+    for (let remaining = upgradeCount; remaining > 0 && candidates.length > 0; remaining -= 1) {
+      const index = randomInt(this.random, candidates.length);
+      const [candidate] = candidates.splice(index, 1);
+      if (!candidate) break;
+      await this.transformUnit(candidate.unit, candidate.from, candidate.to, veteranLoss);
+    }
+  }
+
+  /**
+   * Transform a unit with the source veteran clipping and proportional move
+   * scaling used for both manual upgrades and Leonardo's free upgrades.
+   * @reference reference/freeciv/server/unittools.c:1558-1597
+   */
+  private async transformUnit(
+    unit: Unit,
+    from: UnitType,
+    to: UnitType,
+    veteranLoss: number
+  ): Promise<void> {
     const oldMaximumMovement = this.getUnitMovementPoints(
       unit.playerId,
       from,
       unit.veteranLevel,
       unit.health
     );
-    const veteranLoss = rulesetLoader.loadGameRulesRuleset(this.getRulesetName()).game_parameters
-      .upgrade_veteran_loss;
     const veteranLevel = Math.max(
       0,
       Math.min(unit.veteranLevel, getVeteranLevelCount(to) - 1) - veteranLoss
@@ -3581,22 +3638,19 @@ export class UnitManager {
     unit.unitTypeId = to.id;
     unit.veteranLevel = veteranLevel;
     unit.movementLeft = movementLeft;
-    await db
-      .update(players)
-      .set({ gold: sql`${players.gold} - ${goldCost}` })
-      .where(and(eq(players.id, unit.playerId), eq(players.gameId, this.gameId)));
-    await db
+    await this.databaseProvider
+      .getDatabase()
       .update(units)
       .set({
         unitType: to.id,
         attackStrength: to.attack ?? 0,
         defenseStrength: to.defense ?? 0,
+        rangedStrength: to.range > 1 ? to.combat : 0,
         veteranLevel,
         movementPoints: String(movementLeft),
         maxMovementPoints: String(newMaximumMovement),
       })
       .where(eq(units.id, unit.id));
-    return { success: true, message: `${from.name} upgraded to ${to.name} for ${goldCost} gold` };
   }
 
   /**
@@ -3636,12 +3690,42 @@ export class UnitManager {
     };
   }
 
-  private getUpgradeTarget(unit: Unit): { from: UnitType; to: UnitType } | undefined {
+  private getUpgradeTarget(
+    unit: Unit,
+    isFree: boolean = false
+  ): { from: UnitType; to: UnitType } | undefined {
     const city = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
     const from = this.unitTypes[unit.unitTypeId];
     const to = from ? this.getBestUpgrade(from, unit.playerId) : undefined;
-    if (!city || city.playerId !== unit.playerId || !from || !to) return undefined;
+    if (!from || !to || !this.canTransformUnitAtCurrentLocation(unit, to)) return undefined;
+    if (!isFree && (!city || city.playerId !== unit.playerId)) return undefined;
     return { from, to };
+  }
+
+  /**
+   * Freeciv refuses upgrades that would strand cargo, leave a passenger in an
+   * incompatible transporter, or leave an untransported unit on non-native
+   * terrain.
+   * @reference reference/freeciv/common/unit.c:1999-2048
+   */
+  private canTransformUnitAtCurrentLocation(unit: Unit, to: UnitType): boolean {
+    const cargo = (unit.cargoUnits ?? []).map(cargoId => this.units.get(cargoId));
+    if (
+      cargo.some((cargoUnit): cargoUnit is undefined => !cargoUnit) ||
+      cargo.length > (to.transport_capacity ?? 0) ||
+      cargo.some(cargoUnit => !this.isValidTransportCombination(to.id, cargoUnit!.unitTypeId))
+    ) {
+      return false;
+    }
+
+    if (unit.transportedBy) {
+      const transport = this.units.get(unit.transportedBy);
+      return Boolean(transport && this.isValidTransportCombination(transport.unitTypeId, to.id));
+    }
+    // UnitManager's standalone test/runtime fallback has no authoritative map
+    // tile to compare with Freeciv's can_exist_at_tile() check.
+    if (!this.mapManager?.getTile) return true;
+    return this.canUnitEnterTerrain(this.getTerrainAt(unit.x, unit.y), to.id);
   }
 
   private getBestUpgrade(from: UnitType, playerId: string): UnitType | undefined {
