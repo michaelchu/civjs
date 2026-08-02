@@ -96,6 +96,8 @@ export enum EffectType {
   INCITE_COST_PCT = 'Incite_Cost_Pct',
   INSPIRE_PARTISANS = 'Inspire_Partisans',
   ENABLE_NUKE = 'Enable_Nuke',
+  NUKE_BLAST_RADIUS_1_SQ = 'Nuke_Blast_Radius_1_Sq',
+  NUKE_PROOF = 'Nuke_Proof',
 
   // Culture system effects (freeciv culture.c and effects_enums.def)
   PERFORMANCE = 'Performance', // EFT_PERFORMANCE (123) - Immediate culture boost
@@ -162,6 +164,11 @@ export interface EffectContext {
   playerNationGroups?: Set<string>;
   age?: number;
   cityCelebrating?: boolean;
+  /**
+   * Relationship tags between the subject and the `other_player` context of
+   * a Freeciv effect, for example `Foreign`, `War`, or `Team`.
+   */
+  diplomaticRelations?: Set<string>;
   currentYear?: number;
   playerTechs?: Set<string>; // Player's researched technologies
   worldTechs?: Set<string>; // Technologies known by at least one player
@@ -662,6 +669,12 @@ export class EffectsManager {
       this.requirementResult('UnitType', req, this.matches(context.unitType, req.name));
     this.requirementHandlers['Action'] = (req, context) =>
       this.requirementResult('Action', req, this.matches(context.action, req.name));
+    this.requirementHandlers['DiplRel'] = (req, context) =>
+      this.requirementResult(
+        'DiplRel',
+        req,
+        this.setContains(context.diplomaticRelations, req.name)
+      );
 
     // Building requirement handler
     this.requirementHandlers['Building'] = (req, context) => {

@@ -86,7 +86,7 @@ export function createRuntimeUnitManager(input: {
     },
   };
 
-  return new UnitManager(
+  const unitManager = new UnitManager(
     input.gameId,
     input.databaseProvider,
     input.mapWidth,
@@ -98,4 +98,10 @@ export function createRuntimeUnitManager(input: {
     input.unitTypes,
     input.identities
   );
+  unitManager.setSameTeamProvider((firstPlayerId, secondPlayerId) => {
+    const firstTeamId = players.get(firstPlayerId)?.teamId;
+    const secondTeamId = players.get(secondPlayerId)?.teamId;
+    return Boolean(firstTeamId && secondTeamId && firstTeamId === secondTeamId);
+  });
+  return unitManager;
 }

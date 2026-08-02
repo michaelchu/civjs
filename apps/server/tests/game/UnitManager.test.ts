@@ -3,7 +3,7 @@ import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { EffectsManager } from '@game/managers/EffectsManager';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 import { ActionType } from '@app-types/shared/actions';
-import { MapTopology } from '@game/map/MapTopology';
+import { MapTopology, TopologyFlag, WrapFlag } from '@game/map/MapTopology';
 import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import { CIV2CIV3_ORACLE_BASELINE, loadCiv2Civ3OracleResults } from './Civ2Civ3OracleResults';
 
@@ -3722,6 +3722,67 @@ describe('UnitManager', () => {
       };
     };
 
+    const makeNuclearMap = () => {
+      const tiles = new Map<string, any>();
+      for (let x = 7; x <= 15; x += 1) {
+        for (let y = 7; y <= 15; y += 1) {
+          tiles.set(`${x},${y}`, {
+            x,
+            y,
+            terrain: 'grassland',
+            improvements: [],
+            hasRoad: false,
+            hasRailroad: false,
+          });
+        }
+      }
+      const mapData = { width: mapWidth, height: mapHeight, tiles: [] };
+      return {
+        tiles,
+        manager: {
+          getTile: jest.fn((x: number, y: number) => tiles.get(`${x},${y}`)),
+          getTopology: jest.fn(
+            () =>
+              new MapTopology(mapWidth, mapHeight, {
+                topologyId: TopologyFlag.ISO | TopologyFlag.HEX,
+                wrapId: WrapFlag.X | WrapFlag.Y,
+              })
+          ),
+          updateTileProperty: jest.fn((x: number, y: number, property: string, value: unknown) => {
+            tiles.get(`${x},${y}`)[property] = value;
+          }),
+          getMapData: jest.fn(() => mapData),
+        },
+      };
+    };
+
+    const createCiv2Civ3NuclearManager = (
+      map: ReturnType<typeof makeNuclearMap>,
+      cities = new Map<string, { id: string; playerId: string; buildings?: string[] }>(),
+      random: () => number = () => 0.99
+    ) => {
+      const applyNuclearCityDamage = jest.fn(async () => [] as string[]);
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        map.manager,
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          broadcastMapChanged: jest.fn(),
+          getCityAt: (x, y) => cities.get(`${x},${y}`) ?? null,
+          applyNuclearCityDamage,
+        },
+        new EffectsManager('civ2civ3'),
+        random,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      return { manager, applyNuclearCityDamage };
+    };
+
     const oracle = loadCiv2Civ3OracleResults();
 
     it('detonates a nuclear actor, destroys the blast stack, damages cities, and adds fallout', async () => {
@@ -3757,6 +3818,228 @@ describe('UnitManager', () => {
       expect(manager.getUnit(defender.id)).toBeUndefined();
       expect(applyNuclearCityDamage).toHaveBeenCalledWith(11, 10, 1, 'player-123');
       expect(map.tiles.get('11,10').improvements).toContain('fallout');
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:173-187
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:765-770
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4135-4141
+     * @reference reference/freeciv/server/unittools.c:3039-3065
+     * @assertion Explode Nuclear can be performed in place with zero movement, consumes the actor, and uses the c2c3 squared blast radius of two.
+     * @c2c3-action Explode Nuclear
+     * @c2c3-scenario normal, boundary
+     * @c2c3-surface combat
+     * @c2c3-surface-scenario normal, boundary
+     */
+    it('detonates a c2c3 Nuclear in place without movement and kills an in-range hex unit', async () => {
+      const map = makeNuclearMap();
+      const { manager, applyNuclearCityDamage } = createCiv2Civ3NuclearManager(map);
+      const nuclear = await manager.createUnit('player-123', 'nuclear', 10, 10);
+      nuclear.movementLeft = 0;
+      const hexNeighbor = await manager.createUnit('player-456', 'warriors', 11, 11);
+
+      expect(manager.canUnitPerformAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 10, 10)).toBe(
+        true
+      );
+      await expect(
+        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 10, 10, 'player-123')
+      ).resolves.toMatchObject({
+        success: true,
+        unitDestroyed: true,
+        affectedUnitIds: expect.arrayContaining([nuclear.id, hexNeighbor.id]),
+      });
+
+      expect(manager.getUnit(nuclear.id)).toBeUndefined();
+      expect(manager.getUnit(hexNeighbor.id)).toBeUndefined();
+      expect(applyNuclearCityDamage).toHaveBeenCalledWith(10, 10, 2, 'player-123');
+      expect(map.tiles.get('11,11').improvements).toContain('fallout');
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:765-770
+     * @assertion Explode Nuclear is unavailable to an actor without the Nuclear unit-type flag.
+     * @c2c3-action Explode Nuclear
+     * @c2c3-scenario rejected
+     */
+    it('rejects in-place detonation by a non-Nuclear c2c3 unit', async () => {
+      const map = makeNuclearMap();
+      const { manager } = createCiv2Civ3NuclearManager(map);
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      await expect(
+        manager.executeUnitAction(warrior.id, ActionType.NUCLEAR_EXPLOSION, 10, 10, 'player-123')
+      ).resolves.toMatchObject({ success: false });
+      expect(manager.getUnit(warrior.id)).toBeDefined();
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:189-208
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:772-779
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4151-4157
+     * @assertion Nuke City requires an adjacent foreign city and war, then applies the c2c3 squared blast effect to its target tile.
+     * @c2c3-action Nuke City
+     * @c2c3-scenario normal
+     */
+    it('nukes an adjacent enemy c2c3 city while at war', async () => {
+      const map = makeNuclearMap();
+      const cities = new Map([
+        ['11,10', { id: 'target-city', playerId: 'player-456', buildings: [] }],
+      ]);
+      const { manager, applyNuclearCityDamage } = createCiv2Civ3NuclearManager(map, cities);
+      manager.setHostilityProvider(async () => true);
+      const nuclear = await manager.createUnit('player-123', 'nuclear', 10, 10);
+      nuclear.movementLeft = 1;
+      const hexNeighbor = await manager.createUnit('player-456', 'warriors', 12, 11);
+
+      await expect(
+        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 11, 10, 'player-123')
+      ).resolves.toMatchObject({
+        success: true,
+        affectedUnitIds: expect.arrayContaining([nuclear.id, hexNeighbor.id]),
+      });
+
+      expect(applyNuclearCityDamage).toHaveBeenCalledWith(11, 10, 2, 'player-123');
+      expect(manager.getUnit(hexNeighbor.id)).toBeUndefined();
+      expect(map.tiles.get('11,10').improvements).not.toContain('fallout');
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:772-779
+     * @assertion Nuke City is rejected without the source action's required war relation and leaves the actor intact.
+     * @c2c3-action Nuke City
+     * @c2c3-scenario rejected
+     */
+    it('rejects a c2c3 city nuke against a non-hostile foreign city', async () => {
+      const map = makeNuclearMap();
+      const cities = new Map([
+        ['11,10', { id: 'target-city', playerId: 'player-456', buildings: [] }],
+      ]);
+      const { manager, applyNuclearCityDamage } = createCiv2Civ3NuclearManager(map, cities);
+      manager.setHostilityProvider(async () => false);
+      const nuclear = await manager.createUnit('player-123', 'nuclear', 10, 10);
+      nuclear.movementLeft = 1;
+
+      await expect(
+        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 11, 10, 'player-123')
+      ).resolves.toMatchObject({ success: false });
+
+      expect(manager.getUnit(nuclear.id)).toBeDefined();
+      expect(applyNuclearCityDamage).not.toHaveBeenCalled();
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2616-2625
+     * @reference reference/freeciv/common/combat.c:499-526
+     * @reference reference/freeciv/server/unithand.c:4739-4805
+     * @assertion A foreign SDI city in the source's square radius two intercepts an adjacent Nuke City action, consumes the actor, and prevents all blast consequences.
+     * @c2c3-action Nuke City
+     * @c2c3-scenario boundary
+     * @c2c3-surface combat
+     * @c2c3-surface-scenario boundary
+     */
+    it('intercepts a c2c3 city nuke from an SDI city at square radius two', async () => {
+      const map = makeNuclearMap();
+      const cities = new Map([
+        ['11,10', { id: 'target-city', playerId: 'player-456', buildings: [] }],
+        ['13,12', { id: 'sdi-city', playerId: 'player-789', buildings: ['sdi_defense'] }],
+      ]);
+      const { manager, applyNuclearCityDamage } = createCiv2Civ3NuclearManager(
+        map,
+        cities,
+        () => 0
+      );
+      manager.setHostilityProvider(async () => true);
+      const nuclear = await manager.createUnit('player-123', 'nuclear', 10, 10);
+      nuclear.movementLeft = 1;
+
+      await expect(
+        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 11, 10, 'player-123')
+      ).resolves.toMatchObject({ success: false, unitDestroyed: true });
+
+      expect(manager.getUnit(nuclear.id)).toBeUndefined();
+      expect(applyNuclearCityDamage).not.toHaveBeenCalled();
+      expect(map.tiles.get('11,10').improvements).not.toContain('fallout');
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:210-223
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:781-792
+     * @reference reference/freeciv/common/actions.c:2925-2929
+     * @assertion Nuke Units requires an eligible foreign stack on a non-city tile and a war relation before detonating.
+     * @c2c3-action Nuke Units
+     * @c2c3-scenario normal
+     */
+    it('nukes an adjacent foreign c2c3 unit stack while at war', async () => {
+      const map = makeNuclearMap();
+      const { manager } = createCiv2Civ3NuclearManager(map);
+      manager.setHostilityProvider(async () => true);
+      const nuclear = await manager.createUnit('player-123', 'nuclear', 10, 10);
+      nuclear.movementLeft = 1;
+      const defender = await manager.createUnit('player-456', 'warriors', 11, 10);
+
+      await expect(
+        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 11, 10, 'player-123')
+      ).resolves.toMatchObject({
+        success: true,
+        affectedUnitIds: expect.arrayContaining([nuclear.id, defender.id]),
+      });
+      expect(manager.getUnit(defender.id)).toBeUndefined();
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/common/actions.c:4640-4664
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:781-792
+     * @assertion Nuke Units is unavailable for a known empty tile.
+     * @c2c3-action Nuke Units
+     * @c2c3-scenario rejected
+     */
+    it('rejects a c2c3 unit nuke against an empty tile', async () => {
+      const map = makeNuclearMap();
+      const { manager } = createCiv2Civ3NuclearManager(map);
+      const nuclear = await manager.createUnit('player-123', 'nuclear', 10, 10);
+      nuclear.movementLeft = 1;
+
+      expect(manager.canUnitPerformAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 11, 10)).toBe(
+        false
+      );
+      await expect(
+        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 11, 10, 'player-123')
+      ).resolves.toMatchObject({ success: false });
+      expect(manager.getUnit(nuclear.id)).toBeDefined();
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:210-223
+     * @reference reference/freeciv/common/actions.c:4558-4589
+     * @assertion Nuke Units accepts an adjacent ISO-hex stack at its exact maximum source range of one.
+     * @c2c3-action Nuke Units
+     * @c2c3-scenario boundary
+     */
+    it('accepts an ISO-hex adjacent c2c3 unit nuke at range one', async () => {
+      const map = makeNuclearMap();
+      const { manager } = createCiv2Civ3NuclearManager(map);
+      manager.setHostilityProvider(async () => true);
+      const nuclear = await manager.createUnit('player-123', 'nuclear', 10, 10);
+      nuclear.movementLeft = 1;
+      const defender = await manager.createUnit('player-456', 'warriors', 11, 11);
+
+      expect(manager.canUnitPerformAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 11, 11)).toBe(
+        true
+      );
+      await expect(
+        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 11, 11, 'player-123')
+      ).resolves.toMatchObject({
+        success: true,
+        affectedUnitIds: expect.arrayContaining([nuclear.id, defender.id]),
+      });
     });
 
     it('always consumes a missile after its suicide attack', async () => {

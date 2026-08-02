@@ -1,8 +1,11 @@
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import { DiplomacyManager } from '@game/managers/DiplomacyManager';
 import { loadRulesetTechnologies, ResearchManager } from '@game/managers/ResearchManager';
+import { UnitManager } from '@game/managers/UnitManager';
+import { MapTopology, TopologyFlag, WrapFlag } from '@game/map/MapTopology';
 import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { ActionType } from '@app-types/shared/actions';
 import { CIV2CIV3_ORACLE_BASELINE, loadCiv2Civ3OracleResults } from './Civ2Civ3OracleResults';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
@@ -153,6 +156,72 @@ async function civ2civ3EmbassyStayRealEmbassy(): Promise<number> {
   return Number(learner.nations[0]?.relation.embassy);
 }
 
+async function civ2civ3ZeroMoveSelfNuclear(): Promise<Record<string, number>> {
+  const mapWidth = 80;
+  const mapHeight = 50;
+  const topology = new MapTopology(mapWidth, mapHeight, {
+    topologyId: TopologyFlag.ISO | TopologyFlag.HEX,
+    wrapId: WrapFlag.X | WrapFlag.Y,
+  });
+  const tiles = new Map<
+    string,
+    { x: number; y: number; terrain: string; improvements: string[] }
+  >();
+  for (let x = 9; x <= 11; x += 1) {
+    for (let y = 9; y <= 11; y += 1) {
+      tiles.set(`${x},${y}`, { x, y, terrain: 'grassland', improvements: [] });
+    }
+  }
+  const mapData = {
+    width: mapWidth,
+    height: mapHeight,
+    topologyId: topology.topologyId,
+    wrapId: topology.wrapId,
+    tiles: [],
+  };
+  const manager = new UnitManager(
+    'civ2civ3-oracle-nuclear',
+    createMockDatabaseProvider(),
+    mapWidth,
+    mapHeight,
+    {
+      getTile: (x: number, y: number) => tiles.get(`${x},${y}`),
+      getTopology: () => topology,
+      getMapData: () => mapData,
+      updateTileProperty: (x: number, y: number, property: string, value: unknown) => {
+        const tile = tiles.get(`${x},${y}`);
+        if (tile) Object.assign(tile, { [property]: value });
+      },
+    },
+    {
+      foundCity: async () => 'unused-city',
+      requestPath: async () => ({ success: false }),
+      broadcastUnitMoved: () => undefined,
+      getCityAt: () => null,
+      applyNuclearCityDamage: async () => [],
+    },
+    new EffectsManager('civ2civ3'),
+    () => 0.99,
+    rulesetUnitsService.getUnitTypes('civ2civ3')
+  );
+  const nuclear = await manager.createUnit('oracle-player', 'nuclear', 10, 10);
+  nuclear.movementLeft = 0;
+  const hexNeighbor = await manager.createUnit('oracle-player', 'warriors', 11, 11);
+  const action = await manager.executeUnitAction(
+    nuclear.id,
+    ActionType.NUCLEAR_EXPLOSION,
+    10,
+    10,
+    'oracle-player'
+  );
+
+  return {
+    nuclear_self_action_succeeded: Number(action.success),
+    nuclear_self_origin_units_removed: Number(!manager.getUnit(nuclear.id)),
+    nuclear_self_hex_neighbor_destroyed: Number(!manager.getUnit(hexNeighbor.id)),
+  };
+}
+
 describe('Civ2Civ3 Freeciv oracle parity', () => {
   /**
    * @evidence parity
@@ -175,6 +244,32 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
    */
   it('applies the c2c3 Magellan Veteran_Combat fixture', () => {
     expect(civ2civ3MagellansVeteranCombat()).toBe(50);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2616-2625
+   * @reference reference/freeciv/common/combat.c:499-526
+   * @assertion Civ2Civ3's SDI Defense supplies a 100 percent Nuke_Proof effect for a foreign, non-team nuclear attacker and does not protect against its own team.
+   * @c2c3-surface combat
+   * @c2c3-surface-scenario boundary
+   */
+  it('applies the c2c3 SDI Nuke_Proof diplomatic requirements', () => {
+    const effects = new EffectsManager('civ2civ3');
+    const cityContext = { cityBuildings: new Set(['sdi_defense']) };
+
+    expect(
+      effects.calculateEffect(EffectType.NUKE_PROOF, {
+        ...cityContext,
+        diplomaticRelations: new Set(['Foreign']),
+      }).value
+    ).toBe(100);
+    expect(
+      effects.calculateEffect(EffectType.NUKE_PROOF, {
+        ...cityContext,
+        diplomaticRelations: new Set(['Foreign', 'Team']),
+      }).value
+    ).toBe(0);
   });
 
   /**
@@ -260,6 +355,29 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
 
     /**
      * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/game.ruleset:810-815
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:173-187
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:765-770
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4135-4141
+     * @reference reference/freeciv/server/unithand.c:4739-4805
+     * @reference reference/freeciv/server/unittools.c:3039-3065
+     * @assertion CivJS and the pinned Freeciv c2c3 server both allow a zero-movement Explode Nuclear action and remove the actor and an in-range default ISO-hex neighbor.
+     * @c2c3-action Explode Nuclear
+     * @c2c3-scenario normal, boundary
+     * @c2c3-surface combat
+     * @c2c3-surface-scenario differential
+     */
+    it('matches the batched pinned Freeciv zero-movement self-nuclear fixture', async () => {
+      expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
+      await expect(civ2civ3ZeroMoveSelfNuclear()).resolves.toEqual({
+        nuclear_self_action_succeeded: oracle.results.nuclear_self_action_succeeded,
+        nuclear_self_origin_units_removed: oracle.results.nuclear_self_origin_units_removed,
+        nuclear_self_hex_neighbor_destroyed: oracle.results.nuclear_self_hex_neighbor_destroyed,
+      });
+    });
+
+    /**
+     * @evidence parity
      * @reference reference/freeciv/data/civ2civ3/effects.ruleset:387-405
      * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2899-2905
      * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3544-3550
@@ -323,6 +441,8 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
     it.skip('matches the batched pinned Freeciv City Walls fixture when an oracle bundle exists', () =>
       undefined);
     it.skip('matches the batched pinned Freeciv Magellan Veteran_Combat fixture when an oracle bundle exists', () =>
+      undefined);
+    it.skip('matches the batched pinned Freeciv zero-movement self-nuclear fixture when an oracle bundle exists', () =>
       undefined);
     it.skip('matches the batched pinned Freeciv visibility-effects fixture when an oracle bundle exists', () =>
       undefined);

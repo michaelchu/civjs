@@ -168,6 +168,33 @@ interface RulesetWorkerActionEvaluation {
   improvementType?: string;
 }
 
+type NuclearSourceAction = 'Explode Nuclear' | 'Nuke City' | 'Nuke Units';
+
+const NUCLEAR_ACTION_SETTINGS: Record<
+  NuclearSourceAction,
+  {
+    minRange: string;
+    maxRange: string;
+    actorConsumingAlways: string;
+  }
+> = {
+  'Explode Nuclear': {
+    minRange: 'explode_nuclear_min_range',
+    maxRange: 'explode_nuclear_max_range',
+    actorConsumingAlways: 'explode_nuclear_consuming_always',
+  },
+  'Nuke City': {
+    minRange: 'nuke_city_min_range',
+    maxRange: 'nuke_city_max_range',
+    actorConsumingAlways: 'nuke_city_consuming_always',
+  },
+  'Nuke Units': {
+    minRange: 'nuke_units_min_range',
+    maxRange: 'nuke_units_max_range',
+    actorConsumingAlways: 'nuke_units_consuming_always',
+  },
+};
+
 export class UnitManager {
   private units: Map<string, Unit> = new Map();
   private gameId: string;
@@ -196,6 +223,7 @@ export class UnitManager {
   private contactProvider?: (firstPlayerId: string, secondPlayerId: string) => Promise<void>;
   private hostilePlayersProvider?: (playerId: string) => ReadonlySet<string>;
   private alliedPlayersProvider?: (playerId: string) => ReadonlySet<string>;
+  private sameTeamProvider?: (firstPlayerId: string, secondPlayerId: string) => boolean;
   private tileExtrasChangedCallback?: (change: {
     x: number;
     y: number;
@@ -355,6 +383,16 @@ export class UnitManager {
 
   public setAlliedPlayersProvider(provider: (playerId: string) => ReadonlySet<string>): void {
     this.alliedPlayersProvider = provider;
+  }
+
+  /**
+   * Supply the exact team relation for effects whose source requirements
+   * distinguish an alliance from a shared Freeciv team.
+   */
+  public setSameTeamProvider(
+    provider: (firstPlayerId: string, secondPlayerId: string) => boolean
+  ): void {
+    this.sameTeamProvider = provider;
   }
 
   /** Wake sentried units when a hostile unit enters their visible area. */
@@ -3897,19 +3935,45 @@ export class UnitManager {
     const type = this.unitTypes[unit.unitTypeId];
     const x = targetX ?? unit.x;
     const y = targetY ?? unit.y;
-    return Boolean(
-      type.flags?.includes('Nuclear') &&
-      unit.movementLeft > 0 &&
-      this.isValidPosition(x, y) &&
-      this.calculateDistance(unit.x, unit.y, x, y) <= Math.max(1, type.range)
-    );
+    if (!type?.flags?.includes('Nuclear') || !this.isValidPosition(x, y)) return false;
+
+    const action = this.getNuclearSourceAction(unit, x, y);
+    const { minRange, maxRange } = this.getNuclearActionSettings(action);
+    const distance = this.calculateDistance(unit.x, unit.y, x, y);
+    if (distance < minRange || distance > maxRange) return false;
+
+    // The c2c3 self-detonation action has no MinMoveFrags requirement. The
+    // city and stack-targeted variants do.
+    if (action !== 'Explode Nuclear' && unit.movementLeft <= 0) return false;
+
+    if (action === 'Nuke City') {
+      const city = this.gameManagerCallback?.getCityAt?.(x, y);
+      return Boolean(city && city.playerId !== unit.playerId);
+    }
+
+    if (action === 'Nuke Units') {
+      return this.getUnitsAt(x, y).some(
+        target =>
+          target.playerId !== unit.playerId &&
+          !target.transportedBy &&
+          this.canUnitTargetUnit(unit, target)
+      );
+    }
+
+    return true;
   }
 
   /**
-   * Classic nuclear actions converge on one deterministic authoritative
-   * explosion: all units and roughly half of city population in radius one
-   * are affected, fallout is rolled per eligible land tile, and the actor is
-   * always consumed.
+   * c2c3 keeps three source actions with distinct targets and movement
+   * requirements, but they converge on the same authoritative nuclear
+   * consequence after action selection. The effect controls the blast's
+   * squared radius, and an eligible nearby SDI city can intercept before
+   * detonation.
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:157-223
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:765-789
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2616-2625
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4135-4174
+   * @reference reference/freeciv/server/unithand.c:4739-4805
    * @reference reference/freeciv/server/unittools.c:2954-3065
    */
   private async executeNuclearExplosion(
@@ -3922,19 +3986,39 @@ export class UnitManager {
     }
     const centerX = targetX ?? unit.x;
     const centerY = targetY ?? unit.y;
-    if (!(await this.isHostileArea(unit, centerX, centerY, 1))) {
+    const action = this.getNuclearSourceAction(unit, centerX, centerY);
+    if (!(await this.canNuclearStrikeTarget(unit, action, centerX, centerY))) {
       return { success: false, message: 'Nuclear attack would strike a non-hostile nation' };
     }
-    const affectedUnitIds = await this.destroyNuclearUnits(centerX, centerY);
+    const defendingCity = this.findNuclearDefense(unit, centerX, centerY);
+    if (defendingCity) {
+      // Freeciv destroys the actor even when the SDI interception prevents
+      // the explosion, then reports the action as unsuccessful.
+      await this.destroyUnit(unit.id);
+      return {
+        success: false,
+        message: `Nuclear attack was intercepted by SDI defenses at ${defendingCity.id}`,
+        unitDestroyed: true,
+      };
+    }
+
+    const { actorConsumingAlways } = this.getNuclearActionSettings(action);
+    const blastRadiusSquared = this.getNuclearBlastRadiusSquared(unit, action);
+    const affectedUnitIds: string[] = [];
+    if (actorConsumingAlways) {
+      await this.destroyUnit(unit.id);
+      affectedUnitIds.push(unit.id);
+    }
+    affectedUnitIds.push(...(await this.destroyNuclearUnits(centerX, centerY, blastRadiusSquared)));
 
     const affectedCityIds =
       (await this.gameManagerCallback?.applyNuclearCityDamage?.(
         centerX,
         centerY,
-        1,
+        blastRadiusSquared,
         unit.playerId
       )) ?? [];
-    this.applyNuclearFallout(centerX, centerY);
+    this.applyNuclearFallout(centerX, centerY, blastRadiusSquared);
     await this.persistMapState();
     if (this.nuclearPresentationCallback) {
       try {
@@ -3943,7 +4027,7 @@ export class UnitManager {
           x: centerX,
           y: centerY,
           playerId: unit.playerId,
-          affectedTiles: this.getMapTopology().getPositionsWithinRadius(centerX, centerY, 1),
+          affectedTiles: this.getNuclearBlastPositions(centerX, centerY, blastRadiusSquared),
         });
       } catch (error) {
         logger.warn('Nuclear presentation callback failed after authoritative action', error);
@@ -3957,19 +4041,85 @@ export class UnitManager {
     };
   }
 
-  private async destroyNuclearUnits(centerX: number, centerY: number): Promise<string[]> {
+  private getNuclearSourceAction(
+    unit: Unit,
+    targetX: number,
+    targetY: number
+  ): NuclearSourceAction {
+    if (unit.x === targetX && unit.y === targetY) return 'Explode Nuclear';
+    return this.gameManagerCallback?.getCityAt?.(targetX, targetY) ? 'Nuke City' : 'Nuke Units';
+  }
+
+  private getNuclearActionSettings(action: NuclearSourceAction): {
+    minRange: number;
+    maxRange: number;
+    actorConsumingAlways: boolean;
+  } {
+    const keys = NUCLEAR_ACTION_SETTINGS[action];
+    const settings = rulesetLoader.loadActionsRuleset(this.getRulesetName()).settings;
+    const minRange = Number(settings[keys.minRange]);
+    const rawMaxRange = settings[keys.maxRange];
+    const maxRange =
+      rawMaxRange === 'unlimited'
+        ? Number.POSITIVE_INFINITY
+        : Number.isFinite(Number(rawMaxRange))
+          ? Number(rawMaxRange)
+          : minRange;
+    return {
+      minRange: Number.isFinite(minRange) ? minRange : 0,
+      maxRange,
+      actorConsumingAlways: settings[keys.actorConsumingAlways] !== false,
+    };
+  }
+
+  private getNuclearBlastRadiusSquared(unit: Unit, action: NuclearSourceAction): number {
+    const type = this.unitTypes[unit.unitTypeId];
+    const result = this.effectsManager?.calculateEffect(EffectType.NUKE_BLAST_RADIUS_1_SQ, {
+      playerId: unit.playerId,
+      unitId: unit.id,
+      unitType: unit.unitTypeId,
+      unitClass: type?.rulesetUnitClass,
+      unitClassFlags: new Set(type?.rulesetUnitClassFlags ?? []),
+      unitTypeFlags: new Set(type?.flags ?? []),
+      action,
+    });
+    // Older converted ruleset bundles did not retain the blast-radius effect.
+    // Keep their established radius-one behavior while source-backed bundles
+    // (including Civ2Civ3) use the exact effect value.
+    if (!result?.effects.length) return 1;
+    const radius = result.value;
+    if (radius === undefined || !Number.isFinite(radius)) return 0;
+    return Math.max(0, Math.floor(radius));
+  }
+
+  private getNuclearBlastPositions(
+    centerX: number,
+    centerY: number,
+    radiusSquared: number
+  ): Array<{ x: number; y: number }> {
+    return this.getMapTopology().getPositionsWithinSquaredRadius(centerX, centerY, radiusSquared);
+  }
+
+  private async destroyNuclearUnits(
+    centerX: number,
+    centerY: number,
+    radiusSquared: number
+  ): Promise<string[]> {
+    const positions = new Set(
+      this.getNuclearBlastPositions(centerX, centerY, radiusSquared).map(({ x, y }) => `${x},${y}`)
+    );
     const affectedUnitIds = [...this.units.values()]
-      .filter(target => this.calculateDistance(target.x, target.y, centerX, centerY) <= 1)
+      .filter(target => positions.has(`${target.x},${target.y}`))
       .map(target => target.id);
     for (const targetId of affectedUnitIds) await this.destroyUnit(targetId);
     return affectedUnitIds;
   }
 
-  private applyNuclearFallout(centerX: number, centerY: number): void {
-    const falloutPositions = this.getMapTopology().getPositionsWithinRadius(centerX, centerY, 1);
+  private applyNuclearFallout(centerX: number, centerY: number, radiusSquared: number): void {
+    const falloutPositions = this.getNuclearBlastPositions(centerX, centerY, radiusSquared);
     for (const { x, y } of falloutPositions) {
       const tile = this.mapManager?.getTile(x, y);
-      if (this.canReceiveNuclearFallout(tile) && randomInt(this.random, 2) === 1) {
+      if (this.canReceiveNuclearFallout(x, y, tile) && randomInt(this.random, 2) === 1) {
         this.mapManager!.updateTileProperty(x, y, 'improvements', [
           ...tile!.improvements,
           'fallout',
@@ -3979,13 +4129,71 @@ export class UnitManager {
   }
 
   private canReceiveNuclearFallout(
+    x: number,
+    y: number,
     tile: { terrain: string; improvements: string[] } | undefined
   ): boolean {
     return Boolean(
       tile &&
+      !this.gameManagerCallback?.getCityAt?.(x, y) &&
       !['ocean', 'coast', 'deep_ocean', 'lake'].includes(tile.terrain) &&
       !tile.improvements.includes('fallout')
     );
+  }
+
+  private async canNuclearStrikeTarget(
+    unit: Unit,
+    action: NuclearSourceAction,
+    targetX: number,
+    targetY: number
+  ): Promise<boolean> {
+    if (action === 'Explode Nuclear') return true;
+    const targetPlayerIds = new Set<string>();
+    if (action === 'Nuke City') {
+      const city = this.gameManagerCallback?.getCityAt?.(targetX, targetY);
+      if (city && city.playerId !== unit.playerId) targetPlayerIds.add(city.playerId);
+    } else {
+      for (const target of this.getUnitsAt(targetX, targetY)) {
+        if (target.playerId !== unit.playerId && !target.transportedBy) {
+          targetPlayerIds.add(target.playerId);
+        }
+      }
+    }
+    if (targetPlayerIds.size === 0) return false;
+    if (!this.hostilityProvider) return true;
+    for (const targetPlayerId of targetPlayerIds) {
+      if (!(await this.hostilityProvider(unit.playerId, targetPlayerId))) return false;
+    }
+    return true;
+  }
+
+  private findNuclearDefense(
+    unit: Unit,
+    centerX: number,
+    centerY: number
+  ): CityAtLocation | undefined {
+    for (const position of this.getMapTopology().getPositionsWithinSquareRadius(
+      centerX,
+      centerY,
+      2
+    )) {
+      const city = this.gameManagerCallback?.getCityAt?.(position.x, position.y);
+      if (!city || city.playerId === unit.playerId) continue;
+      const diplomaticRelations = new Set<string>(['Foreign']);
+      if (this.sameTeamProvider?.(unit.playerId, city.playerId)) {
+        diplomaticRelations.add('Team');
+      }
+      const defenseChance = this.effectsManager?.calculateEffect(EffectType.NUKE_PROOF, {
+        playerId: city.playerId,
+        cityId: city.id,
+        cityBuildings: new Set(city.buildings ?? []),
+        tileX: centerX,
+        tileY: centerY,
+        diplomaticRelations,
+      }).value;
+      if (defenseChance && randomInt(this.random, 100) < defenseChance) return city;
+    }
+    return undefined;
   }
 
   /**

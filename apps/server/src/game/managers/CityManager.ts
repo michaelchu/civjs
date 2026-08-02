@@ -2014,11 +2014,11 @@ export class CityManager {
   }
 
   /**
-   * Apply the classic nuclear population consequence to every city in the
-   * blast circle. The classic ruleset uses a 49 percent rounded population
-   * loss and zero defender survival.
+   * Apply the ruleset nuclear population consequence to every city in the
+   * blast circle. Civ2Civ3 uses a 49 percent rounded population loss and
+   * zero defender survival.
    * @reference reference/freeciv/server/unittools.c:2954-3037 do_nuke_tile()
-   * @reference reference/freeciv/data/classic/game.ruleset:279-284
+   * @reference reference/freeciv/data/civ2civ3/game.ruleset:281-289
    */
   async applyNuclearExplosion(
     centerX: number,
@@ -2027,10 +2027,12 @@ export class CityManager {
     _attackerPlayerId: string
   ): Promise<string[]> {
     const affected: string[] = [];
+    const topology = (this.mapManager as Partial<MapManager> | undefined)?.getTopology?.();
     for (const city of [...this.cities.values()]) {
-      const dx = city.x - centerX;
-      const dy = city.y - centerY;
-      if (dx * dx + dy * dy > radiusSquared) continue;
+      const distanceSquared =
+        topology?.squaredDistance(centerX, centerY, city.x, city.y) ??
+        (city.x - centerX) * (city.x - centerX) + (city.y - centerY) * (city.y - centerY);
+      if (distanceSquared > radiusSquared) continue;
       affected.push(city.id);
       const populationLoss = Math.round((city.population * this.nuclearPopulationLossPct) / 100);
       city.population = Math.max(1, city.population - populationLoss);

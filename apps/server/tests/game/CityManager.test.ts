@@ -11,6 +11,7 @@ import {
 import { EffectsManager } from '@game/managers/EffectsManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { MapManager } from '@game/managers/MapManager';
+import { MapTopology, TopologyFlag, WrapFlag } from '@game/map/MapTopology';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 import { ActionType } from '@app-types/shared/actions';
 import {
@@ -59,6 +60,7 @@ describe('CityManager', () => {
         isVisible: true,
       }),
       getNeighbors: jest.fn().mockReturnValue([]),
+      getTopology: jest.fn(() => new MapTopology(80, 50)),
       getTile: jest.fn().mockReturnValue({
         x: 10,
         y: 10,
@@ -240,6 +242,75 @@ describe('CityManager', () => {
 
       expect(city.population).toBe(5);
       expect(city.size).toBe(5);
+    });
+
+    it('applies a squared blast radius to diagonal cities on square maps', async () => {
+      const center = await cityManager.foundCity(10, 10, 'Center', 'player-456');
+      center.population = 10;
+      center.size = 10;
+      const diagonal = {
+        ...center,
+        id: 'diagonal-city',
+        name: 'Diagonal',
+        x: 11,
+        y: 11,
+      };
+      (cityManager as any).cities.set(diagonal.id, diagonal);
+
+      await expect(cityManager.applyNuclearExplosion(10, 10, 2, 'player-123')).resolves.toEqual([
+        center.id,
+        diagonal.id,
+      ]);
+
+      expect(center.population).toBe(5);
+      expect(diagonal.population).toBe(5);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/game.ruleset:810-815
+     * @reference reference/freeciv/common/map.h:396-424
+     * @reference reference/freeciv/server/unittools.c:3039-3065
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4135-4174
+     * @assertion On Civ2Civ3's default ISO-hex map, a squared blast radius of two damages the six-tile first ring but excludes the disallowed diagonal direction.
+     * @c2c3-surface combat
+     * @c2c3-surface-scenario boundary
+     */
+    it('applies the c2c3 squared blast radius using default ISO-hex distance', async () => {
+      (mockMapManager.getTopology as jest.Mock).mockReturnValue(
+        new MapTopology(80, 50, {
+          topologyId: TopologyFlag.ISO | TopologyFlag.HEX,
+          wrapId: WrapFlag.X | WrapFlag.Y,
+        })
+      );
+      const center = await cityManager.foundCity(10, 10, 'Center', 'player-456');
+      center.population = 10;
+      center.size = 10;
+      const hexNeighbor = {
+        ...center,
+        id: 'hex-neighbor-city',
+        name: 'Hex Neighbor',
+        x: 11,
+        y: 11,
+      };
+      const excludedDiagonal = {
+        ...center,
+        id: 'excluded-diagonal-city',
+        name: 'Excluded Diagonal',
+        x: 11,
+        y: 9,
+      };
+      (cityManager as any).cities.set(hexNeighbor.id, hexNeighbor);
+      (cityManager as any).cities.set(excludedDiagonal.id, excludedDiagonal);
+
+      await expect(cityManager.applyNuclearExplosion(10, 10, 2, 'player-123')).resolves.toEqual([
+        center.id,
+        hexNeighbor.id,
+      ]);
+
+      expect(center.population).toBe(5);
+      expect(hexNeighbor.population).toBe(5);
+      expect(excludedDiagonal.population).toBe(10);
     });
 
     it('protects indestructible buildings and clears city production sabotage', async () => {
