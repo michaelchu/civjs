@@ -181,6 +181,19 @@ describe('VisibilityManager', () => {
       await unitManager.createUnit('player-123', 'warriors', 10, 10);
       await unitManager.createUnit('player-123', 'explorer', 15, 15);
 
+      // The generated test map is intentionally random. Keep this test focused
+      // on base unit sight rather than terrain or base vision effects, which can
+      // legitimately extend vision when either source tile is a mountain.
+      for (const [x, y] of [
+        [10, 10],
+        [15, 15],
+      ] as const) {
+        const tile = mapManager.getTile(x, y)!;
+        tile.terrain = 'grassland';
+        tile.improvements = [];
+        tile.cityId = undefined;
+      }
+
       visibilityManager.updatePlayerVisibility('player-123');
 
       const visibleTiles = visibilityManager.getVisibleTiles('player-123');
