@@ -1206,8 +1206,15 @@ export class UnitManager {
     const player = await this.databaseProvider.getDatabase().query.players.findFirst({
       where: eq(players.id, playerId),
     });
+    return this.isBarbarianRecord(player);
+  }
+
+  private isBarbarianRecord(
+    player: { nation?: string | null; civilization?: string | null } | undefined
+  ): boolean {
     return Boolean(
-      player?.nation === 'barbarian' || player?.civilization?.toLowerCase().startsWith('barbarian')
+      player?.nation?.toLowerCase() === 'barbarian' ||
+      player?.civilization?.toLowerCase().startsWith('barbarian')
     );
   }
 
@@ -1375,10 +1382,16 @@ export class UnitManager {
       ...context,
     });
     if (result?.effects.length) return Math.max(0, result.value);
-    // Attack always has a movement cost even if the caller has no loaded
-    // effects manager. Other actions must opt into a source-defined effect;
-    // using the attack fallback for them would fabricate a cost.
-    return action === 'Attack' ? (unitType.flags?.includes('OneAttack') ? 65535 : 6) : 0;
+    // These combat alternatives have Freeciv fallback costs even if a caller
+    // has no loaded effects manager. Other actions must opt into a
+    // source-defined effect; using a combat fallback for them would fabricate
+    // a cost.
+    if (action === 'Capture Units') return 6;
+    return ['Attack', 'Collect Ransom'].includes(action)
+      ? unitType.flags?.includes('OneAttack')
+        ? 65535
+        : 6
+      : 0;
   }
 
   private async resolveDefenderDestruction(
@@ -3429,6 +3442,8 @@ export class UnitManager {
       [ActionType.BOMBARD]: (targetX, targetY) => this.executeBombard(unit, targetX, targetY),
       [ActionType.NUCLEAR_EXPLOSION]: (targetX, targetY) =>
         this.executeNuclearExplosion(unit, targetX, targetY),
+      [ActionType.CAPTURE_UNITS]: (targetX, targetY) =>
+        this.executeCaptureUnits(unit, targetX, targetY),
       [ActionType.COLLECT_RANSOM]: (targetX, targetY) =>
         this.executeCollectRansom(unit, targetX, targetY),
       [ActionType.SUICIDE_ATTACK]: (targetX, targetY) =>
@@ -4540,14 +4555,179 @@ export class UnitManager {
   }
 
   /**
+   * Capture the foreign stack targeted by C2C3's Capture Units action.
+   *
+   * The source result transfers, rather than destroys, every foreign unit on
+   * the stack after one Capturable, non-transporting unit makes the action
+   * legal. Captured units retain their movement and are re-homed to the
+   * capturer's city when one exists.
+   *
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:681-695
+   * @reference reference/freeciv/common/actions.c:249-257
+   * @reference reference/freeciv/server/unithand.c:282-496
+   */
+  private async executeCaptureUnits(
+    unit: Unit,
+    targetX?: number,
+    targetY?: number
+  ): Promise<ActionResult> {
+    if (!this.canCaptureUnits(unit, targetX, targetY)) {
+      return { success: false, message: 'Unit cannot capture units on that tile' };
+    }
+    if (!(await this.isHostileArea(unit, targetX!, targetY!, 0))) {
+      return { success: false, message: 'Capturing units requires a state of war' };
+    }
+
+    const targets = this.getCaptureTargets(unit, targetX!, targetY!);
+    if (this.hasUniqueCaptureConflict(unit, targets)) {
+      return { success: false, message: 'Capturing this stack would duplicate a unique unit' };
+    }
+
+    for (const target of targets) {
+      await this.transferCapturedUnit(target, unit);
+    }
+    const movementLeft = await this.consumeActionMovement(unit, 'Capture Units');
+    return {
+      success: true,
+      message: `Captured ${targets.length} unit(s)`,
+      affectedUnitIds: targets.map(target => target.id),
+      newMovementLeft: movementLeft,
+    };
+  }
+
+  private canCaptureUnits(unit: Unit, targetX?: number, targetY?: number): boolean {
+    const unitType = this.unitTypes[unit.unitTypeId];
+    if (!this.hasCaptureActorRequirements(unit, unitType, targetX, targetY)) {
+      return false;
+    }
+    const stack = this.getUnitsAt(targetX!, targetY!);
+    // Capture Units is a stack action. A single domestic unit makes the
+    // whole target stack illegal, even if an enemy Capturable unit is also
+    // present.
+    // @reference reference/freeciv/common/actions.c:249-257
+    if (stack.some(target => target.playerId === unit.playerId)) return false;
+    return stack.some(
+      target =>
+        target.playerId !== unit.playerId &&
+        this.unitTypes[target.unitTypeId]?.flags?.includes('Capturable') &&
+        !(target.cargoUnits?.length ?? 0)
+    );
+  }
+
+  private hasCaptureActorRequirements(
+    unit: Unit,
+    unitType: UnitType | undefined,
+    targetX?: number,
+    targetY?: number
+  ): boolean {
+    if (!unitType?.flags?.includes('Capturer') || unit.movementLeft <= 0) return false;
+    if (targetX === undefined || targetY === undefined) return false;
+    if (this.calculateDistance(unit.x, unit.y, targetX, targetY) !== 1) return false;
+    return !this.gameManagerCallback?.getCityAt?.(targetX, targetY);
+  }
+
+  private getCaptureTargets(unit: Unit, targetX: number, targetY: number): Unit[] {
+    return this.getUnitsAt(targetX, targetY).filter(target => target.playerId !== unit.playerId);
+  }
+
+  private hasUniqueCaptureConflict(capturer: Unit, targets: Unit[]): boolean {
+    const capturedUniqueTypes = new Set<string>();
+    const ownedTypes = new Set(this.getPlayerUnits(capturer.playerId).map(unit => unit.unitTypeId));
+    return targets.some(target => {
+      const type = this.unitTypes[target.unitTypeId];
+      if (!type?.flags?.includes('Unique')) return false;
+      if (ownedTypes.has(target.unitTypeId) || capturedUniqueTypes.has(target.unitTypeId))
+        return true;
+      capturedUniqueTypes.add(target.unitTypeId);
+      return false;
+    });
+  }
+
+  private async transferCapturedUnit(target: Unit, capturer: Unit): Promise<void> {
+    const previousPlayerId = target.playerId;
+    target.playerId = capturer.playerId;
+    target.homeCityId = capturer.homeCityId;
+    target.orders = [];
+    target.automation = undefined;
+    target.automationTask = undefined;
+    target.fortified = false;
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({
+        playerId: target.playerId,
+        homeCityId: target.homeCityId ?? null,
+        orders: [],
+        currentOrder: null,
+        isAutomated: false,
+        automationMode: null,
+        automationTask: null,
+        isFortified: false,
+      })
+      .where(eq(units.id, target.id));
+    await this.recordPlayerStatistic(previousPlayerId, 'unitsLost');
+    this.notifyUnitLifecycle({ type: 'owner_changed', unit: target, previousPlayerId });
+  }
+
+  private canCollectRansom(unit: Unit, targetX?: number, targetY?: number): boolean {
+    const unitType = this.unitTypes[unit.unitTypeId];
+    if (!this.hasRansomActorRequirements(unit, unitType, targetX, targetY)) return false;
+    return this.getUnitsAt(targetX!, targetY!).some(
+      target =>
+        target.playerId !== unit.playerId &&
+        !target.transportedBy &&
+        this.isKnownBarbarianPlayer(target.playerId)
+    );
+  }
+
+  private hasRansomActorRequirements(
+    unit: Unit,
+    unitType: UnitType | undefined,
+    targetX?: number,
+    targetY?: number
+  ): boolean {
+    if (!unitType || !this.isEligibleRansomActor(unitType)) return false;
+    if (!this.hasAdjacentRansomCombatTarget(unit, targetX, targetY)) return false;
+    return this.canCollectRansomFromTile(unit, unitType);
+  }
+
+  private isEligibleRansomActor(unitType: UnitType): boolean {
+    return (
+      !unitType.flags?.includes('NonMil') && !unitType.rulesetUnitClassFlags.includes('Missile')
+    );
+  }
+
+  private hasAdjacentRansomCombatTarget(unit: Unit, targetX?: number, targetY?: number): boolean {
+    if (targetX === undefined || targetY === undefined) return false;
+    return (
+      this.canTargetCombatUnit(unit, targetX, targetY) &&
+      this.calculateDistance(unit.x, unit.y, targetX, targetY) === 1
+    );
+  }
+
+  private canCollectRansomFromTile(unit: Unit, unitType: UnitType): boolean {
+    return [
+      this.isUnitOnNativeTile(unitType, unit.x, unit.y),
+      unitType.flags?.includes('Marines'),
+      unitType.rulesetUnitClassFlags.includes('AttFromNonNative'),
+    ].some(Boolean);
+  }
+
+  private isKnownBarbarianPlayer(playerId: string): boolean {
+    const nation = this.gameManagerCallback?.getPlayerNation?.(playerId)?.toLowerCase();
+    return !nation || nation === 'barbarian' || nation.startsWith('barbarian');
+  }
+
+  /**
    * @reference reference/freeciv/server/unittools.c:2646-2725 collect_ransom()
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:827-870
    */
   private async executeCollectRansom(
     unit: Unit,
     targetX?: number,
     targetY?: number
   ): Promise<ActionResult> {
-    if (!this.canTargetCombatUnit(unit, targetX, targetY)) {
+    if (!this.canCollectRansom(unit, targetX, targetY)) {
       return { success: false, message: 'Unit cannot collect ransom from that tile' };
     }
     const targets = this.getUnitsAt(targetX!, targetY!).filter(
@@ -4557,11 +4737,16 @@ export class UnitManager {
     const victim = await this.databaseProvider.getDatabase().query.players.findFirst({
       where: eq(players.id, victimPlayerId),
     });
-    if (
-      victim?.nation !== 'barbarian' &&
-      !victim?.civilization.toLowerCase().startsWith('barbarian')
-    ) {
+    const victimIsBarbarian = this.isBarbarianRecord(victim);
+    if (!victim || !victimIsBarbarian) {
       return { success: false, message: 'Ransom can only be collected from barbarians' };
+    }
+    // Freeciv treats barbarian players as hostile even when the runtime has
+    // no ordinary diplomatic record for them.
+    // @reference reference/freeciv/data/civ2civ3/actions.ruleset:827-870
+    // @reference reference/freeciv/server/unittools.c:2646-2725
+    if (!(await this.isHostileArea(unit, targetX!, targetY!, 0)) && !victimIsBarbarian) {
+      return { success: false, message: 'Collecting ransom requires a state of war' };
     }
     if (
       targets.some(target => !this.unitTypes[target.unitTypeId]?.flags?.includes('ProvidesRansom'))
@@ -4585,19 +4770,50 @@ export class UnitManager {
         .set({ gold: sql`${players.gold} - ${ransom}` })
         .where(eq(players.id, victimPlayerId));
     }
-    unit.movementLeft = 0;
-    await this.databaseProvider
-      .getDatabase()
-      .update(units)
-      .set({ movementPoints: '0' })
-      .where(eq(units.id, unit.id));
+    // C2C3 sets occupychance to 100, so a successful ransom collection
+    // forced-moves the winning collector onto the now-cleared target tile.
+    // @reference reference/freeciv/data/civ2civ3/game.ruleset:817-835
+    // @reference reference/freeciv/common/actions.c:817-825
+    // @reference reference/freeciv/server/unithand.c:5353-5411
+    const movementLeft = await this.consumeActionMovement(unit, 'Collect Ransom', {
+      x: targetX!,
+      y: targetY!,
+    });
     return {
       success: true,
       message: `${targets.length} barbarian unit(s) yielded ${ransom} gold`,
       targetDestroyed: true,
       affectedUnitIds: targets.map(target => target.id),
-      newMovementLeft: 0,
+      newMovementLeft: movementLeft,
+      newPosition: { x: unit.x, y: unit.y },
     };
+  }
+
+  private async consumeActionMovement(
+    unit: Unit,
+    sourceAction: string,
+    targetPosition?: { x: number; y: number }
+  ): Promise<number> {
+    const unitType = this.unitTypes[unit.unitTypeId];
+    const movementCost = unitType
+      ? this.getActionSuccessMovementCost(unit, unitType, sourceAction)
+      : unit.movementLeft;
+    unit.movementLeft = Math.max(0, unit.movementLeft - movementCost);
+    if (targetPosition) {
+      unit.x = targetPosition.x;
+      unit.y = targetPosition.y;
+      unit.fortified = false;
+    }
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({
+        movementPoints: String(unit.movementLeft),
+        lastActionTurn: this.currentTurnProvider?.() ?? 1,
+        ...(targetPosition ? { x: unit.x, y: unit.y, isFortified: false } : {}),
+      })
+      .where(eq(units.id, unit.id));
+    return unit.movementLeft;
   }
 
   private async isHostileArea(
@@ -5240,8 +5456,10 @@ export class UnitManager {
       [ActionType.BOMBARD]: (targetX, targetY) => this.canBombard(unit, targetX, targetY),
       [ActionType.NUCLEAR_EXPLOSION]: (targetX, targetY) =>
         this.canNuclearExplode(unit, targetX, targetY),
+      [ActionType.CAPTURE_UNITS]: (targetX, targetY) =>
+        this.canCaptureUnits(unit, targetX, targetY),
       [ActionType.COLLECT_RANSOM]: (targetX, targetY) =>
-        this.canTargetCombatUnit(unit, targetX, targetY),
+        this.canCollectRansom(unit, targetX, targetY),
       [ActionType.SUICIDE_ATTACK]: (targetX, targetY) =>
         this.unitTypes[unit.unitTypeId].rulesetUnitClassFlags.includes('Missile') &&
         this.canTargetCombatUnit(unit, targetX, targetY),

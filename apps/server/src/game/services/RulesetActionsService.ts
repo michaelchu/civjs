@@ -55,6 +55,7 @@ const CLASSIC_UNIT_ACTIONS: ReadonlyArray<{
     id: ActionType.NUCLEAR_EXPLOSION,
     upstream: ['Explode Nuclear', 'Nuke City', 'Nuke Units'],
   },
+  { id: ActionType.CAPTURE_UNITS, upstream: ['Capture Units'] },
   { id: ActionType.COLLECT_RANSOM, upstream: ['Collect Ransom'] },
   { id: ActionType.SUICIDE_ATTACK, upstream: ['Suicide Attack'] },
 ];
