@@ -23,6 +23,12 @@ describe('HeadlessSimulationRunner result metadata', () => {
     );
   });
 
+  it('uses invariant failure as the end reason after a completed game corrupts state', () => {
+    expect(resolveSimulationEndReason('failed', 'max_turns', 'INVARIANT_FAILED')).toBe(
+      'invariant_failed'
+    );
+  });
+
   it('converts failed gameplay expectations into a structured run failure', async () => {
     const runner = new HeadlessSimulationRunner({} as any, {} as any);
     const pauseFailedRun = jest.spyOn(runner as any, 'pauseFailedRun').mockResolvedValue(undefined);
@@ -57,6 +63,30 @@ describe('HeadlessSimulationRunner result metadata', () => {
     expect(pauseFailedRun).toHaveBeenCalledWith('game-id');
     expect(emitProgress).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'run_failed', code: 'EXPECTATION_FAILED' })
+    );
+  });
+
+  it('converts invariant violations into a structured run failure', async () => {
+    const runner = new HeadlessSimulationRunner({} as any, {} as any);
+    const pauseFailedRun = jest.spyOn(runner as any, 'pauseFailedRun').mockResolvedValue(undefined);
+    const emitProgress = jest.fn();
+
+    const outcome = await (runner as any).verifySimulationInvariants(
+      'game-id',
+      'run-id',
+      [{ turn: 1, snapshot: {} }],
+      { status: 'completed', aiSummaries: [] },
+      emitProgress
+    );
+
+    expect(outcome).toMatchObject({
+      status: 'failed',
+      failure: { code: 'INVARIANT_FAILED' },
+      invariantEvaluation: { passed: false },
+    });
+    expect(pauseFailedRun).toHaveBeenCalledWith('game-id');
+    expect(emitProgress).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'run_failed', code: 'INVARIANT_FAILED' })
     );
   });
 

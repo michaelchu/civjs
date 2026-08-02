@@ -52,6 +52,41 @@ seeded war from an AI declaration:
 An expectation failure is written to `diagnostics.expectations`, emitted as a
 `run_failed` progress record, and exits with code `6`.
 
+Every completed replay checkpoint is also checked against the reference
+server's per-turn sanity checks. The result is written to
+`diagnostics.invariants`:
+
+```json
+{
+  "passed": true,
+  "checkedTurns": 20,
+  "violations": []
+}
+```
+
+When a check fails, each violation includes a stable `code`, turn number,
+snapshot `path`, message, and reference source path. The runner emits a
+`run_failed` record with code `INVARIANT_FAILED` and exits with code `7`.
+Inspect both kinds of checks together:
+
+```sh
+jq '{status: .result.status, failure, invariants: .diagnostics.invariants, expectations: .diagnostics.expectations}' \
+  ./artifacts/earth-small-bootstrap/run.json
+```
+
+The always-on checks currently cover map shape and coordinates, player and
+ownership identity, city size and references, trade-route reciprocity, unit
+health/movement/home-city references, transport reciprocity, diplomatic
+state symmetry, and research targets. These are structural and legality
+checks; scenario `expect` rules remain the right tool for gameplay outcomes
+such as declaring war, founding a city, completing research, or winning.
+
+The checks are based on Freeciv's turn-level sanity pass in
+`reference/freeciv/server/sanitycheck.c:171-220,223-356,412-505,537-572,629-687`,
+with unit identity rules from
+`reference/freeciv/common/unit.h:264-271` and diplomatic state ordering from
+`reference/freeciv/server/diplhand.c:81-112`.
+
 For deterministic AI decision tests, `scenarioSetup.aiDiplomacy` can seed a
 player's persisted diplomacy memory (including `warDesire` and
 `warCountdown`). This is useful for exercising a specific decision path;
@@ -83,3 +118,6 @@ npm run --silent simulation:run:scenarios -- \
 The suite stops at the first failure by default. Add `--continue-on-error` to
 collect failures from every fixture. Use `--max-turns` or `--timeout-ms` to
 apply the same run limit to all fixtures.
+
+For a repeatable reference-gap investigation workflow, see
+[`REFERENCE_GAP_WORKFLOW.md`](./REFERENCE_GAP_WORKFLOW.md).

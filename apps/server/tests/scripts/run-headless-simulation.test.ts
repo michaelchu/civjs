@@ -77,6 +77,7 @@ describe('headless simulation CLI arguments', () => {
       timeoutOrCancellation: 4,
       outputFailure: 5,
       expectationFailure: 6,
+      invariantFailure: 7,
     });
     expect(exitCodeForStatus('completed')).toBe(0);
     expect(exitCodeForStatus('failed')).toBe(3);
@@ -90,5 +91,11 @@ describe('headless simulation CLI arguments', () => {
         result: { status: 'failed' },
       } as any)
     ).toBe(6);
+    expect(
+      exitCodeForBundle({
+        failure: { code: 'INVARIANT_FAILED', message: 'invalid unit position' },
+        result: { status: 'failed' },
+      } as any)
+    ).toBe(7);
   });
 });

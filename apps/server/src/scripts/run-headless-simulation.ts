@@ -52,7 +52,8 @@ Options:
 
 Exit codes:
   0 completed, 2 invalid configuration, 3 turn failure,
-  4 timeout/cancellation, 5 output failure
+  4 timeout/cancellation, 5 output failure, 6 expectation failure,
+  7 invariant failure
 `;
 
 export async function main(argv = process.argv.slice(2)): Promise<number> {

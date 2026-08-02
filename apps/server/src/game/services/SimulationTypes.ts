@@ -5,7 +5,7 @@ import { scenarioSetupSchema } from './ScenarioSetup';
 import { simulationExpectationSchema } from './SimulationExpectations';
 
 export const SIMULATION_RUN_SCHEMA_VERSION = 1;
-export const SIMULATION_DIAGNOSTIC_SCHEMA_VERSION = 2;
+export const SIMULATION_DIAGNOSTIC_SCHEMA_VERSION = 3;
 
 const simulationVictoryConditions = z
   .array(
@@ -97,7 +97,7 @@ export interface SimulationProgressRecord {
   completedTurns?: number;
   endReason?: string;
   status?: SimulationRunBundle['result']['status'];
-  code?: 'TURN_FAILURE' | 'TIMEOUT' | 'CANCELLED' | 'EXPECTATION_FAILED';
+  code?: 'TURN_FAILURE' | 'TIMEOUT' | 'CANCELLED' | 'EXPECTATION_FAILED' | 'INVARIANT_FAILED';
   error?: string;
 }
 
@@ -115,7 +115,7 @@ export interface SimulationRunBundle {
   aiSummaries: unknown;
   diagnostics: unknown;
   failure?: {
-    code: 'TURN_FAILURE' | 'TIMEOUT' | 'CANCELLED' | 'EXPECTATION_FAILED';
+    code: 'TURN_FAILURE' | 'TIMEOUT' | 'CANCELLED' | 'EXPECTATION_FAILED' | 'INVARIANT_FAILED';
     message: string;
   };
 }

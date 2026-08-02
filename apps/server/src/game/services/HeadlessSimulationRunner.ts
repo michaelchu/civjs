@@ -14,6 +14,10 @@ import {
   type SimulationExecutionStopReason,
 } from './SimulationExecutionService';
 import { evaluateSimulationExpectations } from './SimulationExpectations';
+import {
+  evaluateSimulationInvariants,
+  type SimulationInvariantResult,
+} from './SimulationInvariants';
 import { SimulationGameService } from './SimulationGameService';
 import {
   SIMULATION_DIAGNOSTIC_SCHEMA_VERSION,
@@ -32,6 +36,7 @@ export const HEADLESS_EXIT_CODES = {
   timeoutOrCancellation: 4,
   outputFailure: 5,
   expectationFailure: 6,
+  invariantFailure: 7,
 } as const;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -68,6 +73,7 @@ interface ExecutionOutcome {
   endReason?: string;
   aiSummaries: unknown[];
   expectationFailures?: string[];
+  invariantEvaluation?: SimulationInvariantResult;
 }
 
 interface RunArtifacts {
@@ -150,17 +156,24 @@ export class HeadlessSimulationRunner {
       initialOutcome,
       emitProgress
     );
+    const invariantOutcome = await this.verifySimulationInvariants(
+      gameId,
+      options.runId,
+      artifacts.completedTurns,
+      verifiedOutcome,
+      emitProgress
+    );
     const completedEndReason = resolveSimulationEndReason(
-      verifiedOutcome.status,
-      verifiedOutcome.endReason ?? artifacts.game?.endReason,
-      verifiedOutcome.failure?.code
+      invariantOutcome.status,
+      invariantOutcome.endReason ?? artifacts.game?.endReason,
+      invariantOutcome.failure?.code
     );
     const outcome = await this.verifyExpectedOutcomes(
       gameId,
       options.runId,
       artifacts.completedTurns,
       artifacts.game?.endGameReport,
-      verifiedOutcome,
+      invariantOutcome,
       options.config.expect,
       completedEndReason,
       emitProgress
@@ -321,6 +334,34 @@ export class HeadlessSimulationRunner {
       status: 'failed',
       failure,
       expectationFailures: evaluation.failures,
+    };
+  }
+
+  private async verifySimulationInvariants(
+    gameId: string,
+    runId: string,
+    completedTurns: GameReplay['turns'],
+    outcome: ExecutionOutcome,
+    emitProgress: (record: SimulationProgressRecord) => void
+  ): Promise<ExecutionOutcome> {
+    const evaluation = evaluateSimulationInvariants(completedTurns);
+    if (evaluation.passed || outcome.status !== 'completed') {
+      return { ...outcome, invariantEvaluation: evaluation };
+    }
+
+    const failure = {
+      code: 'INVARIANT_FAILED',
+      message: evaluation.violations
+        .map(violation => `turn ${violation.turn} ${violation.path}: ${violation.message}`)
+        .join('; '),
+    } as const;
+    await this.pauseFailedRun(gameId);
+    this.emitFailure(runId, gameId, failure, emitProgress);
+    return {
+      ...outcome,
+      status: 'failed',
+      failure,
+      invariantEvaluation: evaluation,
     };
   }
 
@@ -556,6 +597,11 @@ function buildSimulationDiagnostics(
     progress,
     phases: artifacts.replay?.turns.flatMap(turn => turn.phases) ?? [],
     events: artifacts.replay?.turns.flatMap(turn => turn.events) ?? [],
+    invariants: outcome.invariantEvaluation ?? {
+      passed: true,
+      checkedTurns: artifacts.completedTurns.length,
+      violations: [],
+    },
     ...(expectations
       ? {
           expectations: {
@@ -648,18 +694,16 @@ export function createRunId(): string {
 export function resolveSimulationEndReason(
   status: SimulationRunBundle['result']['status'],
   gameEndReason?: string | null,
-  failureCode?: 'TURN_FAILURE' | 'TIMEOUT' | 'CANCELLED' | 'EXPECTATION_FAILED'
+  failureCode?: 'TURN_FAILURE' | 'TIMEOUT' | 'CANCELLED' | 'EXPECTATION_FAILED' | 'INVARIANT_FAILED'
 ): string {
   if (status !== 'completed' && failureCode) return failureCode.toLowerCase();
   return gameEndReason ?? 'completed';
 }
 
 export function exitCodeForBundle(bundle: SimulationRunBundle): number {
-  return bundle.failure?.code === 'EXPECTATION_FAILED'
-    ? HEADLESS_EXIT_CODES.expectationFailure
-    : bundle.result.status === 'completed'
-      ? HEADLESS_EXIT_CODES.completed
-      : bundle.result.status === 'failed'
-        ? HEADLESS_EXIT_CODES.turnFailure
-        : HEADLESS_EXIT_CODES.timeoutOrCancellation;
+  if (bundle.failure?.code === 'EXPECTATION_FAILED') return HEADLESS_EXIT_CODES.expectationFailure;
+  if (bundle.failure?.code === 'INVARIANT_FAILED') return HEADLESS_EXIT_CODES.invariantFailure;
+  if (bundle.result.status === 'completed') return HEADLESS_EXIT_CODES.completed;
+  if (bundle.result.status === 'failed') return HEADLESS_EXIT_CODES.turnFailure;
+  return HEADLESS_EXIT_CODES.timeoutOrCancellation;
 }
