@@ -159,4 +159,40 @@ describe('UnitContextMenu classic special actions', () => {
     expect(screen.queryByText('Build Railroad')).not.toBeInTheDocument();
     expect(screen.queryByText('Build Irrigation')).not.toBeInTheDocument();
   });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/javascript/control.js:1627-1632
+   * @reference reference/freeciv-web/javascript/control.js:2301-2307
+   * @assertion The unit tile menu exposes tile information and whole-stack selection commands alongside unit actions.
+   */
+  it('exposes city, tile-info, and stack selection commands from a unit tile', () => {
+    const onShowCity = vi.fn();
+    const onShowTileInfo = vi.fn();
+    const onSelectAllOnTile = vi.fn();
+    const onSelectSameType = vi.fn();
+
+    render(
+      <UnitContextMenu
+        unit={unit}
+        position={{ x: 10, y: 10 }}
+        onClose={vi.fn()}
+        onActionSelect={vi.fn()}
+        onShowCity={onShowCity}
+        onShowTileInfo={onShowTileInfo}
+        onSelectAllOnTile={onSelectAllOnTile}
+        onSelectSameType={onSelectSameType}
+      />
+    );
+
+    fireEvent.click(screen.getByText('Show City'));
+    fireEvent.click(screen.getByText('Tile Info'));
+    fireEvent.click(screen.getByText('Select All on Tile'));
+    fireEvent.click(screen.getByText('Select Same Type'));
+
+    expect(onShowCity).toHaveBeenCalledTimes(1);
+    expect(onShowTileInfo).toHaveBeenCalledTimes(1);
+    expect(onSelectAllOnTile).toHaveBeenCalledTimes(1);
+    expect(onSelectSameType).toHaveBeenCalledTimes(1);
+  });
 });

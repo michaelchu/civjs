@@ -137,6 +137,7 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
   };
 
   const openActions = () => {
+    if (!isOwned) return;
     document.dispatchEvent(
       new CustomEvent('show-action-dialog', {
         detail: { unit },
@@ -231,6 +232,8 @@ const UnitTray: React.FC<{ unit: Unit; unitCount: number }> = ({ unit, unitCount
           label="More unit actions"
           icon={Ellipsis}
           onClick={openActions}
+          disabled={!isOwned}
+          title={isOwned ? 'More unit actions' : 'Foreign unit actions are unavailable'}
           showLabel={false}
           tooltip="More unit actions"
         />
