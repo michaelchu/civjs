@@ -58,6 +58,7 @@ describe('FreecivAdvisorService', () => {
     };
     const game = {
       id: 'game',
+      config: { ruleset: 'classic' },
       currentTurn: 12,
       players: new Map([
         ['human', player],

@@ -22,7 +22,6 @@
       "id": "advanced_flight",
       "freeciv_id": 1,
       "internal_name": "Advanced Flight",
-      "cost": 360,
       "requirements": ["radio", "machine_tools"],
       "root_req": null,
       "position": {
@@ -41,7 +40,6 @@
       "id": "alphabet",
       "freeciv_id": 2,
       "internal_name": "Alphabet",
-      "cost": 10,
       "requirements": [],
       "root_req": null,
       "position": {
@@ -60,7 +58,6 @@
       "id": "amphibious_warfare",
       "freeciv_id": 3,
       "internal_name": "Amphibious Warfare",
-      "cost": 240,
       "requirements": ["engineering", "tactics"],
       "root_req": null,
       "position": {
@@ -80,7 +77,6 @@
       "id": "astronomy",
       "freeciv_id": 4,
       "internal_name": "Astronomy",
-      "cost": 100,
       "requirements": ["mysticism", "mathematics"],
       "root_req": null,
       "position": {
@@ -99,7 +95,6 @@
       "id": "atomic_theory",
       "freeciv_id": 5,
       "internal_name": "Atomic Theory",
-      "cost": 300,
       "requirements": ["chemistry", "refrigeration"],
       "root_req": null,
       "position": {
@@ -118,7 +113,6 @@
       "id": "automobile",
       "freeciv_id": 6,
       "internal_name": "Automobile",
-      "cost": 320,
       "requirements": ["combustion", "steel"],
       "root_req": null,
       "position": {
@@ -137,7 +131,6 @@
       "id": "banking",
       "freeciv_id": 7,
       "internal_name": "Banking",
-      "cost": 80,
       "requirements": ["trade", "the_republic"],
       "root_req": null,
       "position": {
@@ -157,7 +150,6 @@
       "id": "bridge_building",
       "freeciv_id": 8,
       "internal_name": "Bridge Building",
-      "cost": 60,
       "requirements": ["the_wheel", "construction"],
       "root_req": null,
       "position": {
@@ -176,7 +168,6 @@
       "id": "bronze_working",
       "freeciv_id": 9,
       "internal_name": "Bronze Working",
-      "cost": 10,
       "requirements": [],
       "root_req": null,
       "position": {
@@ -195,7 +186,6 @@
       "id": "ceremonial_burial",
       "freeciv_id": 10,
       "internal_name": "Ceremonial Burial",
-      "cost": 10,
       "requirements": [],
       "root_req": null,
       "position": {
@@ -214,7 +204,6 @@
       "id": "chemistry",
       "freeciv_id": 11,
       "internal_name": "Chemistry",
-      "cost": 120,
       "requirements": ["university", "medicine"],
       "root_req": null,
       "position": {
@@ -233,7 +222,6 @@
       "id": "chivalry",
       "freeciv_id": 12,
       "internal_name": "Chivalry",
-      "cost": 80,
       "requirements": ["feudalism", "horseback_riding"],
       "root_req": null,
       "position": {
@@ -252,7 +240,6 @@
       "id": "code_of_laws",
       "freeciv_id": 13,
       "internal_name": "Code of Laws",
-      "cost": 20,
       "requirements": ["alphabet"],
       "root_req": null,
       "position": {
@@ -271,7 +258,6 @@
       "id": "combined_arms",
       "freeciv_id": 14,
       "internal_name": "Combined Arms",
-      "cost": 400,
       "requirements": ["mobile_warfare", "advanced_flight"],
       "root_req": null,
       "position": {
@@ -290,7 +276,6 @@
       "id": "combustion",
       "freeciv_id": 15,
       "internal_name": "Combustion",
-      "cost": 280,
       "requirements": ["refining", "engineering"],
       "root_req": null,
       "position": {
@@ -309,7 +294,6 @@
       "id": "communism",
       "freeciv_id": 16,
       "internal_name": "Communism",
-      "cost": 120,
       "requirements": ["theology", "industrialization"],
       "root_req": null,
       "position": {
@@ -328,7 +312,6 @@
       "id": "computers",
       "freeciv_id": 17,
       "internal_name": "Computers",
-      "cost": 360,
       "requirements": ["miniaturization", "radio"],
       "root_req": null,
       "position": {
@@ -347,7 +330,6 @@
       "id": "conscription",
       "freeciv_id": 18,
       "internal_name": "Conscription",
-      "cost": 160,
       "requirements": ["democracy", "metallurgy"],
       "root_req": null,
       "position": {
@@ -367,7 +349,6 @@
       "id": "construction",
       "freeciv_id": 19,
       "internal_name": "Construction",
-      "cost": 40,
       "requirements": ["masonry", "iron_working"],
       "root_req": null,
       "position": {
@@ -386,7 +367,6 @@
       "id": "currency",
       "freeciv_id": 20,
       "internal_name": "Currency",
-      "cost": 20,
       "requirements": ["bronze_working"],
       "root_req": null,
       "position": {
@@ -405,7 +385,6 @@
       "id": "democracy",
       "freeciv_id": 21,
       "internal_name": "Democracy",
-      "cost": 100,
       "requirements": ["banking", "invention"],
       "root_req": null,
       "position": {
@@ -424,7 +403,6 @@
       "id": "economics",
       "freeciv_id": 22,
       "internal_name": "Economics",
-      "cost": 100,
       "requirements": ["banking", "university"],
       "root_req": null,
       "position": {
@@ -444,7 +422,6 @@
       "id": "electricity",
       "freeciv_id": 23,
       "internal_name": "Electricity",
-      "cost": 200,
       "requirements": ["metallurgy", "theory_of_gravity"],
       "root_req": null,
       "position": {
@@ -463,7 +440,6 @@
       "id": "electronics",
       "freeciv_id": 24,
       "internal_name": "Electronics",
-      "cost": 200,
       "requirements": ["the_corporation", "electricity"],
       "root_req": null,
       "position": {
@@ -482,7 +458,6 @@
       "id": "engineering",
       "freeciv_id": 25,
       "internal_name": "Engineering",
-      "cost": 60,
       "requirements": ["electricity", "steam_engine"],
       "root_req": null,
       "position": {
@@ -501,7 +476,6 @@
       "id": "environmentalism",
       "freeciv_id": 26,
       "internal_name": "Environmentalism",
-      "cost": 480,
       "requirements": ["recycling", "space_flight"],
       "root_req": null,
       "position": {
@@ -520,7 +494,6 @@
       "id": "espionage",
       "freeciv_id": 27,
       "internal_name": "Espionage",
-      "cost": 180,
       "requirements": ["communism", "democracy"],
       "root_req": null,
       "position": {
@@ -539,7 +512,6 @@
       "id": "explosives",
       "freeciv_id": 28,
       "internal_name": "Explosives",
-      "cost": 160,
       "requirements": ["gunpowder", "chemistry"],
       "root_req": null,
       "position": {
@@ -558,7 +530,6 @@
       "id": "feudalism",
       "freeciv_id": 29,
       "internal_name": "Feudalism",
-      "cost": 60,
       "requirements": ["iron_working", "monarchy"],
       "root_req": null,
       "position": {
@@ -577,7 +548,6 @@
       "id": "flight",
       "freeciv_id": 30,
       "internal_name": "Flight",
-      "cost": 300,
       "requirements": ["combustion", "tactics"],
       "root_req": null,
       "position": {
@@ -597,7 +567,6 @@
       "id": "fusion_power",
       "freeciv_id": 31,
       "internal_name": "Fusion Power",
-      "cost": 560,
       "requirements": ["superconductors", "labor_union"],
       "root_req": null,
       "position": {
@@ -616,7 +585,6 @@
       "id": "genetic_engineering",
       "freeciv_id": 32,
       "internal_name": "Genetic Engineering",
-      "cost": 200,
       "requirements": ["refrigeration", "the_corporation"],
       "root_req": null,
       "position": {
@@ -635,7 +603,6 @@
       "id": "guerilla_warfare",
       "freeciv_id": 33,
       "internal_name": "Guerilla Warfare",
-      "cost": 180,
       "requirements": ["communism", "tactics"],
       "root_req": null,
       "position": {
@@ -653,7 +620,6 @@
       "id": "gunpowder",
       "freeciv_id": 34,
       "internal_name": "Gunpowder",
-      "cost": 80,
       "requirements": ["invention", "feudalism"],
       "root_req": null,
       "flags": [],
@@ -673,7 +639,6 @@
       "id": "horseback_riding",
       "freeciv_id": 35,
       "internal_name": "Horseback Riding",
-      "cost": 10,
       "requirements": [],
       "root_req": null,
       "position": {
@@ -691,7 +656,6 @@
       "id": "industrialization",
       "freeciv_id": 36,
       "internal_name": "Industrialization",
-      "cost": 180,
       "requirements": ["railroad", "banking"],
       "root_req": null,
       "flags": [],
@@ -712,7 +676,6 @@
       "id": "invention",
       "freeciv_id": 37,
       "internal_name": "Invention",
-      "cost": 80,
       "requirements": ["bridge_building", "literacy"],
       "root_req": null,
       "position": {
@@ -731,7 +694,6 @@
       "id": "iron_working",
       "freeciv_id": 38,
       "internal_name": "Iron Working",
-      "cost": 30,
       "requirements": ["bronze_working", "warrior_code"],
       "root_req": null,
       "position": {
@@ -750,7 +712,6 @@
       "id": "labor_union",
       "freeciv_id": 39,
       "internal_name": "Labor Union",
-      "cost": 320,
       "requirements": ["communism", "mobile_warfare"],
       "root_req": null,
       "position": {
@@ -769,7 +730,6 @@
       "id": "laser",
       "freeciv_id": 40,
       "internal_name": "Laser",
-      "cost": 420,
       "requirements": ["computers", "nuclear_power"],
       "root_req": null,
       "position": {
@@ -788,7 +748,6 @@
       "id": "leadership",
       "freeciv_id": 41,
       "internal_name": "Leadership",
-      "cost": 120,
       "requirements": ["chivalry", "gunpowder"],
       "root_req": null,
       "position": {
@@ -807,7 +766,6 @@
       "id": "literacy",
       "freeciv_id": 42,
       "internal_name": "Literacy",
-      "cost": 40,
       "requirements": ["writing", "code_of_laws"],
       "root_req": null,
       "position": {
@@ -826,7 +784,6 @@
       "id": "machine_tools",
       "freeciv_id": 43,
       "internal_name": "Machine Tools",
-      "cost": 280,
       "requirements": ["steel", "tactics"],
       "root_req": null,
       "position": {
@@ -845,7 +802,6 @@
       "id": "magnetism",
       "freeciv_id": 44,
       "internal_name": "Magnetism",
-      "cost": 160,
       "requirements": ["seafaring", "astronomy"],
       "root_req": null,
       "position": {
@@ -864,7 +820,6 @@
       "id": "map_making",
       "freeciv_id": 45,
       "internal_name": "Map Making",
-      "cost": 20,
       "requirements": ["alphabet"],
       "root_req": null,
       "position": {
@@ -883,7 +838,6 @@
       "id": "masonry",
       "freeciv_id": 46,
       "internal_name": "Masonry",
-      "cost": 10,
       "requirements": [],
       "root_req": null,
       "position": {
@@ -902,7 +856,6 @@
       "id": "mass_production",
       "freeciv_id": 47,
       "internal_name": "Mass Production",
-      "cost": 340,
       "requirements": ["automobile", "the_corporation"],
       "root_req": null,
       "position": {
@@ -921,7 +874,6 @@
       "id": "mathematics",
       "freeciv_id": 48,
       "internal_name": "Mathematics",
-      "cost": 30,
       "requirements": ["alphabet", "masonry"],
       "root_req": null,
       "position": {
@@ -941,7 +893,6 @@
       "id": "medicine",
       "freeciv_id": 49,
       "internal_name": "Medicine",
-      "cost": 100,
       "requirements": ["philosophy", "trade"],
       "root_req": null,
       "position": {
@@ -960,7 +911,6 @@
       "id": "metallurgy",
       "freeciv_id": 50,
       "internal_name": "Metallurgy",
-      "cost": 140,
       "requirements": ["gunpowder", "mathematics"],
       "root_req": null,
       "position": {
@@ -980,7 +930,6 @@
       "id": "miniaturization",
       "freeciv_id": 51,
       "internal_name": "Miniaturization",
-      "cost": 320,
       "requirements": ["combustion", "electronics"],
       "root_req": null,
       "position": {
@@ -999,7 +948,6 @@
       "id": "mobile_warfare",
       "freeciv_id": 52,
       "internal_name": "Mobile Warfare",
-      "cost": 320,
       "requirements": ["automobile", "machine_tools"],
       "root_req": null,
       "position": {
@@ -1018,7 +966,6 @@
       "id": "monarchy",
       "freeciv_id": 53,
       "internal_name": "Monarchy",
-      "cost": 40,
       "requirements": ["ceremonial_burial", "code_of_laws"],
       "root_req": null,
       "position": {
@@ -1037,7 +984,6 @@
       "id": "monotheism",
       "freeciv_id": 54,
       "internal_name": "Monotheism",
-      "cost": 80,
       "requirements": ["astronomy", "polytheism"],
       "root_req": null,
       "position": {
@@ -1057,7 +1003,6 @@
       "id": "mysticism",
       "freeciv_id": 55,
       "internal_name": "Mysticism",
-      "cost": 20,
       "requirements": ["ceremonial_burial"],
       "root_req": null,
       "position": {
@@ -1076,7 +1021,6 @@
       "id": "navigation",
       "freeciv_id": 56,
       "internal_name": "Navigation",
-      "cost": 120,
       "requirements": ["invention", "physics"],
       "root_req": null,
       "position": {
@@ -1095,7 +1039,6 @@
       "id": "nuclear_fission",
       "freeciv_id": 57,
       "internal_name": "Nuclear Fission",
-      "cost": 380,
       "requirements": ["mass_production", "atomic_theory"],
       "root_req": null,
       "position": {
@@ -1115,7 +1058,6 @@
       "id": "nuclear_power",
       "freeciv_id": 58,
       "internal_name": "Nuclear Power",
-      "cost": 400,
       "requirements": ["nuclear_fission", "miniaturization"],
       "root_req": null,
       "position": {
@@ -1135,7 +1077,6 @@
       "id": "philosophy",
       "freeciv_id": 59,
       "internal_name": "Philosophy",
-      "cost": 60,
       "requirements": ["mysticism", "literacy"],
       "root_req": null,
       "position": {
@@ -1154,7 +1095,6 @@
       "id": "physics",
       "freeciv_id": 60,
       "internal_name": "Physics",
-      "cost": 120,
       "requirements": ["the_wheel", "magnetism"],
       "root_req": null,
       "position": {
@@ -1173,7 +1113,6 @@
       "id": "plastics",
       "freeciv_id": 61,
       "internal_name": "Plastics",
-      "cost": 420,
       "requirements": ["mass_production", "robotics"],
       "root_req": null,
       "position": {
@@ -1192,7 +1131,6 @@
       "id": "polytheism",
       "freeciv_id": 62,
       "internal_name": "Polytheism",
-      "cost": 30,
       "requirements": ["horseback_riding", "ceremonial_burial"],
       "root_req": null,
       "position": {
@@ -1211,7 +1149,6 @@
       "id": "pottery",
       "freeciv_id": 63,
       "internal_name": "Pottery",
-      "cost": 10,
       "requirements": [],
       "root_req": null,
       "position": {
@@ -1231,7 +1168,6 @@
       "id": "radio",
       "freeciv_id": 64,
       "internal_name": "Radio",
-      "cost": 340,
       "requirements": ["flight", "electronics"],
       "root_req": null,
       "position": {
@@ -1254,7 +1190,6 @@
       "id": "railroad",
       "freeciv_id": 65,
       "internal_name": "Railroad",
-      "cost": 180,
       "requirements": ["steam_engine", "metallurgy"],
       "root_req": null,
       "position": {
@@ -1273,7 +1208,6 @@
       "id": "recycling",
       "freeciv_id": 66,
       "internal_name": "Recycling",
-      "cost": 380,
       "requirements": ["mass_production", "sanitation"],
       "root_req": null,
       "position": {
@@ -1293,7 +1227,6 @@
       "id": "refining",
       "freeciv_id": 67,
       "internal_name": "Refining",
-      "cost": 200,
       "requirements": ["explosives", "industrialization"],
       "root_req": null,
       "position": {
@@ -1313,7 +1246,6 @@
       "id": "refrigeration",
       "freeciv_id": 68,
       "internal_name": "Refrigeration",
-      "cost": 200,
       "requirements": ["sanitation", "electricity"],
       "root_req": null,
       "position": {
@@ -1332,7 +1264,6 @@
       "id": "robotics",
       "freeciv_id": 69,
       "internal_name": "Robotics",
-      "cost": 420,
       "requirements": ["mobile_warfare", "computers"],
       "root_req": null,
       "position": {
@@ -1352,7 +1283,6 @@
       "id": "rocketry",
       "freeciv_id": 70,
       "internal_name": "Rocketry",
-      "cost": 380,
       "requirements": ["advanced_flight", "miniaturization"],
       "root_req": null,
       "position": {
@@ -1371,7 +1301,6 @@
       "id": "sanitation",
       "freeciv_id": 71,
       "internal_name": "Sanitation",
-      "cost": 140,
       "requirements": ["bridge_building", "medicine"],
       "root_req": null,
       "position": {
@@ -1390,7 +1319,6 @@
       "id": "seafaring",
       "freeciv_id": 72,
       "internal_name": "Seafaring",
-      "cost": 40,
       "requirements": ["pottery", "map_making"],
       "root_req": null,
       "position": {
@@ -1409,7 +1337,6 @@
       "id": "space_flight",
       "freeciv_id": 73,
       "internal_name": "Space Flight",
-      "cost": 420,
       "requirements": ["computers", "rocketry"],
       "root_req": null,
       "position": {
@@ -1428,7 +1355,6 @@
       "id": "stealth",
       "freeciv_id": 74,
       "internal_name": "Stealth",
-      "cost": 520,
       "requirements": ["plastics", "space_flight"],
       "root_req": null,
       "position": {
@@ -1447,7 +1373,6 @@
       "id": "steam_engine",
       "freeciv_id": 75,
       "internal_name": "Steam Engine",
-      "cost": 140,
       "requirements": ["chemistry", "navigation"],
       "root_req": null,
       "position": {
@@ -1466,7 +1391,6 @@
       "id": "steel",
       "freeciv_id": 76,
       "internal_name": "Steel",
-      "cost": 240,
       "requirements": ["engineering", "industrialization"],
       "root_req": null,
       "position": {
@@ -1486,7 +1410,6 @@
       "id": "superconductors",
       "freeciv_id": 77,
       "internal_name": "Superconductors",
-      "cost": 480,
       "requirements": ["space_flight", "laser"],
       "root_req": null,
       "position": {
@@ -1505,7 +1428,6 @@
       "id": "tactics",
       "freeciv_id": 78,
       "internal_name": "Tactics",
-      "cost": 200,
       "requirements": ["conscription", "leadership"],
       "root_req": null,
       "position": {
@@ -1525,7 +1447,6 @@
       "id": "the_corporation",
       "freeciv_id": 79,
       "internal_name": "The Corporation",
-      "cost": 160,
       "requirements": ["economics", "industrialization"],
       "root_req": null,
       "position": {
@@ -1544,7 +1465,6 @@
       "id": "the_republic",
       "freeciv_id": 80,
       "internal_name": "The Republic",
-      "cost": 40,
       "requirements": ["code_of_laws", "literacy"],
       "root_req": null,
       "position": {
@@ -1563,7 +1483,6 @@
       "id": "the_wheel",
       "freeciv_id": 81,
       "internal_name": "The Wheel",
-      "cost": 20,
       "requirements": ["horseback_riding"],
       "root_req": null,
       "position": {
@@ -1583,7 +1502,6 @@
       "id": "theology",
       "freeciv_id": 82,
       "internal_name": "Theology",
-      "cost": 100,
       "requirements": ["philosophy", "monotheism"],
       "root_req": null,
       "position": {
@@ -1602,7 +1520,6 @@
       "id": "theory_of_gravity",
       "freeciv_id": 83,
       "internal_name": "Theory of Gravity",
-      "cost": 160,
       "requirements": ["physics", "university"],
       "root_req": null,
       "position": {
@@ -1622,7 +1539,6 @@
       "id": "trade",
       "freeciv_id": 84,
       "internal_name": "Trade",
-      "cost": 40,
       "requirements": ["currency", "pottery"],
       "root_req": null,
       "position": {
@@ -1641,7 +1557,6 @@
       "id": "university",
       "freeciv_id": 85,
       "internal_name": "University",
-      "cost": 80,
       "requirements": ["mathematics", "philosophy"],
       "root_req": null,
       "position": {
@@ -1660,7 +1575,6 @@
       "id": "warrior_code",
       "freeciv_id": 86,
       "internal_name": "Warrior Code",
-      "cost": 10,
       "requirements": [],
       "root_req": null,
       "position": {
@@ -1679,7 +1593,6 @@
       "id": "writing",
       "freeciv_id": 87,
       "internal_name": "Writing",
-      "cost": 20,
       "requirements": ["alphabet"],
       "root_req": null,
       "position": {

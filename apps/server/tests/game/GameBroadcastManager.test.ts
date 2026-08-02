@@ -516,7 +516,7 @@ describe('GameBroadcastManager visibility sync', () => {
           x: 1,
           y: 0,
           terrain: 'hills',
-          resource: undefined,
+          resource: 'iron',
           hasRoad: true,
           hasRailroad: true,
           improvements: ['mine', 'pollution'],

@@ -303,7 +303,10 @@ export const BuildingTypeRulesetSchema = z
     requires: z.array(z.string()).optional(),
     cultureRequirements: z.array(BuildingCultureRequirementSchema).optional(),
     playable: z.boolean().optional().default(false),
-    effects: BuildingEffectsSchema,
+    // Authoritative building behavior is expressed in effects.json. This
+    // legacy-shaped field is optional only for older converted catalogues and
+    // must not substitute for raw Freeciv effects in c2c3.
+    effects: BuildingEffectsSchema.optional().default({}),
   })
   .passthrough();
 
@@ -327,7 +330,9 @@ export const TechnologyRulesetSchema = z
     freeciv_id: z.number().optional(),
     name: z.string(),
     internal_name: z.string().optional(),
-    cost: z.number().positive(),
+    // Freeciv only reads per-tech costs for the Classic+ and Experimental+
+    // styles. Other styles derive them from the dependency graph at runtime.
+    cost: z.number().positive().optional(),
     req1: z.string().optional(), // First requirement (freeciv dual system)
     req2: z.string().optional(), // Second requirement (freeciv dual system)
     requirements: z.array(z.string()), // Derived array from req1/req2
@@ -949,14 +954,18 @@ export const NationRulesetSchema = z
     city_style: z.string().optional(),
     traits: z.record(z.string(), z.number()).optional(),
     groups: z.array(z.string()).optional(),
+    sets: z.array(z.string()).optional(),
     conflicts: z.array(z.string()).optional(),
     cities: z.array(z.string()).optional(),
   })
   .passthrough();
 
-export const NationsCompatibilitySchema = z.object({
-  default_government: z.string(),
-});
+export const NationsCompatibilitySchema = z
+  .object({
+    default_government: z.string(),
+    default_nationset: z.string().optional(),
+  })
+  .passthrough();
 
 export const NationsRulesetFileSchema = z.object({
   datafile: z.object({

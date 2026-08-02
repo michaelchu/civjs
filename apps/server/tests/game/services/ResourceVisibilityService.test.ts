@@ -18,7 +18,7 @@ describe('ResourceVisibilityService', () => {
 
   beforeEach(() => loader.getResource.mockClear());
 
-  it('hides a resource until its reveal technology is researched', () => {
+  it('honors explicit custom-ruleset resource visibility requirements', () => {
     expect(isResourceRevealed('Iron', new Set(), 'civ2civ3', loader)).toBe(false);
     expect(isResourceRevealed('Iron', new Set(['iron_working']), 'civ2civ3', loader)).toBe(true);
     expect(visibleResourceForPlayer('Iron', new Set(), 'civ2civ3', loader)).toBeUndefined();
@@ -41,5 +41,19 @@ describe('ResourceVisibilityService', () => {
 
   it('matches technology identifiers case-insensitively and across separators', () => {
     expect(isResourceRevealed('Iron', new Set(['Iron-Working']), 'civ2civ3', loader)).toBe(true);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:986-1010
+   * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:1113-1117
+   * @reference reference/freeciv/common/tile.c:908-947
+   * @assertion Freeciv Civ2Civ3 declares Iron, Coal, and Oil as ordinary resources without a technology visibility requirement, so their identities remain visible once the tile is visible.
+   */
+  it('keeps Civ2Civ3 strategic resources visible without a technology gate', () => {
+    for (const resource of ['Iron', 'Coal', 'Oil']) {
+      expect(isResourceRevealed(resource, new Set(), 'civ2civ3')).toBe(true);
+      expect(visibleResourceForPlayer(resource, new Set(), 'civ2civ3')).toBe(resource);
+    }
   });
 });

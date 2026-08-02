@@ -14,8 +14,7 @@
     "resource_iron": {
       "extra": "Iron",
       "identifier": "/",
-      "shield": 3,
-      "reveal_tech": "iron_working"
+      "shield": 3
     },
     "resource_game": {
       "extra": "Game",
@@ -32,8 +31,7 @@
     "resource_coal": {
       "extra": "Coal",
       "identifier": "c",
-      "shield": 2,
-      "reveal_tech": "steam_engine"
+      "shield": 2
     },
     "resource_fish": {
       "extra": "Fish",
@@ -113,8 +111,7 @@
     "resource_oil": {
       "extra": "Oil",
       "identifier": "x",
-      "shield": 3,
-      "reveal_tech": "refining"
+      "shield": 3
     }
   },
   "extras": {

@@ -37,8 +37,7 @@
       "id": "airport",
       "cost": 120,
       "requiredTech": "radio",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "aqueduct": {
       "name": "Aqueduct",
@@ -82,10 +81,7 @@
       "id": "aqueduct",
       "cost": 60,
       "requiredTech": "construction",
-      "playable": true,
-      "effects": {
-        "maxCitySize": 12
-      }
+      "playable": true
     },
     "aqueduct_lake": {
       "name": "Aqueduct, Lake",
@@ -115,8 +111,7 @@
       ],
       "id": "aqueduct_lake",
       "cost": 20,
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "aqueduct_river": {
       "name": "Aqueduct, River",
@@ -153,8 +148,7 @@
       ],
       "id": "aqueduct_river",
       "cost": 20,
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "bank": {
       "name": "Bank",
@@ -186,8 +180,7 @@
       "cost": 80,
       "requiredTech": "banking",
       "requires": ["marketplace"],
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "barracks": {
       "name": "Barracks",
@@ -226,10 +219,7 @@
       ],
       "id": "barracks",
       "cost": 30,
-      "playable": true,
-      "effects": {
-        "defenseBonus": 50
-      }
+      "playable": true
     },
     "barracks_ii": {
       "name": "Barracks II",
@@ -270,8 +260,7 @@
       "id": "barracks_ii",
       "cost": 30,
       "requiredTech": "gunpowder",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "barracks_iii": {
       "name": "Barracks III",
@@ -301,8 +290,7 @@
       "id": "barracks_iii",
       "cost": 30,
       "requiredTech": "mobile_warfare",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "cathedral": {
       "name": "Cathedral",
@@ -334,11 +322,7 @@
       "cost": 80,
       "requiredTech": "monotheism",
       "requires": ["temple"],
-      "playable": true,
-      "effects": {
-        "happinessBonus": 3,
-        "scienceBonus": 25
-      }
+      "playable": true
     },
     "city_walls": {
       "name": "City Walls",
@@ -365,10 +349,7 @@
       "id": "city_walls",
       "cost": 30,
       "requiredTech": "masonry",
-      "playable": true,
-      "effects": {
-        "defenseBonus": 200
-      }
+      "playable": true
     },
     "coastal_defense": {
       "name": "Coastal Defense",
@@ -399,8 +380,7 @@
       "id": "coastal_defense",
       "cost": 60,
       "requiredTech": "navigation",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "colosseum": {
       "name": "Amphitheater",
@@ -427,8 +407,7 @@
       "id": "colosseum",
       "cost": 70,
       "requiredTech": "construction",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "courthouse": {
       "name": "Courthouse",
@@ -458,10 +437,7 @@
       "id": "courthouse",
       "cost": 60,
       "requiredTech": "code_of_laws",
-      "playable": true,
-      "effects": {
-        "corruptionReduction": 50
-      }
+      "playable": true
     },
     "factory": {
       "name": "Factory",
@@ -490,8 +466,7 @@
       "id": "factory",
       "cost": 140,
       "requiredTech": "industrialization",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "granary": {
       "name": "Granary",
@@ -521,10 +496,7 @@
       "id": "granary",
       "cost": 40,
       "requiredTech": "pottery",
-      "playable": true,
-      "effects": {
-        "foodBonus": 1
-      }
+      "playable": true
     },
     "harbor": {
       "name": "Harbor",
@@ -556,10 +528,7 @@
       "id": "harbor",
       "cost": 40,
       "requiredTech": "seafaring",
-      "playable": true,
-      "effects": {
-        "oceanFood": 1
-      }
+      "playable": true
     },
     "hydro_plant": {
       "name": "Hydro Plant",
@@ -600,8 +569,7 @@
       "cost": 180,
       "requiredTech": "electronics",
       "requires": ["factory"],
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "library": {
       "name": "Library",
@@ -627,10 +595,7 @@
       "id": "library",
       "cost": 60,
       "requiredTech": "writing",
-      "playable": true,
-      "effects": {
-        "scienceBonus": 50
-      }
+      "playable": true
     },
     "marketplace": {
       "name": "Marketplace",
@@ -656,10 +621,7 @@
       "id": "marketplace",
       "cost": 60,
       "requiredTech": "currency",
-      "playable": true,
-      "effects": {
-        "goldBonus": 50
-      }
+      "playable": true
     },
     "mass_transit": {
       "name": "Mass Transit",
@@ -685,8 +647,7 @@
       "id": "mass_transit",
       "cost": 120,
       "requiredTech": "mass_production",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "mfg_plant": {
       "name": "Mfg. Plant",
@@ -723,8 +684,7 @@
       "cost": 220,
       "requiredTech": "plastics",
       "requires": ["factory"],
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "nuclear_plant": {
       "name": "Nuclear Plant",
@@ -761,8 +721,7 @@
       "cost": 240,
       "requiredTech": "nuclear_power",
       "requires": ["factory"],
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "offshore_platform": {
       "name": "Offshore Platform",
@@ -796,10 +755,7 @@
       "id": "offshore_platform",
       "cost": 120,
       "requiredTech": "miniaturization",
-      "playable": true,
-      "effects": {
-        "oceanShields": 1
-      }
+      "playable": true
     },
     "palace": {
       "name": "Palace",
@@ -825,11 +781,7 @@
       ],
       "id": "palace",
       "cost": 70,
-      "playable": true,
-      "effects": {
-        "defenseBonus": 100,
-        "happinessBonus": 1
-      }
+      "playable": true
     },
     "ecclesiastical_palace": {
       "name": "Ecclesiastical Palace",
@@ -860,8 +812,7 @@
       "id": "ecclesiastical_palace",
       "cost": 140,
       "requiredTech": "theology",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "police_station": {
       "name": "Police Station",
@@ -887,8 +838,7 @@
       "id": "police_station",
       "cost": 50,
       "requiredTech": "communism",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "port_facility": {
       "name": "Port Facility",
@@ -919,8 +869,7 @@
       "id": "port_facility",
       "cost": 60,
       "requiredTech": "amphibious_warfare",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "power_plant": {
       "name": "Power Plant",
@@ -955,8 +904,7 @@
       "cost": 130,
       "requiredTech": "refining",
       "requires": ["factory"],
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "recycling_center": {
       "name": "Recycling Center",
@@ -982,8 +930,7 @@
       "id": "recycling_center",
       "cost": 140,
       "requiredTech": "recycling",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "research_lab": {
       "name": "Research Lab",
@@ -1018,8 +965,7 @@
       "cost": 120,
       "requiredTech": "computers",
       "requires": ["university"],
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "sam_battery": {
       "name": "SAM Battery",
@@ -1045,8 +991,7 @@
       "id": "sam_battery",
       "cost": 70,
       "requiredTech": "rocketry",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "sdi_defense": {
       "name": "SDI Defense",
@@ -1072,8 +1017,7 @@
       "id": "sdi_defense",
       "cost": 140,
       "requiredTech": "laser",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "sewer_system": {
       "name": "Sewer System",
@@ -1104,10 +1048,7 @@
       "id": "sewer_system",
       "cost": 80,
       "requiredTech": "sanitation",
-      "playable": true,
-      "effects": {
-        "unlimitedCitySize": true
-      }
+      "playable": true
     },
     "solar_plant": {
       "name": "Solar Plant",
@@ -1143,8 +1084,7 @@
       "cost": 320,
       "requiredTech": "environmentalism",
       "requires": ["factory"],
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "space_component": {
       "name": "Space Component",
@@ -1194,8 +1134,7 @@
       "cost": 300,
       "requiredTech": "superconductors",
       "requires": ["factory", "library", "university", "research_lab"],
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "space_module": {
       "name": "Space Module",
@@ -1249,8 +1188,7 @@
       "cost": 600,
       "requiredTech": "environmentalism",
       "requires": ["factory", "library", "university", "research_lab"],
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "space_structural": {
       "name": "Space Structural",
@@ -1300,8 +1238,7 @@
       "cost": 150,
       "requiredTech": "space_flight",
       "requires": ["factory", "library", "university", "research_lab"],
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "stock_exchange": {
       "name": "Stock Exchange",
@@ -1333,8 +1270,7 @@
       "cost": 120,
       "requiredTech": "economics",
       "requires": ["bank"],
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "super_highways": {
       "name": "Super Highways",
@@ -1364,8 +1300,7 @@
       "id": "super_highways",
       "cost": 120,
       "requiredTech": "automobile",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "supermarket": {
       "name": "Supermarket",
@@ -1391,8 +1326,7 @@
       "id": "supermarket",
       "cost": 80,
       "requiredTech": "refrigeration",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "temple": {
       "name": "Temple",
@@ -1418,10 +1352,7 @@
       "id": "temple",
       "cost": 30,
       "requiredTech": "ceremonial_burial",
-      "playable": true,
-      "effects": {
-        "happinessBonus": 2
-      }
+      "playable": true
     },
     "university": {
       "name": "University",
@@ -1456,8 +1387,7 @@
       "cost": 120,
       "requiredTech": "university",
       "requires": ["library"],
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "apollo_program": {
       "name": "Apollo Program",
@@ -1486,8 +1416,7 @@
       "id": "apollo_program",
       "cost": 600,
       "requiredTech": "space_flight",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "asmiths_trading_co": {
       "name": "A.Smith's Trading Co.",
@@ -1522,8 +1451,7 @@
       "cost": 400,
       "requiredTech": "economics",
       "requires": ["stock_exchange"],
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "colossus": {
       "name": "Colossus",
@@ -1556,8 +1484,7 @@
       "id": "colossus",
       "cost": 200,
       "requiredTech": "bronze_working",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "copernicus_observatory": {
       "name": "Copernicus' Observatory",
@@ -1590,8 +1517,7 @@
       "id": "copernicus_observatory",
       "cost": 300,
       "requiredTech": "astronomy",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "cure_for_cancer": {
       "name": "Cure For Cancer",
@@ -1617,8 +1543,7 @@
       "id": "cure_for_cancer",
       "cost": 600,
       "requiredTech": "genetic_engineering",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "darwins_voyage": {
       "name": "Darwin's Voyage",
@@ -1647,10 +1572,7 @@
       "id": "darwins_voyage",
       "cost": 300,
       "requiredTech": "steam_engine",
-      "playable": true,
-      "effects": {
-        "immediateTechs": 2
-      }
+      "playable": true
     },
     "eiffel_tower": {
       "name": "Eiffel Tower",
@@ -1676,8 +1598,7 @@
       "id": "eiffel_tower",
       "cost": 300,
       "requiredTech": "railroad",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "great_library": {
       "name": "Great Library",
@@ -1712,10 +1633,7 @@
       "cost": 300,
       "requiredTech": "literacy",
       "requires": ["library"],
-      "playable": true,
-      "effects": {
-        "techParasitePlayers": 2
-      }
+      "playable": true
     },
     "great_wall": {
       "name": "Great Wall",
@@ -1748,8 +1666,7 @@
       "id": "great_wall",
       "cost": 300,
       "requiredTech": "construction",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "hanging_gardens": {
       "name": "Hanging Gardens",
@@ -1782,8 +1699,7 @@
       "id": "hanging_gardens",
       "cost": 200,
       "requiredTech": "pottery",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "hoover_dam": {
       "name": "Hoover Dam",
@@ -1820,8 +1736,7 @@
       "cost": 600,
       "requiredTech": "electronics",
       "requires": ["factory"],
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "isaac_newtons_college": {
       "name": "Isaac Newton's College",
@@ -1856,8 +1771,7 @@
       "cost": 400,
       "requiredTech": "theory_of_gravity",
       "requires": ["university"],
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "js_bachs_cathedral": {
       "name": "J.S. Bach's Cathedral",
@@ -1883,8 +1797,7 @@
       "id": "js_bachs_cathedral",
       "cost": 400,
       "requiredTech": "theology",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "king_richards_crusade": {
       "name": "King Richard's Crusade",
@@ -1917,8 +1830,7 @@
       "id": "king_richards_crusade",
       "cost": 300,
       "requiredTech": "chivalry",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "leonardos_workshop": {
       "name": "Leonardo's Workshop",
@@ -1951,8 +1863,7 @@
       "id": "leonardos_workshop",
       "cost": 400,
       "requiredTech": "invention",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "lighthouse": {
       "name": "Lighthouse",
@@ -1990,8 +1901,7 @@
       "id": "lighthouse",
       "cost": 200,
       "requiredTech": "map_making",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "magellans_expedition": {
       "name": "Magellan's Expedition",
@@ -2029,8 +1939,7 @@
       "id": "magellans_expedition",
       "cost": 400,
       "requiredTech": "magnetism",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "manhattan_project": {
       "name": "Manhattan Project",
@@ -2055,8 +1964,7 @@
       "id": "manhattan_project",
       "cost": 600,
       "requiredTech": "nuclear_fission",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "marco_polos_embassy": {
       "name": "Marco Polo's Embassy",
@@ -2092,8 +2000,7 @@
       "id": "marco_polos_embassy",
       "cost": 200,
       "requiredTech": "trade",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "michelangelos_chapel": {
       "name": "Michelangelo's Chapel",
@@ -2125,8 +2032,7 @@
       "cost": 400,
       "requiredTech": "monotheism",
       "requires": ["cathedral"],
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "mausoleum_of_mausolos": {
       "name": "Mausoleum of Mausolos",
@@ -2159,8 +2065,7 @@
       "id": "mausoleum_of_mausolos",
       "cost": 200,
       "requiredTech": "ceremonial_burial",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "statue_of_zeus": {
       "name": "Statue of Zeus",
@@ -2193,8 +2098,7 @@
       "id": "statue_of_zeus",
       "cost": 200,
       "requiredTech": "polytheism",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "temple_of_artemis": {
       "name": "Temple of Artemis",
@@ -2233,8 +2137,7 @@
       "cost": 200,
       "requiredTech": "mysticism",
       "requires": ["temple"],
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "pyramids": {
       "name": "Pyramids",
@@ -2267,8 +2170,7 @@
       "id": "pyramids",
       "cost": 200,
       "requiredTech": "masonry",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "internet": {
       "name": "Internet",
@@ -2303,8 +2205,7 @@
       "cost": 600,
       "requiredTech": "computers",
       "requires": ["research_lab"],
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "shakespeares_theatre": {
       "name": "Shakespeare's Theater",
@@ -2334,8 +2235,7 @@
       "id": "shakespeares_theatre",
       "cost": 300,
       "requiredTech": "sanitation",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "statue_of_liberty": {
       "name": "Statue of Liberty",
@@ -2361,8 +2261,7 @@
       "id": "statue_of_liberty",
       "cost": 400,
       "requiredTech": "democracy",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "sun_tzus_war_academy": {
       "name": "Sun Tzu's War Academy",
@@ -2395,8 +2294,7 @@
       "id": "sun_tzus_war_academy",
       "cost": 300,
       "requiredTech": "feudalism",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "united_nations": {
       "name": "United Nations",
@@ -2425,8 +2323,7 @@
       "id": "united_nations",
       "cost": 600,
       "requiredTech": "communism",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "womens_suffrage": {
       "name": "Women's Suffrage",
@@ -2452,8 +2349,7 @@
       "id": "womens_suffrage",
       "cost": 600,
       "requiredTech": "conscription",
-      "playable": true,
-      "effects": {}
+      "playable": true
     },
     "capitalization": {
       "name": "Coinage",
@@ -2470,8 +2366,7 @@
       "helptext": "This is not a normal improvement. Instead, setting a city'sproduction to Coinage means its shield production isconverted to tax output (money, coins!).",
       "id": "capitalization",
       "cost": 999,
-      "playable": true,
-      "effects": {}
+      "playable": true
     }
   }
 }

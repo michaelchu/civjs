@@ -112,13 +112,15 @@ describe('isolated ruleset mutations', () => {
     expect(buildings.getBuildingTypes().granary.upkeep).toBe(6);
   });
 
-  it('changes research cost through the ruleset-backed catalogue', () => {
-    mutate('techs.json', document => {
-      const technologies = document.techs as Record<string, { cost: number }>;
-      technologies.pottery.cost = 37;
+  it('changes research cost through the ruleset-backed formula', () => {
+    mutate('game.json', document => {
+      const research = (document.research ?? {}) as Record<string, number>;
+      research.base_tech_cost = 37;
+      document.research = research;
     });
 
-    expect(loadRulesetTechnologies(new RulesetLoader(fixtureRoot)).pottery.cost).toBe(37);
+    // Classic's formula for a root technology is base * sqrt(2).
+    expect(loadRulesetTechnologies(new RulesetLoader(fixtureRoot)).pottery.cost).toBe(52);
   });
 
   it('changes terrain movement through the loaded terrain definition', () => {

@@ -1,4 +1,5 @@
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
+import { EffectsManager, EffectType, OutputType } from '@game/managers/EffectsManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 describe('RulesetBuildingsService', () => {
@@ -49,5 +50,25 @@ describe('RulesetBuildingsService', () => {
     expect(buildings.darwins_voyage.effects.immediateTechs).toBe(2);
     expect(buildings.great_library.effects.techParasitePlayers).toBe(2);
     expect(buildings.courthouse.effects.corruptionReduction).toBe(50);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/buildings.ruleset:631-639
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2168-2175
+   * @assertion c2c3 building catalogues retain construction data only; Library's science behavior is evaluated from the authoritative Output_Bonus effect rather than a legacy building summary.
+   * @c2c3-surface city-economy
+   * @c2c3-surface-scenario normal
+   */
+  it('uses raw c2c3 effects instead of a static building-effect adapter', () => {
+    const buildings = rulesetBuildingsService.getBuildingTypes('civ2civ3');
+
+    expect(buildings.library.effects).toEqual({});
+    expect(
+      new EffectsManager('civ2civ3').calculateEffect(EffectType.OUTPUT_BONUS, {
+        cityBuildings: new Set(['library']),
+        outputType: OutputType.SCIENCE,
+      }).value
+    ).toBe(50);
   });
 });

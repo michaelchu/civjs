@@ -32,20 +32,112 @@ export interface PlayerResearch {
   futureTechs: number;
 }
 
+type RulesetTechnology = ReturnType<typeof rulesetLoader.getTechs>[string];
+type ResearchCostRules = ReturnType<typeof rulesetLoader.loadGameRulesRuleset>['research'];
+type RulesetTechnologyLoader = Pick<typeof rulesetLoader, 'getTechs'> &
+  Partial<Pick<typeof rulesetLoader, 'loadGameRulesRuleset'>>;
+
+/**
+ * Count a technology and each distinct transitive prerequisite exactly once.
+ * Freeciv's advance_req_iterate includes the goal itself, both regular
+ * requirements, and root requirements.
+ *
+ * @reference reference/freeciv/common/tech.c:544-606
+ */
+function technologyRequirementCount(
+  techId: string,
+  technologies: Record<string, RulesetTechnology>
+): number {
+  const required = new Set<string>();
+
+  const include = (id: string | null | undefined): void => {
+    if (!id || required.has(id) || !technologies[id]) return;
+    required.add(id);
+    const technology = technologies[id];
+    for (const requirement of technology.requirements) include(requirement);
+    include(technology.root_req);
+  };
+
+  include(techId);
+  return required.size;
+}
+
+/**
+ * Derive the precomputed ruleset technology cost used by Freeciv before
+ * player-specific modifiers (Tech_Cost_Factor, leakage, AI science cost, and
+ * sciencebox). Explicit cost fields only apply to Classic+ and Experimental+
+ * rulesets; the other styles always use their source formula.
+ *
+ * @reference reference/freeciv/common/tech.c:225-275
+ * @reference reference/freeciv/data/civ2civ3/game.ruleset:308-339
+ */
+export function calculateRulesetTechnologyCost(
+  techId: string,
+  technologies: Record<string, RulesetTechnology>,
+  researchRules: ResearchCostRules
+): number {
+  const technology = technologies[techId];
+  if (!technology) return Math.max(1, Math.trunc(researchRules.min_tech_cost));
+
+  const style = researchRules.tech_cost_style.toLowerCase();
+  const explicitCost =
+    typeof technology.cost === 'number' && Number.isFinite(technology.cost)
+      ? technology.cost
+      : undefined;
+  const usesExplicitCost =
+    explicitCost !== undefined && (style === 'classic+' || style === 'experimental+');
+
+  if (usesExplicitCost) return Math.max(1, Math.trunc(explicitCost));
+
+  const requirementCount = technologyRequirementCount(techId, technologies);
+  const baseCost = researchRules.base_tech_cost;
+  let calculatedCost: number;
+
+  switch (style) {
+    case 'civ i|ii':
+    case 'linear':
+      calculatedCost = baseCost * requirementCount;
+      break;
+    case 'experimental':
+    case 'experimental+':
+      calculatedCost =
+        baseCost * (requirementCount ** 2 / (1 + Math.sqrt(Math.sqrt(requirementCount + 1))) - 0.5);
+      break;
+    case 'classic':
+    case 'classic+':
+      calculatedCost = (baseCost * (1 + requirementCount) * Math.sqrt(1 + requirementCount)) / 2;
+      break;
+    default:
+      // Keep an injected or future ruleset readable while making an unknown
+      // cost style fail closed to its configured minimum rather than a legacy
+      // presentation value.
+      calculatedCost = explicitCost ?? researchRules.min_tech_cost;
+      break;
+  }
+
+  return Math.max(1, Math.trunc(Math.max(researchRules.min_tech_cost, calculatedCost)));
+}
+
 /**
  * Build the playable technology catalogue from a selected ruleset.
  */
 export function loadRulesetTechnologies(
-  loader: Pick<typeof rulesetLoader, 'getTechs'> = rulesetLoader,
+  loader: RulesetTechnologyLoader = rulesetLoader,
   rulesetName: string = 'classic'
 ): Record<string, Technology> {
+  const rawTechnologies = loader.getTechs(rulesetName);
+  const researchRules = (
+    loader.loadGameRulesRuleset?.bind(loader) ??
+    rulesetLoader.loadGameRulesRuleset.bind(rulesetLoader)
+  )(rulesetName).research;
+
   return Object.fromEntries(
-    Object.entries(loader.getTechs(rulesetName)).map(([id, tech]) => [
+    Object.entries(rawTechnologies).map(([id, tech]) => [
       id,
       {
         id: tech.id,
         name: tech.name,
-        cost: tech.cost,
+        cost: calculateRulesetTechnologyCost(id, rawTechnologies, researchRules),
         requirements: tech.requirements,
         rootRequirement: tech.root_req ?? undefined,
         flags: tech.flags,
