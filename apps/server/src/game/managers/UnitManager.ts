@@ -154,6 +154,7 @@ interface CombatOutcome {
 
 interface MovePlan {
   embarkTransport?: Unit;
+  disembarksFromTransport?: boolean;
   effectiveMovementCost: number;
   previousX: number;
   previousY: number;
@@ -671,7 +672,10 @@ export class UnitManager {
     if (this.calculateDistance(unit.x, unit.y, newX, newY) !== 1) {
       throw new Error('Units may only move to an adjacent tile');
     }
-    if (unit.transportedBy) throw new Error('Transported unit must unload before moving');
+    const conquersCityFromTransport = this.canConquerCityFromTransport(unit, newX, newY);
+    if (unit.transportedBy && !conquersCityFromTransport) {
+      throw new Error('Transported unit must unload before moving');
+    }
     await this.validateForeignTerritoryEntry(unit, newX, newY);
     const targetUnit = this.getUnitAt(newX, newY);
     await this.captureMoveTargetIfNeeded(unit, targetUnit, newX, newY);
@@ -686,12 +690,63 @@ export class UnitManager {
       throw new Error(`Unit cannot enter terrain at ${newX}, ${newY}`);
     }
     this.ensureSufficientMovement(unit);
+    const unitType = this.unitTypes[unit.unitTypeId];
+    const conquerActionCost =
+      conquersCityFromTransport && unitType
+        ? this.getActionSuccessMovementCost(unit, unitType, 'Conquer City Shrink 2', {
+            // The source charges this effect after unit_move() has placed the
+            // Marine on the captured native city tile.
+            // @reference reference/freeciv/server/unithand.c:5610-5642
+            unitIsOnNativeTile: this.isUnitOnNativeTile(unitType, newX, newY),
+          })
+        : 0;
     return {
       embarkTransport,
-      effectiveMovementCost: embarkTransport ? this.getMoveFragments() : movementCost,
+      disembarksFromTransport: conquersCityFromTransport,
+      effectiveMovementCost:
+        (embarkTransport ? this.getMoveFragments() : movementCost) + conquerActionCost,
       previousX: unit.x,
       previousY: unit.y,
     };
+  }
+
+  /**
+   * C2C3 gives Marines a distinct Conquer City Shrink 2 action from a
+   * non-livable source tile. It is not an ordinary Transport Disembark:
+   * the city must be foreign, undefended, and at war before the passenger
+   * leaves its transport to capture it.
+   *
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:882-913
+   * @reference reference/freeciv/server/unithand.c:5610-5642
+   */
+  private canConquerCityFromTransport(unit: Unit, targetX: number, targetY: number): boolean {
+    if (this.getRulesetName() !== 'civ2civ3' || !unit.transportedBy) return false;
+    const unitType = this.unitTypes[unit.unitTypeId];
+    const targetCity = this.gameManagerCallback?.getCityAt?.(targetX, targetY);
+    if (
+      !unitType ||
+      !targetCity ||
+      targetCity.playerId === unit.playerId ||
+      this.alliedPlayersProvider?.(unit.playerId).has(targetCity.playerId) ||
+      this.getUnitsAt(targetX, targetY).length > 0
+    ) {
+      return false;
+    }
+    if (
+      !this.canUnitCaptureCity(unitType) ||
+      !unitType.flags?.includes('Marines') ||
+      unit.movementLeft <= 0 ||
+      this.isUnitOnNativeTile(unitType, unit.x, unit.y) ||
+      this.isAnimalKingdom(unit.playerId)
+    ) {
+      return false;
+    }
+    return Boolean(this.units.get(unit.transportedBy));
+  }
+
+  private isAnimalKingdom(playerId: string): boolean {
+    const nation = this.gameManagerCallback?.getPlayerNation?.(playerId)?.toLowerCase();
+    return nation === 'animals' || nation === 'animal kingdom';
   }
 
   private async captureMoveTargetIfNeeded(
@@ -723,6 +778,7 @@ export class UnitManager {
       throw new Error('Cannot capture a city unless its owner is at war');
     }
     const captured =
+      (this.getRulesetName() !== 'civ2civ3' || !this.isAnimalKingdom(unit.playerId)) &&
       this.canUnitCaptureCity(this.unitTypes[unit.unitTypeId]) &&
       this.gameManagerCallback?.captureCity
         ? await this.gameManagerCallback.captureCity(targetCity.id, unit.playerId, unit.id)
@@ -737,13 +793,14 @@ export class UnitManager {
     newY: number,
     plan: MovePlan
   ): Promise<void> {
+    if (plan.disembarksFromTransport) await this.releaseTransportedUnit(unit);
     unit.x = newX;
     unit.y = newY;
     unit.movementLeft = Math.max(0, unit.movementLeft - plan.effectiveMovementCost);
     unit.fortified = false;
     this.embarkUnit(unit, plan.embarkTransport);
     const cargo = this.moveCargo(unit, newX, newY);
-    await this.persistMove(unitId, unit, cargo, plan.embarkTransport);
+    await this.persistMove(unitId, unit, cargo, plan.embarkTransport, plan.disembarksFromTransport);
     await this.resolveEnteredTile(unit);
     await this.establishAdjacentContacts(unit);
     this.notifyMoveLifecycle(unit, cargo, plan.previousX, plan.previousY);
@@ -771,9 +828,17 @@ export class UnitManager {
     unitId: string,
     unit: Unit,
     cargo: Unit[],
-    transport: Unit | undefined
+    transport: Unit | undefined,
+    disembarkedFromTransport: boolean = false
   ): Promise<void> {
     await this.updateUnitPositionInDb(unitId, unit);
+    if (disembarkedFromTransport) {
+      await this.databaseProvider
+        .getDatabase()
+        .update(units)
+        .set({ transportedBy: null })
+        .where(eq(units.id, unit.id));
+    }
     if (transport) {
       await Promise.all([
         this.databaseProvider
