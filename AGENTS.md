@@ -92,4 +92,7 @@ The server is authoritative for game state. PostgreSQL is used for persistence a
 - Keep client/server/shared contracts synchronized.
 - Prefer focused changes and avoid unrelated cleanup.
 - Do not commit or push changes unless the user explicitly asks.
+- In this sandbox, use Git with the repository's configured SSH remote for
+  authenticated fetch, pull, and push operations. Do not use `gh` or gate Git
+  commit/push work on GitHub CLI authentication.
 - Keep `reference/` read-only during normal development.
