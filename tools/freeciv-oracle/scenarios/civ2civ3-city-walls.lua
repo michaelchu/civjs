@@ -8,21 +8,25 @@
 
 local player = edit.create_player("CivJS Oracle", find.nation_type("English"), nil)
 local tile = nil
+local city = nil
+local grassland = find.terrain("Grassland")
 
 for candidate in whole_map_iterate() do
   if not candidate:city() then
-    tile = candidate
-    break
+    -- change_terrain returns false when the tile is already Grassland; either
+    -- outcome leaves the candidate in the terrain required by the fixture.
+    edit.change_terrain(candidate, grassland)
+    -- Earlier fixtures may already have created a city. Try candidates until
+    -- Freeciv accepts one outside the configured citymindist radius.
+    if edit.city_create(player, candidate, "Oracle City", nil) then
+      tile = candidate
+      city = candidate:city()
+      break
+    end
   end
 end
 
-assert(tile, "Could not find an empty tile for the c2c3 oracle fixture")
--- change_terrain returns false when the tile is already Grassland; either
--- outcome leaves the deterministic fixture terrain in the required state.
-edit.change_terrain(tile, find.terrain("Grassland"))
-assert(edit.city_create(player, tile, "Oracle City", nil))
-
-local city = tile:city()
+assert(tile and city, "Could not find a legal city tile for the c2c3 oracle fixture")
 local city_walls = find.building_type("City Walls")
 local warrior_type = find.unit_type("Warriors")
 

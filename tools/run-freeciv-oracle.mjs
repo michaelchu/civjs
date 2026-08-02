@@ -141,6 +141,7 @@ try {
   const commands = [
     'set aifill 1',
     'set minplayers 0',
+    'set animals 0',
     'start',
     ...selectedScenarios.map(scenario => `lua unsafe-file ${scenario.path}`),
     'quit',
@@ -169,6 +170,9 @@ try {
   if (run.error) fail(run.error.message);
   if (run.status !== 0) {
     fail(`reference server exited with status ${run.status}.\n${output.slice(-4000)}`);
+  }
+  if (/\blua error:/i.test(output)) {
+    fail(`reference server reported a Lua fixture error.\n${output.slice(-4000)}`);
   }
 
   const results = {};

@@ -1293,7 +1293,7 @@ export class GameClient {
     selectedNation: string;
     aiLevel?: 'restricted' | 'novice' | 'easy' | 'normal' | 'hard' | 'cheating';
     barbarianRate?: number;
-    researchPacing?: { scienceBox?: number; techPenalty?: number };
+    researchPacing?: { scienceBox?: number; techPenalty?: number; techLeakPct?: number };
     terrainSettings?: {
       generator: string;
       landmass: string;

@@ -1,8 +1,9 @@
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
-import { loadRulesetTechnologies } from '@game/managers/ResearchManager';
+import { loadRulesetTechnologies, ResearchManager } from '@game/managers/ResearchManager';
 import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { CIV2CIV3_ORACLE_BASELINE, loadCiv2Civ3OracleResults } from './Civ2Civ3OracleResults';
+import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 function civ2civ3CityWallsGroundDefense(): number {
   const warrior = rulesetUnitsService.getUnitTypes('civ2civ3').warriors;
@@ -29,6 +30,30 @@ function civ2civ3ResearchBaseCosts(): Record<string, number> {
     research_base_cost_advanced_flight: technologies.advanced_flight.cost,
     research_base_cost_fusion_power: technologies.fusion_power.cost,
   };
+}
+
+async function civ2civ3EmbassyTechnologyLeakageCost(): Promise<number> {
+  const technologies = loadRulesetTechnologies(rulesetLoader, 'civ2civ3');
+  const manager = new ResearchManager(
+    'civ2civ3-oracle-leakage',
+    createMockDatabaseProvider(),
+    technologies,
+    new EffectsManager('civ2civ3'),
+    'civ2civ3'
+  );
+  for (const playerId of ['learner', 'peer', 'observer']) {
+    await manager.initializePlayerResearch(playerId);
+  }
+  await manager.grantTechnology('peer', 'alphabet');
+  manager.setResearchDiplomacyProvider((playerId, targetPlayerId) => ({
+    hasRealEmbassy: playerId === 'learner' && targetPlayerId === 'peer',
+    hasContact: true,
+    targetIsBarbarian: false,
+  }));
+
+  const required = manager.getResearchProgress('learner')?.required;
+  if (required === undefined) throw new Error('Civ2Civ3 leakage fixture has no research target.');
+  return required;
 }
 
 describe('Civ2Civ3 Freeciv oracle parity', () => {
@@ -62,6 +87,20 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
     });
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/common/research.c:941-1038
+   * @reference reference/freeciv/common/player.c:205-255
+   * @reference reference/freeciv/data/civ2civ3/game.ruleset:340-352
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3794-3800
+   * @assertion With one known Alphabet held by a player with a real embassy, c2c3 subtracts one third of the Tech_Cost_Factor-adjusted cost from a three-player research game.
+   * @c2c3-surface research-government
+   * @c2c3-surface-scenario normal
+   */
+  it('applies the c2c3 embassy Technology Leakage fixture', async () => {
+    await expect(civ2civ3EmbassyTechnologyLeakageCost()).resolves.toBe(20);
+  });
+
   const oracle = loadCiv2Civ3OracleResults();
 
   if (oracle) {
@@ -90,10 +129,29 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
       expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
       expect(oracle.results).toMatchObject(civ2civ3ResearchBaseCosts());
     });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/common/research.c:941-1038
+     * @reference reference/freeciv/common/player.c:205-255
+     * @reference reference/freeciv/data/civ2civ3/game.ruleset:340-352
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3794-3800
+     * @assertion CivJS and the pinned Freeciv c2c3 server calculate the same research cost after a real embassy qualifies a known technology for leakage.
+     * @c2c3-surface research-government
+     * @c2c3-surface-scenario differential
+     */
+    it('matches the batched pinned Freeciv embassy Technology Leakage fixture', async () => {
+      expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
+      await expect(civ2civ3EmbassyTechnologyLeakageCost()).resolves.toBe(
+        oracle.results.tech_leakage_embassy_cost
+      );
+    });
   } else {
     it.skip('matches the batched pinned Freeciv City Walls fixture when an oracle bundle exists', () =>
       undefined);
     it.skip('matches the batched pinned Freeciv research-cost fixture when an oracle bundle exists', () =>
+      undefined);
+    it.skip('matches the batched pinned Freeciv embassy Technology Leakage fixture when an oracle bundle exists', () =>
       undefined);
   }
 });

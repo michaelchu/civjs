@@ -75,6 +75,53 @@ describe('GameManager', () => {
     });
   });
 
+  describe('research diplomacy state', () => {
+    it('caches directional embassy, contact, and barbarian facts for research costs', async () => {
+      const gameId = 'research-diplomacy-game';
+      const players = new Map([
+        ['learner', { id: 'learner', civilization: 'French', nation: 'french' }],
+        ['peer', { id: 'peer', civilization: 'Germans', nation: 'germans' }],
+        ['barbarian', { id: 'barbarian', civilization: 'Barbarian', nation: 'barbarian' }],
+      ]);
+      const visibilityManager = { updateAllPlayersVisibility: jest.fn() };
+      (gameManager as any).games.set(gameId, { players, visibilityManager });
+      (gameManager as any).diplomacyManager = {
+        getSnapshot: jest.fn(async (_requestedGameId: string, playerId: string) => ({
+          playerId,
+          nations: [...players.values()]
+            .filter(player => player.id !== playerId)
+            .map(player => ({
+              id: player.id,
+              relation: {
+                state: playerId === 'learner' && player.id === 'peer' ? 'war' : 'no_contact',
+                embassy: playerId === 'learner' && player.id === 'peer',
+                sharedVision: false,
+              },
+            })),
+        })),
+      };
+
+      await (gameManager as any).refreshSharedVision(gameId);
+
+      const researchDiplomacy = (gameManager as any).researchDiplomacyByGame.get(gameId);
+      expect(researchDiplomacy.get('learner').get('peer')).toEqual({
+        hasRealEmbassy: true,
+        hasContact: true,
+        targetIsBarbarian: false,
+      });
+      expect(researchDiplomacy.get('learner').get('barbarian')).toEqual({
+        hasRealEmbassy: false,
+        hasContact: false,
+        targetIsBarbarian: true,
+      });
+      expect(visibilityManager.updateAllPlayersVisibility).toHaveBeenCalledWith([
+        'learner',
+        'peer',
+        'barbarian',
+      ]);
+    });
+  });
+
   describe('player connection recovery', () => {
     it('does not try to recover a waiting lobby when its player connects', async () => {
       const playerId = 'waiting-player';

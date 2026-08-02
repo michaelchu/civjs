@@ -24,6 +24,7 @@ import type { NuclearPresentationEvent } from '@app-types/presentation';
 // Keep existing imports for delegation
 import type { CityState } from '@game/cities/CityTypes';
 import { MapManager } from '@game/managers/MapManager';
+import type { ResearchDiplomacyState } from '@game/managers/ResearchManager';
 import type { Unit } from '@game/units/UnitTypes';
 import {
   DiplomacyManager,
@@ -99,6 +100,10 @@ export class GameManager {
   private sharedVisionByGame = new Map<string, Map<string, Set<string>>>();
   private hostilePlayersByGame = new Map<string, Map<string, Set<string>>>();
   private alliedPlayersByGame = new Map<string, Map<string, Set<string>>>();
+  private researchDiplomacyByGame = new Map<
+    string,
+    Map<string, Map<string, ResearchDiplomacyState>>
+  >();
   private endTurnLocks = new Map<string, Promise<unknown>>();
   private treatyPlayerLocks = new Map<string, Promise<unknown>>();
 
@@ -262,6 +267,7 @@ export class GameManager {
     this.sharedVisionByGame.clear();
     this.hostilePlayersByGame.clear();
     this.alliedPlayersByGame.clear();
+    this.researchDiplomacyByGame.clear();
     this.endTurnLocks.clear();
     this.treatyPlayerLocks.clear();
   }
@@ -1238,6 +1244,18 @@ export class GameManager {
       const player = gameInstance.players.get(playerId);
       return player?.isAI ? createAIProfile(player.aiLevel, player.aiTraits).scienceCost : 100;
     });
+    gameInstance.researchManager.setPlayerAliveProvider(
+      playerId => gameInstance.players.get(playerId)?.isAlive !== false
+    );
+    gameInstance.researchManager.setResearchDiplomacyProvider((playerId, targetPlayerId) => {
+      return (
+        this.researchDiplomacyByGame.get(gameId)?.get(playerId)?.get(targetPlayerId) ?? {
+          hasRealEmbassy: false,
+          hasContact: false,
+          targetIsBarbarian: false,
+        }
+      );
+    });
     const gameEventService = gameInstance.turnManager.getGameEventService();
     bindGameRuntimeEvents(gameInstance, event =>
       this.aiOrchestrator.onUnitLifecycle(gameId, gameInstance, event)
@@ -1359,8 +1377,22 @@ export class GameManager {
     const sharedVision = new Map<string, Set<string>>();
     const hostilePlayers = new Map<string, Set<string>>();
     const alliedPlayers = new Map<string, Set<string>>();
+    const researchDiplomacy = new Map<string, Map<string, ResearchDiplomacyState>>();
     for (const playerId of gameInstance.players.keys()) {
       const snapshot = await this.diplomacyManager.getSnapshot(gameId, playerId);
+      researchDiplomacy.set(
+        playerId,
+        new Map(
+          snapshot.nations.map(nation => [
+            nation.id,
+            {
+              hasRealEmbassy: Boolean(nation.relation.embassy),
+              hasContact: nation.relation.state !== 'no_contact',
+              targetIsBarbarian: this.isBarbarianPlayer(gameInstance.players.get(nation.id)),
+            },
+          ])
+        )
+      );
       sharedVision.set(
         playerId,
         new Set(
@@ -1398,7 +1430,15 @@ export class GameManager {
     this.sharedVisionByGame.set(gameId, sharedVision);
     this.hostilePlayersByGame.set(gameId, hostilePlayers);
     this.alliedPlayersByGame.set(gameId, alliedPlayers);
+    this.researchDiplomacyByGame.set(gameId, researchDiplomacy);
     gameInstance.visibilityManager.updateAllPlayersVisibility([...gameInstance.players.keys()]);
+  }
+
+  private isBarbarianPlayer(player: PlayerState | undefined): boolean {
+    return (
+      player?.nation === 'barbarian' ||
+      player?.civilization?.toLowerCase().startsWith('barbarian') === true
+    );
   }
 
   private async removeIllegalPeaceUnits(
@@ -2016,6 +2056,7 @@ export class GameManager {
     this.sharedVisionByGame.delete(gameId);
     this.hostilePlayersByGame.delete(gameId);
     this.alliedPlayersByGame.delete(gameId);
+    this.researchDiplomacyByGame.delete(gameId);
     this.endTurnLocks.delete(gameId);
   }
 
@@ -2230,6 +2271,7 @@ export class GameManager {
           this.sharedVisionByGame.delete(gameId);
           this.hostilePlayersByGame.delete(gameId);
           this.alliedPlayersByGame.delete(gameId);
+          this.researchDiplomacyByGame.delete(gameId);
           this.endTurnLocks.delete(gameId);
 
           // Update database

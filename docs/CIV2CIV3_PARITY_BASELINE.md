@@ -84,8 +84,10 @@ keeps saves in an isolated temporary directory and emits structured results.
 CI invokes it once without a scenario filter, so every deterministic fixture
 runs in one Freeciv server session. Jest then reads the resulting JSON bundle;
 individual parity assertions never start their own native server process.
-The first fixture creates a controlled city and ground defender, then confirms
+The fixture set creates a controlled city and ground defender, then confirms
 that City Walls produce the reference `Defend_Bonus` of 150 (the normal city
-50 plus City Walls 100). This is a working differential-test foundation, not
-a whole-game certificate; new scenarios must cover the remaining action and
-turn-state matrices before a parity claim is justified.
+50 plus City Walls 100). It also fixes a three-player state, establishes a
+real embassy with a player who knows Alphabet, and verifies the c2c3
+Technology Leakage research cost. This is a working differential-test
+foundation, not a whole-game certificate; new scenarios must cover the
+remaining action and turn-state matrices before a parity claim is justified.

@@ -32,6 +32,17 @@ export interface PlayerResearch {
   futureTechs: number;
 }
 
+/**
+ * The diplomacy facts that affect a player's research costs. Real embassies
+ * are intentionally distinct from an effect-granted embassy such as Marco
+ * Polo's Embassy, which ResearchManager resolves from EffectsManager.
+ */
+export interface ResearchDiplomacyState {
+  hasRealEmbassy: boolean;
+  hasContact: boolean;
+  targetIsBarbarian: boolean;
+}
+
 type RulesetTechnology = ReturnType<typeof rulesetLoader.getTechs>[string];
 type ResearchCostRules = ReturnType<typeof rulesetLoader.loadGameRulesRuleset>['research'];
 type RulesetTechnologyLoader = Pick<typeof rulesetLoader, 'getTechs'> &
@@ -158,6 +169,15 @@ export class ResearchManager {
   private currentYearProvider: () => number = () => -4000;
   private scienceCostProvider: (playerId: string) => number = () => 100;
   private playerBuildingsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
+  private playerAliveProvider: (playerId: string) => boolean = () => true;
+  private researchDiplomacyProvider: (
+    playerId: string,
+    targetPlayerId: string
+  ) => ResearchDiplomacyState = () => ({
+    hasRealEmbassy: false,
+    hasContact: false,
+    targetIsBarbarian: false,
+  });
   private technologyLossHandler?: (playerId: string) => Promise<void>;
   private technologyCompletionObserver?: (
     playerId: string,
@@ -193,6 +213,16 @@ export class ResearchManager {
 
   public setPlayerBuildingsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
     this.playerBuildingsProvider = provider;
+  }
+
+  public setPlayerAliveProvider(provider: (playerId: string) => boolean): void {
+    this.playerAliveProvider = provider;
+  }
+
+  public setResearchDiplomacyProvider(
+    provider: (playerId: string, targetPlayerId: string) => ResearchDiplomacyState
+  ): void {
+    this.researchDiplomacyProvider = provider;
   }
 
   public setTechnologyLossHandler(handler: (playerId: string) => Promise<void>): void {
@@ -522,15 +552,142 @@ export class ResearchManager {
           )
         : tech.cost;
     const rulesetFactor = this.getTechnologyCostFactor(playerId, playerResearch);
+    const costAfterLeakage = this.applyTechnologyLeakage(
+      playerId,
+      playerResearch,
+      tech,
+      baseCost * rulesetFactor
+    );
     // Freeciv applies ruleset cost factors, AI difficulty, then sciencebox.
     // @reference reference/freeciv/common/research.c:890-1050
     const scienceCost = Math.max(1, this.scienceCostProvider(playerId));
     return Math.max(
       1,
-      Math.ceil(
-        baseCost * rulesetFactor * (scienceCost / 100) * (this.researchPacing.scienceBox / 100)
-      )
+      Math.trunc(costAfterLeakage * (scienceCost / 100) * (this.researchPacing.scienceBox / 100))
     );
+  }
+
+  /**
+   * Apply the c2c3 Technology Leakage rule after player cost effects and
+   * before AI/science-box adjustments. CivJS currently has one research
+   * group per player, matching the single-member Freeciv formula here.
+   *
+   * @reference reference/freeciv/common/research.c:941-1038
+   * @reference reference/freeciv/common/player.c:205-255
+   */
+  private applyTechnologyLeakage(
+    playerId: string,
+    playerResearch: PlayerResearch | undefined,
+    tech: Technology,
+    cost: number
+  ): number {
+    const rules = rulesetLoader.loadGameRulesRuleset(this.rulesetName).research;
+    if (!playerResearch || !this.hasTechLeakageEffect(playerId, playerResearch)) return cost;
+
+    const participatingResearches = this.getTechnologyLeakageParticipants(
+      rules.tech_leakage,
+      playerId
+    );
+    if (participatingResearches.length === 0) return cost;
+
+    const sourceCount = this.countTechnologyLeakageSources(
+      rules.tech_leakage,
+      playerId,
+      playerResearch,
+      tech.id,
+      participatingResearches
+    );
+    const leakedCost =
+      (cost * sourceCount * this.researchPacing.techLeakPct) / participatingResearches.length / 100;
+    return Math.max(0, cost - leakedCost);
+  }
+
+  private hasTechLeakageEffect(playerId: string, research: PlayerResearch): boolean {
+    return (
+      this.effectsManager.calculateEffect(
+        EffectType.TECH_LEAKAGE,
+        this.getResearchEffectContext(playerId, research)
+      ).value > 0
+    );
+  }
+
+  private researchKnowsTechnology(
+    source: PlayerResearch,
+    recipient: PlayerResearch,
+    techId: string
+  ): boolean {
+    return techId === FUTURE_TECH_ID
+      ? source.futureTechs > recipient.futureTechs
+      : source.researchedTechs.has(techId);
+  }
+
+  private countTechnologyLeakageSources(
+    style: string,
+    playerId: string,
+    recipient: PlayerResearch,
+    techId: string,
+    participatingResearches: PlayerResearch[]
+  ): number {
+    switch (style.toLowerCase()) {
+      case 'embassies':
+        return participatingResearches.filter(
+          source =>
+            source.playerId !== playerId &&
+            this.researchKnowsTechnology(source, recipient, techId) &&
+            this.playerHasEmbassy(playerId, source.playerId)
+        ).length;
+      case 'all players':
+      case 'normal players':
+        return participatingResearches.filter(source =>
+          this.researchKnowsTechnology(source, recipient, techId)
+        ).length;
+      default:
+        return 0;
+    }
+  }
+
+  private getTechnologyLeakageParticipants(style: string, playerId: string): PlayerResearch[] {
+    const aliveResearches = [...this.playerResearch.values()].filter(research =>
+      this.playerAliveProvider(research.playerId)
+    );
+    if (style.toLowerCase() !== 'normal players') return aliveResearches;
+
+    return aliveResearches.filter(
+      research => !this.researchDiplomacyProvider(playerId, research.playerId).targetIsBarbarian
+    );
+  }
+
+  private playerHasEmbassy(playerId: string, targetPlayerId: string): boolean {
+    const diplomacy = this.researchDiplomacyProvider(playerId, targetPlayerId);
+    if (diplomacy.hasRealEmbassy) return true;
+    if (!diplomacy.hasContact || diplomacy.targetIsBarbarian) return false;
+
+    const playerResearch = this.playerResearch.get(playerId);
+    return (
+      playerResearch !== undefined &&
+      this.effectsManager.calculateEffect(
+        EffectType.HAVE_EMBASSIES,
+        this.getResearchEffectContext(playerId, playerResearch)
+      ).value > 0
+    );
+  }
+
+  private getResearchEffectContext(
+    playerId: string,
+    playerResearch: PlayerResearch | undefined,
+    playerBuildings: ReadonlySet<string> = this.playerBuildingsProvider(playerId)
+  ) {
+    const playerTechs = new Set(playerResearch?.researchedTechs ?? []);
+    const worldTechs = new Set(
+      [...this.playerResearch.values()].flatMap(research => [...research.researchedTechs])
+    );
+    return {
+      playerId,
+      playerTechs,
+      worldTechs,
+      playerBuildings: new Set(playerBuildings),
+      currentYear: this.currentYearProvider(),
+    };
   }
 
   private getTechnologyCostFactor(
@@ -538,17 +695,10 @@ export class ResearchManager {
     playerResearch: PlayerResearch | undefined,
     playerBuildings: ReadonlySet<string> = this.playerBuildingsProvider(playerId)
   ): number {
-    const playerTechs = new Set(playerResearch?.researchedTechs ?? []);
-    const worldTechs = new Set(
-      [...this.playerResearch.values()].flatMap(research => [...research.researchedTechs])
+    const result = this.effectsManager.calculateEffect(
+      EffectType.TECH_COST_FACTOR,
+      this.getResearchEffectContext(playerId, playerResearch, playerBuildings)
     );
-    const result = this.effectsManager.calculateEffect(EffectType.TECH_COST_FACTOR, {
-      playerId,
-      playerTechs,
-      worldTechs,
-      playerBuildings: new Set(playerBuildings),
-      currentYear: this.currentYearProvider(),
-    });
     return result.effects.length > 0 ? result.value : 1;
   }
 

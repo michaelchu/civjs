@@ -373,11 +373,87 @@ describe('ResearchManager', () => {
       expect(manager.getResearchProgress('human')?.required).toBe(baseCost * 3 * 1.5);
       expect(manager.getResearchProgress('easy-ai')?.required).toBe(baseCost * 3 * 1.5);
       expect(manager.getResearchProgress('restricted-ai')?.required).toBe(
-        Math.ceil(baseCost * 3 * 1.5 * 2.5)
+        Math.trunc(baseCost * 3 * 1.5 * 2.5)
       );
       expect(
         manager.getAvailableTechnologies('human').find(tech => tech.id === 'alphabet')?.cost
       ).toBe(baseCost * 3 * 1.5);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/common/research.c:941-1038
+     * @reference reference/freeciv/common/player.c:205-255
+     * @reference reference/freeciv/data/civ2civ3/game.ruleset:340-352
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3794-3800
+     * @assertion c2c3 applies Technology Leakage only when an alive player knows the target technology and the researching player has a qualifying embassy with that player.
+     * @c2c3-surface research-government
+     * @c2c3-surface-scenario boundary
+     */
+    it('requires a qualifying embassy before c2c3 technology leakage reduces research cost', async () => {
+      const technologies = loadRulesetTechnologies(rulesetLoader, 'civ2civ3');
+      const manager = new ResearchManager(
+        gameId,
+        createMockDatabaseProvider(),
+        technologies,
+        new EffectsManager('civ2civ3'),
+        'civ2civ3'
+      );
+      for (const playerId of ['learner', 'peer', 'observer']) {
+        await manager.initializePlayerResearch(playerId);
+      }
+      await manager.grantTechnology('peer', 'alphabet');
+
+      expect(manager.getResearchProgress('learner')?.required).toBe(30);
+
+      manager.setResearchDiplomacyProvider((playerId, targetPlayerId) => ({
+        hasRealEmbassy: playerId === 'learner' && targetPlayerId === 'peer',
+        hasContact: true,
+        targetIsBarbarian: false,
+      }));
+      expect(manager.getResearchProgress('learner')?.required).toBe(20);
+
+      manager.setPlayerAliveProvider(playerId => playerId !== 'observer');
+      expect(manager.getResearchProgress('learner')?.required).toBe(15);
+    });
+
+    it('limits effect-granted embassies to contacted non-barbarian players', async () => {
+      const technologies = loadRulesetTechnologies(rulesetLoader, 'civ2civ3');
+      const manager = new ResearchManager(
+        gameId,
+        createMockDatabaseProvider(),
+        technologies,
+        new EffectsManager('civ2civ3'),
+        'civ2civ3'
+      );
+      for (const playerId of ['learner', 'peer', 'observer']) {
+        await manager.initializePlayerResearch(playerId);
+      }
+      await manager.grantTechnology('peer', 'alphabet');
+      manager.setPlayerBuildingsProvider(playerId =>
+        playerId === 'learner' ? new Set(['marco_polos_embassy']) : new Set()
+      );
+      manager.setResearchDiplomacyProvider((_playerId, targetPlayerId) => ({
+        hasRealEmbassy: false,
+        hasContact: targetPlayerId === 'peer',
+        targetIsBarbarian: false,
+      }));
+
+      expect(manager.getResearchProgress('learner')?.required).toBe(20);
+
+      manager.setResearchDiplomacyProvider(() => ({
+        hasRealEmbassy: false,
+        hasContact: false,
+        targetIsBarbarian: false,
+      }));
+      expect(manager.getResearchProgress('learner')?.required).toBe(30);
+
+      manager.setResearchDiplomacyProvider(() => ({
+        hasRealEmbassy: false,
+        hasContact: true,
+        targetIsBarbarian: true,
+      }));
+      expect(manager.getResearchProgress('learner')?.required).toBe(30);
     });
 
     /**

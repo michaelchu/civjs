@@ -70,7 +70,11 @@ describe('GameLifecycleManager helper behavior', () => {
       'civ2civ3'
     );
 
-    expect(data.gameState.researchPacing).toEqual({ scienceBox: 150, techPenalty: 100 });
+    expect(data.gameState.researchPacing).toEqual({
+      scienceBox: 150,
+      techPenalty: 100,
+      techLeakPct: 100,
+    });
   });
 
   /**

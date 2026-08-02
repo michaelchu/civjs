@@ -9,11 +9,14 @@ export interface ResearchPacingSettings {
   scienceBox: number;
   /** Percentage of non-free bulbs lost when changing the current technology. */
   techPenalty: number;
+  /** Percentage of a qualifying known technology's cost that leaks to the researcher. */
+  techLeakPct: number;
 }
 
 export const DEFAULT_RESEARCH_PACING: ResearchPacingSettings = {
   scienceBox: 100,
   techPenalty: 100,
+  techLeakPct: 100,
 };
 
 function numericSetting(
@@ -46,6 +49,7 @@ export function resolveResearchPacingSettings(
 ): ResearchPacingSettings {
   const rulesetScienceBox = numericSetting(loader, rulesetName, 'sciencebox');
   const rulesetTechPenalty = numericSetting(loader, rulesetName, 'techpenalty');
+  const rulesetTechLeakPct = numericSetting(loader, rulesetName, 'techleak');
   return {
     scienceBox: boundedInteger(
       overrides.scienceBox,
@@ -58,6 +62,12 @@ export function resolveResearchPacingSettings(
       rulesetTechPenalty ?? DEFAULT_RESEARCH_PACING.techPenalty,
       0,
       100
+    ),
+    techLeakPct: boundedInteger(
+      overrides.techLeakPct,
+      rulesetTechLeakPct ?? DEFAULT_RESEARCH_PACING.techLeakPct,
+      0,
+      300
     ),
   };
 }
