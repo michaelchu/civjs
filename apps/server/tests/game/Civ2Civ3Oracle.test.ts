@@ -222,6 +222,51 @@ async function civ2civ3ZeroMoveSelfNuclear(): Promise<Record<string, number>> {
   };
 }
 
+async function civ2civ3VeteranWarriorUpgrade(): Promise<Record<string, number>> {
+  const databaseProvider = createMockDatabaseProvider();
+  const manager = new UnitManager(
+    'civ2civ3-oracle-upgrade',
+    databaseProvider,
+    80,
+    50,
+    undefined,
+    {
+      foundCity: async () => 'unused-city',
+      requestPath: async () => ({ success: false }),
+      broadcastUnitMoved: () => undefined,
+      getCityAt: (x, y) =>
+        x === 10 && y === 10 ? { id: 'upgrade-city', playerId: 'oracle' } : null,
+    },
+    new EffectsManager('civ2civ3'),
+    Math.random,
+    rulesetUnitsService.getUnitTypes('civ2civ3')
+  );
+  manager.setPlayerTechsProvider(() => new Set(['gunpowder', 'invention']));
+  const warrior = await manager.createUnit('oracle', 'warriors', 10, 10);
+  warrior.veteranLevel = 2;
+  warrior.movementLeft = 3;
+  const database = databaseProvider.getDatabase() as any;
+  database.where.mockResolvedValueOnce([{ gold: 100 }]);
+
+  const result = await manager.executeUnitAction(
+    warrior.id,
+    ActionType.UPGRADE_UNIT,
+    undefined,
+    undefined,
+    'oracle'
+  );
+  const goldSpent = Number(result.message?.match(/for (\d+) gold/)?.[1]);
+  if (!result.success || !Number.isFinite(goldSpent)) {
+    throw new Error(`Civ2Civ3 upgrade fixture failed: ${result.message ?? 'unknown error'}`);
+  }
+  return {
+    upgrade_action_succeeded: Number(result.success),
+    upgrade_is_musketeer: Number(warrior.unitTypeId === 'musketeers'),
+    upgrade_veteran_level: warrior.veteranLevel,
+    upgrade_gold_spent: goldSpent,
+  };
+}
+
 describe('Civ2Civ3 Freeciv oracle parity', () => {
   /**
    * @evidence parity
@@ -378,6 +423,29 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
 
     /**
      * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1034-1039
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:465-473
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4618-4625
+     * @reference reference/freeciv/common/unittype.c:1757-1771
+     * @reference reference/freeciv/server/unittools.c:1558-1597
+     * @assertion CivJS and the pinned Freeciv c2c3 server upgrade the same veteran Warrior to Musketeers for the same effect-adjusted price and veteran loss.
+     * @c2c3-action Upgrade Unit
+     * @c2c3-scenario normal
+     * @c2c3-surface cities
+     * @c2c3-surface-scenario differential
+     */
+    it('matches the batched pinned Freeciv Upgrade Unit fixture', async () => {
+      expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
+      await expect(civ2civ3VeteranWarriorUpgrade()).resolves.toEqual({
+        upgrade_action_succeeded: oracle.results.upgrade_action_succeeded,
+        upgrade_is_musketeer: oracle.results.upgrade_is_musketeer,
+        upgrade_veteran_level: oracle.results.upgrade_veteran_level,
+        upgrade_gold_spent: oracle.results.upgrade_gold_spent,
+      });
+    });
+
+    /**
+     * @evidence parity
      * @reference reference/freeciv/data/civ2civ3/effects.ruleset:387-405
      * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2899-2905
      * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3544-3550
@@ -443,6 +511,8 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
     it.skip('matches the batched pinned Freeciv Magellan Veteran_Combat fixture when an oracle bundle exists', () =>
       undefined);
     it.skip('matches the batched pinned Freeciv zero-movement self-nuclear fixture when an oracle bundle exists', () =>
+      undefined);
+    it.skip('matches the batched pinned Freeciv Upgrade Unit fixture when an oracle bundle exists', () =>
       undefined);
     it.skip('matches the batched pinned Freeciv visibility-effects fixture when an oracle bundle exists', () =>
       undefined);

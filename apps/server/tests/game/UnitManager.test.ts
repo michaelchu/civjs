@@ -3367,6 +3367,159 @@ describe('UnitManager', () => {
     });
   });
 
+  describe('Civ2Civ3 unit upgrades', () => {
+    const createManager = () => {
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          getCityAt: (x, y) =>
+            x === 10 && y === 10 ? { id: 'upgrade-city', playerId: 'player-123' } : null,
+        },
+        new EffectsManager('civ2civ3'),
+        Math.random,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      manager.setPlayerTechsProvider(() => new Set(['explosives', 'invention']));
+      return manager;
+    };
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1034-1039
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:465-473
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4618-4625
+     * @reference reference/freeciv/common/unittype.c:1757-1771
+     * @reference reference/freeciv/server/unittools.c:1558-1597
+     * @assertion Civ2Civ3 upgrades value the old unit at 50 percent, apply the Invention price reduction, and retain proportional movement.
+     * @c2c3-action Upgrade Unit
+     * @c2c3-scenario normal
+     */
+    it('applies Civ2Civ3 upgrade effects and proportional movement', async () => {
+      const manager = createManager();
+      const database = mockDbProvider.getDatabase() as any;
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+      database.where.mockResolvedValueOnce([{ gold: 30 }]);
+      worker.movementLeft = 3;
+
+      await expect(
+        manager.executeUnitAction(
+          worker.id,
+          ActionType.UPGRADE_UNIT,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({
+        success: true,
+        message: 'Workers upgraded to Engineers for 30 gold',
+      });
+
+      expect(worker).toMatchObject({
+        unitTypeId: 'engineers',
+        veteranLevel: 0,
+        movementLeft: 6,
+      });
+      expect(database.set).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          unitType: 'engineers',
+          veteranLevel: 0,
+          movementPoints: '6',
+          maxMovementPoints: '12',
+        })
+      );
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/game.ruleset:121-128
+     * @reference reference/freeciv/server/unittools.c:1558-1597
+     * @assertion Civ2Civ3 clips the destination veteran profile and then removes one veteran level during a manual upgrade.
+     * @c2c3-action Upgrade Unit
+     * @c2c3-scenario normal
+     */
+    it('loses one Civ2Civ3 veteran level during an upgrade', async () => {
+      const manager = createManager();
+      manager.setPlayerTechsProvider(() => new Set(['gunpowder', 'invention']));
+      const database = mockDbProvider.getDatabase() as any;
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+      database.where.mockResolvedValueOnce([{ gold: 65 }]);
+      warrior.veteranLevel = 2;
+      warrior.movementLeft = 3;
+
+      await expect(
+        manager.executeUnitAction(
+          warrior.id,
+          ActionType.UPGRADE_UNIT,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({
+        success: true,
+        message: 'Warriors upgraded to Musketeers for 65 gold',
+      });
+      expect(warrior).toMatchObject({ unitTypeId: 'musketeers', veteranLevel: 1, movementLeft: 3 });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/common/unit.c:2052-2082
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:465-473
+     * @assertion The discount is still a real treasury cost: an otherwise eligible unit cannot upgrade when the player has less than the effect-adjusted price.
+     * @c2c3-action Upgrade Unit
+     * @c2c3-scenario rejected
+     */
+    it('rejects an upgrade without the effect-adjusted treasury cost', async () => {
+      const manager = createManager();
+      const database = mockDbProvider.getDatabase() as any;
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+      database.where.mockResolvedValueOnce([{ gold: 29 }]);
+
+      await expect(
+        manager.executeUnitAction(
+          worker.id,
+          ActionType.UPGRADE_UNIT,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: false, message: 'Upgrade requires 30 gold' });
+      expect(worker.unitTypeId).toBe('worker');
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/common/unit.c:2052-2082
+     * @assertion Upgrade Unit requires an owned city even when the unit has a researched obsolete replacement and enough gold.
+     * @c2c3-action Upgrade Unit
+     * @c2c3-scenario boundary
+     */
+    it('requires an owned Civ2Civ3 city to upgrade a unit', async () => {
+      const manager = createManager();
+      const database = mockDbProvider.getDatabase() as any;
+      database.where.mockResolvedValueOnce([{ gold: 100 }]);
+      const worker = await manager.createUnit('player-123', 'worker', 11, 10);
+
+      await expect(
+        manager.executeUnitAction(
+          worker.id,
+          ActionType.UPGRADE_UNIT,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: false, message: 'Unit cannot be upgraded here' });
+      expect(worker.unitTypeId).toBe('worker');
+    });
+  });
+
   describe('classic special actions and automation', () => {
     const tile = {
       x: 10,

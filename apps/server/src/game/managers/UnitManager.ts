@@ -3544,8 +3544,7 @@ export class UnitManager {
       return { success: false, message: 'Unit cannot be upgraded here' };
     }
     const { from, to } = upgrade;
-    const missingShields = Math.max(0, to.cost - from.cost);
-    const goldCost = 2 * missingShields + Math.floor((missingShields * missingShields) / 20);
+    const goldCost = this.getUpgradeGoldCost(unit, from, to);
     const db = this.databaseProvider.getDatabase();
     const [player] = await db
       .select({ gold: players.gold })
@@ -3554,8 +3553,34 @@ export class UnitManager {
     if (!player || player.gold < goldCost) {
       return { success: false, message: `Upgrade requires ${goldCost} gold` };
     }
+    const oldMaximumMovement = this.getUnitMovementPoints(
+      unit.playerId,
+      from,
+      unit.veteranLevel,
+      unit.health
+    );
+    const veteranLoss = rulesetLoader.loadGameRulesRuleset(this.getRulesetName()).game_parameters
+      .upgrade_veteran_loss;
+    const veteranLevel = Math.max(
+      0,
+      Math.min(unit.veteranLevel, getVeteranLevelCount(to) - 1) - veteranLoss
+    );
+    const newMaximumMovement = this.getUnitMovementPoints(
+      unit.playerId,
+      to,
+      veteranLevel,
+      unit.health
+    );
+    const movementLeft =
+      oldMaximumMovement === 0
+        ? newMaximumMovement
+        : Math.min(
+            newMaximumMovement,
+            Math.max(0, Math.floor((unit.movementLeft * newMaximumMovement) / oldMaximumMovement))
+          );
     unit.unitTypeId = to.id;
-    unit.movementLeft = 0;
+    unit.veteranLevel = veteranLevel;
+    unit.movementLeft = movementLeft;
     await db
       .update(players)
       .set({ gold: sql`${players.gold} - ${goldCost}` })
@@ -3566,11 +3591,49 @@ export class UnitManager {
         unitType: to.id,
         attackStrength: to.attack ?? 0,
         defenseStrength: to.defense ?? 0,
-        movementPoints: '0',
-        maxMovementPoints: String(to.movement * this.getMoveFragments()),
+        veteranLevel,
+        movementPoints: String(movementLeft),
+        maxMovementPoints: String(newMaximumMovement),
       })
       .where(eq(units.id, unit.id));
     return { success: true, message: `${from.name} upgraded to ${to.name} for ${goldCost} gold` };
+  }
+
+  /**
+   * Freeciv values the old unit through the action-specific
+   * Unit_Shield_Value_Pct effect before calculating the missing shields, then
+   * applies Upgrade_Price_Pct at player scope.
+   * @reference reference/freeciv/common/unit.c:233-265
+   * @reference reference/freeciv/common/unittype.c:1757-1771
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:465-473
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4618-4625
+   */
+  private getUpgradeGoldCost(unit: Unit, from: UnitType, to: UnitType): number {
+    const context = this.getUnitEffectContext(unit, from, 'Upgrade Unit');
+    const shieldValuePct =
+      100 +
+      (this.effectsManager?.calculateEffect(EffectType.UNIT_SHIELD_VALUE_PCT, context).value ?? 0);
+    const oldShieldValue = Math.trunc((from.cost * shieldValuePct) / 100);
+    const missingShields = to.cost - oldShieldValue;
+    const baseCost = 2 * missingShields + Math.trunc((missingShields * missingShields) / 20);
+    const pricePct =
+      100 +
+      (this.effectsManager?.calculateEffect(EffectType.UPGRADE_PRICE_PCT, context).value ?? 0);
+    return Math.trunc((baseCost * pricePct) / 100);
+  }
+
+  private getUnitEffectContext(unit: Unit, unitType: UnitType, action: string): EffectContext {
+    return {
+      playerId: unit.playerId,
+      action,
+      unitId: unit.id,
+      unitType: unitType.id,
+      unitClass: unitType.rulesetUnitClass,
+      unitClassFlags: new Set(unitType.rulesetUnitClassFlags),
+      unitTypeFlags: new Set(unitType.flags ?? []),
+      playerTechs: this.playerTechsProvider(unit.playerId),
+      playerBuildings: new Set(this.gameManagerCallback?.getPlayerBuildings?.(unit.playerId) ?? []),
+    };
   }
 
   private getUpgradeTarget(unit: Unit): { from: UnitType; to: UnitType } | undefined {
