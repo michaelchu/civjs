@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import type { DatabaseProvider } from '@database';
 import { players as playersTable } from '@database/schema';
-import type { PlayerState } from '@game/managers/GameManager';
+import type { PlayerState } from '@game/runtime/GameTypes';
 import type { BorderManager } from '@game/managers/BorderManager';
 import type { CityManager } from '@game/managers/CityManager';
 import type { GovernmentManager } from '@game/managers/GovernmentManager';

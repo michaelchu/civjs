@@ -6,8 +6,8 @@ import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 import { logger } from '@utils/logger';
 import { MapTile, TerrainType } from '@game/map/MapTypes';
-import type { Unit } from '@game/managers/UnitManager';
-import type { CityState } from '@game/managers/CityManager';
+import type { Unit } from '@game/units/UnitTypes';
+import type { CityState } from '@game/cities/CityTypes';
 import type { MapManager } from '@game/managers/MapManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { CityFoundingRules } from '@shared/data/rulesets/schemas';

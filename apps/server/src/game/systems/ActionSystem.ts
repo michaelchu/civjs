@@ -8,7 +8,7 @@ import {
   ActionTargetType,
   ActionMovesActor,
 } from '@app-types/shared/actions';
-import { Unit } from '@game/managers/UnitManager';
+import type { Unit } from '@game/units/UnitTypes';
 import { SINGLE_MOVE } from '@game/constants/MovementConstants';
 import { type UnitType, rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import type { MapManager } from '@game/managers/MapManager';

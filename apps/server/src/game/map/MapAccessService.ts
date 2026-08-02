@@ -1,5 +1,5 @@
 import { logger } from '@utils/logger';
-import { PlayerState } from '@game/managers/GameManager';
+import { PlayerState } from '@game/runtime/GameTypes';
 import { MapData, MapTile } from './MapTypes';
 import { MapValidator, ValidationResult } from './MapValidator';
 import { getTerrainMovementCost } from '@game/constants/MovementConstants';

@@ -1,7 +1,7 @@
 import {
   SimulationExecutionError,
   SimulationExecutionService,
-} from '@game/services/SimulationExecutionService';
+} from '@game/simulation/runtime/SimulationExecutionService';
 
 function createFakeManager() {
   const game = {

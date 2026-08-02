@@ -7,14 +7,14 @@ import {
   type HeadlessSimulationConfig,
   type HeadlessSimulationRunOptions,
   type SimulationRunBundle,
-} from '@game/services/SimulationTypes';
+} from '@game/simulation/config/SimulationTypes';
 import {
   createRunId,
   exitCodeForBundle,
   HEADLESS_EXIT_CODES,
   HeadlessSimulationRunner,
   HeadlessSimulationOutputError,
-} from '@game/services/HeadlessSimulationRunner';
+} from '@game/simulation/runtime/HeadlessSimulationRunner';
 
 interface CliOptions {
   configPath?: string;

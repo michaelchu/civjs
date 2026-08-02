@@ -1,6 +1,6 @@
-import type { CityState, BuildingType } from '@game/managers/CityManager';
+import type { CityState, BuildingType } from '@game/cities/CityTypes';
 import type { Technology } from '@game/managers/ResearchManager';
-import type { Unit } from '@game/managers/UnitManager';
+import type { Unit } from '@game/units/UnitTypes';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 import type { AIProfile } from '@game/ai/AIProfile';
 import type { MapTile, TerrainType } from '@game/map/MapTypes';

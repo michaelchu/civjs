@@ -1,5 +1,5 @@
 import { createAIProfile, type AIProfile } from '@game/ai/AIProfile';
-import type { GameInstance } from '@game/managers/GameManager';
+import type { GameInstance } from '@game/runtime/GameTypes';
 import { type IntegerRandomSource } from '@game/random/FreecivRandom';
 
 const MAX_UINT32 = 0xffff_ffff;

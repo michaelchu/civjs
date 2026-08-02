@@ -1,5 +1,5 @@
-import type { CityState } from '@game/managers/CityManager';
-import type { Unit } from '@game/managers/UnitManager';
+import type { CityState } from '@game/cities/CityTypes';
+import type { Unit } from '@game/units/UnitTypes';
 import { EffectType, OutputType } from '@game/managers/EffectsManager';
 
 export interface GovernmentChoice {

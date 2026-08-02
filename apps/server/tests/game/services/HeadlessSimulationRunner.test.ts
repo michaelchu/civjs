@@ -2,10 +2,10 @@ import {
   hashSimulationState,
   HeadlessSimulationRunner,
   resolveSimulationEndReason,
-} from '@game/services/HeadlessSimulationRunner';
+} from '@game/simulation/runtime/HeadlessSimulationRunner';
 import { GameReplayService } from '@game/services/GameReplayService';
-import { SimulationExecutionError } from '@game/services/SimulationExecutionService';
-import { headlessSimulationConfigSchema } from '@game/services/SimulationTypes';
+import { SimulationExecutionError } from '@game/simulation/runtime/SimulationExecutionService';
+import { headlessSimulationConfigSchema } from '@game/simulation/config/SimulationTypes';
 
 describe('HeadlessSimulationRunner result metadata', () => {
   it('uses the failure reason instead of a previously persisted normal end reason', () => {

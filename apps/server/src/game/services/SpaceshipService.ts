@@ -1,4 +1,4 @@
-import type { CityState } from '@game/managers/CityManager';
+import type { CityState } from '@game/cities/CityTypes';
 
 export const SPACESHIP_PART_LIMITS = {
   space_structural: 32,

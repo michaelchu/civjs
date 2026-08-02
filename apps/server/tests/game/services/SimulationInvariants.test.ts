@@ -1,7 +1,7 @@
 import {
   evaluateSimulationInvariants,
   type SimulationInvariantResult,
-} from '@game/services/SimulationInvariants';
+} from '@game/simulation/invariants/SimulationInvariants';
 
 const playerOneId = 'player-1';
 const playerTwoId = 'player-2';

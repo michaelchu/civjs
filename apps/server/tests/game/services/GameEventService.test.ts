@@ -1,4 +1,4 @@
-import { GameEventService, GameEventType } from '@game/services/GameEventService';
+import { GameEventService, GameEventType } from '@game/events/GameEventService';
 import { createMockDatabaseProvider } from '../../utils/mockDatabaseProvider';
 
 const city = {
@@ -21,6 +21,18 @@ function movementUnit(overrides: Record<string, unknown> = {}) {
 }
 
 describe('GameEventService telemetry', () => {
+  it('drops at least one oldest event when a small queue reaches capacity', () => {
+    const service = new GameEventService('game-1', {} as any, createMockDatabaseProvider());
+    (service as any).maxEventQueueSize = 1;
+
+    service.recordCityGrowth({ ...city, size: 2 }, 1);
+    service.recordCityGrowth({ ...city, size: 3 }, 2);
+
+    expect(service.getTelemetryDiagnostics()).toEqual(
+      expect.objectContaining({ droppedEvents: 1, pendingEvents: 1 })
+    );
+  });
+
   it('aggregates movement and batches semantic events into one insert', async () => {
     const databaseProvider = createMockDatabaseProvider();
     const database = databaseProvider.getDatabase() as any;
@@ -68,6 +80,9 @@ describe('GameEventService telemetry', () => {
         }),
       ])
     );
+    expect(records).toEqual(
+      expect.arrayContaining([expect.objectContaining({ status: 'completed' })])
+    );
     expect(records).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ eventType: GameEventType.UNIT_MOVED })])
     );
@@ -98,6 +113,31 @@ describe('GameEventService telemetry', () => {
     );
   });
 
+  it('keeps aggregated movement attached to its originating turn', async () => {
+    const databaseProvider = createMockDatabaseProvider();
+    const database = databaseProvider.getDatabase() as any;
+    const service = new GameEventService('game-1', {} as any, databaseProvider);
+    service.setCurrentTurnContext('turn-1', 3, -3970);
+    service.recordUnitLifecycle({
+      type: 'moved',
+      unit: movementUnit(),
+      previousX: 5,
+      previousY: 6,
+    });
+
+    service.setCurrentTurnContext('turn-2', 4, -3960);
+    await service.processQueuedEvents(4, -3960);
+
+    const [records] = database.values.mock.calls[0];
+    expect(records).toEqual([
+      expect.objectContaining({
+        turnId: 'turn-1',
+        eventType: GameEventType.UNIT_MOVEMENT_SUMMARY,
+        eventData: expect.objectContaining({ turn: 3, year: -3970 }),
+      }),
+    ]);
+  });
+
   it('retains events for retry and reports persistence failures', async () => {
     const databaseProvider = createMockDatabaseProvider();
     const database = databaseProvider.getDatabase() as any;
@@ -119,6 +159,29 @@ describe('GameEventService telemetry', () => {
     const retried = await service.processQueuedEvents(3, -3970);
     expect(retried.eventsHandled).toBe(1);
     expect(service.getTelemetryDiagnostics().pendingEvents).toBe(0);
+  });
+
+  it('does not repeat successful handlers when persistence is retried', async () => {
+    const databaseProvider = createMockDatabaseProvider();
+    const database = databaseProvider.getDatabase() as any;
+    const service = new GameEventService('game-1', {} as any, databaseProvider);
+    const handler = jest.fn(async () => true);
+    service.registerEventHandler({
+      id: 'city-growth-side-effect',
+      eventType: GameEventType.CITY_GROWTH,
+      priority: 1,
+      handler,
+    });
+    service.setCurrentTurnContext('turn-1', 3, -3970);
+    service.recordCityGrowth({ ...city, size: 2 }, 1);
+    database.insert.mockImplementationOnce(() => {
+      throw new Error('database unavailable');
+    });
+
+    await service.processQueuedEvents(3, -3970);
+    await service.processQueuedEvents(3, -3970);
+
+    expect(handler).toHaveBeenCalledTimes(1);
   });
 
   it('does not classify spaceship parts as completed buildings', async () => {

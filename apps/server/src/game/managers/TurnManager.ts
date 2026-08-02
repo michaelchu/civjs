@@ -10,7 +10,7 @@ import { TurnProcessingService, type PlayerAction } from '@game/services/TurnPro
 import { TurnCoordinationService } from '@game/services/TurnCoordinationService';
 import { TurnPacketService } from '@game/services/TurnPacketService';
 import { TurnPhaseService } from '@game/services/TurnPhaseService';
-import { GameEventService } from '@game/services/GameEventService';
+import { GameEventService } from '@game/events/GameEventService';
 import { CalendarService } from '@game/services/CalendarService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { UnitManager } from '@game/managers/UnitManager';

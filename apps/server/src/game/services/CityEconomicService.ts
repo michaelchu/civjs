@@ -16,7 +16,8 @@
 
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
-import { type CityState, SpecialistType } from '@game/managers/CityManager';
+import type { CityState } from '@game/cities/CityTypes';
+import { SpecialistType } from '@game/constants/SpecialistDefinitions';
 import { EffectsManager, EffectType, OutputType } from '@game/managers/EffectsManager';
 import type { UnitSupportData } from '@game/managers/UnitSupportManager';
 import type { CityEconomicOutput } from '@game/systems/Economic/types/EconomicTypes';

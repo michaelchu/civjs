@@ -26,6 +26,32 @@ import {
   type WorkerAutomationTask,
 } from '@game/automation/WorkerAutomationTypes';
 import type { CombatPresentationEvent, NuclearPresentationEvent } from '@app-types/presentation';
+import type {
+  CombatResult,
+  DiplomatActionResolution,
+  Unit,
+  UnitActivity,
+  UnitCombatEvent,
+  UnitHitpointRecovery,
+  UnitLifecycleEvent,
+  UnitOrder,
+} from '@game/units/UnitTypes';
+import { UnitMovementCostService } from '@game/units/UnitMovementCostService';
+import { UnitHutService } from '@game/units/UnitHutService';
+import { UnitMapStateRepository } from '@game/units/UnitMapStateRepository';
+import { getVeteranLevel } from '@game/units/UnitVeterancy';
+
+export type {
+  CombatResult,
+  DiplomatActionResolution,
+  Unit,
+  UnitActivity,
+  UnitCombatEvent,
+  UnitHitpointRecovery,
+  UnitLifecycleEvent,
+  UnitOrder,
+  VeteranLevel,
+} from '@game/units/UnitTypes';
 
 interface CityAtLocation {
   id: string;
@@ -36,127 +62,73 @@ interface CityAtLocation {
   population?: number;
 }
 
-export interface Unit {
-  id: string;
-  gameId: string;
-  playerId: string;
-  unitTypeId: string;
-  x: number;
-  y: number;
-  movementLeft: number;
-  fuel?: number;
-  health: number;
-  veteranLevel: number;
-  experience: number;
-  fortified: boolean;
-  orders?: UnitOrder[];
-  activity?: UnitActivity;
-  sentryUntil?: 'turn_start' | 'enemy_sighted' | 'manual';
-  autoExploreTarget?: { x: number; y: number };
-  automation?: UnitAutomationMode;
-  automationTask?: WorkerAutomationTask;
-  transportedBy?: string; // ID of unit transporting this unit
-  cargoUnits?: string[]; // IDs of units being transported by this unit
-  homeCityId?: string;
-  createdTurn?: number;
-  lastActionTurn?: number;
-}
-
-export interface UnitHitpointRecovery {
-  regeneration: number;
-  minimum: number;
-  secondary: number;
-  gain: number;
-}
-
-export type UnitLifecycleEvent =
-  | { type: 'created'; unit: Unit }
-  | { type: 'moved'; unit: Unit; previousX: number; previousY: number }
-  | { type: 'owner_changed'; unit: Unit; previousPlayerId: string }
-  | { type: 'destroyed'; unit: Unit };
-
-export interface VeteranLevel {
-  name: string;
-  powerFactor: number; // Multiplier for attack/defense strength
-  moveBonus: number; // Additional movement points
-  experienceRequired: number; // Experience points needed to reach this level
-}
-
-export interface UnitOrder {
-  type:
-    | 'move'
-    | 'attack'
-    | 'fortify'
-    | 'foundCity'
-    | 'buildImprovement'
-    | 'pillage'
-    | 'patrol'
-    | 'irrigate'
-    | 'mine'
-    | 'cultivate'
-    | 'plant'
-    | 'fortress'
-    | 'airbase'
-    | 'road'
-    | 'railroad'
-    | 'transform'
-    | 'cleanPollution'
-    | 'sentry'
-    | 'wait'
-    | 'disband'
-    | 'autoExplore'
-    | 'autoSettler';
-  targetX?: number;
-  targetY?: number;
-  targetId?: string;
-  improvementType?: string;
-  activity?: UnitActivity;
-  patrolStart?: { x: number; y: number };
-  patrolEnd?: { x: number; y: number };
-  activityTurnsLeft?: number;
-  priority?: number;
-}
-
-export interface UnitActivity {
-  type:
-    | 'idle'
-    | 'building_road'
-    | 'building_railroad'
-    | 'irrigating'
-    | 'mining'
-    | 'cultivating'
-    | 'planting'
-    | 'building_fortress'
-    | 'building_airbase'
-    | 'pillaging'
-    | 'transforming'
-    | 'cleaning_pollution'
-    | 'fortifying'
-    | 'patrolling';
-  turnsRemaining: number;
-  totalTurns: number;
-  target?: { x: number; y: number };
-}
-
-export interface CombatResult {
-  attackerId: string;
-  defenderId: string;
-  attackerDamage: number;
-  defenderDamage: number;
-  attackerDestroyed: boolean;
-  defenderDestroyed: boolean;
-  collateralDestroyedIds?: string[];
-  experienceGained?: {
-    attacker: number;
-    defender: number;
-  };
-}
-
-export interface UnitCombatEvent {
-  attacker: Unit;
-  defender: Unit;
-  result: CombatResult;
-  collateralUnits?: Unit[];
+export interface UnitManagerCallbacks {
+  foundCity: (
+    gameId: string,
+    playerId: string,
+    name: string,
+    x: number,
+    y: number,
+    unitId?: string
+  ) => Promise<string>;
+  canFoundCityAt?: (x: number, y: number, playerId: string) => boolean;
+  requestPath: (
+    playerId: string,
+    unitId: string,
+    targetX: number,
+    targetY: number
+  ) => Promise<{ success: boolean; path?: any; error?: string }>;
+  broadcastUnitMoved: (
+    gameId: string,
+    unitId: string,
+    x: number,
+    y: number,
+    movementLeft: number
+  ) => void;
+  broadcastUnitDestroyed?: (gameId: string, unit: Unit) => void;
+  broadcastUnitInfo?: (gameId: string, unit: Unit) => void;
+  getCityAt?: (x: number, y: number) => CityAtLocation | null;
+  applyCityPopulationLoss?: (cityId: string) => Promise<boolean>;
+  getCityNames?: () => string[];
+  getPlayerNation?: (playerId: string) => string | undefined;
+  getPlayerBuildings?: (playerId: string) => string[];
+  reserveAirlift?: (
+    sourceCityId: string,
+    destinationCityId: string,
+    playerId: string,
+    turn: number
+  ) => Promise<boolean>;
+  getExploredTiles?: (playerId: string) => Set<string>;
+  establishTradeRoute?: (
+    playerId: string,
+    homeCityId: string,
+    targetX: number,
+    targetY: number
+  ) => Promise<boolean>;
+  captureCity?: (cityId: string, playerId: string, unitId: string) => Promise<boolean>;
+  executeCityUnitAction?: (
+    actionType: ActionType,
+    playerId: string,
+    unitTypeId: string,
+    homeCityId: string | undefined,
+    targetX: number,
+    targetY: number
+  ) => Promise<ActionResult>;
+  applyNuclearCityDamage?: (
+    centerX: number,
+    centerY: number,
+    radiusSquared: number,
+    attackerPlayerId: string
+  ) => Promise<string[]>;
+  grantHutTechnology?: (playerId: string) => Promise<string | null>;
+  revealHutMap?: (playerId: string, x: number, y: number) => string[];
+  spawnHutBarbarians?: (playerId: string, x: number, y: number) => Promise<boolean>;
+  broadcastHutEvent?: (gameId: string, playerId: string, message: string) => void;
+  updatePlayerStatistic?: (
+    playerId: string,
+    statistic: 'unitsBuilt' | 'unitsKilled' | 'unitsLost'
+  ) => void;
+  broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
 }
 
 interface CombatSetup {
@@ -187,13 +159,6 @@ interface MovePlan {
   previousY: number;
 }
 
-export interface DiplomatActionResolution {
-  success: boolean;
-  actorSurvives: boolean;
-  successChance: number;
-  escapeChance: number;
-}
-
 export class UnitManager {
   private units: Map<string, Unit> = new Map();
   private gameId: string;
@@ -202,78 +167,14 @@ export class UnitManager {
   private mapHeight: number;
   private mapManager: any; // MapManager instance for terrain access
   private readonly rulesetRequirements = new RulesetRequirementEvaluator();
+  private readonly movementCosts: UnitMovementCostService;
+  private readonly hutService: UnitHutService;
+  private readonly mapStateRepository: UnitMapStateRepository;
   private actionSystem: ActionSystem;
   private effectsManager?: EffectsManager;
   private currentTurnProvider?: () => number;
   private gameLossHandler?: (playerId: string) => Promise<void>;
-  private gameManagerCallback?: {
-    foundCity: (
-      gameId: string,
-      playerId: string,
-      name: string,
-      x: number,
-      y: number,
-      unitId?: string
-    ) => Promise<string>;
-    canFoundCityAt?: (x: number, y: number, playerId: string) => boolean;
-    requestPath: (
-      playerId: string,
-      unitId: string,
-      targetX: number,
-      targetY: number
-    ) => Promise<{ success: boolean; path?: any; error?: string }>;
-    broadcastUnitMoved: (
-      gameId: string,
-      unitId: string,
-      x: number,
-      y: number,
-      movementLeft: number
-    ) => void;
-    broadcastUnitDestroyed?: (gameId: string, unit: Unit) => void;
-    broadcastUnitInfo?: (gameId: string, unit: Unit) => void;
-    getCityAt?: (x: number, y: number) => CityAtLocation | null;
-    applyCityPopulationLoss?: (cityId: string) => Promise<boolean>;
-    getCityNames?: () => string[];
-    getPlayerNation?: (playerId: string) => string | undefined;
-    getPlayerBuildings?: (playerId: string) => string[];
-    reserveAirlift?: (
-      sourceCityId: string,
-      destinationCityId: string,
-      playerId: string,
-      turn: number
-    ) => Promise<boolean>;
-    getExploredTiles?: (playerId: string) => Set<string>;
-    establishTradeRoute?: (
-      playerId: string,
-      homeCityId: string,
-      targetX: number,
-      targetY: number
-    ) => Promise<boolean>;
-    captureCity?: (cityId: string, playerId: string, unitId: string) => Promise<boolean>;
-    executeCityUnitAction?: (
-      actionType: ActionType,
-      playerId: string,
-      unitTypeId: string,
-      homeCityId: string | undefined,
-      targetX: number,
-      targetY: number
-    ) => Promise<ActionResult>;
-    applyNuclearCityDamage?: (
-      centerX: number,
-      centerY: number,
-      radiusSquared: number,
-      attackerPlayerId: string
-    ) => Promise<string[]>;
-    grantHutTechnology?: (playerId: string) => Promise<string | null>;
-    revealHutMap?: (playerId: string, x: number, y: number) => string[];
-    spawnHutBarbarians?: (playerId: string, x: number, y: number) => Promise<boolean>;
-    broadcastHutEvent?: (gameId: string, playerId: string, message: string) => void;
-    updatePlayerStatistic?: (
-      playerId: string,
-      statistic: 'unitsBuilt' | 'unitsKilled' | 'unitsLost'
-    ) => void;
-    broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
-  };
+  private gameManagerCallback?: UnitManagerCallbacks;
   private playerTechsProvider: (playerId: string) => Set<string> = () => new Set();
   private hostilityProvider?: (
     attackerPlayerId: string,
@@ -307,74 +208,7 @@ export class UnitManager {
     mapWidth: number,
     mapHeight: number,
     mapManager?: any,
-    gameManagerCallback?: {
-      foundCity: (
-        gameId: string,
-        playerId: string,
-        name: string,
-        x: number,
-        y: number,
-        unitId?: string
-      ) => Promise<string>;
-      canFoundCityAt?: (x: number, y: number, playerId: string) => boolean;
-      requestPath: (
-        playerId: string,
-        unitId: string,
-        targetX: number,
-        targetY: number
-      ) => Promise<{ success: boolean; path?: any; error?: string }>;
-      broadcastUnitMoved: (
-        gameId: string,
-        unitId: string,
-        x: number,
-        y: number,
-        movementLeft: number
-      ) => void;
-      broadcastUnitDestroyed?: (gameId: string, unit: Unit) => void;
-      broadcastUnitInfo?: (gameId: string, unit: Unit) => void;
-      getCityAt?: (x: number, y: number) => CityAtLocation | null;
-      applyCityPopulationLoss?: (cityId: string) => Promise<boolean>;
-      getCityNames?: () => string[];
-      getPlayerNation?: (playerId: string) => string | undefined;
-      getPlayerBuildings?: (playerId: string) => string[];
-      reserveAirlift?: (
-        sourceCityId: string,
-        destinationCityId: string,
-        playerId: string,
-        turn: number
-      ) => Promise<boolean>;
-      getExploredTiles?: (playerId: string) => Set<string>;
-      establishTradeRoute?: (
-        playerId: string,
-        homeCityId: string,
-        targetX: number,
-        targetY: number
-      ) => Promise<boolean>;
-      captureCity?: (cityId: string, playerId: string, unitId: string) => Promise<boolean>;
-      executeCityUnitAction?: (
-        actionType: ActionType,
-        playerId: string,
-        unitTypeId: string,
-        homeCityId: string | undefined,
-        targetX: number,
-        targetY: number
-      ) => Promise<ActionResult>;
-      applyNuclearCityDamage?: (
-        centerX: number,
-        centerY: number,
-        radiusSquared: number,
-        attackerPlayerId: string
-      ) => Promise<string[]>;
-      grantHutTechnology?: (playerId: string) => Promise<string | null>;
-      revealHutMap?: (playerId: string, x: number, y: number) => string[];
-      spawnHutBarbarians?: (playerId: string, x: number, y: number) => Promise<boolean>;
-      broadcastHutEvent?: (gameId: string, playerId: string, message: string) => void;
-      updatePlayerStatistic?: (
-        playerId: string,
-        statistic: 'unitsBuilt' | 'unitsKilled' | 'unitsLost'
-      ) => void;
-      broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
-    },
+    gameManagerCallback?: UnitManagerCallbacks,
     effectsManager?: EffectsManager,
     private readonly random: RandomSource = Math.random,
     private readonly unitTypes: Record<string, UnitType> = rulesetUnitsService.getUnitTypes(
@@ -389,6 +223,37 @@ export class UnitManager {
     this.mapManager = mapManager;
     this.gameManagerCallback = gameManagerCallback;
     this.effectsManager = effectsManager ?? new EffectsManager();
+    this.movementCosts = new UnitMovementCostService(
+      this.unitTypes,
+      this.effectsManager,
+      () => this.getRulesetName(),
+      (x, y) => this.getTerrainAt(x, y),
+      (x, y) => this.mapManager?.getTile?.(x, y),
+      playerId => this.playerTechsProvider(playerId),
+      playerId => this.gameManagerCallback?.getPlayerBuildings?.(playerId) ?? []
+    );
+    this.mapStateRepository = new UnitMapStateRepository(
+      this.gameId,
+      this.databaseProvider,
+      this.mapManager,
+      (changedGameId, mapData) =>
+        this.gameManagerCallback?.broadcastMapChanged?.(changedGameId, mapData)
+    );
+    this.hutService = new UnitHutService(
+      this.gameId,
+      this.databaseProvider,
+      this.mapManager,
+      () => this.unitTypes,
+      this.random,
+      this.gameManagerCallback,
+      (x, y) => this.getTerrainAt(x, y),
+      playerId => this.playerTechsProvider(playerId),
+      (playerId, unitTypeId, x, y, homeCityId) =>
+        this.createUnit(playerId, unitTypeId, x, y, homeCityId),
+      unitId => this.destroyUnit(unitId),
+      unitId => this.units.has(unitId),
+      this.mapStateRepository
+    );
     this.actionSystem = new ActionSystem(
       gameId,
       gameManagerCallback,
@@ -897,207 +762,15 @@ export class UnitManager {
    * @reference reference/freeciv/data/default/default.lua:19-185
    */
   private async resolveEnteredTile(unit: Unit): Promise<void> {
-    const tile = this.mapManager?.getTile(unit.x, unit.y);
-    if (!tile) return;
-    let changed = false;
-    const improvements = [...tile.improvements];
-    const hutIndex = improvements.findIndex((extra: string) => extra.toLowerCase() === 'hut');
-    if (hutIndex >= 0) {
-      improvements.splice(hutIndex, 1);
-      changed = true;
-      const frightens =
-        this.unitTypes[unit.unitTypeId].rulesetUnitClassFlags.includes('HutFrighten');
-      if (!frightens) {
-        await this.resolveHutReward(unit);
-      }
-    }
-
-    const conquerableExtras = improvements.filter(
-      (extra: string) => !['pollution', 'fallout'].includes(extra.toLowerCase())
-    );
-    if (conquerableExtras.length > 0 && tile.claimer !== unit.playerId) {
-      this.mapManager.updateTileProperty(unit.x, unit.y, 'claimer', unit.playerId);
-      changed = true;
-    }
-    if (changed) {
-      this.mapManager.updateTileProperty(unit.x, unit.y, 'improvements', improvements);
-      await this.persistMapState();
-    }
+    await this.hutService.resolveEnteredTile(unit);
   }
 
-  private async resolveHutReward(unit: Unit): Promise<void> {
-    const chance = randomInt(this.random, 14);
-    if (chance <= 4) return this.resolveHutGold(unit, chance);
-    if (chance <= 7) return this.resolveHutTechnology(unit);
-    if (chance <= 9) return this.resolveHutMercenary(unit);
-    if (chance === 10) return this.resolveHutBarbarians(unit);
-    if (chance === 11 && this.gameManagerCallback?.foundCity) {
-      return this.resolveHutSettlement(unit);
-    }
-    return this.resolveHutMap(unit);
-  }
-
-  private async resolveHutGold(unit: Unit, chance: number): Promise<void> {
-    const gold = chance === 0 ? 25 : chance <= 3 ? 50 : 100;
-    await this.changePlayerGold(unit.playerId, gold);
-    this.gameManagerCallback?.broadcastHutEvent?.(
-      this.gameId,
-      unit.playerId,
-      `Your unit found ${gold} gold in a goody hut.`
-    );
-  }
-
-  private async resolveHutTechnology(unit: Unit): Promise<void> {
-    const technology = await this.gameManagerCallback?.grantHutTechnology?.(unit.playerId);
-    if (technology) {
-      this.gameManagerCallback?.broadcastHutEvent?.(
-        this.gameId,
-        unit.playerId,
-        `Your unit discovered the technology ${technology} in a goody hut.`
-      );
-    } else {
-      await this.changePlayerGold(unit.playerId, 25);
-      this.gameManagerCallback?.broadcastHutEvent?.(
-        this.gameId,
-        unit.playerId,
-        'The goody hut had no new technology; your unit found 25 gold instead.'
-      );
-    }
-  }
-
-  private async resolveHutMercenary(unit: Unit): Promise<void> {
-    const terrain = this.getTerrainAt(unit.x, unit.y);
-    const techs = this.playerTechsProvider(unit.playerId);
-    const canExist = (type: UnitType): boolean =>
-      getTerrainMovementCost(terrain, type.id) >= 0 &&
-      (!type.requiredTech ||
-        [...techs].some(tech => tech.toLowerCase() === type.requiredTech!.toLowerCase()));
-    const mercenary =
-      Object.values(this.unitTypes).find(
-        type => type.roles?.includes('HutTech') && canExist(type)
-      ) ??
-      Object.values(this.unitTypes).find(type => type.roles?.includes('Hut') && canExist(type));
-    if (mercenary) {
-      await this.createUnit(unit.playerId, mercenary.id, unit.x, unit.y, unit.homeCityId);
-      this.gameManagerCallback?.broadcastHutEvent?.(
-        this.gameId,
-        unit.playerId,
-        `Your unit found a ${mercenary.name ?? mercenary.id} in a goody hut.`
-      );
-      return;
-    }
-    await this.changePlayerGold(unit.playerId, 25);
-    this.gameManagerCallback?.broadcastHutEvent?.(
-      this.gameId,
-      unit.playerId,
-      'No mercenary was available; your unit found 25 gold instead.'
-    );
-  }
-
-  private async resolveHutBarbarians(unit: Unit): Promise<void> {
-    const isGameLoss = this.unitTypes[unit.unitTypeId]?.rulesetUnitClassFlags.includes('GameLoss');
-    if (isGameLoss) return;
-    const alive = await this.gameManagerCallback?.spawnHutBarbarians?.(
-      unit.playerId,
-      unit.x,
-      unit.y
-    );
-    if (alive === undefined) {
-      await this.changePlayerGold(unit.playerId, 25);
-      this.gameManagerCallback?.broadcastHutEvent?.(
-        this.gameId,
-        unit.playerId,
-        'The goody hut was quiet; your unit found 25 gold instead.'
-      );
-    } else if (!alive && this.units.has(unit.id)) {
-      await this.destroyUnit(unit.id);
-      this.gameManagerCallback?.broadcastHutEvent?.(
-        this.gameId,
-        unit.playerId,
-        'Barbarians emerged from the goody hut and destroyed your unit.'
-      );
-    } else {
-      this.gameManagerCallback?.broadcastHutEvent?.(
-        this.gameId,
-        unit.playerId,
-        'Barbarians emerged from the goody hut.'
-      );
-    }
-  }
-
-  private async resolveHutSettlement(unit: Unit): Promise<void> {
-    try {
-      await this.gameManagerCallback!.foundCity!(
-        this.gameId,
-        unit.playerId,
-        'Hut Settlement',
-        unit.x,
-        unit.y
-      );
-    } catch {
-      const settlers = Object.values(this.unitTypes).find(
-        type =>
-          (type.canFoundCity || type.rulesetUnitClassFlags.includes('Cities')) &&
-          getTerrainMovementCost(this.getTerrainAt(unit.x, unit.y), type.id) >= 0
-      );
-      if (settlers) {
-        await this.createUnit(unit.playerId, settlers.id, unit.x, unit.y, unit.homeCityId);
-        this.gameManagerCallback?.broadcastHutEvent?.(
-          this.gameId,
-          unit.playerId,
-          'Your unit found nomad settlers in a goody hut.'
-        );
-      } else {
-        await this.changePlayerGold(unit.playerId, 25);
-        this.gameManagerCallback?.broadcastHutEvent?.(
-          this.gameId,
-          unit.playerId,
-          'The goody hut could not provide settlers; your unit found 25 gold instead.'
-        );
-      }
-    }
-  }
-
-  private async resolveHutMap(unit: Unit): Promise<void> {
-    const exploredTiles = this.gameManagerCallback?.revealHutMap?.(unit.playerId, unit.x, unit.y);
-    if (!exploredTiles) {
-      await this.changePlayerGold(unit.playerId, 25);
-      this.gameManagerCallback?.broadcastHutEvent?.(
-        this.gameId,
-        unit.playerId,
-        'The goody hut revealed nothing; your unit found 25 gold instead.'
-      );
-      return;
-    }
-    await this.databaseProvider
-      .getDatabase()
-      .update(players)
-      .set({ exploredTiles })
-      .where(and(eq(players.id, unit.playerId), eq(players.gameId, this.gameId)));
-    this.gameManagerCallback?.broadcastHutEvent?.(
-      this.gameId,
-      unit.playerId,
-      'Your unit discovered a map in a goody hut.'
-    );
-  }
-
-  private async changePlayerGold(playerId: string, amount: number): Promise<void> {
-    await this.databaseProvider
-      .getDatabase()
-      .update(players)
-      .set({ gold: sql`${players.gold} + ${amount}` })
-      .where(and(eq(players.id, playerId), eq(players.gameId, this.gameId)));
+  public async resolveHutReward(unit: Unit): Promise<void> {
+    await this.hutService.resolveReward(unit);
   }
 
   private async persistMapState(): Promise<void> {
-    const mapData = this.mapManager?.getMapData?.();
-    if (!mapData) return;
-    await this.databaseProvider
-      .getDatabase()
-      .update(games)
-      .set({ mapData })
-      .where(eq(games.id, this.gameId));
-    this.gameManagerCallback?.broadcastMapChanged?.(this.gameId, mapData);
+    await this.mapStateRepository.persist();
   }
 
   private validateMoveTarget(newX: number, newY: number): void {
@@ -2431,7 +2104,7 @@ export class UnitManager {
    * @reference reference/freeciv/common/combat.c:608-647
    */
   private calculateAttackStrength(unit: Unit, unitType: UnitType): number {
-    const veteranLevel = this.getVeteranLevel(unit.veteranLevel);
+    const veteranLevel = getVeteranLevel(unit.veteranLevel);
     let strength = Math.floor((unitType.attack ?? unitType.combat) * veteranLevel.powerFactor);
     const combatRules = rulesetLoader.getCombatRules(this.getRulesetName());
     if (combatRules.tired_attack && unit.movementLeft < SINGLE_MOVE) {
@@ -2454,7 +2127,7 @@ export class UnitManager {
   ): number {
     let strength = unitType.defense ?? unitType.combat;
 
-    const veteranLevel = this.getVeteranLevel(unit.veteranLevel);
+    const veteranLevel = getVeteranLevel(unit.veteranLevel);
     strength = Math.floor(strength * veteranLevel.powerFactor);
 
     strength = this.applyCombatBonusStrength(strength, unitType, attackerType);
@@ -2734,21 +2407,6 @@ export class UnitManager {
   }
 
   /**
-   * Get veteran level definition
-   * @reference freeciv/common/unittype.h veteran levels
-   */
-  private getVeteranLevel(level: number): VeteranLevel {
-    const veteranLevels: VeteranLevel[] = [
-      { name: 'Green', powerFactor: 1.0, moveBonus: 0, experienceRequired: 0 },
-      { name: 'Veteran', powerFactor: 1.5, moveBonus: 0, experienceRequired: 20 },
-      { name: 'Hardened', powerFactor: 1.75, moveBonus: 1, experienceRequired: 40 },
-      { name: 'Elite', powerFactor: 2.0, moveBonus: 1, experienceRequired: 80 },
-    ];
-
-    return veteranLevels[Math.min(level, veteranLevels.length - 1)];
-  }
-
-  /**
    * Award experience to unit and check for promotion
    * @reference freeciv/server/unittools.c unit_versus_unit()
    */
@@ -2787,7 +2445,7 @@ export class UnitManager {
         })
         .where(eq(units.id, unitId));
 
-      logger.info(`Unit ${unitId} promoted to ${this.getVeteranLevel(newLevel).name}!`, {
+      logger.info(`Unit ${unitId} promoted to ${getVeteranLevel(newLevel).name}!`, {
         unitId,
         oldLevel,
         newLevel,
@@ -2919,75 +2577,7 @@ export class UnitManager {
     toX: number,
     toY: number
   ): number {
-    const destinationTerrain = this.getTerrainAt(toX, toY);
-    const unitType = this.unitTypes[unit.unitTypeId];
-    let movementCost = getTerrainMovementCost(destinationTerrain, unit.unitTypeId);
-    // MovementConstants defaults to the classic catalogue. Games may load a
-    // different ruleset (including civ2civ3's Storm), so recover the terrain
-    // cost from the unit's authoritative class and selected ruleset when the
-    // compatibility lookup cannot classify the unit id.
-    if (movementCost < 0 && unitType) {
-      const terrain = rulesetLoader.getTerrain(destinationTerrain, this.getRulesetName());
-      const isWater = ['ocean', 'deep_ocean', 'coast', 'lake'].includes(destinationTerrain);
-      const isSeaUnit = ['Sea', 'Trireme'].includes(unitType.rulesetUnitClass ?? '');
-      const isAirUnit = unitType.rulesetUnitClass === 'Air';
-      if ((isSeaUnit && isWater) || (isAirUnit && !isWater) || (!isSeaUnit && !isWater)) {
-        movementCost = isAirUnit ? SINGLE_MOVE : (terrain.moveCost ?? 1) * SINGLE_MOVE;
-      }
-    }
-    if (movementCost < 0) return movementCost;
-
-    const fromTile = this.mapManager?.getTile(fromX, fromY);
-    const destinationTile = this.mapManager?.getTile(toX, toY);
-    return this.applyInfrastructureMovementCost(
-      unitType,
-      destinationTerrain,
-      fromTile,
-      destinationTile,
-      movementCost
-    );
-  }
-
-  private applyInfrastructureMovementCost(
-    unitType: UnitType | undefined,
-    destinationTerrain: TerrainType,
-    fromTile: { hasRoad?: boolean; hasRailroad?: boolean } | undefined,
-    destinationTile: { hasRoad?: boolean; hasRailroad?: boolean } | undefined,
-    movementCost: number
-  ): number {
-    if (this.isTriremeBlocked(unitType, destinationTerrain)) return -1;
-    return this.getInfrastructureMovementCost(unitType, fromTile, destinationTile) ?? movementCost;
-  }
-
-  private isTriremeBlocked(
-    unitType: UnitType | undefined,
-    destinationTerrain: TerrainType
-  ): boolean {
-    return unitType?.rulesetUnitClass === 'Trireme' && destinationTerrain === 'deep_ocean';
-  }
-
-  private getInfrastructureMovementCost(
-    unitType: UnitType | undefined,
-    fromTile: { hasRoad?: boolean; hasRailroad?: boolean } | undefined,
-    destinationTile: { hasRoad?: boolean; hasRailroad?: boolean } | undefined
-  ): number | undefined {
-    if (unitType?.rulesetUnitClass !== 'Land') return this.getIgnoresTerrainCost(unitType);
-    return (
-      this.getRoadMovementCost(fromTile, destinationTile) ?? this.getIgnoresTerrainCost(unitType)
-    );
-  }
-
-  private getRoadMovementCost(
-    fromTile: { hasRoad?: boolean; hasRailroad?: boolean } | undefined,
-    destinationTile: { hasRoad?: boolean; hasRailroad?: boolean } | undefined
-  ): number | undefined {
-    if (fromTile?.hasRailroad && destinationTile?.hasRailroad) return 0;
-    if (fromTile?.hasRoad && destinationTile?.hasRoad) return 1;
-    return undefined;
-  }
-
-  private getIgnoresTerrainCost(unitType: UnitType | undefined): number | undefined {
-    return unitType?.flags?.includes('IgTer') ? 1 : undefined;
+    return this.movementCosts.calculateTerrainCost(unit, fromX, fromY, toX, toY);
   }
 
   /**
@@ -2999,28 +2589,7 @@ export class UnitManager {
     veteranLevel: number = 0,
     health: number = 100
   ): number {
-    const effectsManager = this.effectsManager;
-    const effectBonus = effectsManager
-      ? effectsManager.calculateEffect(EffectType.MOVE_BONUS, {
-          playerId,
-          unitType: unitType.id,
-          unitClass: unitType.rulesetUnitClass,
-          unitClassFlags: new Set(unitType.rulesetUnitClassFlags ?? []),
-          unitTypeFlags: new Set(unitType.flags ?? []),
-          playerTechs: this.playerTechsProvider(playerId),
-          playerBuildings: new Set(this.gameManagerCallback?.getPlayerBuildings?.(playerId) ?? []),
-        }).value
-      : 0;
-    const veteranBonus = this.getVeteranLevel(veteranLevel).moveBonus;
-    const baseMovement = Math.max(0, unitType.movement + veteranBonus) * SINGLE_MOVE;
-    const ruleset = rulesetLoader.loadUnitsRuleset(this.getRulesetName());
-    const unitClass = ruleset.unit_classes[unitType.rulesetUnitClass ?? ''];
-    const damageSlows = unitClass?.flags.includes('DamageSlows') ?? false;
-    const slowedMovement = damageSlows
-      ? Math.floor((baseMovement * Math.max(0, Math.min(100, health))) / 100)
-      : baseMovement;
-    const minimumSpeed = Math.min(unitClass?.min_speed ?? 0, baseMovement);
-    return Math.max(minimumSpeed, slowedMovement + Math.max(0, effectBonus) * SINGLE_MOVE);
+    return this.movementCosts.getMaximumMovement(playerId, unitType, veteranLevel, health);
   }
 
   getUnitMaxMovement(unitTypeId: string): number {

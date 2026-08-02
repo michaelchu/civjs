@@ -27,7 +27,7 @@ import type { Server as SocketServer } from 'socket.io';
 import type { CityGovernorService } from './CityGovernorService';
 import type { CityTileManagementService } from './CityTileManagementService';
 import { isSpaceshipPart } from './SpaceshipService';
-import type { BuildingType, TradeRoute } from '@game/managers/CityManager';
+import type { BuildingType, TradeRoute } from '@game/cities/CityTypes';
 
 // Import types from CityManager (we'll need to make these available)
 export interface CityState {

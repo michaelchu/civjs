@@ -1,8 +1,8 @@
 import { ActionType } from '@app-types/shared/actions';
 import type { WorkerAutomationTask } from '@game/automation/WorkerAutomationTypes';
-import type { CityState } from '@game/managers/CityManager';
+import type { CityState } from '@game/cities/CityTypes';
 import type { MapTile } from '@game/managers/MapManager';
-import type { Unit } from '@game/managers/UnitManager';
+import type { Unit } from '@game/units/UnitTypes';
 import { hasClassicIrrigationSource } from '@game/rules/ClassicIrrigationRules';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';

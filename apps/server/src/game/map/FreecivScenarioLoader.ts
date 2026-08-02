@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { PlayerState } from '@game/managers/GameManager';
+import { PlayerState } from '@game/runtime/GameTypes';
 import { MapTopology, TopologyFlag, WrapFlag } from './MapTopology';
 import { MapTile, ResourceType, TerrainType } from './MapTypes';
 import { createBaseTile, isLandTile, setTerrainGameProperties } from './TerrainUtils';

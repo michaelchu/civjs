@@ -5,8 +5,8 @@ import { planParadropMissions, type ParadropMission } from '@game/ai/AIParadropP
 import { createAIProfile } from '@game/ai/AIProfile';
 import type { FreecivAIState } from '@game/ai/AIStateStore';
 import { hostileUnitsForPlanning, targetableForeignCities } from '@game/ai/AITargeting';
-import type { GameInstance } from '@game/managers/GameManager';
-import type { Unit } from '@game/managers/UnitManager';
+import type { GameInstance } from '@game/runtime/GameTypes';
+import type { Unit } from '@game/units/UnitTypes';
 import type { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import {
   calculateDiplomatBribeCost,
@@ -15,7 +15,7 @@ import {
 } from '@game/services/DiplomatActionEconomics';
 import { calculateTreasuryReserve } from '@game/ai/AITreasuryPlanner';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
-import type { CityState } from '@game/managers/CityManager';
+import type { CityState } from '@game/cities/CityTypes';
 import type { MapTile } from '@game/map/MapTypes';
 
 function buildAirRefuelPoints(options: {

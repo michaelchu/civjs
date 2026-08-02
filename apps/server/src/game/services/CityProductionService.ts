@@ -1,6 +1,6 @@
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
-import type { CityState, BUILDING_TYPES } from '@game/managers/CityManager';
+import type { BuildingCatalog, CityState } from '@game/cities/CityTypes';
 import { type UnitType, rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 
@@ -15,7 +15,7 @@ import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 export class CityProductionService extends BaseGameService {
   constructor(
     private cities: Map<string, CityState>,
-    private buildingTypes: typeof BUILDING_TYPES,
+    private buildingTypes: BuildingCatalog,
     private getPlayerGold: (playerId: string) => Promise<number>,
     private spendPlayerGold: (playerId: string, amount: number) => Promise<boolean>,
     private readonly unitTypes: Record<string, UnitType> = rulesetUnitsService.getUnitTypes(),

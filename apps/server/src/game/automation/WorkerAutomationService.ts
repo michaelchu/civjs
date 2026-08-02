@@ -1,7 +1,7 @@
 import { ActionType } from '@app-types/shared/actions';
 import { planWorkerImprovements, type WorkerAssignment } from '@game/ai/AIWorkerPlanner';
-import type { GameInstance } from '@game/managers/GameManager';
-import type { Unit, UnitOrder } from '@game/managers/UnitManager';
+import type { GameInstance } from '@game/runtime/GameTypes';
+import type { Unit, UnitOrder } from '@game/units/UnitTypes';
 import type { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import type { WorkerAutomationTask } from './WorkerAutomationTypes';
 

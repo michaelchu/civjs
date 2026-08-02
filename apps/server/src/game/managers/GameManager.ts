@@ -19,15 +19,9 @@ import { GameInstanceRecoveryService } from '@game/services/GameInstanceRecovery
 import type { NuclearPresentationEvent } from '@app-types/presentation';
 
 // Keep existing imports for delegation
-import { CityManager, type CityState } from '@game/managers/CityManager';
+import type { CityState } from '@game/cities/CityTypes';
 import { MapManager } from '@game/managers/MapManager';
-import { PathfindingManager } from '@game/managers/PathfindingManager';
-import { ResearchManager } from '@game/managers/ResearchManager';
-import { TurnManager } from '@game/managers/TurnManager';
-import { UnitManager, type Unit } from '@game/managers/UnitManager';
-import { VisibilityManager } from '@game/managers/VisibilityManager';
-import { BorderManager } from '@game/managers/BorderManager';
-import { GovernmentManager } from '@game/managers/GovernmentManager';
+import type { Unit } from '@game/units/UnitTypes';
 import {
   DiplomacyManager,
   toDiplomacyReplayEvent,
@@ -36,13 +30,7 @@ import {
   type TreatyProposal,
 } from '@game/managers/DiplomacyManager';
 import { FreecivAIOrchestrator } from '@game/services/AIOrchestrator';
-import {
-  createAIProfile,
-  isSettableAILevel,
-  type AILevel,
-  type AITraits,
-  type SettableAILevel,
-} from '@game/ai/AIProfile';
+import { createAIProfile, isSettableAILevel, type SettableAILevel } from '@game/ai/AIProfile';
 import { assertAIState, createAIState } from '@game/ai/AIStateStore';
 import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import { FreecivAdvisorService, type AdvisorRecommendations } from '@game/services/AdvisorService';
@@ -54,18 +42,29 @@ import {
   type NativeSaveArchive,
 } from '@game/services/NativeSaveService';
 import { ActionType, type ActionResult } from '@app-types/shared/actions';
-import type { SpaceshipState } from '@game/services/SpaceshipService';
-import type { ScenarioSetup } from '@game/services/ScenarioSetup';
 import { GoldSpendingType } from '@game/systems/Economic/types/EconomicTypes';
 import {
   calculateDiplomatBribeCost,
   calculateDiplomatInciteCost,
 } from '@game/services/DiplomatActionEconomics';
 import { rulesetUnitsService, type UnitType } from '@game/services/RulesetUnitsService';
-import type { FreecivRandom } from '@game/random/FreecivRandom';
-import type { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAllocator';
-import type { ResearchPacingSettings } from '@game/services/ResearchPacing';
 import { processHumanWorkerAutomation } from '@game/automation/WorkerAutomationService';
+import type {
+  GameConfig,
+  GameInstance,
+  PlayerState,
+  TerrainSettings,
+} from '@game/runtime/GameTypes';
+import { bindGameRuntimeEvents } from '@game/runtime/GameRuntimeEventBindings';
+
+export type {
+  GameConfig,
+  GameInstance,
+  GameState,
+  PlayerState,
+  TerrainSettings,
+  TurnPhase,
+} from '@game/runtime/GameTypes';
 
 // Freeciv dai_incident_simple() converts action badness into MAX_AI_LOVE / 35
 // victim penalties. CivJS stores love on the same -1000..1000 scale.
@@ -79,113 +78,6 @@ const AI_INCIDENT_SEVERITY: Partial<Record<ActionType, number>> = {
   [ActionType.BRIBE_UNIT]: 143,
   [ActionType.SABOTAGE_UNIT]: 86,
 };
-
-export type GameState = 'waiting' | 'starting' | 'active' | 'paused' | 'ended';
-export type TurnPhase = 'movement' | 'production' | 'research' | 'diplomacy';
-
-export interface TerrainSettings {
-  generator: string;
-  landmass: string;
-  huts: number;
-  temperature: number;
-  wetness: number;
-  rivers: number;
-  resources: string;
-  startpos?: number; // MapStartpos enum value for island generator routing
-  topologyId?: number;
-  wrapId?: number;
-  scenarioId?: string;
-}
-
-export interface GameConfig {
-  name: string;
-  hostId: string;
-  gameType?: 'single' | 'multiplayer';
-  maxPlayers?: number;
-  mapWidth?: number;
-  mapHeight?: number;
-  /** Optional seed for a reproducible generated map and AI validation replay. */
-  mapSeed?: string;
-  ruleset?: string;
-  turnTimeLimit?: number;
-  maxTurns?: number;
-  victoryConditions?: string[];
-  terrainSettings?: TerrainSettings;
-  /** Default difficulty assigned to AI players created for this game. */
-  aiLevel?: SettableAILevel;
-  /** Freeciv-compatible global research cost and target-switching settings. */
-  researchPacing?: Partial<ResearchPacingSettings>;
-  /** Freeciv-compatible seed for the authoritative gameplay random stream. */
-  randomSeed?: number;
-  /** Selects timer and recovery behavior for application-owned simulations. */
-  executionMode?: 'headless' | 'server';
-  scenarioSetup?: ScenarioSetup;
-  /** Optional barbarian frequency override for presets such as Quick Start. */
-  barbarianRate?: number;
-  /** Optional global warming/nuclear-winter settings. */
-  climate?: {
-    enabled?: boolean;
-    warmingThreshold?: number;
-    coolingThreshold?: number;
-  };
-}
-
-export interface GameInstance {
-  id: string;
-  config: GameConfig;
-  state: GameState;
-  currentTurn: number;
-  turnPhase: TurnPhase;
-  players: Map<string, PlayerState>;
-  turnManager: TurnManager;
-  mapManager: MapManager;
-  unitManager: UnitManager;
-  visibilityManager: VisibilityManager;
-  cityManager: CityManager;
-  researchManager: ResearchManager;
-  random: FreecivRandom;
-  identities: FreecivIdentityAllocator;
-  pathfindingManager: PathfindingManager;
-  borderManager: BorderManager;
-  governmentManager?: GovernmentManager;
-  lastActivity: Date;
-  pauseReason?: 'host' | 'disconnect';
-  turnDeadlineAt?: Date | null;
-  pausedTimerSeconds?: number | null;
-}
-
-export interface PlayerState {
-  id: string;
-  userId: string | null; // Can be null for AI players
-  /** AI players are processed by the server and never submit END_TURN packets. */
-  isAI?: boolean;
-  aiLevel?: AILevel;
-  aiTraits?: AITraits;
-  aiState?: Record<string, unknown>;
-  playerNumber: number;
-  civilization: string;
-  nation?: string;
-  leaderName?: string;
-  color?: { r: number; g: number; b: number };
-  isAlive?: boolean;
-  gold?: number;
-  science?: number;
-  technologies?: string[];
-  goldPerTurn?: number;
-  sciencePerTurn?: number;
-  government?: string;
-  history?: number;
-  unitsBuilt?: number;
-  unitsKilled?: number;
-  unitsLost?: number;
-  teamId?: string;
-  hasConceded?: boolean;
-  spaceshipState?: SpaceshipState;
-  isReady: boolean;
-  hasEndedTurn: boolean;
-  isConnected: boolean;
-  lastSeen: Date;
-}
 
 /**
  * GameManager - Refactored to use extracted service components as facade
@@ -1344,43 +1236,9 @@ export class GameManager {
       return player?.isAI ? createAIProfile(player.aiLevel, player.aiTraits).scienceCost : 100;
     });
     const gameEventService = gameInstance.turnManager.getGameEventService();
-    gameInstance.researchManager.setTechnologyCompletionObserver((playerId, techId, source) => {
-      gameEventService.recordTechnologyCompleted(playerId, techId, source);
-    });
-    gameInstance.cityManager.setGameplayEventObserver(event => {
-      switch (event.type) {
-        case 'founded':
-          gameEventService.recordCityFounded(event.city);
-          break;
-        case 'growth':
-          gameEventService.recordCityGrowth(event.city, event.oldSize);
-          break;
-        case 'production_completed':
-          gameEventService.recordCityProductionCompleted(event.city, event.item);
-          break;
-        case 'trade_route_established':
-          gameEventService.recordTradeRouteEstablished(
-            event.sourceCity,
-            event.partnerCity,
-            event.route
-          );
-          break;
-      }
-    });
-    gameInstance.unitManager.setCombatObserver(event => {
-      gameEventService.recordCombatOccurred(event);
-    });
-    gameInstance.unitManager.setUnitLifecycleObserver(event => {
-      gameEventService.recordUnitLifecycle(event);
-      if (event.type === 'moved') {
-        gameInstance.cityManager.refreshTileOccupancy(event.previousX, event.previousY);
-      }
-      gameInstance.cityManager.refreshTileOccupancy(event.unit.x, event.unit.y);
-      if (event.type === 'created' || event.type === 'moved' || event.type === 'owner_changed') {
-        void gameInstance.unitManager.wakeSentriesForUnit(event.unit);
-      }
-      this.aiOrchestrator.onUnitLifecycle(gameId, gameInstance, event);
-    });
+    bindGameRuntimeEvents(gameInstance, event =>
+      this.aiOrchestrator.onUnitLifecycle(gameId, gameInstance, event)
+    );
     gameInstance.unitManager.setDiplomatActionExecutor(
       (playerId, unitId, actionType, targetX, targetY) =>
         this.executeDiplomatAction(gameId, playerId, unitId, actionType, targetX, targetY)

@@ -1,7 +1,7 @@
-import { GameInstance } from '@game/managers/GameManager';
+import { GameInstance } from '@game/runtime/GameTypes';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { logger } from '@utils/logger';
-import type { Unit } from '@game/managers/UnitManager';
+import type { Unit } from '@game/units/UnitTypes';
 import type { CombatPresentationEvent } from '@app-types/presentation';
 
 const PRE_GUNPOWDER_COMBAT_UNITS = new Set([

@@ -1,5 +1,5 @@
 import { logger } from '@utils/logger';
-import { PlayerState } from '@game/managers/GameManager';
+import { PlayerState } from '@game/runtime/GameTypes';
 import { MapData, MapTile, MapStartpos } from './MapTypes';
 import { BaseMapGenerationService } from './BaseMapGenerationService';
 import { IslandGeneratorState } from './IslandGenerator';

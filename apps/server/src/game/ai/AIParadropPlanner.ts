@@ -1,6 +1,6 @@
-import type { CityState } from '@game/managers/CityManager';
+import type { CityState } from '@game/cities/CityTypes';
 import type { MapTile } from '@game/map/MapTypes';
-import type { Unit } from '@game/managers/UnitManager';
+import type { Unit } from '@game/units/UnitTypes';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 
 export type ParadropMission =

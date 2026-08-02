@@ -46,7 +46,13 @@ import type {
   GameInstance,
   PlayerState,
   TerrainSettings,
-} from '@game/managers/GameManager';
+} from '@game/runtime/GameTypes';
+import {
+  buildGameInstance as assembleGameInstance,
+  buildStoredGameConfig,
+} from '@game/runtime/GameInstanceFactory';
+import { createRuntimeUnitManager } from '@game/runtime/UnitManagerFactory';
+import { bindCoreManagerProviders } from '@game/runtime/RuntimeManagerBindings';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { assertAIState } from '@game/ai/AIStateStore';
@@ -56,7 +62,7 @@ import {
   applyScenarioSetup,
   hasCustomScenarioInitialState,
   type ScenarioSetup,
-} from '@game/services/ScenarioSetup';
+} from '@game/simulation/config/ScenarioSetup';
 import {
   completeSpaceshipPart,
   isSpaceshipPart,
@@ -85,10 +91,6 @@ import {
 
 function configuredVictoryConditions(gameConfig: GameConfig): string[] {
   return gameConfig.victoryConditions?.length ? gameConfig.victoryConditions : ['conquest'];
-}
-
-function storedResearchPacing(game: any): ResearchPacingSettings {
-  return researchPacingFromGameState(game.ruleset ?? DEFAULT_RULESET, game.gameState);
 }
 
 export interface GameLifecycleService {
@@ -313,15 +315,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       // @reference reference/freeciv/server/srv_main.c:3406-3412
       await this.initializeNewGamePlayerResources(gameId, game.players);
 
-      // Create a preliminary game instance with players to enable internal initialization callbacks.
-      const preliminaryPlayers = this.buildPlayersMapFromDb(game.players);
-      const preliminaryInstance = this.buildPreliminaryInstance(gameId, game, preliminaryPlayers);
-      this.games.set(gameId, preliminaryInstance);
-
       // Initialize and persist the complete game before making it externally active.
       const storedTerrainSettings = (game.gameState as any)?.terrainSettings;
       const gameInstance = await this.initializeGameInstance(gameId, game, storedTerrainSettings);
-      this.games.set(gameId, gameInstance);
 
       await this.persistAuthoritativeStreams(gameId, gameInstance);
       await this.activateGameRecord(gameId, gameInstance.turnManager.getCurrentTurn());
@@ -417,12 +413,6 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       researchPacingFromGameState(rulesetName, game.gameState)
     );
     await this.initializePlayerResearch(researchManager, players);
-    governmentManager.setPlayerTechsProvider(
-      playerId => new Set(researchManager.getResearchedTechs(playerId))
-    );
-    researchManager.setTechnologyLossHandler(async playerId => {
-      await governmentManager.reconcileAfterTechnologyLoss(playerId);
-    });
     const unitManager = this.createUnitManager(
       gameId,
       game,
@@ -460,28 +450,12 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     await cityManager.initialize();
 
     // Create additional managers
-    cityManager.setPlayerTechsProvider(
-      playerId => new Set(researchManager.getResearchedTechs(playerId))
-    );
-    cityManager.setPlayerBuildingsProvider(
-      playerId => new Set(cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings))
-    );
-    governmentManager.setPlayerBuildingsProvider(
-      playerId => new Set(cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings))
-    );
-    cityManager.setPlayerSpaceshipProvider(playerId =>
-      normalizeSpaceshipState(players.get(playerId)?.spaceshipState)
-    );
-    cityManager.setPlayerAIProvider(playerId => ({
-      isAI: players.get(playerId)?.isAI === true,
-      aiLevel: players.get(playerId)?.aiLevel,
-    }));
-    cityManager.setPlayerGovernmentProvider(playerId => {
-      const government = governmentManager.getPlayerGovernment(playerId)?.currentGovernment;
-      if (!government) {
-        throw new Error(`No government found for player '${playerId}'`);
-      }
-      return government;
+    bindCoreManagerProviders({
+      players,
+      cityManager,
+      researchManager,
+      governmentManager,
+      unitManager,
     });
     const visibilityManager = this.createVisibilityManager(
       gameId,
@@ -500,9 +474,6 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       ...visibilityManager.revealArea(playerId, x, y, 30),
     ]);
     unitManager.setExploredTilesProvider(playerId => visibilityManager.getExploredTiles(playerId));
-    unitManager.setPlayerTechsProvider(
-      playerId => new Set(researchManager.getResearchedTechs(playerId))
-    );
     const pathfindingManager = this.createPathfindingManager(game, mapManager, unitManager);
 
     // Create TurnManager last since it depends on all other managers
@@ -541,9 +512,6 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     // Research completion belongs to the active authoritative turn.
     researchManager.setCurrentTurnProvider(() => turnManager.getCurrentTurn());
     researchManager.setCurrentYearProvider(() => turnManager.getCurrentYear());
-    researchManager.setPlayerBuildingsProvider(
-      playerId => new Set(cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings))
-    );
 
     // Set up callbacks after all managers are created
     cityManager.setCallbacks({
@@ -750,9 +718,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       random,
       identities
     );
-    // Register the complete instance before border callbacks can broadcast.
-    // Scenario cities are applied while the lifecycle still exposes a
-    // preliminary instance with no visibility manager.
+    // Publish only a complete manager graph. Scenario callbacks can resolve
+    // the authoritative instance without exposing a partial runtime.
     this.games.set(gameId, gameInstance);
     if (scenarioSetup) {
       await applyScenarioSetup(scenarioSetup, {
@@ -1305,50 +1272,6 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     return players;
   }
 
-  private buildPreliminaryInstance(
-    gameId: string,
-    game: any,
-    preliminaryPlayers: Map<string, PlayerState>
-  ): GameInstance {
-    const random = this.createGameRandom(game);
-    const identities = this.createGameIdentities(game);
-    return {
-      id: gameId,
-      config: {
-        name: game.name,
-        hostId: game.hostId,
-        gameType: game.gameType as 'single' | 'multiplayer' | undefined,
-        maxPlayers: game.maxPlayers ?? undefined,
-        mapWidth: game.mapWidth ?? undefined,
-        mapHeight: game.mapHeight ?? undefined,
-        mapSeed: game.mapSeed ?? undefined,
-        ruleset: game.ruleset ?? undefined,
-        turnTimeLimit: game.turnTimeLimit ?? undefined,
-        maxTurns: game.maxTurns ?? 0,
-        victoryConditions: game.victoryConditions as string[] | undefined,
-        terrainSettings: (game.gameState as any)?.terrainSettings,
-        aiLevel: (game.gameState as any)?.aiLevel,
-        researchPacing: storedResearchPacing(game),
-        randomSeed: game.gameState.randomSeed,
-        executionMode: (game.gameState as any)?.simulation?.executionMode,
-      },
-      state: 'active',
-      currentTurn: ((game.gameState as any)?.scenarioSetup?.initialTurn as number | undefined) ?? 1,
-      turnPhase: 'movement',
-      players: preliminaryPlayers,
-      turnManager: null as any,
-      mapManager: null as any,
-      unitManager: null as any,
-      visibilityManager: null as any,
-      cityManager: null as any,
-      researchManager: null as any,
-      pathfindingManager: null as any,
-      random,
-      identities,
-      lastActivity: new Date(),
-    } as GameInstance;
-  }
-
   private createMapManager(game: any, terrainSettings?: TerrainSettings): MapManager {
     const { mapGenerator, temperatureParam, startPosMode } = this.getMapConfig(terrainSettings);
     const generationOptions = this.getMapGenerationOptions(terrainSettings, temperatureParam);
@@ -1586,13 +1509,20 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     random: FreecivRandom,
     identities: FreecivIdentityAllocator
   ): UnitManager {
-    return new UnitManager(
+    return createRuntimeUnitManager({
       gameId,
-      this.databaseProvider,
-      game.mapWidth,
-      game.mapHeight,
+      databaseProvider: this.databaseProvider,
+      mapWidth: game.mapWidth,
+      mapHeight: game.mapHeight,
       mapManager,
-      {
+      cityManager,
+      researchManager,
+      effectsManager,
+      random,
+      identities,
+      unitTypes: rulesetUnitsService.getUnitTypes(game.ruleset ?? 'civ2civ3'),
+      players,
+      callbacks: {
         foundCity: this.onFoundCity
           ? (
               gameId: string,
@@ -1603,8 +1533,6 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
               unitId?: string
             ) => this.onFoundCity!(gameId, playerId, name, x, y, unitId)
           : async () => '',
-        canFoundCityAt: (x: number, y: number, playerId: string) =>
-          cityManager.canFoundCityAt(x, y, playerId),
         requestPath: (playerId: string, unitId: string, targetX: number, targetY: number) =>
           this.requestPathDelegate(gameId, playerId, unitId, targetX, targetY),
         broadcastUnitMoved: gameId => {
@@ -1616,56 +1544,12 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         broadcastUnitInfo: (gameId, unit) => {
           this.broadcastManager?.broadcastUnitInfo(gameId, unit);
         },
-        getCityAt: (x: number, y: number) => {
-          const city = cityManager.getCityAt(x, y);
-          return city
-            ? {
-                id: city.id,
-                playerId: city.playerId,
-                buildings: city.buildings,
-                population: city.population,
-              }
-            : null;
-        },
-        applyCityPopulationLoss: cityId => cityManager.applyCityPopulationLoss(cityId),
-        getPlayerNation: (playerId: string) =>
-          game.players.find((player: any) => player.id === playerId)?.nation ??
-          game.players.find((player: any) => player.id === playerId)?.civilization,
-        getPlayerBuildings: playerId =>
-          cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings),
-        reserveAirlift: (sourceCityId, destinationCityId, playerId, turn) =>
-          cityManager.reserveAirlift(sourceCityId, destinationCityId, playerId, turn),
-        establishTradeRoute: async (playerId, homeCityId, targetX, targetY) => {
-          const destination = cityManager.getCityAt(targetX, targetY);
-          return destination
-            ? cityManager.establishTradeRoute(homeCityId, destination.id, playerId)
-            : false;
-        },
-        executeCityUnitAction: (...args) => cityManager.executeUnitCityAction(...args),
-        applyNuclearCityDamage: (...args) => cityManager.applyNuclearExplosion(...args),
-        grantHutTechnology: async playerId => {
-          const available = researchManager.getAvailableTechnologies(playerId);
-          const technology = available[0];
-          return technology && (await researchManager.grantTechnology(playerId, technology.id))
-            ? technology.name
-            : null;
-        },
-        captureCity: async (cityId, playerId, unitId) =>
-          (await cityManager.captureCity(cityId, playerId, unitId)).success,
         broadcastHutEvent: (changedGameId, playerId, message) =>
           this.io.to(`player:${playerId}`).emit('hut_event', { gameId: changedGameId, message }),
-        updatePlayerStatistic: (playerId, statistic) => {
-          const player = players.get(playerId);
-          if (player) player[statistic] = (player[statistic] ?? 0) + 1;
-        },
         broadcastMapChanged: (changedGameId, mapData) =>
           this.onBroadcastMapData?.(changedGameId, mapData),
       },
-      effectsManager,
-      random,
-      rulesetUnitsService.getUnitTypes(game.ruleset ?? 'civ2civ3'),
-      identities
-    );
+    });
   }
 
   private createVisibilityManager(
@@ -1740,45 +1624,29 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     random: FreecivRandom,
     identities: FreecivIdentityAllocator
   ): GameInstance {
-    return {
+    return assembleGameInstance({
       id: gameId,
-      config: {
-        name: game.name,
-        hostId: game.hostId,
-        gameType: game.gameType,
-        maxPlayers: game.maxPlayers,
-        mapWidth: game.mapWidth,
-        mapHeight: game.mapHeight,
-        ruleset: game.ruleset,
-        turnTimeLimit: game.turnTimeLimit,
-        maxTurns: game.maxTurns ?? 0,
-        victoryConditions: game.victoryConditions,
-        terrainSettings: terrainSettings,
-        aiLevel: (game.gameState as any)?.aiLevel,
-        researchPacing: storedResearchPacing(game),
-        randomSeed: (game.gameState as any)?.randomSeed,
-        executionMode: (game.gameState as any)?.simulation?.executionMode,
-        scenarioSetup: (game.gameState as any)?.scenarioSetup,
-      },
+      config: buildStoredGameConfig(game, { terrainSettings }),
       state: 'active',
       currentTurn:
         ((game.gameState as any)?.scenarioSetup?.initialTurn as number | undefined) ??
         turnManager.getCurrentTurn(),
       turnPhase: 'movement',
       players,
-      turnManager,
-      mapManager,
-      unitManager,
-      visibilityManager,
-      cityManager,
-      researchManager,
-      pathfindingManager,
-      borderManager,
-      governmentManager,
-      random,
-      identities,
-      lastActivity: new Date(),
-    };
+      managers: {
+        turnManager,
+        mapManager,
+        unitManager,
+        visibilityManager,
+        cityManager,
+        researchManager,
+        pathfindingManager,
+        borderManager,
+        governmentManager,
+        random,
+        identities,
+      },
+    });
   }
 
   private createGameRandom(game: any): FreecivRandom {

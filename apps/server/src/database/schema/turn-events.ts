@@ -9,7 +9,7 @@ import { games } from './games';
  * Addresses Database Schema Gap: Event history with proper categorization
  *
  * @reference freeciv/server/srv_main.c event processing
- * @reference apps/server/src/game/services/GameEventService.ts
+ * @reference apps/server/src/game/events/GameEventService.ts
  */
 export const turnEvents = pgTable('turn_events', {
   id: uuid('id').defaultRandom().primaryKey(),

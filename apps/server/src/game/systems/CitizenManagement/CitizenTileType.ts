@@ -6,7 +6,7 @@
  */
 
 import { OutputType } from '@game/constants/GameConstants';
-import { SpecialistType } from '@game/managers/CityManager';
+import { SpecialistType } from '@game/constants/SpecialistDefinitions';
 
 /**
  * Represents a unique tile output combination or specialist type

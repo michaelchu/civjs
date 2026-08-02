@@ -1,6 +1,6 @@
-import type { CityState } from '@game/managers/CityManager';
-import type { GameInstance } from '@game/managers/GameManager';
-import type { Unit } from '@game/managers/UnitManager';
+import type { CityState } from '@game/cities/CityTypes';
+import type { GameInstance } from '@game/runtime/GameTypes';
+import type { Unit } from '@game/units/UnitTypes';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 import { rulesetUnitsService } from '@game/services/RulesetUnitsService';

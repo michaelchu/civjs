@@ -42,6 +42,8 @@ import {
 } from 'lucide-react';
 import type { City, Unit, ProductionOption } from '../../types';
 import { HudDialogContent } from './HudDialogContent';
+import { CityResourceCard } from './CityResourceCard';
+import { CityHappinessTab } from './CityHappinessTab';
 
 const SPECIALIST_IDS: Record<string, number> = {
   scientist: 0,
@@ -164,7 +166,16 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
     setRallyX(city?.rallyPoint ? String(city.rallyPoint.x) : '');
     setRallyY(city?.rallyPoint ? String(city.rallyPoint.y) : '');
     setRallyPersistent(city?.rallyPoint?.persistent ?? false);
-  }, [city?.id, city?.name, city?.governor?.isEnabled, city?.governor?.priority]);
+  }, [
+    city?.id,
+    city?.name,
+    city?.governor?.isEnabled,
+    city?.governor?.priority,
+    city?.rallyPoint,
+    city?.rallyPoint?.x,
+    city?.rallyPoint?.y,
+    city?.rallyPoint?.persistent,
+  ]);
 
   if (!city) {
     return null;
@@ -270,26 +281,6 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
   };
 
   const cityData = getCityData();
-
-  const getResourceColor = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return 'text-slate-500';
-    if (value > 0) return 'text-emerald-300';
-    if (value < 0) return 'text-rose-300';
-    return 'text-slate-300';
-  };
-
-  const getResourceBgColor = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return 'bg-slate-800/70 border-slate-700';
-    if (value > 0) return 'bg-emerald-950/40 border-emerald-700/50';
-    if (value < 0) return 'bg-rose-950/40 border-rose-700/50';
-    return 'bg-slate-800/70 border-slate-700';
-  };
-
-  const formatResourceValue = (value: number | null | undefined, showSign = true) => {
-    if (value === null || value === undefined) return '--';
-    const sign = showSign && value > 0 ? '+' : '';
-    return `${sign}${value}`;
-  };
 
   const formatGrowthText = () => {
     if (cityData.granaryTurns === undefined || cityData.granaryTurns === null) return '--';
@@ -445,104 +436,38 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
 
             {/* Resource Breakdown */}
             <div>
-              <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-medium">
                 <BarChart3 className="h-4 w-4" />
                 Resource Output & Surplus
               </h3>
-              <div className="grid grid-cols-3 gap-3 mb-4">
-                {/* Food */}
-                <div
-                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus?.food)}`}
-                >
-                  <Wheat className="h-5 w-5 mb-1" />
-                  <div
-                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus?.food)}`}
-                  >
-                    {formatResourceValue(cityData.surplus?.food)}
-                  </div>
-                  <div className="text-xs text-center">
-                    <div>Food</div>
-                    {cityData.prod?.food !== cityData.surplus?.food &&
-                      cityData.prod?.food !== undefined && (
-                        <div className="text-slate-500">({cityData.prod.food} base)</div>
-                      )}
-                  </div>
-                </div>
-
-                {/* Shields */}
-                <div
-                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus?.shields)}`}
-                >
-                  <Shield className="h-5 w-5 mb-1" />
-                  <div
-                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus?.shields)}`}
-                  >
-                    {formatResourceValue(cityData.surplus?.shields)}
-                  </div>
-                  <div className="text-xs text-center">
-                    <div>Shields</div>
-                    {cityData.prod?.shields !== cityData.surplus?.shields &&
-                      cityData.prod?.shields !== undefined && (
-                        <div className="text-slate-500">({cityData.prod.shields} base)</div>
-                      )}
-                  </div>
-                </div>
-
-                {/* Trade */}
-                <div
-                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus?.trade)}`}
-                >
-                  <Truck className="h-5 w-5 mb-1" />
-                  <div
-                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus?.trade)}`}
-                  >
-                    {formatResourceValue(cityData.surplus?.trade)}
-                  </div>
-                  <div className="text-xs text-center">
-                    <div>Trade</div>
-                    {cityData.prod?.trade !== cityData.surplus?.trade &&
-                      cityData.prod?.trade !== undefined && (
-                        <div className="text-slate-500">({cityData.prod.trade} base)</div>
-                      )}
-                  </div>
-                </div>
+              <div className="mb-4 grid grid-cols-3 gap-3">
+                <CityResourceCard
+                  label="Food"
+                  value={cityData.surplus?.food}
+                  baseValue={cityData.prod?.food}
+                  icon={Wheat}
+                />
+                <CityResourceCard
+                  label="Shields"
+                  value={cityData.surplus?.shields}
+                  baseValue={cityData.prod?.shields}
+                  icon={Shield}
+                />
+                <CityResourceCard
+                  label="Trade"
+                  value={cityData.surplus?.trade}
+                  baseValue={cityData.prod?.trade}
+                  icon={Truck}
+                />
               </div>
-
-              {/* Economic Output */}
               <div className="grid grid-cols-3 gap-3">
-                <div
-                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus?.gold)}`}
-                >
-                  <Coins className="h-5 w-5 mb-1" />
-                  <div
-                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus?.gold)}`}
-                  >
-                    {formatResourceValue(cityData.surplus?.gold)}
-                  </div>
-                  <div className="text-xs">Gold</div>
-                </div>
-                <div
-                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus?.luxury)}`}
-                >
-                  <Zap className="h-5 w-5 mb-1" />
-                  <div
-                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus?.luxury)}`}
-                  >
-                    {formatResourceValue(cityData.surplus?.luxury)}
-                  </div>
-                  <div className="text-xs">Luxury</div>
-                </div>
-                <div
-                  className={`flex flex-col items-center p-3 rounded-lg border ${getResourceBgColor(cityData.surplus?.science)}`}
-                >
-                  <FlaskConical className="h-5 w-5 mb-1" />
-                  <div
-                    className={`text-lg font-semibold ${getResourceColor(cityData.surplus?.science)}`}
-                  >
-                    {formatResourceValue(cityData.surplus?.science)}
-                  </div>
-                  <div className="text-xs">Science</div>
-                </div>
+                <CityResourceCard label="Gold" value={cityData.surplus?.gold} icon={Coins} />
+                <CityResourceCard label="Luxury" value={cityData.surplus?.luxury} icon={Zap} />
+                <CityResourceCard
+                  label="Science"
+                  value={cityData.surplus?.science}
+                  icon={FlaskConical}
+                />
               </div>
 
               {/* Waste/Corruption */}
@@ -955,103 +880,7 @@ export const CityInfoOverlay: React.FC<CityInfoOverlayProps> = ({
             )}
           </TabsContent>
 
-          <TabsContent value="happiness" className="space-y-4 flex-1 overflow-y-auto min-h-0 p-1">
-            {/* Citizens Overview */}
-            {cityData.citizens && (
-              <div>
-                <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Citizens
-                </h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-3">
-                    {/* Happy Citizens */}
-                    <div className="flex items-center justify-between rounded border border-emerald-700/50 bg-emerald-950/30 p-3">
-                      <div className="flex items-center gap-2">
-                        <Heart className="h-4 w-4 text-emerald-300" />
-                        <span className="text-sm font-medium">Happy</span>
-                      </div>
-                      <span className="font-semibold text-emerald-300">
-                        {cityData.citizens.happy}
-                      </span>
-                    </div>
-
-                    {/* Content Citizens */}
-                    <div className="flex items-center justify-between rounded border border-cyan-700/50 bg-cyan-950/30 p-3">
-                      <div className="flex items-center gap-2">
-                        <Smile className="h-4 w-4 text-cyan-300" />
-                        <span className="text-sm font-medium">Content</span>
-                      </div>
-                      <span className="font-semibold text-cyan-300">
-                        {cityData.citizens.content}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    {/* Unhappy Citizens */}
-                    <div className="flex items-center justify-between rounded border border-amber-700/50 bg-amber-950/30 p-3">
-                      <div className="flex items-center gap-2">
-                        <Frown className="h-4 w-4 text-amber-300" />
-                        <span className="text-sm font-medium">Unhappy</span>
-                      </div>
-                      <span className="font-semibold text-amber-300">
-                        {cityData.citizens.unhappy}
-                      </span>
-                    </div>
-
-                    {/* Angry Citizens */}
-                    <div className="flex items-center justify-between rounded border border-rose-700/50 bg-rose-950/30 p-3">
-                      <div className="flex items-center gap-2">
-                        <Frown className="h-4 w-4 text-rose-300" />
-                        <span className="text-sm font-medium">Angry</span>
-                      </div>
-                      <span className="font-semibold text-rose-300">{cityData.citizens.angry}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Specialists */}
-                {cityData.citizens.specialists &&
-                  Object.keys(cityData.citizens.specialists).length > 0 && (
-                    <div className="mt-4">
-                      <h4 className="text-sm font-medium mb-2">Specialists</h4>
-                      <div className="grid grid-cols-3 gap-2">
-                        {Object.entries(cityData.citizens.specialists).map(([type, count]) => (
-                          <div
-                            key={type}
-                            className="flex items-center justify-between rounded border border-indigo-700/50 bg-indigo-950/30 p-2 text-sm"
-                          >
-                            <span className="capitalize">{type}</span>
-                            <span className="font-semibold text-indigo-300">{count}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-              </div>
-            )}
-
-            {/* City Status */}
-            <div className="rounded-lg border border-slate-700 bg-slate-800/60 p-4">
-              <h3 className="font-medium mb-3 flex items-center gap-2">
-                <StateIcon className={`h-4 w-4 ${stateInfo.color}`} />
-                City Status
-              </h3>
-              <div className="space-y-2 text-sm">
-                <div className={`font-medium ${stateInfo.color}`}>{stateInfo.text}</div>
-                {cityData.pollution > 0 && (
-                  <div className="text-amber-300">Pollution: {cityData.pollution}</div>
-                )}
-                {cityData.rallyPoint && (
-                  <div className="text-cyan-300">
-                    Rally Point: ({cityData.rallyPoint.x}, {cityData.rallyPoint.y})
-                    {cityData.rallyPoint.persistent && ' (Persistent)'}
-                  </div>
-                )}
-              </div>
-            </div>
-          </TabsContent>
+          <CityHappinessTab city={city} />
 
           <TabsContent value="management" className="space-y-4 flex-1 overflow-y-auto min-h-0 p-1">
             {managementMessage && (

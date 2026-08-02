@@ -10,8 +10,9 @@ import {
   sortedPlayerUnits,
   targetableForeignCities,
 } from '@game/ai/AITargeting';
-import { BUILDING_TYPES, type CityState } from '@game/managers/CityManager';
-import type { GameInstance } from '@game/managers/GameManager';
+import { BUILDING_TYPES } from '@game/managers/CityManager';
+import type { CityState } from '@game/cities/CityTypes';
+import type { GameInstance } from '@game/runtime/GameTypes';
 import type { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import { CitizenParameterFactory } from '@game/systems/CitizenManagement/CitizenParameter';
 import { buildAuthoritativeCityDangerAssessments } from '@game/ai/AICityDangerPlanner';
@@ -28,7 +29,7 @@ import {
   type RuntimeCultureCache,
 } from '@game/services/DiplomatActionEconomics';
 import { calculateTreasuryReserve } from '@game/ai/AITreasuryPlanner';
-import type { Unit } from '@game/managers/UnitManager';
+import type { Unit } from '@game/units/UnitTypes';
 import { planWonderCoordination, type WonderHelperAssignment } from '@game/ai/AIWonderPlanner';
 import { planSpaceship } from '@game/ai/AISpaceshipPlanner';
 import type { DiplomaticState } from '@game/managers/DiplomacyManager';

@@ -5,12 +5,8 @@
  * Provides the primary interface for optimizing citizen assignments in cities
  */
 
-import {
-  SpecialistType,
-  SPECIALIST_TYPES,
-  type CityState,
-  type WorkableTile,
-} from '@game/managers/CityManager';
+import { SpecialistType, SPECIALIST_TYPES } from '@game/constants/SpecialistDefinitions';
+import type { CityState, WorkableTile } from '@game/cities/CityTypes';
 import { CitizenParameterFactory, type CitizenParameter } from './CitizenParameter';
 import { CitizenResultFactory, CitizenResultUtils, type CitizenResult } from './CitizenResult';
 import {

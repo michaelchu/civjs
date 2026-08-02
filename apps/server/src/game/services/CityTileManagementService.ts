@@ -1,6 +1,7 @@
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
-import { CityState, WorkableTile, SpecialistType } from '@game/managers/CityManager';
+import type { CityState, WorkableTile } from '@game/cities/CityTypes';
+import { SpecialistType } from '@game/constants/SpecialistDefinitions';
 import type { MapManager } from '@game/managers/MapManager';
 import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { TerrainType } from '@shared/data/rulesets/schemas';

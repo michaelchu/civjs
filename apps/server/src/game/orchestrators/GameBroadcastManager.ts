@@ -8,7 +8,7 @@ import { CityDataService } from '@game/services/CityDataService';
 import { logger } from '@utils/logger';
 import type { Server as SocketServer } from 'socket.io';
 import { PacketType, PACKET_NAMES, PROTOCOL_VERSION } from '@app-types/packet';
-import type { GameInstance } from '@game/managers/GameManager';
+import type { GameInstance } from '@game/runtime/GameTypes';
 import { rulesetActionsService } from '@game/services/RulesetActionsService';
 import { resolveCityPresentations } from '@game/services/CityPresentationService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';

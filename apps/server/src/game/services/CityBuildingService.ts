@@ -1,6 +1,6 @@
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
-import type { CityState, BuildingType, BUILDING_TYPES } from '@game/managers/CityManager';
+import type { BuildingCatalog, BuildingType, CityState } from '@game/cities/CityTypes';
 import { DatabaseProvider } from '@database';
 import { EffectsManager, EffectType, OutputType } from '@game/managers/EffectsManager';
 
@@ -16,7 +16,7 @@ export class CityBuildingService extends BaseGameService {
   constructor(
     private cities: Map<string, CityState>,
     _db: DatabaseProvider, // Marked as unused with underscore
-    private buildingTypes: typeof BUILDING_TYPES,
+    private buildingTypes: BuildingCatalog,
     private readonly effectsManager: EffectsManager
   ) {
     super(logger);

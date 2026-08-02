@@ -1,6 +1,6 @@
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
-import type { CityState, TradeRoute, TradeRouteCalculation } from '@game/managers/CityManager';
+import type { CityState, TradeRoute, TradeRouteCalculation } from '@game/cities/CityTypes';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { TradeRules } from '@shared/data/rulesets/schemas';

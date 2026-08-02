@@ -6,7 +6,7 @@ import { FreecivAIUnitController } from '@game/ai/AIUnitController';
 import { FreecivAITransportController } from '@game/ai/AITransportController';
 import { FreecivAISpecialUnitController } from '@game/ai/AISpecialUnitController';
 import type { DiplomacyManager } from '@game/managers/DiplomacyManager';
-import type { GameInstance } from '@game/managers/GameManager';
+import type { GameInstance } from '@game/runtime/GameTypes';
 import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 
 export type AIDecisionRunner = (label: string, decision: () => Promise<number>) => Promise<number>;

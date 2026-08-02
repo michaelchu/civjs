@@ -8,7 +8,6 @@ import { pathfindingService } from './PathfindingService';
 import { playerColorToHex } from '../utils/playerColors';
 import { getOrCreateUsername, storeUsername } from '../utils/gameSession';
 import type {
-  City,
   DiplomacyState,
   GovernmentState,
   ProductionOption,
@@ -23,126 +22,14 @@ import { playEndGameSound } from './UserPreferences';
 import { GameSessionCoordinator, type GameSessionTarget } from './GameSessionCoordinator';
 import { GameTransport } from './GameTransport';
 import { MapSnapshotAssembler } from './MapSnapshotAssembler';
+import { CityClientApi } from './CityClientApi';
+import { getMockGovernments } from './GovernmentCatalog';
+import { RuntimeControlClientApi, type AdvisorRecommendations } from './RuntimeControlClientApi';
+
+export type { AdvisorRecommendations } from './RuntimeControlClientApi';
 import { clientLogger } from '../utils/logger';
 
-export interface AdvisorRecommendations {
-  playerId: string;
-  turn: number;
-  economy: {
-    reserve: number;
-    rates: { tax: number; luxury: number; science: number };
-    rushCityIds: string[];
-    saleCandidates: Array<{ cityId: string; buildingId: string }>;
-  };
-  research: Array<{ technologyId: string; want: number; reason: string; goalId?: string }>;
-  cities: Array<{
-    cityId: string;
-    danger: number;
-    urgency: number;
-    production: Array<{
-      kind: 'unit' | 'building';
-      id: string;
-      want: number;
-      reason: string;
-    }>;
-  }>;
-  workers: Array<{ unitId: string; x: number; y: number; action: string; want: number }>;
-  exploration: Array<{ unitId: string; x: number; y: number; want: number }>;
-  military: Array<{
-    unitId: string;
-    targetUnitId: string;
-    want: number;
-    distance: number;
-  }>;
-}
-
 // Mock government data for development
-const getMockGovernments = () => ({
-  anarchy: {
-    id: 'anarchy',
-    name: 'Anarchy',
-    graphic: 'gov.anarchy',
-    graphic_alt: '-',
-    sound: 'g_anarchy',
-    sound_alt: '-',
-    sound_alt2: '-',
-    ruler_male_title: 'Warlord %s',
-    ruler_female_title: 'Warlady %s',
-    helptext:
-      'Anarchy is simply the absence of any recognizable government. Citizens are disorganized and unproductive, and will spend all income as quickly as possible, rather than paying taxes or conducting research.',
-  },
-  despotism: {
-    id: 'despotism',
-    name: 'Despotism',
-    graphic: 'gov.despotism',
-    graphic_alt: '-',
-    sound: 'g_despotism',
-    sound_alt: 'g_generic',
-    sound_alt2: '-',
-    ai_better: 'Monarchy',
-    ruler_male_title: 'Chief %s',
-    ruler_female_title: 'Chief %s',
-    helptext:
-      'Under Despotism, you are the absolute ruler of your people. Your control over your citizens is maintained largely by martial law. Despotism suffers the highest level of corruption of all forms of government.',
-  },
-  monarchy: {
-    id: 'monarchy',
-    name: 'Monarchy',
-    reqs: [{ type: 'tech', name: 'Monarchy', range: 'Player' }],
-    graphic: 'gov.monarchy',
-    graphic_alt: '-',
-    sound: 'g_monarchy',
-    sound_alt: 'g_generic',
-    sound_alt2: '-',
-    ai_better: 'Communism',
-    ruler_male_title: 'King %s',
-    ruler_female_title: 'Queen %s',
-    helptext:
-      'Under Monarchy, a king or queen serves as a hereditary figurehead for your government. Monarchy suffers the same small amount of corruption that the Republic does.',
-  },
-  republic: {
-    id: 'republic',
-    name: 'Republic',
-    reqs: [{ type: 'tech', name: 'The Republic', range: 'Player' }],
-    graphic: 'gov.republic',
-    graphic_alt: '-',
-    sound: 'g_republic',
-    sound_alt: 'g_generic',
-    sound_alt2: '-',
-    ruler_male_title: 'President %s',
-    ruler_female_title: 'President %s',
-    helptext:
-      'Under a Republican government, citizens hold an election to select a representative who will govern them; since elected leaders must remain popular to remain in control, citizens are given a greater degree of freedom.',
-  },
-  communism: {
-    id: 'communism',
-    name: 'Communism',
-    reqs: [{ type: 'tech', name: 'Communism', range: 'Player' }],
-    graphic: 'gov.communism',
-    graphic_alt: '-',
-    sound: 'g_communism',
-    sound_alt: 'g_generic',
-    sound_alt2: '-',
-    ruler_male_title: 'Comrade %s',
-    ruler_female_title: 'Comrade %s',
-    helptext:
-      'A Communist government is based on the ideal that all people are equal. All goods are owned by the state, rather than by private citizens.',
-  },
-  democracy: {
-    id: 'democracy',
-    name: 'Democracy',
-    reqs: [{ type: 'tech', name: 'Democracy', range: 'Player' }],
-    graphic: 'gov.democracy',
-    graphic_alt: '-',
-    sound: 'g_democracy',
-    sound_alt: 'g_generic',
-    sound_alt2: '-',
-    ruler_male_title: 'Prime Minister %s',
-    ruler_female_title: 'Prime Minister %s',
-    helptext:
-      'Under Democracy, citizens govern directly by voting on issues. Democracy offers the highest possible level of trade, but also offers the most potential for unhappiness.',
-  },
-});
 
 export class GameClient {
   private socket: Socket | null = null;
@@ -151,10 +38,20 @@ export class GameClient {
   private readonly session = new GameSessionCoordinator();
   private readonly transport: GameTransport;
   private readonly mapSnapshots = new MapSnapshotAssembler();
+  private readonly cityApi: CityClientApi;
+  private readonly runtimeControls: RuntimeControlClientApi;
   private reconnectPromise: Promise<void> | null = null;
 
   constructor(transport = new GameTransport(SERVER_URL)) {
     this.transport = transport;
+    this.cityApi = new CityClientApi(
+      () => this.socket,
+      (...args) => this.requestPacket(...args),
+      <T>(event: string, data: unknown) => this.requestSocketEvent<T>(event, data)
+    );
+    this.runtimeControls = new RuntimeControlClientApi(<T>(event: string, data: unknown) =>
+      this.requestSocketEvent<T>(event, data)
+    );
     clientLogger.info('Connecting to server:', SERVER_URL);
   }
 
@@ -2067,72 +1964,15 @@ export class GameClient {
    * Get available production options for a city
    */
   async getAvailableProductions(cityId: string): Promise<ProductionOption[]> {
-    return new Promise((resolve, reject) => {
-      if (!this.socket) {
-        reject(new Error('Not connected to server'));
-        return;
-      }
-
-      // Set up response handler
-      const handleResponse = (data: { cityId: string; productions: ProductionOption[] }) => {
-        if (data.cityId === cityId) {
-          this.socket?.off('city:availableProductions', handleResponse);
-          this.socket?.off('error', handleError);
-          clearTimeout(timeout);
-          resolve(data.productions);
-        }
-      };
-
-      const handleError = (error: { message: string }) => {
-        this.socket?.off('city:availableProductions', handleResponse);
-        this.socket?.off('error', handleError);
-        clearTimeout(timeout);
-        reject(new Error(error.message));
-      };
-
-      this.socket.on('city:availableProductions', handleResponse);
-      this.socket.on('error', handleError);
-
-      // Set timeout
-      const timeout = setTimeout(() => {
-        this.socket?.off('city:availableProductions', handleResponse);
-        this.socket?.off('error', handleError);
-        reject(new Error('Get available productions timeout'));
-      }, 10000);
-
-      // Send request
-      this.socket.emit('city:getAvailableProductions', { cityId });
-    });
+    return this.cityApi.getAvailableProductions(cityId);
   }
 
-  /**
-   * Change city production
-   */
   async changeProduction(
     cityId: string,
     productionId: string,
     productionType: 'unit' | 'building' | 'wonder'
   ): Promise<void> {
-    const data = await this.requestPacket(
-      PacketType.CITY_PRODUCTION_CHANGE,
-      PacketType.CITY_PRODUCTION_CHANGE_REPLY,
-      { cityId, production: productionId, type: productionType },
-      reply => Boolean(reply.success),
-      'Failed to change production',
-      reply => reply.cityId === cityId
-    );
-    const { cities } = useGameStore.getState();
-    if (cities[cityId] && data.production) {
-      useGameStore.getState().updateGameState({
-        cities: {
-          ...cities,
-          [cityId]: {
-            ...cities[cityId],
-            production: data.production as City['production'],
-          },
-        },
-      });
-    }
+    return this.cityApi.changeProduction(cityId, productionId, productionType);
   }
 
   async configureCityGovernor(
@@ -2147,66 +1987,22 @@ export class GameClient {
       maintainHappiness: boolean;
     }
   ): Promise<void> {
-    const response = await this.requestSocketEvent<{
-      success: boolean;
-      governor?: import('../types').City['governor'];
-      error?: string;
-    }>('city:configureGovernor', { cityId, ...config });
-    if (!response.success) throw new Error(response.error || 'Failed to configure governor');
-
-    const { cities } = useGameStore.getState();
-    const city = cities[cityId];
-    if (city && response.governor) {
-      useGameStore.getState().updateGameState({
-        cities: {
-          ...cities,
-          [cityId]: { ...city, governor: response.governor },
-        },
-      });
-    }
+    return this.cityApi.configureGovernor(cityId, config);
   }
 
   async setCityRallyPoint(
     cityId: string,
     rallyPoint: { x: number; y: number; persistent: boolean } | null
   ): Promise<void> {
-    const response = await this.requestSocketEvent<{
-      success: boolean;
-      rallyPoint?: { x: number; y: number; persistent: boolean };
-      error?: string;
-    }>('city:setRallyPoint', { cityId, rallyPoint });
-    if (!response.success) throw new Error(response.error || 'Failed to set rally point');
+    return this.cityApi.setRallyPoint(cityId, rallyPoint);
   }
 
   async optimizeCityCitizens(cityId: string): Promise<void> {
-    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
-      'city:optimizeCitizens',
-      { cityId }
-    );
-    if (!response.success) throw new Error(response.error || 'Failed to optimize citizens');
+    return this.cityApi.optimizeCitizens(cityId);
   }
 
   async batchManageCities(cityIds: string[], action: CityBatchAction): Promise<CityBatchResult> {
-    const response = await this.requestSocketEvent<CityBatchResult>('city:batchManage', {
-      cityIds,
-      ...action,
-    });
-    if (response.error && response.succeeded.length === 0) {
-      throw new Error(response.error);
-    }
-    if (response.treasury) {
-      const store = useGameStore.getState();
-      const player = store.players[store.currentPlayerId];
-      if (player) {
-        store.updateGameState({
-          players: {
-            ...store.players,
-            [player.id]: { ...player, gold: response.treasury.after },
-          },
-        });
-      }
-    }
-    return response;
+    return this.cityApi.batchManage(cityIds, action);
   }
 
   async buyCityProduction(cityId: string): Promise<{
@@ -2214,27 +2010,7 @@ export class GameClient {
     completed: boolean;
     remainingGold?: number;
   }> {
-    const response = await this.requestSocketEvent<{
-      success: boolean;
-      result?: { goldSpent: number; completed: boolean; remainingGold?: number };
-      error?: string;
-    }>('city:buyProduction', { cityId });
-    if (!response.success || !response.result) {
-      throw new Error(response.error || 'Failed to buy production');
-    }
-    if (response.result.remainingGold !== undefined) {
-      const store = useGameStore.getState();
-      const player = store.players[store.currentPlayerId];
-      if (player) {
-        store.updateGameState({
-          players: {
-            ...store.players,
-            [player.id]: { ...player, gold: response.result.remainingGold },
-          },
-        });
-      }
-    }
-    return response.result;
+    return this.cityApi.buyProduction(cityId);
   }
 
   async addCityWorklistItem(
@@ -2242,35 +2018,19 @@ export class GameClient {
     productionId: string,
     type: 'unit' | 'building' | 'wonder'
   ): Promise<void> {
-    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
-      'city:addWorklist',
-      { cityId, items: [{ productionId, type }] }
-    );
-    if (!response.success) throw new Error(response.error || 'Failed to add worklist item');
+    return this.cityApi.addWorklistItem(cityId, productionId, type);
   }
 
   async removeCityWorklistItem(cityId: string, index: number): Promise<void> {
-    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
-      'city:removeWorklist',
-      { cityId, index }
-    );
-    if (!response.success) throw new Error(response.error || 'Failed to remove worklist item');
+    return this.cityApi.removeWorklistItem(cityId, index);
   }
 
   async reorderCityWorklist(cityId: string, fromIndex: number, toIndex: number): Promise<void> {
-    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
-      'city:reorderWorklist',
-      { cityId, fromIndex, toIndex }
-    );
-    if (!response.success) throw new Error(response.error || 'Failed to reorder worklist');
+    return this.cityApi.reorderWorklist(cityId, fromIndex, toIndex);
   }
 
   async assignCityCitizen(cityId: string, x: number, y: number): Promise<void> {
-    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
-      'city:assignCitizen',
-      { cityId, x, y }
-    );
-    if (!response.success) throw new Error(response.error || 'Failed to assign citizen');
+    return this.cityApi.assignCitizen(cityId, x, y);
   }
 
   async convertCityWorkerToSpecialist(
@@ -2279,11 +2039,7 @@ export class GameClient {
     y: number,
     specialistType: number
   ): Promise<void> {
-    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
-      'city:workerToSpecialist',
-      { cityId, x, y, specialistType }
-    );
-    if (!response.success) throw new Error(response.error || 'Failed to create specialist');
+    return this.cityApi.workerToSpecialist(cityId, x, y, specialistType);
   }
 
   async convertCitySpecialistToTile(
@@ -2292,103 +2048,38 @@ export class GameClient {
     x: number,
     y: number
   ): Promise<void> {
-    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
-      'city:specialistToTile',
-      { cityId, specialistType, x, y }
-    );
-    if (!response.success) throw new Error(response.error || 'Failed to assign specialist');
+    return this.cityApi.specialistToTile(cityId, specialistType, x, y);
   }
 
   async changeCitySpecialist(cityId: string, fromType: number, toType: number): Promise<void> {
-    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
-      'city:changeSpecialist',
-      { cityId, fromType, toType }
-    );
-    if (!response.success) throw new Error(response.error || 'Failed to change specialist');
+    return this.cityApi.changeSpecialist(cityId, fromType, toType);
   }
 
   async renameCity(cityId: string, name: string): Promise<void> {
-    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
-      'city:rename',
-      { cityId, name }
-    );
-    if (!response.success) throw new Error(response.error || 'Failed to rename city');
+    return this.cityApi.rename(cityId, name);
   }
 
   async sellCityBuilding(
     cityId: string,
     buildingId: string
   ): Promise<{ goldReceived: number; remainingGold?: number }> {
-    const response = await this.requestSocketEvent<{
-      success: boolean;
-      goldReceived?: number;
-      remainingGold?: number;
-      error?: string;
-    }>('city:sellBuilding', { cityId, buildingId });
-    if (!response.success) throw new Error(response.error || 'Failed to sell building');
-    if (response.remainingGold !== undefined) {
-      const store = useGameStore.getState();
-      const player = store.players[store.currentPlayerId];
-      if (player) {
-        store.updateGameState({
-          players: {
-            ...store.players,
-            [player.id]: { ...player, gold: response.remainingGold },
-          },
-        });
-      }
-    }
-    return {
-      goldReceived: response.goldReceived ?? 0,
-      remainingGold: response.remainingGold,
-    };
+    return this.cityApi.sellBuilding(cityId, buildingId);
   }
 
   async disbandCity(cityId: string): Promise<void> {
-    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
-      'city:disband',
-      { cityId }
-    );
-    if (!response.success) throw new Error(response.error || 'Failed to disband city');
+    return this.cityApi.disband(cityId);
   }
 
   async getGovernmentState(): Promise<GovernmentState> {
-    const response = await this.requestSocketEvent<{
-      success: boolean;
-      state?: GovernmentState;
-      error?: string;
-    }>('government:getState', {});
-    if (!response.success || !response.state) {
-      throw new Error(response.error || 'Failed to load government state');
-    }
-    this.applyGovernmentState(response.state);
-    return response.state;
+    return this.runtimeControls.getGovernmentState();
   }
 
   async startRevolution(governmentId: string): Promise<string> {
-    const response = await this.requestSocketEvent<{
-      success: boolean;
-      state?: GovernmentState;
-      message?: string;
-      error?: string;
-    }>('government:startRevolution', { governmentId });
-    if (!response.success || !response.state) {
-      throw new Error(response.error || 'Failed to start revolution');
-    }
-    this.applyGovernmentState(response.state);
-    return response.message || 'Revolution started';
+    return this.runtimeControls.startRevolution(governmentId);
   }
 
   async getTaxRates(): Promise<{ tax: number; luxury: number; science: number }> {
-    const response = await this.requestSocketEvent<{
-      success: boolean;
-      rates?: { tax: number; luxury: number; science: number };
-      error?: string;
-    }>('economy:getTaxRates', {});
-    if (!response.success || !response.rates) {
-      throw new Error(response.error || 'Failed to load tax rates');
-    }
-    return response.rates;
+    return this.runtimeControls.getTaxRates();
   }
 
   async setTaxRates(rates: {
@@ -2396,15 +2087,7 @@ export class GameClient {
     luxury: number;
     science: number;
   }): Promise<{ tax: number; luxury: number; science: number }> {
-    const response = await this.requestSocketEvent<{
-      success: boolean;
-      rates?: { tax: number; luxury: number; science: number };
-      error?: string;
-    }>('economy:setTaxRates', rates);
-    if (!response.success || !response.rates) {
-      throw new Error(response.error || 'Failed to update tax rates');
-    }
-    return response.rates;
+    return this.runtimeControls.setTaxRates(rates);
   }
 
   async getHostControls(): Promise<{
@@ -2412,31 +2095,15 @@ export class GameClient {
     paused: boolean;
     turnTimeLimit: number;
   }> {
-    const response = await this.requestSocketEvent<{
-      success: boolean;
-      isHost: boolean;
-      paused: boolean;
-      turnTimeLimit: number;
-      error?: string;
-    }>('host:getControls', {});
-    if (!response.success) throw new Error(response.error || 'Failed to load host controls');
-    return response;
+    return this.runtimeControls.getHostControls();
   }
 
   async setGamePaused(paused: boolean): Promise<void> {
-    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
-      'host:setPaused',
-      { paused }
-    );
-    if (!response.success) throw new Error(response.error || 'Failed to update game state');
+    return this.runtimeControls.setGamePaused(paused);
   }
 
   async setTurnTimeLimit(turnTimeLimit: number): Promise<void> {
-    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
-      'host:setTurnTimeLimit',
-      { turnTimeLimit }
-    );
-    if (!response.success) throw new Error(response.error || 'Failed to update turn timer');
+    return this.runtimeControls.setTurnTimeLimit(turnTimeLimit);
   }
 
   async setPlayerAIControl(
@@ -2444,41 +2111,11 @@ export class GameClient {
     isAI: boolean,
     options: { aiLevel?: string; controllerUserId?: string } = {}
   ): Promise<void> {
-    const response = await this.requestSocketEvent<{ success: boolean; error?: string }>(
-      'host:setPlayerAIControl',
-      { playerId, isAI, ...options }
-    );
-    if (!response.success) throw new Error(response.error || 'Failed to transfer player control');
+    return this.runtimeControls.setPlayerAIControl(playerId, isAI, options);
   }
 
   async getAdvisorRecommendations(): Promise<AdvisorRecommendations> {
-    const response = await this.requestSocketEvent<{
-      success: boolean;
-      recommendations?: AdvisorRecommendations;
-      error?: string;
-    }>('advisor:getRecommendations', {});
-    if (!response.success || !response.recommendations) {
-      throw new Error(response.error || 'Failed to load advisor recommendations');
-    }
-    return response.recommendations;
-  }
-
-  private applyGovernmentState(state: GovernmentState): void {
-    const store = useGameStore.getState();
-    const player = store.players[store.currentPlayerId];
-    useGameStore.getState().updateGameState({
-      governments: state.governments,
-      players: player
-        ? {
-            ...store.players,
-            [player.id]: {
-              ...player,
-              government: state.currentGovernment || player.government,
-              revolutionTurns: state.revolutionTurns,
-            },
-          }
-        : store.players,
-    });
+    return this.runtimeControls.getAdvisorRecommendations();
   }
 
   private requestSocketEvent<T>(event: string, data: unknown): Promise<T> {

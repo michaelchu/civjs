@@ -1,8 +1,8 @@
 import { ActionType } from '@app-types/shared/actions';
 import { planFerries, scoreFerryBeachhead, type FerryAssignment } from '@game/ai/AIFerryPlanner';
 import type { AIUnitTask, FreecivAIState } from '@game/ai/AIStateStore';
-import type { GameInstance } from '@game/managers/GameManager';
-import type { Unit } from '@game/managers/UnitManager';
+import type { GameInstance } from '@game/runtime/GameTypes';
+import type { Unit } from '@game/units/UnitTypes';
 
 /**
  * Executes ferry assignment, rendezvous, embarkation, beachhead search, and

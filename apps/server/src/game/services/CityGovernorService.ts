@@ -1,12 +1,12 @@
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import {
-  CityState,
-  CityGovernor,
   GovernorPriority,
-  WorkableTile,
-  SpecialistType,
-} from '@game/managers/CityManager';
+  type CityGovernor,
+  type CityState,
+  type WorkableTile,
+} from '@game/cities/CityTypes';
+import { SpecialistType } from '@game/constants/SpecialistDefinitions';
 
 /**
  * CityGovernorService - Manages automated city governance and optimization

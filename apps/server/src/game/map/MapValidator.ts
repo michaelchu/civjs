@@ -1,5 +1,5 @@
 import { MapTile, TerrainType } from './MapTypes';
-import { PlayerState } from '@game/managers/GameManager';
+import { PlayerState } from '@game/runtime/GameTypes';
 import { logger } from '@utils/logger';
 import { MapTopology, type MapTopologyOptions } from './MapTopology';
 import { isLandTile } from './TerrainUtils';

@@ -1,4 +1,4 @@
-import type { BuildingType, CityState } from '@game/managers/CityManager';
+import type { BuildingType, CityState } from '@game/cities/CityTypes';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 import type { AITreasuryGoal } from '@game/ai/AIStateStore';
 

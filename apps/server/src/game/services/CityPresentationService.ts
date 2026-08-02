@@ -1,6 +1,6 @@
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
-import type { CityState } from '@game/managers/CityManager';
-import type { PlayerState } from '@game/managers/GameManager';
+import type { CityState } from '@game/cities/CityTypes';
+import type { PlayerState } from '@game/runtime/GameTypes';
 import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 export interface CityPresentation {

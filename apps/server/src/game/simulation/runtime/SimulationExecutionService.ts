@@ -1,4 +1,5 @@
-import type { GameInstance, GameManager } from '@game/managers/GameManager';
+import type { GameManager } from '@game/managers/GameManager';
+import type { GameInstance } from '@game/runtime/GameTypes';
 
 export type SimulationExecutionStopReason = 'max_turns' | 'turn_failure' | 'timeout' | 'cancelled';
 

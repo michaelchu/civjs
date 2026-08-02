@@ -6,8 +6,8 @@ import { rankCityProduction, rankMilitaryTargets, rankResearch } from '@game/ai/
 import { planTreasury } from '@game/ai/AITreasuryPlanner';
 import { planWorkerImprovements } from '@game/ai/AIWorkerPlanner';
 import { EffectType } from '@game/managers/EffectsManager';
-import type { GameInstance } from '@game/managers/GameManager';
-import type { Unit } from '@game/managers/UnitManager';
+import type { GameInstance } from '@game/runtime/GameTypes';
+import type { Unit } from '@game/units/UnitTypes';
 import type { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import { planSpaceship } from '@game/ai/AISpaceshipPlanner';
 import { rulesetUnitsService } from '@game/services/RulesetUnitsService';

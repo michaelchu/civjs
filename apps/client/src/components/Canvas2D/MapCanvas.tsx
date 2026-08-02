@@ -5,7 +5,7 @@ import { ActionFeedbackBanner, type ActionFeedback } from './ActionFeedbackBanne
 import { UnitContextMenu } from '../GameUI/UnitContextMenu';
 import { CityNameDialog } from '../GameUI/CityNameDialog';
 import { CityInfoOverlay } from '../GameUI/CityInfoOverlay';
-import type { Unit, City, ProductionOption, MapViewport } from '../../types';
+import type { Unit, City, MapViewport } from '../../types';
 import { ActionType } from '../../types/shared/actions';
 import { gameClient } from '../../services/GameClient';
 import { useNation } from '../../hooks/useNations';
@@ -24,6 +24,7 @@ import {
 import { findInitialMapCenter } from '../../utils/initialMapCenter';
 import { getNextNationCityName } from '../../utils/cityNames';
 import { shallow } from 'zustand/shallow';
+import { useCityOverlayController } from './useCityOverlayController';
 
 interface MapCanvasProps {
   width: number;
@@ -68,28 +69,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     unit: null,
   });
 
-  // City info overlay state
-  const [cityInfoOverlay, setCityInfoOverlay] = useState<{
-    isOpen: boolean;
-    city: City | null;
-  }>({
-    isOpen: false,
-    city: null,
-  });
-
-  // Production data state
-  const [productionData, setProductionData] = useState<{
-    availableProductions: ProductionOption[];
-    isLoading: boolean;
-    cityId: string | null;
-    error: string | null;
-  }>({
-    availableProductions: [],
-    isLoading: false,
-    cityId: null,
-    error: null,
-  });
-
   // Goto mode state (similar to freeciv-web's goto_active)
   // @reference freeciv-web/freeciv-web/src/main/webapp/javascript/control.js - goto_active variable
   const [gotoMode, setGotoMode] = useState<{
@@ -130,6 +109,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const setViewport = useGameStore(state => state.setViewport);
   const selectUnit = useGameStore(state => state.selectUnit);
   const selectCity = useGameStore(state => state.selectCity);
+  const cityOverlay = useCityOverlayController(cities, selectCity);
   const addToFocus = useGameStore(state => state.addToFocus);
   const currentPlayer = players[currentPlayerId];
   const { nation: currentNation } = useNation(currentPlayer?.nation ?? '', rulesetName);
@@ -840,70 +820,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     [selectUnit, targetActionOptions]
   );
 
-  // City overlay handlers - placed early to avoid dependency issues
-  const handleOpenCityInfoOverlay = useCallback(
-    async (city: City) => {
-      selectCity(city.id);
-      setCityInfoOverlay({
-        isOpen: true,
-        city: city,
-      });
-
-      // Load production data
-      setProductionData({
-        availableProductions: [],
-        isLoading: true,
-        cityId: city.id,
-        error: null,
-      });
-
-      try {
-        const productions = await gameClient.getAvailableProductions(city.id);
-        setProductionData({
-          availableProductions: productions,
-          isLoading: false,
-          cityId: city.id,
-          error: null,
-        });
-      } catch (error) {
-        console.error('Failed to load production data:', error);
-        setProductionData({
-          availableProductions: [],
-          isLoading: false,
-          cityId: city.id,
-          error: error instanceof Error ? error.message : 'Failed to load production choices',
-        });
-      }
-    },
-    [selectCity]
-  );
-
-  const handleCloseCityInfoOverlay = useCallback(() => {
-    selectCity(null);
-    setCityInfoOverlay({
-      isOpen: false,
-      city: null,
-    });
-    setProductionData({
-      availableProductions: [],
-      isLoading: false,
-      cityId: null,
-      error: null,
-    });
-  }, [selectCity]);
-
-  useEffect(() => {
-    const handleShowCityInfo = (event: Event) => {
-      const city = (event as CustomEvent<{ city?: City; cityId?: string }>).detail?.city;
-      const cityId = (event as CustomEvent<{ city?: City; cityId?: string }>).detail?.cityId;
-      const targetCity = city ?? (cityId ? cities[cityId] : undefined);
-      if (targetCity) void handleOpenCityInfoOverlay(targetCity);
-    };
-
-    document.addEventListener('show-city-info', handleShowCityInfo);
-    return () => document.removeEventListener('show-city-info', handleShowCityInfo);
-  }, [cities, handleOpenCityInfoOverlay]);
-
   const handleMouseDown = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
       if (event.button !== 0) return; // Only handle left mouse button
@@ -1186,7 +1102,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
               selectUnit(unitAtPosition.id);
               setSelectedUnit(unitAtPosition as Unit);
             } else if (cityAtPosition) {
-              handleOpenCityInfoOverlay(cityAtPosition as City);
+              cityOverlay.open(cityAtPosition as City);
             }
           }
         }
@@ -1203,7 +1119,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       units,
       cities,
       selectUnit,
-      handleOpenCityInfoOverlay,
+      cityOverlay,
     ]
   );
 
@@ -1424,7 +1340,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         setSelectedUnit(unitAtPosition as Unit);
       } else if (cityAtPosition) {
         // Show info overlay for the city
-        handleOpenCityInfoOverlay(cityAtPosition as City);
+        cityOverlay.open(cityAtPosition as City);
       }
     },
     [
@@ -1434,7 +1350,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       viewport,
       gotoMode.active,
       deactivateGotoMode,
-      handleOpenCityInfoOverlay,
+      cityOverlay,
       targetActionMode,
     ]
   );
@@ -1756,21 +1672,14 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       />
 
       <CityInfoOverlay
-        city={
-          cityInfoOverlay.city ? (cities[cityInfoOverlay.city.id] ?? cityInfoOverlay.city) : null
-        }
-        isOpen={cityInfoOverlay.isOpen}
-        onClose={handleCloseCityInfoOverlay}
+        city={cityOverlay.overlay.city}
+        isOpen={cityOverlay.overlay.isOpen}
+        onClose={cityOverlay.close}
         units={units}
-        availableProductions={productionData.availableProductions}
-        isLoadingProductions={productionData.isLoading}
-        productionError={productionData.error}
-        onRetryProductions={() => {
-          const city = cityInfoOverlay.city
-            ? (cities[cityInfoOverlay.city.id] ?? cityInfoOverlay.city)
-            : null;
-          if (city) void handleOpenCityInfoOverlay(city);
-        }}
+        availableProductions={cityOverlay.production.availableProductions}
+        isLoadingProductions={cityOverlay.production.isLoading}
+        productionError={cityOverlay.production.error}
+        onRetryProductions={cityOverlay.retry}
         onProductionChange={handleProductionChange}
         onQueueAdd={(cityId, productionId, type) =>
           gameClient.addCityWorklistItem(cityId, productionId, type)

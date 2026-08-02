@@ -1,4 +1,4 @@
-import type { PlayerState } from '@game/managers/GameManager';
+import type { PlayerState } from '@game/runtime/GameTypes';
 import type { MapData } from './MapTypes';
 
 export const SCENARIOS_NOT_ENABLED = 'SCENARIOS_NOT_ENABLED';

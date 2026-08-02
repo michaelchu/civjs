@@ -1,6 +1,6 @@
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
-import type { CityState } from '@game/managers/CityManager';
+import type { CityState } from '@game/cities/CityTypes';
 import {
   rulesetBuildingsService,
   type RulesetBuildingsService,

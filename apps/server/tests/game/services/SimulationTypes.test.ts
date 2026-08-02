@@ -1,4 +1,4 @@
-import { headlessSimulationConfigSchema } from '@game/services/SimulationTypes';
+import { headlessSimulationConfigSchema } from '@game/simulation/config/SimulationTypes';
 
 describe('headless simulation configuration', () => {
   it('normalizes the bounded AI-only configuration shape', () => {

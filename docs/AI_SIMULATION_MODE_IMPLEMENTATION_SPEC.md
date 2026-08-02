@@ -1481,14 +1481,14 @@ preserving responsibilities.
 - `apps/server/src/network/handlers/GameManagementHandler.ts`
   - authorize and route handover and simulation commands through narrow
     application services.
-- `apps/server/src/game/services/SimulationGameService.ts`
+- `apps/server/src/game/simulation/runtime/SimulationGameService.ts`
   - atomic/idempotent creation and authorization orchestration.
 - `apps/server/src/game/services/SimulationRunner.ts`
   - scheduling, pause/resume/step/speed, cleanup, and recovery binding.
-- `apps/server/src/game/services/SimulationExecutionService.ts`
+- `apps/server/src/game/simulation/runtime/SimulationExecutionService.ts`
   - shared authoritative creation, turn lifecycle, checkpoint, replay, score,
     and diagnostic boundaries used by live and headless execution.
-- `apps/server/src/game/services/HeadlessSimulationRunner.ts`
+- `apps/server/src/game/simulation/runtime/HeadlessSimulationRunner.ts`
   - bounded sequential execution, cancellation/timeout handling, and
     programmatic run results without timers or sockets.
 - `apps/server/src/game/services/SimulationReadService.ts`

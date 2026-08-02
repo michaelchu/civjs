@@ -1,5 +1,5 @@
-import type { GameInstance } from '@game/managers/GameManager';
-import type { Unit } from '@game/managers/UnitManager';
+import type { GameInstance } from '@game/runtime/GameTypes';
+import type { Unit } from '@game/units/UnitTypes';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { ActionType } from '@app-types/shared/actions';
 import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
@@ -37,7 +37,8 @@ import {
   type MilitaryObjective,
 } from '@game/ai/AIMilitaryPlanner';
 import { buildCityThreatTravelTimes, cityThreatTravelKey } from '@game/ai/AICityDangerPlanner';
-import { GAME_DEFAULT_CITYMINDIST, type CityState } from '@game/managers/CityManager';
+import { GAME_DEFAULT_CITYMINDIST } from '@game/managers/CityManager';
+import type { CityState } from '@game/cities/CityTypes';
 import { planDefenderAirlift } from '@game/ai/AIAirliftPlanner';
 
 function unitAttack(type: UnitType): number {

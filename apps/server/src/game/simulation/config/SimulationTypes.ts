@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { isSettableAILevel, type SettableAILevel } from '@game/ai/AIProfile';
-import type { TerrainSettings } from '@game/managers/GameManager';
+import type { TerrainSettings } from '@game/runtime/GameTypes';
 import { scenarioSetupSchema } from './ScenarioSetup';
-import { simulationExpectationSchema } from './SimulationExpectations';
+import { simulationExpectationSchema } from '../expectations/SimulationExpectations';
 
 export const SIMULATION_RUN_SCHEMA_VERSION = 1;
 export const SIMULATION_DIAGNOSTIC_SCHEMA_VERSION = 3;

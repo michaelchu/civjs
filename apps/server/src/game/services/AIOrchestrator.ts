@@ -7,8 +7,8 @@ import {
   type FreecivAIState,
 } from '@game/ai/AIStateStore';
 import type { DiplomacyEvent, DiplomacyManager } from '@game/managers/DiplomacyManager';
-import type { GameInstance } from '@game/managers/GameManager';
-import type { UnitLifecycleEvent } from '@game/managers/UnitManager';
+import type { GameInstance } from '@game/runtime/GameTypes';
+import type { UnitLifecycleEvent } from '@game/units/UnitTypes';
 import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import { logger } from '@utils/logger';
 

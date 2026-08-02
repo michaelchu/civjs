@@ -6,7 +6,7 @@
 import { logger } from '@utils/logger';
 import type { Server as SocketServer, Socket } from 'socket.io';
 import type { BorderManager } from '@game/managers/BorderManager';
-import type { GameInstance } from '@game/managers/GameManager';
+import type { GameInstance } from '@game/runtime/GameTypes';
 import { PacketType, PROTOCOL_VERSION, type Packet } from '../../types/packet';
 import type {
   BorderUpdatePacket,

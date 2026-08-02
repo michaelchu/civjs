@@ -7,13 +7,12 @@ import { DatabaseProvider } from '@database';
 import { cities, games } from '@database/schema';
 import { eq } from 'drizzle-orm';
 import { type UnitType, rulesetUnitsService } from '@game/services/RulesetUnitsService';
-import type { Unit } from '@game/managers/UnitManager';
+import type { Unit } from '@game/units/UnitTypes';
 import {
   SpecialistType,
   SPECIALIST_TYPES,
   type SpecialistDefinition,
 } from '@game/constants/SpecialistDefinitions';
-import type { BuildingCultureRequirement } from '@shared/data/rulesets/schemas';
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
@@ -34,6 +33,37 @@ import {
   UnitProductionValidationService,
   type UnitProductionFacts,
 } from '@game/services/UnitProductionValidationService';
+import {
+  GovernorPriority,
+  type BuildingType,
+  type CityGovernor,
+  type CityManagerCallbacks,
+  type CityRallyPoint,
+  type CityState,
+  type CityWorkerTaskRequest,
+  type Happiness,
+  type ProductionItem,
+  type WorkableTile,
+} from '@game/cities/CityTypes';
+import { CITY_MAP_DEFAULT_RADIUS, CITY_MAP_DEFAULT_RADIUS_SQ } from '@game/cities/CityConstants';
+import { CityRepository } from '@game/cities/CityRepository';
+
+export { CITY_MAP_DEFAULT_RADIUS, CITY_MAP_DEFAULT_RADIUS_SQ } from '@game/cities/CityConstants';
+
+export {
+  GovernorPriority,
+  type BuildingType,
+  type CityGovernor,
+  type CityManagerCallbacks,
+  type CityRallyPoint,
+  type CityState,
+  type CityWorkerTaskRequest,
+  type Happiness,
+  type ProductionItem,
+  type TradeRoute,
+  type TradeRouteCalculation,
+  type WorkableTile,
+} from '@game/cities/CityTypes';
 
 // Import the specialized services
 import { CityManagementService } from '@game/services/CityManagementService';
@@ -66,9 +96,6 @@ import {
   type SpaceshipState,
 } from '@game/services/SpaceshipService';
 
-// Following original Freeciv city radius logic
-export const CITY_MAP_DEFAULT_RADIUS = 2;
-export const CITY_MAP_DEFAULT_RADIUS_SQ = CITY_MAP_DEFAULT_RADIUS * CITY_MAP_DEFAULT_RADIUS + 1; // 5
 export const CITY_MAP_MAX_RADIUS = 3;
 export const CITY_MAP_MAX_RADIUS_SQ = CITY_MAP_MAX_RADIUS * CITY_MAP_MAX_RADIUS + 1; // 10
 
@@ -103,164 +130,6 @@ export const FEELING_FINAL = 5; // after wonders (final result)
 
 export { SpecialistType, SPECIALIST_TYPES, type SpecialistDefinition };
 
-export interface WorkableTile {
-  x: number;
-  y: number;
-  isWorked: boolean;
-  isCenter?: boolean; // City center tile
-  isBlocked?: boolean; // Blocked by another city
-  outputs: {
-    food: number;
-    shields: number;
-    trade: number;
-  };
-  terrain?: string;
-  resource?: string;
-  improvements?: string[];
-}
-
-export interface CityRallyPoint {
-  x: number;
-  y: number;
-  persistent: boolean;
-}
-
-export interface TradeRoute {
-  id?: string;
-  sourceCity: string;
-  partnerCity: string;
-  establishedTurn: number;
-  value: number;
-  status?: 'active' | 'disrupted';
-  distance?: number;
-  isCaravan?: boolean;
-  routeType?: string;
-  goods?: string;
-}
-
-export interface TradeRouteCalculation {
-  baseTradeValue: number;
-  distanceBonus: number;
-  sizeBonus: number;
-  governmentBonus: number;
-  totalValue: number;
-}
-
-export interface ProductionItem {
-  kind: 'unit' | 'building' | 'wonder';
-  value: string;
-  remainingCost?: number;
-}
-
-export interface Happiness {
-  happy: number;
-  content: number;
-  unhappy: number;
-  angry: number;
-}
-
-// Following Freeciv governor priority options
-export enum GovernorPriority {
-  BALANCED = 'balanced',
-  FOOD = 'food',
-  SHIELDS = 'shields',
-  TRADE = 'trade',
-  SCIENCE = 'science',
-  GOLD = 'gold',
-  LUXURY = 'luxury',
-}
-
-export interface CityGovernor {
-  isEnabled: boolean;
-  priority: GovernorPriority;
-  settings: {
-    autoManageSpecialists: boolean;
-    autoManageTiles: boolean;
-    autoManageProduction: boolean;
-    preventStarvation: boolean;
-    maintainHappiness: boolean;
-  };
-}
-
-export interface CityState {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-  playerId: string;
-  originalOwnerId?: string;
-  population: number;
-  size: number; // City size level (1-40)
-  cityRadius: number; // Workable tile radius
-  founded: number; // Turn founded
-  isCapital?: boolean;
-
-  // Production
-  currentProduction?: string | null;
-  productionType?: 'unit' | 'building' | null;
-  turnsToComplete: number;
-  productionStock?: number;
-
-  // Resources and storage
-  foodStock?: number;
-  foodPerTurn?: number;
-  productionPerTurn?: number;
-  tradePerTurn?: number;
-  shieldStock?: number; // Stored shields
-  sciencePerTurn?: number;
-  goldPerTurn?: number;
-  luxuryPerTurn?: number;
-  pollution?: number;
-  unitGoldUpkeep?: number;
-  unitShieldUpkeep?: number;
-  grossProductionPerTurn?: number;
-  grossTradePerTurn?: number;
-  continentId?: number;
-  wasHappy?: boolean;
-  disorderTurns?: number;
-
-  // Culture system (freeciv-based)
-  history: number; // Accumulated culture history
-
-  // Buildings and specialists
-  buildings: string[];
-  specialists: Record<SpecialistType, number>;
-
-  // Tile management
-  workableTiles?: WorkableTile[];
-  citizenAssignments?: Record<string, boolean>;
-  workerTaskRequests?: CityWorkerTaskRequest[];
-
-  // Trade and economics
-  tradeRoutes: TradeRoute[];
-
-  // Happiness and growth
-  happiness: Happiness;
-
-  // Automation
-  governor?: CityGovernor;
-  rallyPoint?: CityRallyPoint;
-
-  // Worklist for production queue
-  worklist: ProductionItem[];
-
-  // Defense
-  defenseStrength?: number;
-
-  // A classic airport may participate in one airlift per turn.
-  airliftUsedTurn?: number;
-  didSellTurn?: number;
-  didBuyTurn?: number;
-  espionageThefts?: Record<string, number>;
-}
-
-export interface CityWorkerTaskRequest {
-  x: number;
-  y: number;
-  action: ActionType;
-  want: number;
-}
-
 const CITY_WORKER_TASK_ACTIONS = new Set<ActionType>([
   ActionType.BUILD_ROAD,
   ActionType.BUILD_RAILROAD,
@@ -272,53 +141,9 @@ const CITY_WORKER_TASK_ACTIONS = new Set<ActionType>([
   ActionType.CLEAN_POLLUTION,
 ]);
 
-export interface BuildingType {
-  id: string;
-  name: string;
-  genus: 'Improvement' | 'SmallWonder' | 'GreatWonder' | 'Special' | 'Convert';
-  cost: number;
-  sabotage?: number;
-  requiredTech?: string;
-  requires?: string[]; // Required buildings
-  cultureRequirements?: BuildingCultureRequirement[];
-  effects: {
-    defenseBonus?: number;
-    foodBonus?: number;
-    productionBonus?: number;
-    scienceBonus?: number;
-    goldBonus?: number;
-    luxuryBonus?: number;
-    happinessEffect?: number;
-    maxCitySize?: number;
-    unlimitedCitySize?: boolean;
-    oceanFood?: number;
-    oceanShields?: number;
-    immediateTechs?: number;
-    techParasitePlayers?: number;
-    corruptionReduction?: number;
-  };
-}
-
 /** @reference reference/freeciv/data/classic/buildings.ruleset */
 export const BUILDING_TYPES: Record<string, BuildingType> =
   rulesetBuildingsService.getPlayableBuildingTypes('classic');
-
-// Callback interface for events
-export interface CityManagerCallbacks {
-  onCityFounded?: (city: CityState) => void;
-  onCityGrowth?: (city: CityState, oldSize: number) => void;
-  onCityProductionComplete?: (city: CityState, item: ProductionItem) => void | Promise<void>;
-  onCityDestroyed?: (city: CityState) => void | Promise<void>;
-  onCityCaptured?: (city: CityState, oldPlayerId: string) => void;
-  onCityOwnershipChanged?: (
-    city: CityState,
-    oldPlayerId: string,
-    newPlayerId: string,
-    reason: 'conquest' | 'transfer'
-  ) => void | Promise<void>;
-  onCityTurnProcessed?: (city: CityState) => void;
-  onCapitalLost?: (playerId: string) => void | Promise<void>;
-}
 
 /**
  * CityManager - Core city management functionality
@@ -393,6 +218,7 @@ export class CityManager {
   private mapChangedCallback?: (gameId: string, mapData: unknown) => void;
   private readonly unitSupportManager: UnitSupportManager;
   private readonly unitProductionValidation: UnitProductionValidationService;
+  private readonly repository: CityRepository;
   private optimizationService?: CityOptimizationService;
   private readonly nuclearPopulationLossPct: number;
 
@@ -420,6 +246,12 @@ export class CityManager {
     ).nuke_pop_loss_pct;
     this.unitSupportManager = new UnitSupportManager(gameId, effectsManager);
     this.unitProductionValidation = new UnitProductionValidationService(this.unitTypes);
+    this.repository = new CityRepository(
+      this.gameId,
+      this.databaseProvider,
+      this.unitTypes,
+      this.buildingTypes
+    );
 
     // Every city service evaluates requirements against the same game-owned
     // ruleset instance so effects cannot diverge between subsystems.
@@ -1438,100 +1270,19 @@ export class CityManager {
 
   // === DATABASE OPERATIONS ===
 
-  private normalizeRallyPoint(value: unknown): CityRallyPoint | undefined {
-    if (!value || typeof value !== 'object') return undefined;
-    const point = value as Partial<CityRallyPoint>;
-    if (!Number.isInteger(point.x) || !Number.isInteger(point.y)) return undefined;
-    const x = point.x as number;
-    const y = point.y as number;
-    return { x, y, persistent: Boolean(point.persistent) };
-  }
-
-  /**
-   * Production type is not persisted separately in the city table. Rebuild it
-   * from the persisted production id when loading a game so turn processing
-   * does not mistake a valid queued item for an invalid null-typed target.
-   */
-  private inferProductionType(productionId: string | null): 'unit' | 'building' | null {
-    if (!productionId || productionId === 'capitalization') return null;
-    if (this.unitTypes[productionId]) return 'unit';
-    if (this.buildingTypes[productionId]) return 'building';
-    return null;
+  public inferProductionType(productionId: string | null): 'unit' | 'building' | null {
+    return this.repository.inferProductionType(productionId);
   }
 
   async loadCities(): Promise<void> {
     try {
-      const db = this.databaseProvider.getDatabase();
-      const cityRecords = await db.select().from(cities).where(eq(cities.gameId, this.gameId));
-
+      const loadedCities = await this.repository.loadAll();
       this.cities.clear();
 
-      for (const record of cityRecords) {
-        const city: CityState = {
-          id: record.id,
-          name: record.name,
-          x: record.x,
-          y: record.y,
-          playerId: record.playerId,
-          originalOwnerId: record.originalOwnerId ?? record.playerId,
-          population: record.population,
-          size: record.population,
-          cityRadius: CITY_MAP_DEFAULT_RADIUS,
-          founded: record.foundedTurn || 1,
-          currentProduction: record.currentProduction,
-          productionType: this.inferProductionType(record.currentProduction),
-          turnsToComplete: 0, // Will be calculated
-          foodStock: record.food || 0,
-          foodPerTurn: record.foodPerTurn || 0,
-          productionPerTurn: record.productionPerTurn || 0,
-          tradePerTurn: record.tradePerTurn || 0,
-          sciencePerTurn: record.sciencePerTurn || 0, // Will be recalculated
-          goldPerTurn: record.goldPerTurn || 0,
-          luxuryPerTurn: record.luxuryPerTurn || 0,
-          pollution: record.pollution || 0,
-          history: record.history || 0, // Culture history
-          wasHappy: record.wasHappy,
-          disorderTurns: record.disorderTurns,
-          productionStock: record.production || 0,
-          buildings: (record.buildings as string[]) || [],
-          specialists: (record.specialists as Record<SpecialistType, number>) || {
-            [SpecialistType.SCIENTIST]: 0,
-            [SpecialistType.TAX_COLLECTOR]: 0,
-            [SpecialistType.ENTERTAINER]: 0,
-            [SpecialistType.WORKER]: 0,
-            [SpecialistType.ENGINEER]: 0,
-            [SpecialistType.MERCHANT]: 0,
-          },
-          tradeRoutes: (record.tradeRoutes as TradeRoute[]) || [],
-          governor: (record.governor as CityGovernor | null) ?? undefined,
-          rallyPoint: this.normalizeRallyPoint(record.rallyPoint),
-          happiness: {
-            happy: 0,
-            content: Math.max(0, record.population - 1),
-            unhappy: record.happiness < 0 ? Math.abs(record.happiness) : 0,
-            angry: 0,
-          },
-          worklist: (record.productionQueue as ProductionItem[]) || [],
-          defenseStrength: record.defenseStrength || 1,
-          airliftUsedTurn: record.airliftUsedTurn ?? undefined,
-          isCapital: record.isCapital,
-          didSellTurn: record.didSellTurn ?? undefined,
-          didBuyTurn: record.didBuyTurn ?? undefined,
-          espionageThefts: (record.espionageThefts as Record<string, number>) || {},
-        };
-
+      for (const { city, workedTiles } of loadedCities) {
         this.cities.set(city.id, city);
-        // A recovered owner has already had a city, so later foundings must not
-        // hand out the ruleset's free initial buildings again.
-        // @reference reference/freeciv/server/savegame/savegame2.c:3675-3678
         this.playersWithFirstCity.add(city.playerId);
-
-        // Initialize workable tiles for loaded cities
-        this.initializeWorkableTilesForLoadedCity(
-          city,
-          record.workedTiles as Array<{ x: number; y: number }> | null
-        );
-
+        this.initializeWorkableTilesForLoadedCity(city, workedTiles);
         await this.restoreLoadedCitizenAssignment(city);
       }
     } catch (error) {
@@ -1544,106 +1295,7 @@ export class CityManager {
   }
 
   private async saveCityToDatabase(city: CityState): Promise<void> {
-    try {
-      const db = this.databaseProvider.getDatabase();
-
-      const cityData = {
-        id: city.id,
-        gameId: this.gameId,
-        name: city.name,
-        x: city.x,
-        y: city.y,
-        playerId: city.playerId,
-        population: city.population,
-        foundedTurn: city.founded || 1,
-        originalOwnerId: city.originalOwnerId ?? city.playerId,
-        currentProduction: city.currentProduction,
-        food: city.foodStock || 0,
-        foodPerTurn: city.foodPerTurn || 0,
-        production: city.productionStock || 0,
-        productionPerTurn: city.productionPerTurn || 0,
-        tradePerTurn: city.tradePerTurn || 0,
-        goldPerTurn: city.goldPerTurn || 0,
-        luxuryPerTurn: city.luxuryPerTurn || 0,
-        sciencePerTurn: city.sciencePerTurn || 0,
-        pollution: city.pollution || 0,
-        tradeRoutes: city.tradeRoutes,
-        governor: city.governor ?? null,
-        rallyPoint: city.rallyPoint ?? null,
-        culturePerTurn: 0, // Will be calculated
-        faithPerTurn: 0, // Will be calculated
-        history: city.history || 0, // Culture history
-        buildings: city.buildings,
-        specialists: city.specialists,
-        productionQueue: city.worklist,
-        happiness: city.happiness.content - city.happiness.unhappy, // Simplified happiness mapping
-        wasHappy: city.wasHappy ?? false,
-        disorderTurns: city.disorderTurns ?? 0,
-        defenseStrength: city.defenseStrength || 1,
-        airliftUsedTurn: city.airliftUsedTurn ?? null,
-        didSellTurn: city.didSellTurn ?? null,
-        didBuyTurn: city.didBuyTurn ?? null,
-        espionageThefts: city.espionageThefts,
-        // Default values for other required fields
-        health: 100,
-        isCapital: city.isCapital ?? city.buildings.includes('palace'),
-        isPuppet: false,
-        isOccupied: false,
-        wallsLevel: 0,
-        workedTiles:
-          city.workableTiles?.filter(t => t.isWorked).map(t => ({ x: t.x, y: t.y })) || [],
-      };
-
-      // Use a native upsert so normal city saves do not emit an expected
-      // duplicate-key ERROR in PostgreSQL before falling back to an update.
-      const dbOperation = () =>
-        db.insert(cities).values(cityData).onConflictDoUpdate({
-          target: cities.id,
-          set: cityData,
-        });
-
-      // Apply timeout in all environments to prevent database hangs
-      const DB_OPERATION_TIMEOUT = process.env.NODE_ENV === 'test' ? 5000 : 10000; // 5s for tests, 10s for production
-
-      let timeout: ReturnType<typeof setTimeout> | undefined;
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => {
-          reject(
-            new Error(
-              `Database operation timed out for city ${city.id} after ${DB_OPERATION_TIMEOUT}ms`
-            )
-          );
-        }, DB_OPERATION_TIMEOUT);
-        timeout.unref?.();
-      });
-
-      try {
-        await Promise.race([dbOperation(), timeoutPromise]);
-      } finally {
-        if (timeout) clearTimeout(timeout);
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-
-      logger.error('Failed to save city to database', {
-        cityId: city.id,
-        cityName: city.name,
-        gameId: this.gameId,
-        error: errorMessage,
-        isTimeout: errorMessage.includes('timed out'),
-      });
-
-      // In production, we should be more resilient - log the error but don't crash the turn processing
-      // Only throw in non-timeout cases that might be recoverable
-      if (!errorMessage.includes('timed out')) {
-        throw error;
-      } else {
-        logger.warn('Database timeout occurred, continuing with turn processing', {
-          cityId: city.id,
-          cityName: city.name,
-        });
-      }
-    }
+    await this.repository.save(city);
   }
 
   async processAllCitiesTurn(currentTurn: number): Promise<void> {

@@ -1,3 +1,12 @@
+import {
+  asArray,
+  asRecord,
+  isFiniteNumber,
+  readNonNegativeInteger as readInteger,
+  readPositiveInteger,
+  readString,
+} from '../shared/SimulationValueReader';
+
 const DIPLOMATIC_STATE_ORDER: Record<string, number> = {
   no_contact: 0,
   war: 1,
@@ -1189,31 +1198,4 @@ function report(
 
 function routeGoods(route: Record<string, unknown>): string {
   return readString(route.goods) ?? '';
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
-
-function readString(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined;
-}
-
-function readInteger(value: unknown): number | undefined {
-  return Number.isInteger(value) && Number(value) >= 0 ? Number(value) : undefined;
-}
-
-function readPositiveInteger(value: unknown): number | undefined {
-  const integer = readInteger(value);
-  return integer !== undefined && integer > 0 ? integer : undefined;
-}
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
 }

@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { headlessSimulationConfigSchema } from '@game/services/SimulationTypes';
+import { headlessSimulationConfigSchema } from '@game/simulation/config/SimulationTypes';
 
 const fixturesDirectory = resolve(__dirname, '../../../../../docs/simulation-scenarios');
 const expectedFixtureNames = [

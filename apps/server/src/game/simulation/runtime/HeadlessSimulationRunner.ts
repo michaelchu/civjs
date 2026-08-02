@@ -7,17 +7,17 @@ import { games, players } from '@database/schema';
 import { PROTOCOL_VERSION } from '@app-types/packet';
 import type { GameManager } from '@game/managers/GameManager';
 import { identityNumberFromUuid } from '@game/random/FreecivIdentityAllocator';
-import { GameReplayService, type GameReplay } from './GameReplayService';
+import { GameReplayService, type GameReplay } from '@game/services/GameReplayService';
 import {
   SimulationExecutionError,
   SimulationExecutionService,
   type SimulationExecutionStopReason,
 } from './SimulationExecutionService';
-import { evaluateSimulationExpectations } from './SimulationExpectations';
+import { evaluateSimulationExpectations } from '../expectations/SimulationExpectations';
 import {
   evaluateSimulationInvariants,
   type SimulationInvariantResult,
-} from './SimulationInvariants';
+} from '../invariants/SimulationInvariants';
 import { SimulationGameService } from './SimulationGameService';
 import {
   SIMULATION_DIAGNOSTIC_SCHEMA_VERSION,
@@ -27,7 +27,7 @@ import {
   type SimulationProgressRecord,
   type SimulationRunBundle,
   type SimulationRunManifest,
-} from './SimulationTypes';
+} from '../config/SimulationTypes';
 
 export const HEADLESS_EXIT_CODES = {
   completed: 0,

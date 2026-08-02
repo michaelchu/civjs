@@ -1,4 +1,4 @@
-import { GameInstance } from '@game/managers/GameManager';
+import { GameInstance } from '@game/runtime/GameTypes';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { logger } from '@utils/logger';
 

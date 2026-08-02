@@ -6,7 +6,7 @@
  */
 
 import { OutputType } from '@game/constants/GameConstants';
-import { SpecialistType } from '@game/managers/CityManager';
+import { SpecialistType } from '@game/constants/SpecialistDefinitions';
 
 /**
  * Result of citizen assignment optimization

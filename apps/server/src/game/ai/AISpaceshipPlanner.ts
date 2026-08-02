@@ -1,4 +1,5 @@
-import { BUILDING_TYPES, type CityState } from '@game/managers/CityManager';
+import { BUILDING_TYPES } from '@game/managers/CityManager';
+import type { CityState } from '@game/cities/CityTypes';
 import {
   normalizeSpaceshipState,
   spaceshipProgress,

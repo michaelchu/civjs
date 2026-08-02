@@ -1,4 +1,7 @@
-import { hasCustomScenarioInitialState, scenarioSetupSchema } from '@game/services/ScenarioSetup';
+import {
+  hasCustomScenarioInitialState,
+  scenarioSetupSchema,
+} from '@game/simulation/config/ScenarioSetup';
 
 describe('scenario setup', () => {
   it('distinguishes default starting units from controlled initial state', () => {

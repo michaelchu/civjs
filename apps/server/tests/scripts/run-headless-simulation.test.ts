@@ -8,7 +8,7 @@ import {
   HEADLESS_EXIT_CODES,
   HeadlessSimulationOutputError,
   exitCodeForBundle,
-} from '@game/services/HeadlessSimulationRunner';
+} from '@game/simulation/runtime/HeadlessSimulationRunner';
 
 describe('headless simulation CLI arguments', () => {
   it('parses the documented deterministic run options', () => {

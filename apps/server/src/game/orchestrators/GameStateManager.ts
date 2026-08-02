@@ -8,7 +8,7 @@ import { DatabaseProvider } from '@database';
 import { gameState } from '@database/redis';
 import { games, players } from '@database/schema';
 import { eq, sql } from 'drizzle-orm';
-import type { TerrainSettings } from '@game/managers/GameManager';
+import type { TerrainSettings } from '@game/runtime/GameTypes';
 import type { MapManager } from '@game/managers/MapManager';
 
 export interface GameStateRepository {

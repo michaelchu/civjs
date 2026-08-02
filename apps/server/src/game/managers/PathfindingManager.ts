@@ -1,6 +1,6 @@
 import { logger } from '@utils/logger';
 import { calculateMovementCost } from '@game/constants/MovementConstants';
-import type { Unit } from '@game/managers/UnitManager';
+import type { Unit } from '@game/units/UnitTypes';
 import { MapTopology } from '@game/map/MapTopology';
 
 export interface PathTile {

@@ -16,7 +16,7 @@ import type { TurnPacketService } from './TurnPacketService';
 import type { RandomEventsManager } from '@game/managers/RandomEventsManager';
 import type { DisasterManager } from '@game/managers/DisasterManager';
 import type { CultureManager } from '@game/managers/CultureManager';
-import { GameEventService, GameEventType } from './GameEventService';
+import { GameEventService, GameEventType } from '@game/events/GameEventService';
 import type { DatabaseProvider } from '@database';
 import { turnPhases, NewTurnPhase } from '@database/schema/turn-phases';
 import { and, eq } from 'drizzle-orm';

@@ -16,7 +16,7 @@
 
 import { logger } from '@utils/logger';
 import { MapTile, TerrainType, TemperatureType, MapStartpos } from './MapTypes';
-import { PlayerState } from '@game/managers/GameManager';
+import { PlayerState } from '@game/runtime/GameTypes';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { MapTopology, type MapTopologyOptions } from './MapTopology';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';

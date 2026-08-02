@@ -5,7 +5,7 @@ import type {
   DiplomacySnapshot,
   TreatyClause,
 } from '@game/managers/DiplomacyManager';
-import type { GameInstance } from '@game/managers/GameManager';
+import type { GameInstance } from '@game/runtime/GameTypes';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import {
   calculateWarDesire,

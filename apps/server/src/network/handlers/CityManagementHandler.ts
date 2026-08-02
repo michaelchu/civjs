@@ -6,11 +6,8 @@ import { PacketType, CityFoundSchema, CityProductionChangeSchema } from '@app-ty
 import { GameManager } from '@game/managers/GameManager';
 import { CityProductionHandler } from './CityProductionHandler';
 import { getUnitType } from '@game/constants/UnitConstants';
-import {
-  GovernorPriority,
-  SPECIALIST_TYPES,
-  type ProductionItem,
-} from '@game/managers/CityManager';
+import { GovernorPriority, type ProductionItem } from '@game/cities/CityTypes';
+import { SPECIALIST_TYPES } from '@game/constants/SpecialistDefinitions';
 import { RequirementsManager } from '@game/managers/RequirementsManager';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 

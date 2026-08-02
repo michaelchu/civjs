@@ -1,8 +1,8 @@
-import { GameInstance } from '@game/managers/GameManager';
+import { GameInstance } from '@game/runtime/GameTypes';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { CityDataService } from '@game/services/CityDataService';
 import { logger } from '@utils/logger';
-import type { CityState } from '@game/managers/CityManager';
+import type { CityState } from '@game/cities/CityTypes';
 import { getUniqueCityName } from '@game/constants/CityNames';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 

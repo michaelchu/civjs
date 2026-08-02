@@ -1,7 +1,7 @@
 import {
   evaluateSimulationExpectations,
   simulationExpectationSchema,
-} from '@game/services/SimulationExpectations';
+} from '@game/simulation/expectations/SimulationExpectations';
 
 const playerOneId = 'player-1';
 const playerTwoId = 'player-2';

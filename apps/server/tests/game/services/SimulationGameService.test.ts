@@ -1,5 +1,5 @@
-import { SimulationGameService } from '@game/services/SimulationGameService';
-import type { HeadlessSimulationConfig } from '@game/services/SimulationTypes';
+import { SimulationGameService } from '@game/simulation/runtime/SimulationGameService';
+import type { HeadlessSimulationConfig } from '@game/simulation/config/SimulationTypes';
 import { users } from '@database/schema';
 
 const config: HeadlessSimulationConfig = {

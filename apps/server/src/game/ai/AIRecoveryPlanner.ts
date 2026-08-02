@@ -1,6 +1,6 @@
 import type { AIUnitTask } from '@game/ai/AIStateStore';
-import type { CityState } from '@game/managers/CityManager';
-import type { Unit } from '@game/managers/UnitManager';
+import type { CityState } from '@game/cities/CityTypes';
+import type { Unit } from '@game/units/UnitTypes';
 import type { PathfindingResult } from '@game/managers/PathfindingManager';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 

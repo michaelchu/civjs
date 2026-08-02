@@ -1,6 +1,6 @@
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { BUILDING_TYPES } from '@game/managers/CityManager';
-import type { GameInstance } from '@game/managers/GameManager';
+import type { GameInstance } from '@game/runtime/GameTypes';
 import { chooseGovernment, rankGovernments } from '@game/ai/AIGovernmentPlanner';
 import { rankResearch } from '@game/ai/AIPlanner';
 import { createAIProfile } from '@game/ai/AIProfile';

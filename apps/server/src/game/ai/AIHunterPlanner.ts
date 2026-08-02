@@ -1,7 +1,7 @@
-import type { Unit } from '@game/managers/UnitManager';
+import type { Unit } from '@game/units/UnitTypes';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 import type { AIUnitTask } from '@game/ai/AIStateStore';
-import type { CityState } from '@game/managers/CityManager';
+import type { CityState } from '@game/cities/CityTypes';
 
 export interface HunterTarget {
   unit: Unit;

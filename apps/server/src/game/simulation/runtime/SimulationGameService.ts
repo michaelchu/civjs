@@ -7,7 +7,7 @@ import {
   SIMULATION_DIAGNOSTIC_SCHEMA_VERSION,
   type HeadlessSimulationConfig,
   type SimulationExecutionMode,
-} from './SimulationTypes';
+} from '../config/SimulationTypes';
 
 export interface CreatedSimulationGame {
   gameId: string;

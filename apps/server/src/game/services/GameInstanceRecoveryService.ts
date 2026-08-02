@@ -6,7 +6,14 @@ import {
   players as playerRecords,
   units as unitRecords,
 } from '@database/schema';
-import { GameInstance, PlayerState, TurnPhase, GameState } from '@game/managers/GameManager';
+import type { GameInstance, PlayerState } from '@game/runtime/GameTypes';
+import {
+  buildGameInstance,
+  buildStoredGameConfig,
+  type GameRuntimeManagers,
+} from '@game/runtime/GameInstanceFactory';
+import { createRuntimeUnitManager } from '@game/runtime/UnitManagerFactory';
+import { bindCoreManagerProviders } from '@game/runtime/RuntimeManagerBindings';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { logger } from '@utils/logger';
 import { CityManager } from '@game/managers/CityManager';
@@ -29,7 +36,6 @@ import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService'
 import { GovernmentManager } from '@game/managers/GovernmentManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
-import { isSettableAILevel } from '@game/ai/AIProfile';
 import { assertAIState } from '@game/ai/AIStateStore';
 import {
   completeSpaceshipPart,
@@ -52,10 +58,6 @@ import {
   FREECIV_IDENTITY_NUMBER_SKIP,
   FreecivIdentityAllocator,
 } from '@game/random/FreecivIdentityAllocator';
-
-function recoveredResearchPacing(game: any) {
-  return researchPacingFromGameState(game.ruleset || DEFAULT_RULESET, game.gameState);
-}
 
 function recoveredUnitStatistics(dbPlayer: any) {
   return {
@@ -129,8 +131,6 @@ export class GameInstanceRecoveryService extends BaseGameService {
 
       const gameInstance = this.buildRecoveredGameInstance(gameId, game, players, managers);
 
-      this.games.set(gameId, gameInstance);
-
       await this.loadDataIntoManagers(managers);
 
       await this.initializeResearchAndVisibility(
@@ -140,9 +140,13 @@ export class GameInstanceRecoveryService extends BaseGameService {
         managers.visibilityManager
       );
 
+      // Do not expose a runtime until all persisted manager state is hydrated.
+      this.games.set(gameId, gameInstance);
+
       logger.info('Game instance recovered successfully', { gameId });
       return gameInstance;
     } catch (error) {
+      this.games.delete(gameId);
       logger.error('Failed to recover game instance:', error);
       return null;
     }
@@ -353,40 +357,21 @@ export class GameInstanceRecoveryService extends BaseGameService {
       rulesetName,
       researchPacingFromGameState(rulesetName, game.gameState)
     );
-    governmentManager.setPlayerTechsProvider(
-      playerId => new Set(researchManager.getResearchedTechs(playerId))
-    );
-    cityManager.setPlayerTechsProvider(
-      playerId => new Set(researchManager.getResearchedTechs(playerId))
-    );
-    cityManager.setPlayerBuildingsProvider(
-      playerId => new Set(cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings))
-    );
-    cityManager.setPlayerSpaceshipProvider(playerId =>
-      normalizeSpaceshipState(players.get(playerId)?.spaceshipState)
-    );
-    cityManager.setPlayerAIProvider(playerId => ({
-      isAI: players.get(playerId)?.isAI === true,
-      aiLevel: players.get(playerId)?.aiLevel,
-    }));
-    cityManager.setPlayerGovernmentProvider(playerId => {
-      const government = governmentManager.getPlayerGovernment(playerId)?.currentGovernment;
-      if (!government) {
-        throw new Error(`No government found for player '${playerId}'`);
-      }
-      return government;
-    });
-
-    const unitManager = new UnitManager(
+    const unitManager = createRuntimeUnitManager({
       gameId,
-      this.databaseProvider,
-      game.mapWidth,
-      game.mapHeight,
+      databaseProvider: this.databaseProvider,
+      mapWidth: game.mapWidth,
+      mapHeight: game.mapHeight,
       mapManager,
-      {
+      cityManager,
+      researchManager,
+      effectsManager,
+      random,
+      identities,
+      unitTypes: rulesetUnitsService.getUnitTypes(rulesetName),
+      players,
+      callbacks: {
         foundCity: this.foundCity.bind(this),
-        canFoundCityAt: (x: number, y: number, playerId: string) =>
-          cityManager.canFoundCityAt(x, y, playerId),
         requestPath: this.requestPath.bind(this),
         broadcastUnitMoved: gid => {
           this.broadcastManager.broadcastVisibilityState(gid);
@@ -397,56 +382,19 @@ export class GameInstanceRecoveryService extends BaseGameService {
         broadcastUnitInfo: (gid, unit) => {
           this.broadcastManager.broadcastUnitInfo(gid, unit);
         },
-        getCityAt: (x: number, y: number) => {
-          const city = cityManager.getCityAt(x, y);
-          return city
-            ? {
-                id: city.id,
-                playerId: city.playerId,
-                buildings: city.buildings,
-                population: city.population,
-              }
-            : null;
-        },
-        applyCityPopulationLoss: cityId => cityManager.applyCityPopulationLoss(cityId),
-        getPlayerNation: (playerId: string) =>
-          game.players.find((player: any) => player.id === playerId)?.nation ??
-          game.players.find((player: any) => player.id === playerId)?.civilization,
-        getCityNames: () => cityManager.getAllCities().map(city => city.name),
-        getPlayerBuildings: playerId =>
-          cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings),
-        reserveAirlift: (sourceCityId, destinationCityId, playerId, turn) =>
-          cityManager.reserveAirlift(sourceCityId, destinationCityId, playerId, turn),
-        establishTradeRoute: async (playerId, homeCityId, targetX, targetY) => {
-          const destination = cityManager.getCityAt(targetX, targetY);
-          return destination
-            ? cityManager.establishTradeRoute(homeCityId, destination.id, playerId)
-            : false;
-        },
-        executeCityUnitAction: (...args) => cityManager.executeUnitCityAction(...args),
-        applyNuclearCityDamage: (...args) => cityManager.applyNuclearExplosion(...args),
-        grantHutTechnology: async playerId => {
-          const technology = researchManager.getAvailableTechnologies(playerId)[0];
-          return technology && (await researchManager.grantTechnology(playerId, technology.id))
-            ? technology.name
-            : null;
-        },
-        captureCity: async (cityId, playerId, unitId) =>
-          (await cityManager.captureCity(cityId, playerId, unitId)).success,
         broadcastHutEvent: (changedGameId, playerId, message) =>
           this.io.to(`player:${playerId}`).emit('hut_event', { gameId: changedGameId, message }),
-        updatePlayerStatistic: (playerId, statistic) => {
-          const player = game.players.find((candidate: any) => candidate.id === playerId);
-          if (player) player[statistic] = (player[statistic] ?? 0) + 1;
-        },
         broadcastMapChanged: (changedGameId, mapData) =>
           this.broadcastManager.broadcastMapData(changedGameId, mapData),
       },
-      effectsManager,
-      random,
-      rulesetUnitsService.getUnitTypes(rulesetName),
-      identities
-    );
+    });
+    bindCoreManagerProviders({
+      players,
+      cityManager,
+      researchManager,
+      governmentManager,
+      unitManager,
+    });
     unitManager.setCombatPresentationCallback(event =>
       this.broadcastManager.broadcastCombatOccurred(gameId, event)
     );
@@ -576,9 +524,6 @@ export class GameInstanceRecoveryService extends BaseGameService {
       ...visibilityManager.revealArea(playerId, x, y, 30),
     ]);
     unitManager.setExploredTilesProvider(playerId => visibilityManager.getExploredTiles(playerId));
-    unitManager.setPlayerTechsProvider(
-      playerId => new Set(researchManager.getResearchedTechs(playerId))
-    );
 
     // Initialize BorderManager after CityManager is created, reusing the
     // game-owned effects instance so recovered games evaluate the same
@@ -690,9 +635,6 @@ export class GameInstanceRecoveryService extends BaseGameService {
     // Keep recovered research associated with the restored authoritative turn.
     researchManager.setCurrentTurnProvider(() => turnManager.getCurrentTurn());
     researchManager.setCurrentYearProvider(() => turnManager.getCurrentYear());
-    researchManager.setPlayerBuildingsProvider(
-      playerId => new Set(cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings))
-    );
 
     return {
       turnManager,
@@ -802,64 +744,20 @@ export class GameInstanceRecoveryService extends BaseGameService {
     gameId: string,
     game: any,
     players: Map<string, PlayerState>,
-    managers: {
-      turnManager: TurnManager;
-      unitManager: UnitManager;
-      cityManager: CityManager;
-      researchManager: ResearchManager;
-      pathfindingManager: PathfindingManager;
-      visibilityManager: VisibilityManager;
-      borderManager: BorderManager;
-      mapManager: MapManager;
-      governmentManager: GovernmentManager;
-      random: FreecivRandom;
-      identities: FreecivIdentityAllocator;
-    }
+    managers: GameRuntimeManagers
   ): GameInstance {
-    return {
+    return buildGameInstance({
       id: gameId,
-      config: {
-        name: game.name,
-        hostId: game.hostId,
-        maxPlayers: game.maxPlayers,
-        mapWidth: game.mapWidth,
-        mapHeight: game.mapHeight,
-        ruleset: game.ruleset || 'civ2civ3',
-        turnTimeLimit: game.turnTimeLimit || undefined,
-        maxTurns: game.maxTurns ?? 0,
-        victoryConditions: (game.victoryConditions as string[]) || [
-          'conquest',
-          'science',
-          'culture',
-        ],
-        aiLevel: isSettableAILevel((game.gameState as any)?.aiLevel)
-          ? (game.gameState as any).aiLevel
-          : 'easy',
-        researchPacing: recoveredResearchPacing(game),
-        randomSeed: game.gameState.randomSeed,
-        executionMode: (game.gameState as any)?.simulation?.executionMode,
-        scenarioSetup: (game.gameState as any)?.scenarioSetup,
-      },
-      state: game.status as GameState,
+      config: buildStoredGameConfig(game, { recovery: true }),
+      state: game.status,
       pauseReason: game.pauseReason ?? undefined,
       turnDeadlineAt: game.turnDeadlineAt ?? null,
       pausedTimerSeconds: game.pausedTimerSeconds ?? null,
       currentTurn: game.currentTurn,
-      turnPhase: game.turnPhase as TurnPhase,
+      turnPhase: game.turnPhase,
       players,
-      turnManager: managers.turnManager,
-      mapManager: managers.mapManager,
-      unitManager: managers.unitManager,
-      visibilityManager: managers.visibilityManager,
-      cityManager: managers.cityManager,
-      researchManager: managers.researchManager,
-      pathfindingManager: managers.pathfindingManager,
-      borderManager: managers.borderManager,
-      governmentManager: managers.governmentManager,
-      random: managers.random,
-      identities: managers.identities,
-      lastActivity: new Date(),
-    } as unknown as GameInstance;
+      managers,
+    });
   }
 
   private async loadDataIntoManagers(managers: {

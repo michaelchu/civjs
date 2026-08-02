@@ -9,7 +9,8 @@ import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
  * @reference freeciv-web/javascript/city.js
  */
 
-import { SPECIALIST_TYPES, type CityState, type SpecialistType } from '@game/managers/CityManager';
+import type { CityState } from '@game/cities/CityTypes';
+import { SPECIALIST_TYPES, type SpecialistType } from '@game/constants/SpecialistDefinitions';
 import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { rulesetUnitsService } from './RulesetUnitsService';
 import { rulesetBuildingsService, type RulesetBuildingsService } from './RulesetBuildingsService';
