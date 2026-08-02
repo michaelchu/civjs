@@ -543,7 +543,12 @@ describe('CityManager', () => {
       await expect(cityManager.destroyCity(capital.id)).resolves.toBe(true);
 
       expect(replacement.buildings).toContain('palace');
-      expect(capitalLoss).toHaveBeenCalledWith('player-123');
+      expect(capitalLoss).toHaveBeenCalledWith({
+        playerId: 'player-123',
+        lostCityId: capital.id,
+        cityCountBeforeLoss: 2,
+        civilWarTriggered: undefined,
+      });
     });
 
     it('awaits city-destruction callbacks so last-city elimination can end the game immediately', async () => {
@@ -946,6 +951,42 @@ describe('CityManager', () => {
         'player-456',
         'conquest'
       );
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/server/citytools.c:2021-2035 unit_conquer_city()
+     * @reference reference/freeciv/server/citytools.c:2144-2145 unit_conquer_city()
+     * @assertion A capital-loss trigger is evaluated while the victim still owns its capital, then resolved only after the successful conquest has transferred it.
+     * @c2c3-internal-action Civil War
+     * @c2c3-internal-scenario normal
+     * @c2c3-surface cities
+     * @c2c3-surface-scenario normal
+     */
+    it('brackets a capital conquest with the civil-war lifecycle callbacks', async () => {
+      city.population = 4;
+      const lifecycle: string[] = [];
+      cityManager.setCallbacks({
+        onCapitalLossPending: event => {
+          lifecycle.push(`pending:${city.playerId}`);
+          expect(event).toMatchObject({
+            playerId: 'player-123',
+            lostCityId: city.id,
+            cityCountBeforeLoss: 1,
+          });
+          return true;
+        },
+        onCapitalLost: event => {
+          lifecycle.push(`lost:${city.playerId}`);
+          expect(event.civilWarTriggered).toBe(true);
+        },
+      });
+
+      await expect(cityManager.captureCity(city.id, 'player-456', 'unit-123')).resolves.toEqual(
+        expect.objectContaining({ success: true, cityDestroyed: false })
+      );
+
+      expect(lifecycle).toEqual(['pending:player-123', 'lost:player-456']);
     });
 
     it('reports peaceful transfers separately so conquest consequences are excluded', async () => {

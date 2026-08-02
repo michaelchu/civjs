@@ -304,6 +304,13 @@ export class TurnManager {
     );
   }
 
+  /** Register a player created after turn initialization for future phases. */
+  public registerPlayer(playerId: string): void {
+    if (this.playerActions.has(playerId)) return;
+    this.playerActions.set(playerId, []);
+    this.turnProcessingService.initializeActionQueues([playerId]);
+  }
+
   /** Register dynamically-created barbarian owners in the live game state. */
   private registerRuntimePlayer(player: typeof players.$inferSelect): void {
     if (this.runtimePlayers && !this.runtimePlayers.has(player.id)) {
@@ -336,6 +343,7 @@ export class TurnManager {
         lastSeen: new Date(),
       });
     }
+    this.registerPlayer(player.id);
   }
 
   public async initializeTurn(
@@ -709,6 +717,8 @@ export class TurnManager {
     for (const playerId of playerIds) {
       const completedGovernment = await this.governmentManager.processRevolutionTurn(playerId);
       if (!completedGovernment) continue;
+      const runtimePlayer = this.runtimePlayers?.get(playerId);
+      if (runtimePlayer) runtimePlayer.government = completedGovernment;
       for (const city of this.cityManager.getPlayerCities(playerId)) {
         this.cityManager.refreshCityWithGovernmentEffects(city.id);
       }

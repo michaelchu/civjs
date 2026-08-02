@@ -186,6 +186,11 @@ export class EconomicManager {
     return this.treasuryService.getPlayerGold(playerId);
   }
 
+  /** Set an authoritative treasury balance for system-level state changes. */
+  public async setPlayerGold(playerId: string, amount: number): Promise<boolean> {
+    return this.treasuryService.setPlayerGold(playerId, amount);
+  }
+
   /**
    * Add gold to player treasury
    */

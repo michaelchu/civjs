@@ -54,6 +54,7 @@ import {
 import { getClimateSettingsFromGameState } from '@game/services/ClimateManager';
 import { researchPacingFromGameState } from '@game/services/ResearchPacing';
 import { resolveRulesetTerrainSettings } from '@game/services/RulesetTerrainDefaults';
+import { CivilWarService } from '@game/services/CivilWarService';
 import {
   FreecivRandom,
   generateFreecivGameSeed,
@@ -449,15 +450,15 @@ export class GameInstanceRecoveryService extends BaseGameService {
           await researchManager.grantAvailableTechnologies(city.playerId, immediateTechs);
         }
       },
-      onCapitalLost: async playerId => {
-        const player = players.get(playerId);
+      onCapitalLost: async event => {
+        const player = players.get(event.playerId);
         if (!player) return;
         player.spaceshipState = normalizeSpaceshipState(undefined);
         await this.databaseProvider
           .getDatabase()
           .update(playerRecords)
           .set({ spaceshipState: player.spaceshipState })
-          .where(eq(playerRecords.id, playerId));
+          .where(eq(playerRecords.id, event.playerId));
       },
       onCityOwnershipChanged: async (city, oldPlayerId, newPlayerId, reason) => {
         await unitManager.reconcileCityOwnership(city, oldPlayerId, newPlayerId);
@@ -647,6 +648,43 @@ export class GameInstanceRecoveryService extends BaseGameService {
     // Keep recovered research associated with the restored authoritative turn.
     researchManager.setCurrentTurnProvider(() => turnManager.getCurrentTurn());
     researchManager.setCurrentYearProvider(() => turnManager.getCurrentYear());
+
+    const civilWarService = new CivilWarService({
+      gameId,
+      rulesetName: game.ruleset ?? DEFAULT_RULESET,
+      maxPlayers: game.maxPlayers,
+      players,
+      databaseProvider: this.databaseProvider,
+      cityManager,
+      researchManager,
+      governmentManager,
+      visibilityManager,
+      effectsManager,
+      random,
+      currentTurn: () => turnManager.getCurrentTurn(),
+      registerTurnPlayer: playerId => turnManager.registerPlayer(playerId),
+      economyManager: economicManager,
+      aiLevel: (game.gameState as { aiLevel?: PlayerState['aiLevel'] } | undefined)?.aiLevel,
+      onPlayerCreated: async player => {
+        this.playerToGame.set(player.id, gameId);
+        await this.broadcastManager.broadcastPlayerInfo(gameId);
+        this.broadcastManager.broadcastVisibilityState(gameId);
+      },
+    });
+    cityManager.setCallbacks({
+      onCapitalLossPending: event => civilWarService.prepareCapitalLoss(event),
+      onCapitalLost: async event => {
+        const player = players.get(event.playerId);
+        if (!player) return;
+        player.spaceshipState = normalizeSpaceshipState(undefined);
+        await this.databaseProvider
+          .getDatabase()
+          .update(playerRecords)
+          .set({ spaceshipState: player.spaceshipState })
+          .where(eq(playerRecords.id, event.playerId));
+        await civilWarService.resolveCapitalLoss(event);
+      },
+    });
 
     return {
       turnManager,

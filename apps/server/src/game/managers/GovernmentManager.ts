@@ -272,6 +272,39 @@ export class GovernmentManager {
     };
   }
 
+  /**
+   * Force the source player into the one-turn revolution caused by a civil war.
+   * Unlike a player-selected revolution this neither validates prerequisites nor
+   * chooses a random duration: Freeciv restores the current government on the
+   * following turn.
+   * @reference reference/freeciv/server/plrhand.c:2820-2825 split_player()
+   */
+  public async startCivilWarRevolution(playerId: string, currentTurn: number): Promise<boolean> {
+    const playerGov = this.playerGovernments.get(playerId);
+    const revolutionGovernment = getRevolutionGovernment(this.rulesetName);
+    if (!playerGov || playerGov.currentGovernment === revolutionGovernment) return false;
+
+    const previousGovernment = playerGov.currentGovernment;
+    playerGov.currentGovernment = revolutionGovernment;
+    playerGov.revolutionTurns = 1;
+    playerGov.requestedGovernment = previousGovernment;
+
+    await this.databaseProvider
+      .getDatabase()
+      .update(playersTable)
+      .set({ government: revolutionGovernment, revolutionTurns: 1 })
+      .where(and(eq(playersTable.gameId, this.gameId), eq(playersTable.id, playerId)));
+    await this.databaseProvider.getDatabase().insert(governmentChanges).values({
+      gameId: this.gameId,
+      playerId,
+      fromGovernment: previousGovernment,
+      toGovernment: previousGovernment,
+      changeTurn: currentTurn,
+      anarchyTurns: 1,
+    });
+    return true;
+  }
+
   public async processRevolutionTurn(playerId: string): Promise<string | null> {
     const playerGov = this.playerGovernments.get(playerId);
     if (!playerGov) {

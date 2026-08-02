@@ -361,6 +361,11 @@ export class VisibilityManager {
     return new Map(this.playerVisibility.get(playerId)?.rememberedTiles ?? []);
   }
 
+  /** Snapshot the player's last-seen timestamps for authoritative state transfer. */
+  public getLastSeenTiles(playerId: string): Record<string, Date> {
+    return Object.fromEntries(this.playerVisibility.get(playerId)?.lastSeenByTile ?? []);
+  }
+
   public grantExploredTiles(playerId: string, tiles: Iterable<string>): Set<string> {
     let visibility = this.playerVisibility.get(playerId);
     if (!visibility) {

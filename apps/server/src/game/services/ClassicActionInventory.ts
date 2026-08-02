@@ -39,7 +39,7 @@ export const CLASSIC_ACTION_COVERAGE: Readonly<Record<string, ClassicActionCover
     'espionage',
     'Production sabotage clears authoritative production'
   ),
-  'Spy Attack': engineResolved('combat', 'Resolved through unit combat'),
+  'Spy Attack': implemented('espionage', 'Authoritative diplomat and spy attack resolution'),
   'Establish Embassy Stay': implemented('espionage', 'Embassy command retains spies'),
   'Establish Embassy': implemented('espionage', 'Embassy command consumes diplomats'),
   'Investigate City Spend Unit': implemented('espionage', 'Investigation diplomat variant'),
@@ -102,12 +102,10 @@ export const CLASSIC_ACTION_COVERAGE: Readonly<Record<string, ClassicActionCover
     'Non-native movement uses the same ownership outcome'
   ),
   'Gain Veterancy': engineResolved('combat', 'Veterancy is awarded by combat resolution'),
-  'Civil War': {
-    disposition: 'inapplicable',
-    family: 'player-events',
-    rationale:
-      'CivJS games use a fixed lobby participant set and do not create mid-game rebel players',
-  },
+  'Civil War': implemented(
+    'player-events',
+    'Capital loss can create and initialize a source-compatible AI rebel player'
+  ),
   'Finish Unit': engineResolved('production', 'Resolved by city production completion'),
   'Finish Building': engineResolved('production', 'Resolved by city production completion'),
 };

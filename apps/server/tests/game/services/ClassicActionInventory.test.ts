@@ -76,7 +76,7 @@ describe('classic action inventory', () => {
     expect(service.getUnitActions(UNIT_TYPES.warriors)).toContain(ActionType.COLLECT_RANSOM);
     expect(service.getUnitActions(UNIT_TYPES.settlers)).not.toContain(ActionType.COLLECT_RANSOM);
     expect(CLASSIC_ACTION_COVERAGE['Civil War']).toMatchObject({
-      disposition: 'inapplicable',
+      disposition: 'implemented',
       family: 'player-events',
     });
   });

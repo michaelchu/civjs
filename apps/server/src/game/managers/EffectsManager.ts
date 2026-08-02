@@ -95,6 +95,8 @@ export enum EffectType {
   UPGRADE_UNIT = 'Upgrade_Unit',
   ACTION_SUCCESS_ACTOR_MOVE_COST = 'Action_Success_Actor_Move_Cost',
   SPY_RESISTANT = 'Spy_Resistant',
+  CIVIL_WAR_CHANCE = 'Civil_War_Chance',
+  CIVIL_WAR_CITY_BONUS = 'Civil_War_City_Bonus',
   UNIT_BRIBE_COST_PCT = 'Unit_Bribe_Cost_Pct',
   INCITE_COST_PCT = 'Incite_Cost_Pct',
   INSPIRE_PARTISANS = 'Inspire_Partisans',
@@ -169,6 +171,7 @@ export interface EffectContext {
   playerNationGroups?: Set<string>;
   age?: number;
   cityCelebrating?: boolean;
+  cityDisorder?: boolean;
   /**
    * Relationship tags between the subject and the `other_player` context of
    * a Freeciv effect, for example `Foreign`, `War`, or `Team`.
@@ -819,12 +822,16 @@ export class EffectsManager {
         req,
         context.currentYear === undefined ? undefined : context.currentYear >= Number(req.name)
       );
-    this.requirementHandlers['CityStatus'] = (req, context) =>
-      this.requirementResult(
-        'CityStatus',
-        req,
-        this.matches(req.name, 'Celebration') ? context.cityCelebrating : undefined
-      );
+    this.requirementHandlers['CityStatus'] = (req, context) => {
+      const cityStatus = this.normaliseRuleName(req.name);
+      const actual =
+        cityStatus === 'celebration'
+          ? context.cityCelebrating
+          : cityStatus === 'disorder'
+            ? context.cityDisorder
+            : undefined;
+      return this.requirementResult('CityStatus', req, actual);
+    };
   }
 
   private requirementResult(

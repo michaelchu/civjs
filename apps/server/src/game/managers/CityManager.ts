@@ -39,6 +39,7 @@ import {
 } from '@game/services/UnitProductionValidationService';
 import {
   GovernorPriority,
+  type CapitalLossEvent,
   type BuildingType,
   type CityGovernor,
   type CityManagerCallbacks,
@@ -56,6 +57,7 @@ export { CITY_MAP_DEFAULT_RADIUS, CITY_MAP_DEFAULT_RADIUS_SQ } from '@game/citie
 
 export {
   GovernorPriority,
+  type CapitalLossEvent,
   type BuildingType,
   type CityGovernor,
   type CityManagerCallbacks,
@@ -1967,13 +1969,21 @@ export class CityManager {
     const cityBeforeCapture = this.cities.get(cityId);
     const oldPlayerId = cityBeforeCapture?.playerId ?? '';
     const lostCapital = cityBeforeCapture?.buildings.includes('palace') ?? false;
+    const cityCountBeforeLoss = lostCapital ? this.getCitiesByPlayer(oldPlayerId).length : 0;
+    const capitalLossEvent: CapitalLossEvent | undefined = lostCapital
+      ? { playerId: oldPlayerId, lostCityId: cityId, cityCountBeforeLoss }
+      : undefined;
+    if (capitalLossEvent) {
+      capitalLossEvent.civilWarTriggered =
+        await this.callbacks.onCapitalLossPending?.(capitalLossEvent);
+    }
     const result = await this.captureService.captureCity(
       cityId,
       conquerorPlayerId,
       conquerorUnitId
     );
     if (result.success && result.cityDestroyed && cityBeforeCapture) {
-      await this.destroyCity(cityId);
+      await this.destroyCity(cityId, capitalLossEvent);
       return result;
     }
 
@@ -1986,8 +1996,8 @@ export class CityManager {
         conquerorPlayerId,
         'conquest'
       );
-      if (lostCapital && !result.cityDestroyed) {
-        await this.handleCapitalLoss(oldPlayerId, cityId);
+      if (capitalLossEvent && !result.cityDestroyed) {
+        await this.handleCapitalLoss(capitalLossEvent);
       }
       city.rallyPoint = undefined;
       await this.saveCityToDatabase(city);
@@ -1996,14 +2006,18 @@ export class CityManager {
     return result;
   }
 
-  async transferCity(cityId: string, newPlayerId: string): Promise<boolean> {
+  async transferCity(
+    cityId: string,
+    newPlayerId: string,
+    reason: 'transfer' | 'civil_war' = 'transfer'
+  ): Promise<boolean> {
     if (!this.captureService) return false;
     const city = this.cities.get(cityId);
     if (!city) return false;
     const oldPlayerId = city.playerId;
     const transferred = await this.captureService.transferCity(cityId, newPlayerId);
     if (transferred && oldPlayerId !== newPlayerId) {
-      await this.callbacks.onCityOwnershipChanged?.(city, oldPlayerId, newPlayerId, 'transfer');
+      await this.callbacks.onCityOwnershipChanged?.(city, oldPlayerId, newPlayerId, reason);
       city.rallyPoint = undefined;
       this.calculateCityOutputs(cityId);
       this.applyCityHappiness(cityId);
@@ -2076,12 +2090,24 @@ export class CityManager {
     await Promise.all([...this.cities.values()].map(city => this.saveCityToDatabase(city)));
   }
 
-  async destroyCity(cityId: string): Promise<boolean> {
+  async destroyCity(cityId: string, capitalLossEvent?: CapitalLossEvent): Promise<boolean> {
     const city = this.cities.get(cityId);
     if (!city) return false;
 
+    let pendingCapitalLoss: CapitalLossEvent | undefined;
     if (city.buildings.includes('palace')) {
-      await this.handleCapitalLoss(city.playerId, cityId);
+      const event =
+        capitalLossEvent ??
+        ({
+          playerId: city.playerId,
+          lostCityId: cityId,
+          cityCountBeforeLoss: this.getCitiesByPlayer(city.playerId).length,
+        } satisfies CapitalLossEvent);
+      if (capitalLossEvent === undefined) {
+        event.civilWarTriggered = await this.callbacks.onCapitalLossPending?.(event);
+      }
+      await this.handleCapitalLoss(event, false);
+      pendingCapitalLoss = event;
     }
 
     if (this.tradeRouteService) {
@@ -2105,20 +2131,50 @@ export class CityManager {
       );
     }
 
+    // Freeciv destroys the former capital before partitioning the remaining
+    // empire, so it cannot become a civil-war defector city.
+    // @reference reference/freeciv/server/citytools.c:2037-2065 unit_conquer_city()
+    if (pendingCapitalLoss) await this.callbacks.onCapitalLost?.(pendingCapitalLoss);
+
     // Trigger callback
     await this.callbacks.onCityDestroyed?.(city);
 
     return true;
   }
 
-  private async handleCapitalLoss(playerId: string, lostCityId: string): Promise<void> {
+  /**
+   * Give a civil-war rebel its first capital and ruleset-declared free buildings.
+   * @reference reference/freeciv/server/plrhand.c:3139-3142 civil_war()
+   * @reference reference/freeciv/server/citytools.c:1435-1479 city_build_free_buildings()
+   */
+  public async establishCivilWarCapital(playerId: string, cityId: string): Promise<boolean> {
+    const capital = this.cities.get(cityId);
+    if (!capital || capital.playerId !== playerId) return false;
+
+    for (const city of this.getCitiesByPlayer(playerId)) {
+      const isCapital = city.id === cityId;
+      if (city.isCapital === isCapital) continue;
+      city.isCapital = isCapital;
+      await this.saveCityToDatabase(city);
+    }
+    this.buildFreeBuildings(capital);
+    capital.isCapital = true;
+    this.playersWithFirstCity.add(playerId);
+    await this.saveCityToDatabase(capital);
+    return true;
+  }
+
+  private async handleCapitalLoss(event: CapitalLossEvent, notify: boolean = true): Promise<void> {
+    const { playerId, lostCityId } = event;
+    const lostCity = this.cities.get(lostCityId);
+    if (lostCity) lostCity.isCapital = false;
     const replacement = this.getCitiesByPlayer(playerId).find(city => city.id !== lostCityId);
-    if (replacement && !replacement.buildings.includes('palace')) {
-      replacement.buildings.push('palace');
+    if (replacement) {
+      if (!replacement.buildings.includes('palace')) replacement.buildings.push('palace');
       replacement.isCapital = true;
       await this.saveCityToDatabase(replacement);
     }
-    await this.callbacks.onCapitalLost?.(playerId);
+    if (notify) await this.callbacks.onCapitalLost?.(event);
   }
 
   async disbandCity(

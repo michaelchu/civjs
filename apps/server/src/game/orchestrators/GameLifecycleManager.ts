@@ -89,6 +89,7 @@ import {
   type ResearchPacingSettings,
 } from '@game/services/ResearchPacing';
 import { resolveRulesetTerrainSettings } from '@game/services/RulesetTerrainDefaults';
+import { CivilWarService } from '@game/services/CivilWarService';
 
 function configuredVictoryConditions(gameConfig: GameConfig): string[] {
   return gameConfig.victoryConditions?.length ? gameConfig.victoryConditions : ['conquest'];
@@ -494,6 +495,28 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     researchManager.setCurrentTurnProvider(() => turnManager.getCurrentTurn());
     researchManager.setCurrentYearProvider(() => turnManager.getCurrentYear());
 
+    const civilWarService = new CivilWarService({
+      gameId,
+      rulesetName,
+      maxPlayers: game.maxPlayers,
+      players,
+      databaseProvider: this.databaseProvider,
+      cityManager,
+      researchManager,
+      governmentManager,
+      visibilityManager,
+      effectsManager,
+      random,
+      currentTurn: () => turnManager.getCurrentTurn(),
+      registerTurnPlayer: playerId => turnManager.registerPlayer(playerId),
+      economyManager: economicManager,
+      aiLevel: (game.gameState as { aiLevel?: PlayerState['aiLevel'] } | undefined)?.aiLevel,
+      onPlayerCreated: async () => {
+        await this.broadcastManager?.broadcastPlayerInfo(gameId);
+        this.broadcastManager?.broadcastVisibilityState(gameId);
+      },
+    });
+
     // Set up callbacks after all managers are created
     cityManager.setCallbacks({
       onCityProductionComplete: async (city, item) => {
@@ -562,15 +585,17 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
           }
         }
       },
-      onCapitalLost: async playerId => {
-        const player = players.get(playerId);
+      onCapitalLossPending: event => civilWarService.prepareCapitalLoss(event),
+      onCapitalLost: async event => {
+        const player = players.get(event.playerId);
         if (!player) return;
         player.spaceshipState = normalizeSpaceshipState(undefined);
         await this.databaseProvider
           .getDatabase()
           .update(playerRecords)
           .set({ spaceshipState: player.spaceshipState })
-          .where(eq(playerRecords.id, playerId));
+          .where(eq(playerRecords.id, event.playerId));
+        await civilWarService.resolveCapitalLoss(event);
       },
       onCityFounded: city => {
         borderManager.addCityBorderSource(city);

@@ -26,6 +26,12 @@ const testFilePattern = /\.(?:test|spec)\.(?:ts|tsx|js|jsx)$/;
 const evidenceBlockPattern = /\/\*\*[\s\S]*?\*\//g;
 const scenarioKinds = new Set(['normal', 'rejected', 'boundary']);
 const requiredActionScenarios = ['normal', 'rejected', 'boundary'];
+// These ruleset enablers are engine checks rather than player-issued
+// commands. They still need end-to-end gameplay evidence, but their tests
+// must identify the internal lifecycle that performs them instead of
+// pretending a client can submit the action directly.
+// @reference reference/freeciv/common/actions.c:826-833
+const internalActionNames = new Set(['Civil War', 'Finish Unit', 'Finish Building']);
 
 function usage() {
   console.log(`Usage: node tools/audit-civ2civ3-parity.mjs [--actions-only] [--json] [--strict]
@@ -208,6 +214,10 @@ for (const filePath of testFiles) {
     const block = match[0];
     const actions = annotationValues(block, 'c2c3-action');
     const scenarios = annotationValues(block, 'c2c3-scenario').map(value => value.toLowerCase());
+    const internalActions = annotationValues(block, 'c2c3-internal-action');
+    const internalScenarios = annotationValues(block, 'c2c3-internal-scenario').map(value =>
+      value.toLowerCase()
+    );
     const surfaces = annotationValues(block, 'c2c3-surface');
     const surfaceScenarios = annotationValues(block, 'c2c3-surface-scenario').map(value =>
       value.toLowerCase()
@@ -216,6 +226,8 @@ for (const filePath of testFiles) {
     if (
       actions.length === 0 &&
       scenarios.length === 0 &&
+      internalActions.length === 0 &&
+      internalScenarios.length === 0 &&
       surfaces.length === 0 &&
       surfaceScenarios.length === 0 &&
       scriptHooks.length === 0
@@ -224,7 +236,11 @@ for (const filePath of testFiles) {
     }
 
     const location = `${relative(root, filePath)}:${lineAt(source, match.index)}`;
-    const hasActionMetadata = actions.length > 0 || scenarios.length > 0;
+    const hasActionMetadata =
+      actions.length > 0 ||
+      scenarios.length > 0 ||
+      internalActions.length > 0 ||
+      internalScenarios.length > 0;
     const hasSurfaceMetadata = surfaces.length > 0 || surfaceScenarios.length > 0;
     const hasScriptMetadata = scriptHooks.length > 0;
     if (
@@ -243,11 +259,21 @@ for (const filePath of testFiles) {
         `${location}: c2c3 action, surface, or script evidence must immediately precede an it(...) or test(...) case.`
       );
     }
-    if (hasActionMetadata && actions.length === 0) {
+    if (scenarios.length > 0 && actions.length === 0) {
       metadataErrors.push(`${location}: @c2c3-scenario requires @c2c3-action.`);
     }
-    if (hasActionMetadata && scenarios.length === 0) {
+    if (actions.length > 0 && scenarios.length === 0) {
       metadataErrors.push(`${location}: @c2c3-action requires @c2c3-scenario.`);
+    }
+    if (internalScenarios.length > 0 && internalActions.length === 0) {
+      metadataErrors.push(
+        `${location}: @c2c3-internal-scenario requires @c2c3-internal-action.`
+      );
+    }
+    if (internalActions.length > 0 && internalScenarios.length === 0) {
+      metadataErrors.push(
+        `${location}: @c2c3-internal-action requires @c2c3-internal-scenario.`
+      );
     }
     if (hasSurfaceMetadata && surfaces.length === 0) {
       metadataErrors.push(`${location}: @c2c3-surface-scenario requires @c2c3-surface.`);
@@ -267,6 +293,30 @@ for (const filePath of testFiles) {
         if (!scenarioKinds.has(scenario)) {
           metadataErrors.push(
             `${location}: @c2c3-scenario must be one of ${[...scenarioKinds].join(', ')}.`
+          );
+          continue;
+        }
+        actionEvidence.get(action)[scenario].push(location);
+      }
+    }
+
+    for (const action of internalActions) {
+      if (!actionEvidence.has(action)) {
+        metadataErrors.push(
+          `${location}: ${JSON.stringify(action)} is not an enabled c2c3 action.`
+        );
+        continue;
+      }
+      if (!internalActionNames.has(action)) {
+        metadataErrors.push(
+          `${location}: ${JSON.stringify(action)} is not a declared c2c3 internal action.`
+        );
+        continue;
+      }
+      for (const scenario of internalScenarios) {
+        if (!scenarioKinds.has(scenario)) {
+          metadataErrors.push(
+            `${location}: @c2c3-internal-scenario must be one of ${[...scenarioKinds].join(', ')}.`
           );
           continue;
         }
@@ -311,6 +361,7 @@ const actionMatrix = sourceActions.map(action => {
   );
   return {
     action,
+    evidenceKind: internalActionNames.has(action) ? 'internal-lifecycle' : 'player-or-engine',
     enablers: actionEnablerCounts[action],
     scenarios,
     missingScenarios,

@@ -6,7 +6,7 @@ import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
 import type { Server as SocketServer } from 'socket.io';
 
 export interface PartisanCaptureContext {
-  reason: 'conquest' | 'transfer';
+  reason: 'conquest' | 'transfer' | 'civil_war';
   oldPlayerId: string;
   originalOwnerId?: string;
   loserNation?: string;

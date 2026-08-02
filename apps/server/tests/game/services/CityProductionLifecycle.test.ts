@@ -51,14 +51,15 @@ function turnService(
   onComplete: jest.Mock = jest.fn(),
   unitTypes = rulesetUnitsService.getUnitTypes(),
   reconcileCitizenAssignments: jest.Mock = jest.fn().mockResolvedValue(true),
-  onGameplayEvent: jest.Mock = jest.fn()
+  onGameplayEvent: jest.Mock = jest.fn(),
+  effectsManager: EffectsManager = new EffectsManager()
 ): CityTurnProcessingService {
   const dependencies: CityTurnProcessingDependencies = {
     gameId: 'game-1',
     cities: new Map([[cityState.id, cityState]]),
     callbacks: { onCityProductionComplete: onComplete },
     onGameplayEvent,
-    effectsManager: new EffectsManager(),
+    effectsManager,
     unitTypes,
     refreshCityWithGovernmentEffects: jest.fn(),
     calculateCityOutputs: jest.fn(),
@@ -109,6 +110,16 @@ describe('city production lifecycle', () => {
     expect(onTurn).toHaveBeenCalledWith(cityState);
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/common/actions.c:829-833
+   * @reference reference/freeciv/server/cityturn.c:2681-2683
+   * @assertion C2C3 production completes a building through the internal Finish Building lifecycle and carries excess shields into the next production target.
+   * @c2c3-internal-action Finish Building
+   * @c2c3-internal-scenario normal
+   * @c2c3-surface cities
+   * @c2c3-surface-scenario normal, turn
+   */
   it('retains excess shields after completing a building', async () => {
     const cityState = city({
       currentProduction: 'granary',
@@ -118,7 +129,14 @@ describe('city production lifecycle', () => {
     });
     const onComplete = jest.fn().mockResolvedValue(undefined);
 
-    await turnService(cityState, onComplete).processCityTurn(cityState.id, 7);
+    await turnService(
+      cityState,
+      onComplete,
+      rulesetUnitsService.getUnitTypes('civ2civ3'),
+      undefined,
+      undefined,
+      new EffectsManager('civ2civ3')
+    ).processCityTurn(cityState.id, 7);
 
     expect(cityState.buildings).toContain('granary');
     expect(cityState.currentProduction).toBeNull();
@@ -155,6 +173,16 @@ describe('city production lifecycle', () => {
     );
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/common/actions.c:829-833
+   * @reference reference/freeciv/server/cityturn.c:2784-2786
+   * @assertion C2C3 production completes a unit through the internal Finish Unit lifecycle and carries excess shields into the next production target.
+   * @c2c3-internal-action Finish Unit
+   * @c2c3-internal-scenario normal
+   * @c2c3-surface cities
+   * @c2c3-surface-scenario normal, turn
+   */
   it('retains excess shields after completing a unit', async () => {
     const cityState = city({
       currentProduction: 'warriors',
@@ -163,11 +191,142 @@ describe('city production lifecycle', () => {
       productionPerTurn: 5,
     });
 
-    await turnService(cityState).processCityTurn(cityState.id, 7);
+    await turnService(
+      cityState,
+      undefined,
+      rulesetUnitsService.getUnitTypes('civ2civ3'),
+      undefined,
+      undefined,
+      new EffectsManager('civ2civ3')
+    ).processCityTurn(cityState.id, 7);
 
     expect(cityState.currentProduction).toBeNull();
     expect(cityState.productionStock).toBe(4);
     expect(cityState.shieldStock).toBe(4);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/common/actions.c:829-833
+   * @reference reference/freeciv/server/cityturn.c:2681-2683
+   * @assertion A C2C3 building completes exactly at its shield cost with no carryover.
+   * @c2c3-internal-action Finish Building
+   * @c2c3-internal-scenario boundary
+   * @c2c3-surface cities
+   * @c2c3-surface-scenario boundary
+   */
+  it('completes a C2C3 building exactly at its shield boundary', async () => {
+    const cityState = city({
+      currentProduction: 'granary',
+      productionType: 'building',
+      productionStock: 39,
+      productionPerTurn: 1,
+    });
+
+    await turnService(
+      cityState,
+      undefined,
+      rulesetUnitsService.getUnitTypes('civ2civ3'),
+      undefined,
+      undefined,
+      new EffectsManager('civ2civ3')
+    ).processCityTurn(cityState.id, 7);
+
+    expect(cityState.currentProduction).toBeNull();
+    expect(cityState.productionStock).toBe(0);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/common/actions.c:829-833
+   * @reference reference/freeciv/server/cityturn.c:2681-2683
+   * @assertion A C2C3 building one shield short remains in production rather than completing.
+   * @c2c3-internal-action Finish Building
+   * @c2c3-internal-scenario rejected
+   * @c2c3-surface cities
+   * @c2c3-surface-scenario boundary
+   */
+  it('does not finish a C2C3 building below its shield cost', async () => {
+    const cityState = city({
+      currentProduction: 'granary',
+      productionType: 'building',
+      productionStock: 38,
+      productionPerTurn: 1,
+    });
+
+    await turnService(
+      cityState,
+      undefined,
+      rulesetUnitsService.getUnitTypes('civ2civ3'),
+      undefined,
+      undefined,
+      new EffectsManager('civ2civ3')
+    ).processCityTurn(cityState.id, 7);
+
+    expect(cityState.currentProduction).toBe('granary');
+    expect(cityState.productionStock).toBe(39);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/common/actions.c:829-833
+   * @reference reference/freeciv/server/cityturn.c:2784-2786
+   * @assertion A C2C3 unit completes exactly at its shield boundary with no carryover.
+   * @c2c3-internal-action Finish Unit
+   * @c2c3-internal-scenario boundary
+   * @c2c3-surface cities
+   * @c2c3-surface-scenario boundary
+   */
+  it('completes a C2C3 unit exactly at its shield boundary', async () => {
+    const cityState = city({
+      currentProduction: 'warriors',
+      productionType: 'unit',
+      productionStock: 9,
+      productionPerTurn: 1,
+    });
+
+    await turnService(
+      cityState,
+      undefined,
+      rulesetUnitsService.getUnitTypes('civ2civ3'),
+      undefined,
+      undefined,
+      new EffectsManager('civ2civ3')
+    ).processCityTurn(cityState.id, 7);
+
+    expect(cityState.currentProduction).toBeNull();
+    expect(cityState.productionStock).toBe(0);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/common/actions.c:829-833
+   * @reference reference/freeciv/server/cityturn.c:2784-2786
+   * @assertion A C2C3 unit one shield short remains in production rather than completing.
+   * @c2c3-internal-action Finish Unit
+   * @c2c3-internal-scenario rejected
+   * @c2c3-surface cities
+   * @c2c3-surface-scenario boundary
+   */
+  it('does not finish a C2C3 unit below its shield cost', async () => {
+    const cityState = city({
+      currentProduction: 'warriors',
+      productionType: 'unit',
+      productionStock: 8,
+      productionPerTurn: 1,
+    });
+
+    await turnService(
+      cityState,
+      undefined,
+      rulesetUnitsService.getUnitTypes('civ2civ3'),
+      undefined,
+      undefined,
+      new EffectsManager('civ2civ3')
+    ).processCityTurn(cityState.id, 7);
+
+    expect(cityState.currentProduction).toBe('warriors');
+    expect(cityState.productionStock).toBe(9);
   });
 
   it('converts Wealth production without accumulating or completing shields', async () => {

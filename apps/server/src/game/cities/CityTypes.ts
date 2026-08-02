@@ -130,6 +130,16 @@ export interface CityState {
   espionageThefts?: Record<string, number>;
 }
 
+/** Details available after a player loses their primary capital. */
+export interface CapitalLossEvent {
+  playerId: string;
+  lostCityId: string;
+  /** Number of cities the player owned immediately before the loss. */
+  cityCountBeforeLoss: number;
+  /** Whether the source-compatible civil-war chance roll succeeded. */
+  civilWarTriggered?: boolean;
+}
+
 export interface CityWorkerTaskRequest {
   x: number;
   y: number;
@@ -176,8 +186,9 @@ export interface CityManagerCallbacks {
     city: CityState,
     oldPlayerId: string,
     newPlayerId: string,
-    reason: 'conquest' | 'transfer'
+    reason: 'conquest' | 'transfer' | 'civil_war'
   ) => void | Promise<void>;
   onCityTurnProcessed?: (city: CityState) => void;
-  onCapitalLost?: (playerId: string) => void | Promise<void>;
+  onCapitalLossPending?: (event: CapitalLossEvent) => boolean | Promise<boolean>;
+  onCapitalLost?: (event: CapitalLossEvent) => void | Promise<void>;
 }
