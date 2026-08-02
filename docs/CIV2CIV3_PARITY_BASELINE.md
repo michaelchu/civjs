@@ -88,10 +88,14 @@ The fixture set creates a controlled city and ground defender, then confirms
 that City Walls produce the reference `Defend_Bonus` of 150 (the normal city
 50 plus City Walls 100). It also fixes a three-player state, performs the
 c2c3 Diplomat `Establish Embassy Stay` action, confirms the resulting real
-embassy, and verifies the Technology Leakage research cost it enables. This
-is a working differential-test foundation, not a whole-game certificate; new
-scenarios must cover the remaining action and turn-state matrices before a
-parity claim is justified.
+embassy, and verifies the Technology Leakage research cost it enables. The
+same one-session bundle verifies c2c3's base and Electricity city-vision
+radius plus Apollo Program's `Reveal_Map` and Internet's `Reveal_Cities`
+effects. CivJS applies the two player knowledge effects at the source turn
+boundary, retaining fog of war and propagating knowledge through shared
+vision. This is a working differential-test foundation, not a whole-game
+certificate; new scenarios must cover the remaining action and turn-state
+matrices before a parity claim is justified.
 
 The turn-time `Have_Contacts` effect is separately source-mapped in
 `DiplomacyManager.test.ts`. In c2c3, Marco Polo's Embassy grants that effect

@@ -2179,6 +2179,35 @@ export class CityManager {
     return Array.from(this.cities.values()).filter(city => city.playerId === playerId);
   }
 
+  /**
+   * Resolves the effect-derived city vision sources consumed by the
+   * authoritative visibility manager.
+   * @reference reference/freeciv/server/citytools.c:3446-3470
+   */
+  public getCityVisionSources(
+    playerId: string
+  ): Array<{ x: number; y: number; visionRadiusSq: number }> {
+    const playerCities = this.getCitiesByPlayer(playerId);
+    const playerBuildings = new Set(playerCities.flatMap(city => city.buildings ?? []));
+    const worldBuildings = new Set(
+      [...this.cities.values()].flatMap(city => city.buildings ?? [])
+    );
+    const playerTechs = new Set(this.playerTechsProvider(playerId));
+
+    return playerCities.map(city => ({
+      x: city.x,
+      y: city.y,
+      visionRadiusSq: this.effectsManager.calculateEffect(EffectType.CITY_VISION_RADIUS_SQ, {
+        playerId,
+        cityId: city.id,
+        cityBuildings: new Set(city.buildings ?? []),
+        playerBuildings,
+        worldBuildings,
+        playerTechs,
+      }).value,
+    }));
+  }
+
   public async sabotageCityBuilding(
     cityId: string,
     actingPlayerId: string,

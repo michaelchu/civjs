@@ -48,6 +48,8 @@ export type SharedVisionProvider = (playerId: string) => ReadonlySet<string>;
 export type CityVisionProvider = (
   playerId: string
 ) => ReadonlyArray<{ x: number; y: number; visionRadiusSq?: number }>;
+export type PlayerBuildingsProvider = (playerId: string) => ReadonlySet<string>;
+export type CityLocationProvider = () => ReadonlyArray<{ x: number; y: number }>;
 export type VisibilityPersistence = (
   playerId: string,
   exploredTiles: string[],
@@ -63,8 +65,10 @@ export class VisibilityManager {
   private mapManager: MapManager;
   private effectsManager: EffectsManager;
   private playerTechsProvider: PlayerTechsProvider;
+  private playerBuildingsProvider: PlayerBuildingsProvider = () => new Set();
   private sharedVisionProvider: SharedVisionProvider = () => new Set();
   private cityVisionProvider: CityVisionProvider = () => [];
+  private cityLocationProvider: CityLocationProvider = () => [];
   private visibilityPersistence?: VisibilityPersistence;
   private persistenceQueues = new Map<string, Promise<void>>();
   private lastQueuedSnapshots = new Map<string, string>();
@@ -92,6 +96,52 @@ export class VisibilityManager {
 
   public setCityVisionProvider(provider: CityVisionProvider): void {
     this.cityVisionProvider = provider;
+  }
+
+  public setPlayerBuildingsProvider(provider: PlayerBuildingsProvider): void {
+    this.playerBuildingsProvider = provider;
+  }
+
+  public setCityLocationProvider(provider: CityLocationProvider): void {
+    this.cityLocationProvider = provider;
+  }
+
+  /**
+   * Applies player-scoped map knowledge effects at the same recurring turn
+   * boundary as Freeciv's do_reveal_effects(). These effects reveal permanent
+   * map knowledge, not current sight, so fog of war continues to apply.
+   * @reference reference/freeciv/server/srv_main.c:761-779
+   * @reference reference/freeciv/server/maphand.c:768-790
+   */
+  public applyRevealEffects(playerIds: Iterable<string>): void {
+    const activePlayerIds = [...new Set(playerIds)];
+    if (activePlayerIds.length === 0) return;
+
+    const allMapTiles = this.getAllTileKeys();
+    const cityTiles = new Set(this.cityLocationProvider().map(city => `${city.x},${city.y}`));
+
+    for (const playerId of activePlayerIds) {
+      const effectContext = {
+        playerId,
+        playerBuildings: new Set(this.playerBuildingsProvider(playerId)),
+        playerTechs: new Set(this.playerTechsProvider(playerId)),
+      };
+      const revealsCities =
+        this.effectsManager.calculateEffect(EffectType.REVEAL_CITIES, effectContext).value > 0;
+      const revealsMap =
+        this.effectsManager.calculateEffect(EffectType.REVEAL_MAP, effectContext).value > 0;
+      if (!revealsCities && !revealsMap) continue;
+
+      const revealedTiles = revealsMap ? allMapTiles : cityTiles;
+      for (const recipientId of activePlayerIds) {
+        if (
+          recipientId === playerId ||
+          this.sharedVisionProvider(recipientId).has(playerId)
+        ) {
+          this.grantExploredTiles(recipientId, revealedTiles);
+        }
+      }
+    }
   }
 
   /**
@@ -261,6 +311,19 @@ export class VisibilityManager {
     }
 
     return visibleTiles;
+  }
+
+  private getAllTileKeys(): Set<string> {
+    const mapData = this.mapManager.getMapData();
+    if (!mapData) return new Set();
+
+    const tiles = new Set<string>();
+    for (let x = 0; x < mapData.width; x++) {
+      for (let y = 0; y < mapData.height; y++) {
+        tiles.add(`${x},${y}`);
+      }
+    }
+    return tiles;
   }
 
   /**

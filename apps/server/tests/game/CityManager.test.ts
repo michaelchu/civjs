@@ -108,6 +108,29 @@ describe('CityManager', () => {
     });
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:387-405
+   * @reference reference/freeciv/server/citytools.c:3446-3470
+   * @reference reference/freeciv/server/techtools.c:473-482
+   * @assertion Each c2c3 city exposes its mandatory base vision radius of five and gains Electricity's player-scoped five-point radius increase when research changes.
+   * @c2c3-surface terrain-visibility
+   * @c2c3-surface-scenario normal, boundary
+   */
+  it('derives c2c3 city vision from the current player technology set', async () => {
+    cityManager.setPlayerTechsProvider(() => new Set());
+    const city = await cityManager.foundCity(10, 10, 'Vision', 'player-123');
+
+    expect(cityManager.getCityVisionSources('player-123')).toEqual([
+      { x: city.x, y: city.y, visionRadiusSq: 5 },
+    ]);
+
+    cityManager.setPlayerTechsProvider(() => new Set(['electricity']));
+    expect(cityManager.getCityVisionSources('player-123')).toEqual([
+      { x: city.x, y: city.y, visionRadiusSq: 10 },
+    ]);
+  });
+
   it('reconstructs persisted production type from the production id', () => {
     const inferProductionType = (cityManager as any).inferProductionType.bind(cityManager);
 

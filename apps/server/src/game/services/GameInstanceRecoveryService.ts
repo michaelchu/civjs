@@ -518,8 +518,12 @@ export class GameInstanceRecoveryService extends BaseGameService {
           .where(eq(playerRecords.id, playerId));
       }
     );
-    visibilityManager.setCityVisionProvider(playerId =>
-      cityManager.getCitiesByPlayer(playerId).map(city => ({ x: city.x, y: city.y }))
+    visibilityManager.setCityVisionProvider(playerId => cityManager.getCityVisionSources(playerId));
+    visibilityManager.setPlayerBuildingsProvider(
+      playerId => new Set(cityManager.getCitiesByPlayer(playerId).flatMap(city => city.buildings))
+    );
+    visibilityManager.setCityLocationProvider(() =>
+      cityManager.getAllCities().map(city => ({ x: city.x, y: city.y }))
     );
     cityManager.setTileExplorationProvider((playerId, x, y) =>
       visibilityManager.isTileExplored(playerId, x, y)

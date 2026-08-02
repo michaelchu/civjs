@@ -1379,6 +1379,15 @@ export class GameManager {
     }
     await this.diplomacyManager.applyEffectContacts(gameId);
     await this.refreshSharedVision(gameId);
+    // Freeciv applies map-reveal effects every turn after it has refreshed
+    // player information. Run this after our diplomatic refresh so shared
+    // vision recipients receive the same permanent map knowledge.
+    // @reference reference/freeciv/server/srv_main.c:761-798
+    gameInstance.visibilityManager.applyRevealEffects?.(
+      [...gameInstance.players]
+        .filter(([, player]) => player.isAlive !== false)
+        .map(([playerId]) => playerId)
+    );
     for (const firstPlayerId of gameInstance.players.keys()) {
       for (const secondPlayerId of gameInstance.players.keys()) {
         if (firstPlayerId >= secondPlayerId) continue;

@@ -22,6 +22,30 @@ function civ2civ3CityWallsGroundDefense(): number {
   }).value;
 }
 
+function civ2civ3VisibilityEffects(): Record<string, number> {
+  const effects = new EffectsManager('civ2civ3');
+  return {
+    reveal_map_without_apollo: effects.calculateEffect(EffectType.REVEAL_MAP, {
+      playerBuildings: new Set(),
+    }).value,
+    reveal_cities_without_internet: effects.calculateEffect(EffectType.REVEAL_CITIES, {
+      playerBuildings: new Set(),
+    }).value,
+    city_vision_base: effects.calculateEffect(EffectType.CITY_VISION_RADIUS_SQ, {
+      playerTechs: new Set(),
+    }).value,
+    reveal_map_apollo: effects.calculateEffect(EffectType.REVEAL_MAP, {
+      playerBuildings: new Set(['apollo_program']),
+    }).value,
+    reveal_cities_internet: effects.calculateEffect(EffectType.REVEAL_CITIES, {
+      playerBuildings: new Set(['internet']),
+    }).value,
+    city_vision_electricity: effects.calculateEffect(EffectType.CITY_VISION_RADIUS_SQ, {
+      playerTechs: new Set(['electricity']),
+    }).value,
+  };
+}
+
 function civ2civ3ResearchBaseCosts(): Record<string, number> {
   const technologies = loadRulesetTechnologies(rulesetLoader, 'civ2civ3');
   return {
@@ -128,6 +152,26 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
 
   /**
    * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:387-405
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2899-2905
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3544-3550
+   * @assertion CivJS evaluates the c2c3 base and Electricity city-vision radii plus the Apollo and Internet player knowledge effects only when their owning player has the required wonder.
+   * @c2c3-surface terrain-visibility
+   * @c2c3-surface-scenario normal, boundary
+   */
+  it('applies the c2c3 visibility-effect fixture', () => {
+    expect(civ2civ3VisibilityEffects()).toEqual({
+      reveal_map_without_apollo: 0,
+      reveal_cities_without_internet: 0,
+      city_vision_base: 5,
+      reveal_map_apollo: 1,
+      reveal_cities_internet: 1,
+      city_vision_electricity: 10,
+    });
+  });
+
+  /**
+   * @evidence parity
    * @reference reference/freeciv/common/tech.c:225-275
    * @reference reference/freeciv/common/tech.c:544-606
    * @reference reference/freeciv/data/civ2civ3/game.ruleset:308-339
@@ -172,6 +216,20 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
     it('matches the batched pinned Freeciv City Walls fixture', () => {
       expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
       expect(civ2civ3CityWallsGroundDefense()).toBe(oracle.results.city_walls_ground_defense);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:387-405
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2899-2905
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3544-3550
+     * @assertion CivJS and the pinned Freeciv c2c3 server expose identical player knowledge and city-vision effect values.
+     * @c2c3-surface terrain-visibility
+     * @c2c3-surface-scenario differential
+     */
+    it('matches the batched pinned Freeciv visibility-effects fixture', () => {
+      expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
+      expect(oracle.results).toMatchObject(civ2civ3VisibilityEffects());
     });
 
     /**
@@ -223,6 +281,8 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
     });
   } else {
     it.skip('matches the batched pinned Freeciv City Walls fixture when an oracle bundle exists', () =>
+      undefined);
+    it.skip('matches the batched pinned Freeciv visibility-effects fixture when an oracle bundle exists', () =>
       undefined);
     it.skip('matches the batched pinned Freeciv research-cost fixture when an oracle bundle exists', () =>
       undefined);

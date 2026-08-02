@@ -2,6 +2,7 @@ import { beforeAll } from '@jest/globals';
 import { VisibilityManager } from '@game/managers/VisibilityManager';
 import { UnitManager } from '@game/managers/UnitManager';
 import { MapManager } from '@game/managers/MapManager';
+import { EffectsManager } from '@game/managers/EffectsManager';
 import { WrapFlag } from '@game/map/MapTopology';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
@@ -76,6 +77,56 @@ describe('VisibilityManager', () => {
       expect(visible.has('12,10')).toBe(true);
       expect(visible.has('10,12')).toBe(true);
       expect(visible.has('13,10')).toBe(false);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2899-2905
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3544-3550
+     * @reference reference/freeciv/server/srv_main.c:761-779
+     * @reference reference/freeciv/server/maphand.c:768-790
+     * @assertion Apollo permanently reveals every map tile to its owner and shared-vision recipients, while Internet reveals only current city tiles and repeats the reveal for cities founded on later turns.
+     * @c2c3-surface terrain-visibility
+     * @c2c3-surface-scenario normal, boundary, turn
+     */
+    it('applies c2c3 Apollo and Internet knowledge effects without making fogged tiles visible', () => {
+      const c2c3Visibility = new VisibilityManager(
+        gameId,
+        unitManager,
+        mapManager,
+        new EffectsManager('civ2civ3')
+      );
+      const cityTiles = [{ x: 2, y: 3 }, { x: 17, y: 16 }];
+      c2c3Visibility.setPlayerBuildingsProvider(playerId => {
+        if (playerId === 'apollo-owner') return new Set(['apollo_program']);
+        if (playerId === 'internet-owner') return new Set(['internet']);
+        return new Set();
+      });
+      c2c3Visibility.setCityLocationProvider(() => cityTiles);
+      c2c3Visibility.setSharedVisionProvider(playerId =>
+        playerId === 'apollo-ally' ? new Set(['apollo-owner']) : new Set()
+      );
+
+      c2c3Visibility.applyRevealEffects([
+        'apollo-owner',
+        'apollo-ally',
+        'internet-owner',
+        'unaffected',
+      ]);
+
+      expect(c2c3Visibility.getExploredTiles('apollo-owner').size).toBe(mapWidth * mapHeight);
+      expect(c2c3Visibility.getExploredTiles('apollo-ally').size).toBe(mapWidth * mapHeight);
+      expect(c2c3Visibility.getExploredTiles('internet-owner')).toEqual(
+        new Set(['2,3', '17,16'])
+      );
+      expect(c2c3Visibility.getExploredTiles('unaffected')).toEqual(new Set());
+      expect(c2c3Visibility.getVisibleTiles('apollo-owner')).toEqual(new Set());
+
+      cityTiles.push({ x: 10, y: 10 });
+      c2c3Visibility.applyRevealEffects(['internet-owner']);
+      expect(c2c3Visibility.getExploredTiles('internet-owner')).toEqual(
+        new Set(['2,3', '17,16', '10,10'])
+      );
     });
 
     it('persists explored knowledge after recalculating current vision', async () => {

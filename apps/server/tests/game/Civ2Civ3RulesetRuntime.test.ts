@@ -89,6 +89,9 @@ describe('Civ2Civ3 ruleset runtime routing', () => {
     expect(effectCoverage.unsupportedTypes).not.toContain('Tech_Leakage');
     expect(effectCoverage.unsupportedTypes).not.toContain('Have_Contacts');
     expect(effectCoverage.unsupportedTypes).not.toContain('Have_Embassies');
+    expect(effectCoverage.unsupportedTypes).not.toContain('City_Vision_Radius_Sq');
+    expect(effectCoverage.unsupportedTypes).not.toContain('Reveal_Cities');
+    expect(effectCoverage.unsupportedTypes).not.toContain('Reveal_Map');
     expect(
       new EffectsManager('civ2civ3').calculateEffect(EffectType.AIRLIFT, {
         cityBuildings: new Set(['airport']),
