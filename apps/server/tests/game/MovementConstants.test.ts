@@ -12,6 +12,12 @@ describe('MovementConstants', () => {
     expect(SINGLE_MOVE).toBe(3);
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/classic/terrain.ruleset:107-108
+   * @reference reference/freeciv/common/movement.c:117-128
+   * @assertion Loaded whole-point terrain movement costs are converted once into Freeciv movement fragments.
+   */
   it('scales loaded whole-point terrain costs exactly once', () => {
     // @reference reference/freeciv/data/classic/terrain.ruleset:107-108
     // @reference reference/freeciv/common/movement.c:117-128

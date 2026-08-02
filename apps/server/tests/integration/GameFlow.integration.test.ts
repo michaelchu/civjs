@@ -152,6 +152,10 @@ describe('Game Integration Flow', () => {
       // Integration test complete - all managers working together
     });
 
+    /**
+     * @evidence stack
+     * @contract CivJS persists an authoritative multiplayer game through turn processing and restores it for continued play.
+     */
     it('plays twenty two-player turns and preserves the active game for recovery', async () => {
       // @reference reference/freeciv/server/srv_main.c:1155-1185,1607-1623
       const db = getTestDatabase();

@@ -1,6 +1,11 @@
 import { TurnProcessingService } from '@game/services/TurnProcessingService';
 
 describe('TurnProcessingService research processing', () => {
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/server/techtools.c:650-719
+   * @assertion A player's per-turn city science contributions are summed before research completion is evaluated.
+   */
   it('adds the sum of the player city science outputs to research', async () => {
     const cityManager = {
       getPlayerCities: jest

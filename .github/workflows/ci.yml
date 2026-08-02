@@ -33,6 +33,15 @@ jobs:
       - name: Check formatting
         run: npm run format:check
 
+      - name: Check test evidence declarations
+        run: npm run check:test-evidence
+
+      - name: Check Civ2Civ3 action-evidence metadata
+        run: npm run check:civ2civ3-action-evidence
+
+      - name: Check Civ2Civ3 nation reference conversion
+        run: npm run check:civ2civ3-nations
+
       - name: Run type checking
         run: npm run typecheck
 
@@ -101,3 +110,66 @@ jobs:
             apps/server/coverage
             test-results/browser
             playwright-report
+
+  civ2civ3-oracle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install Freeciv build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libbz2-dev \
+            libcurl4-openssl-dev \
+            libglib2.0-dev \
+            libicu-dev \
+            liblzma-dev \
+            libsqlite3-dev \
+            libzstd-dev \
+            meson \
+            ninja-build \
+            pkg-config \
+            zlib1g-dev
+
+      - name: Fetch pinned upstream Freeciv source
+        run: |
+          git init "$RUNNER_TEMP/freeciv-source"
+          git -C "$RUNNER_TEMP/freeciv-source" remote add origin https://github.com/freeciv/freeciv.git
+          git -C "$RUNNER_TEMP/freeciv-source" fetch --depth=1 origin 440b3c9650d3052792296868cb15591bd40612ea
+          git -C "$RUNNER_TEMP/freeciv-source" checkout --detach FETCH_HEAD
+
+      - name: Build pinned Freeciv server oracle
+        run: |
+          meson setup "$RUNNER_TEMP/freeciv-build" "$RUNNER_TEMP/freeciv-source" \
+            '-Dclients=[]' \
+            '-Dfcmp=[]' \
+            '-Dtools=[]' \
+            -Daudio=none \
+            -Dnls=false \
+            -Dmwand=false \
+            -Dreadline=false \
+            -Dsyslua=false \
+            -Dserver=enabled \
+            -Ddefault_library=static
+          ninja -C "$RUNNER_TEMP/freeciv-build"
+
+      - name: Install server dependencies
+        run: cd apps/server && npm ci
+
+      - name: Run pinned Civ2Civ3 differential oracle
+        env:
+          FREECIV_ORACLE_BIN: ${{ runner.temp }}/freeciv-build/freeciv-server
+          FREECIV_ORACLE_DATA: ${{ runner.temp }}/freeciv-source/data
+          FREECIV_ORACLE_SOURCE: ${{ runner.temp }}/freeciv-source
+          FREECIV_ORACLE_PORT: '0'
+        run: cd apps/server && npm run test:unit -- --runInBand tests/game/Civ2Civ3Oracle.test.ts tests/game/UnitManager.test.ts

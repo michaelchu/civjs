@@ -1,0 +1,54 @@
+{
+  "ruleset": "civ2civ3",
+  "hooks": [
+    {
+      "source": "reference/freeciv/data/civ2civ3/script.lua",
+      "signal": "city_destroyed",
+      "callback": "city_destroyed_callback",
+      "scope": "presentation",
+      "surface": "cities"
+    },
+    {
+      "source": "reference/freeciv/data/civ2civ3/script.lua",
+      "signal": "map_generated",
+      "callback": "place_map_labels",
+      "scope": "presentation",
+      "surface": "map-generation"
+    },
+    {
+      "source": "reference/freeciv/data/default/default.lua",
+      "signal": "hut_enter",
+      "callback": "_deflua_hut_enter_callback",
+      "scope": "gameplay",
+      "surface": "workers-extras"
+    },
+    {
+      "source": "reference/freeciv/data/default/default.lua",
+      "signal": "hut_frighten",
+      "callback": "_deflua_hut_frighten_callback",
+      "scope": "gameplay",
+      "surface": "workers-extras"
+    },
+    {
+      "source": "reference/freeciv/data/default/default.lua",
+      "signal": "city_transferred",
+      "callback": "_deflua_make_partisans_callback",
+      "scope": "gameplay",
+      "surface": "cities"
+    },
+    {
+      "source": "reference/freeciv/data/default/default.lua",
+      "signal": "disaster_occurred",
+      "callback": "_deflua_harmless_disaster_message",
+      "scope": "presentation",
+      "surface": "random-systems"
+    },
+    {
+      "source": "reference/freeciv/data/default/default.lua",
+      "signal": "unit_lost",
+      "callback": "_deflua_unit_loss_messages",
+      "scope": "presentation",
+      "surface": "movement-transport"
+    }
+  ]
+}

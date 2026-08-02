@@ -1,6 +1,10 @@
 import { GameInstanceRecoveryService } from '@game/services/GameInstanceRecoveryService';
 
 describe('GameInstanceRecoveryService map deserialization', () => {
+  /**
+   * @evidence stack
+   * @contract CivJS recovers the durable map representation into the authoritative in-memory runtime format.
+   */
   it('restores the current column-major array tile format', () => {
     const recoveryService = new GameInstanceRecoveryService(
       {} as any,

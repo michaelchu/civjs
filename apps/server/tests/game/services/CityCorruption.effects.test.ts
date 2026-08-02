@@ -79,6 +79,11 @@ describe('city corruption from loaded effects', () => {
     effectsManager = new EffectsManager();
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/common/city.c:2287-2314
+   * @assertion An active government center is the zero-distance origin for corruption and its effect reduces waste.
+   */
   it('treats a Gov_Center city as distance zero', () => {
     // @reference reference/freeciv/common/city.c:2294-2299
     const capital = createCity({ id: 'capital', x: 0, y: 0, buildings: ['palace'] });

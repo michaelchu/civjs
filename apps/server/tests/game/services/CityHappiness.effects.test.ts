@@ -42,6 +42,12 @@ function serviceFor(government: string, techs: string[] = []): CityHappinessServ
 }
 
 describe('city happiness from loaded effects', () => {
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/common/city.c:2160-2182
+   * @reference reference/freeciv/common/city.c:2507-2536
+   * @assertion Government-specific City_Unhappy_Size effects change the base content and unhappy citizen split.
+   */
   it('uses government-scoped City_Unhappy_Size effects', () => {
     const republic = serviceFor('republic').calculateDetailedHappiness(city());
     const despotism = serviceFor('despotism').calculateDetailedHappiness(city());

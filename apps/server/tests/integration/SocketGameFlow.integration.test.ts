@@ -142,6 +142,10 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     return (packet.data as { playerId: string }).playerId;
   }
 
+  /**
+   * @evidence stack
+   * @contract Two real Socket.IO clients can create, join, receive an authoritative map, advance a turn, and reconnect to the recovered session.
+   */
   it('connects, creates and joins a game, loads its map, advances a turn, and reconnects', async () => {
     const host = connectClient();
     await waitForConnection(host);

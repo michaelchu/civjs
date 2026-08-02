@@ -478,6 +478,11 @@ describe('EndGameService', () => {
     unitsByPlayer.defeated = [];
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/server/score.c:396-415
+   * @assertion A turn-limit interruption ranks a team by the sum of its living, non-surrendered members' scores.
+   */
   it('ranks maximum-turn teams by the sum of living member scores', async () => {
     const databaseProvider = createMockDatabaseProvider();
     const database = databaseProvider.getDatabase() as any;

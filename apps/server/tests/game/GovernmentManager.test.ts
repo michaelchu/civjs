@@ -16,6 +16,12 @@ describe('GovernmentManager classic progression', () => {
     ).toBe(true);
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/server/plrhand.c:515-525
+   * @reference reference/freeciv/server/plrhand.c:576-617
+   * @assertion A random revolution length selects one through the configured maximum and enters the revolution government with a target.
+   */
   it('uses the Freeciv default random one-to-five-turn revolution length', async () => {
     const manager = new GovernmentManager(
       'game-1',

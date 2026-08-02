@@ -4,6 +4,11 @@ import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 describe('RulesetUnitsService', () => {
   afterEach(() => rulesetUnitsService.clearCache());
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/classic/units.ruleset:143-188
+   * @assertion Representative unit types retain the exact class flags that drive native movement, combat, and lifecycle rules.
+   */
   it('maps every classic unit class flag catalogue entry onto its units', () => {
     // @reference reference/freeciv/data/classic/units.ruleset:143-188
     expect(rulesetUnitsService.getUnitType('cruise_missile')?.rulesetUnitClassFlags).toEqual([

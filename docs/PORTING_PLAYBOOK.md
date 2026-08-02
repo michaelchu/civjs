@@ -40,6 +40,42 @@ For each feature or correction:
 6. Commit one coherent change and update only the living document affected by
    it.
 
+## Test evidence labels
+
+Coverage proves that code ran; it does not prove that CivJS matches Freeciv.
+Tests that make an explicit compatibility claim must declare the evidence
+immediately before the individual `it(...)` or `test(...)` case:
+
+```ts
+/**
+ * @evidence parity
+ * @reference reference/freeciv/path/to/source.c:10-24
+ * @assertion The observable rule shared with the reference.
+ */
+it('...', () => {});
+```
+
+Parity assertions must name the precise reference path and line range and
+assert an observable rule, not an implementation detail or a coverage target.
+Use a separate stack-contract declaration for behavior introduced by CivJS's
+authoritative server, persistence, Socket.IO, React, or simulation layers:
+
+```ts
+/**
+ * @evidence stack
+ * @contract The CivJS-specific behavior guaranteed at this boundary.
+ */
+it('...', () => {});
+```
+
+A legacy `@reference` comment without `@evidence parity` is a lead for the
+audit, not a parity certification. `npm run check:test-evidence` validates
+declared metadata and reference line ranges; it does not infer that an
+assertion is a correct port. See [`TEST_EVIDENCE_AUDIT.md`](TEST_EVIDENCE_AUDIT.md)
+for the completed surface classification and current proof threshold. That
+audit currently concludes that CivJS does not have enough source-mapped
+evidence to claim full reference parity.
+
 ## Architecture rules
 
 - The server remains authoritative for game rules and persisted state.

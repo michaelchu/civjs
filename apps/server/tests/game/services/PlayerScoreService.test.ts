@@ -5,6 +5,11 @@ import {
 } from '@game/services/PlayerScoreService';
 
 describe('calculatePlayerScore', () => {
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/server/score.c:312-361
+   * @assertion Citizen, technology, wonder, unit, and culture score categories use the reference weights and integer truncation.
+   */
   it('uses reference category weights and integer truncation', () => {
     expect(
       calculatePlayerScore({
@@ -18,12 +23,23 @@ describe('calculatePlayerScore', () => {
     ).toBe(10 + 6 * 2 + 10 + 1 + 2 + 1);
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/server/score.c:367-375
+   * @assertion A spaceship contributes to civilization score only after arrival, as population times success rate divided by 100.
+   */
   it('scores only an arrived spaceship and applies its success rate', () => {
     const state = { arrivalTurn: 20, population: 100, successRate: 75 };
     expect(calculatePlayerScore({ spaceship: state, currentTurn: 19 })).toBe(0);
     expect(calculatePlayerScore({ spaceship: state, currentTurn: 20 })).toBe(75);
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/server/score.c:312-320
+   * @reference reference/freeciv/server/score.c:352-361
+   * @assertion Future technologies use the reference five-halves adjustment before the technology score multiplier.
+   */
   it('does not count future technologies as full technologies', () => {
     expect(calculatePlayerScore({ researchedTechs: ['future_tech_1'] })).toBe(4);
   });

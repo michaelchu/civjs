@@ -2,6 +2,10 @@ import { FreecivAIDomesticController } from '@game/ai/AIDomesticController';
 import { createAIState } from '@game/ai/AIStateStore';
 
 describe('Freeciv AI domestic controller', () => {
+  /**
+   * @evidence stack
+   * @contract Scenario setup can lock an individual AI player's economic rates for deterministic CivJS runs.
+   */
   it('does not alter economic rates when the scenario locks them for the AI player', async () => {
     const getEconomicManager = jest.fn();
     const game = {

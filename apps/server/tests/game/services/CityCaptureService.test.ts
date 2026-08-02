@@ -40,6 +40,13 @@ const buildings = {
 };
 
 describe('CityCaptureService classic conquest', () => {
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/server/citytools.c:924-950
+   * @reference reference/freeciv/server/citytools.c:2037-2061
+   * @reference reference/freeciv/server/citytools.c:2135-2142
+   * @assertion A non-size-one conquest removes one citizen, removes non-great improvements, and preserves great wonders.
+   */
   it('loses one citizen, removes small wonders, razes improvements, and preserves great wonders', async () => {
     const city = capturedCity(4);
     const updateRoutes = jest.fn().mockResolvedValue(undefined);

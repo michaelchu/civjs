@@ -15,6 +15,10 @@ describe('GameClient canonical protocol', () => {
     (gameClient as unknown as { socket: typeof mockSocket }).socket = mockSocket;
   });
 
+  /**
+   * @evidence stack
+   * @contract The CivJS client sends visibility requests through the versioned packet envelope consumed by the authoritative server.
+   */
   it('requests tile visibility through the versioned packet envelope', async () => {
     let packetListener: ((data: unknown) => void) | undefined;
     mockSocket.on.mockImplementation((event: string, callback: (data: unknown) => void) => {

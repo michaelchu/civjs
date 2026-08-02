@@ -532,6 +532,10 @@ describe('GameClient state-bearing packets', () => {
     vi.useRealTimers();
   });
 
+  /**
+   * @evidence stack
+   * @contract The client exposes a recovered map only after receiving every authoritative tile batch.
+   */
   it('commits a recovered map only after the final tile batch', () => {
     handlePacket({
       type: PacketType.MAP_INFO,

@@ -451,6 +451,10 @@ describe('FreecivAIOrchestrator', () => {
     );
   });
 
+  /**
+   * @evidence stack
+   * @contract CivJS persists a treasury goal, applies rates through its economic manager, and performs the authorized rush after funding.
+   */
   it('persists an urgent treasury savings goal and rushes when it is funded', async () => {
     const scenario = createScenario();
     (scenario.game.players.get('ai') as any).aiLevel = 'hard';

@@ -4,11 +4,13 @@
 client experience
 
 **Default ruleset:** `civ2civ3`. New games use `civ2civ3` unless another
-ruleset is explicitly selected; the full parity claim below still refers to
-the classic baseline.
+ruleset is explicitly selected. The completed evidence audit finds broad
+feature coverage, but does not certify game-wide reference parity for any
+ruleset.
 
-**Status:** Milestones 0–15 and the post-port parity audit are complete for the
-agreed baseline
+**Status:** The supported feature surface is implemented. The evidence audit
+classification is complete; its current proof status is recorded in
+[`TEST_EVIDENCE_AUDIT.md`](TEST_EVIDENCE_AUDIT.md).
 
 ## Supported scope
 
@@ -35,9 +37,11 @@ CivJS supports a server-authoritative classic game with:
   developer-console commands.
 
 The release target is the `civ2civ3` default configuration, with conquest
-victory, standard 80×50 maps, and up to eight participants. The classic
-ruleset remains the validated parity baseline; the other packaged profiles
-are available as data but do not yet carry the same full-support claim.
+victory, standard 80×50 maps, and up to eight participants. Classic has
+source-mapped data and mechanics cases, while civ2civ3 has broad runtime
+coverage. Neither has a complete reference-parity certificate; the other
+packaged profiles are available as data but do not yet carry the same
+full-support claim.
 Reference-compatible civilization scoring and score-at-turn-cap ranking are
 implemented for the supported baseline and tracked as resolved in `GP-035` in
 [`GAMEPLAY_GAPS.md`](GAMEPLAY_GAPS.md).
@@ -83,24 +87,24 @@ These are scope decisions, not untracked porting gaps:
 New scope must be explicitly agreed and added here before being described as a
 porting requirement.
 
-Full Freeciv classic/default-AI functional parity is implemented for the
-supported classic baseline. Subsystem mappings and focused evidence are tracked
-directly in [`AI_PORTING_INVENTORY.md`](AI_PORTING_INVENTORY.md); no runtime
-compatibility contract narrows that scope. The native port includes science
-victory strategy, national spaceship-part state, launch planning, and response
-to rival ships.
+The native port implements broad Freeciv classic/default-AI feature coverage
+for the supported game surface. It is not certified as complete
+reference-parity behavior: the AI uses simplified TypeScript planners in
+several areas, and the evidence audit records the precise rule cases that are
+source-mapped. Subsystem mappings remain in
+[`AI_PORTING_INVENTORY.md`](AI_PORTING_INVENTORY.md). The native port includes
+science-victory strategy, national spaceship-part state, launch planning, and
+response to rival ships.
 
 ## Completeness and follow-up
 
-The supported classic baseline is implemented, but several breadth and parity
-improvements remain outside the release claim:
+The supported game surface is implemented, but the evidence needed for a
+complete reference-parity certificate remains incomplete. Several breadth and
+parity improvements remain:
 
 - packaged audio/music and localization;
 - richer city and empire reports, saved worklists, and advanced batch
   production/report workflows;
-- reference civilization score, cumulative built/killed unit statistics,
-  arrived-spaceship scoring, live score transport, and hard-cap team ranking
-  (`GP-035`);
 - a decision on event-stream replay beyond checkpoint and archive inspection;
 - client help, reports/history, accessibility, animation, and presentation
   polish;
@@ -108,8 +112,9 @@ improvements remain outside the release claim:
   [`ANIMATION_PORTING_GAPS.md`](ANIMATION_PORTING_GAPS.md);
 - the concrete behavioral issues tracked in [`GAMEPLAY_GAPS.md`](GAMEPLAY_GAPS.md).
 
-These are follow-up items, not evidence that the supported server-authoritative
-classic game is incomplete.
+These are follow-up items. They do not remove the need for source-mapped and
+differential parity evidence described in
+[`TEST_EVIDENCE_AUDIT.md`](TEST_EVIDENCE_AUDIT.md).
 
 ## Verification
 

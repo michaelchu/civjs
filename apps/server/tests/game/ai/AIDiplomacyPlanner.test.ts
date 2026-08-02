@@ -181,6 +181,11 @@ describe('Freeciv AI diplomacy planner', () => {
     ).toBe(true);
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/ai/default/daidiplomacy.c:406-449
+   * @assertion The treaty ladder rejects or permits ceasefire, peace, and alliance clauses at the same diplomatic-state boundaries.
+   */
   it.each<{
     currentState: DiplomaticState;
     turnsLeft: number;

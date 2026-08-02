@@ -38,6 +38,11 @@ describe('CityTradeRouteService', () => {
     partner.tradeRoutes = [];
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/common/traderoutes.c:332-363
+   * @assertion Trade-route value applies the reference distance calculation and doubles an international route.
+   */
   it('uses classic weighted distance and international multipliers', () => {
     const sameContinent = new CityTradeRouteService(
       new Map([

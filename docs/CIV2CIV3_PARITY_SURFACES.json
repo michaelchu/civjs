@@ -1,0 +1,49 @@
+{
+  "ruleset": "civ2civ3",
+  "schema_version": 1,
+  "required_scenarios": ["normal", "boundary", "turn", "differential"],
+  "surfaces": [
+    { "id": "map-generation", "label": "Map generation and topology" },
+    {
+      "id": "terrain-visibility",
+      "label": "Terrain, resources, visibility, and borders"
+    },
+    {
+      "id": "movement-transport",
+      "label": "Movement, transport, and pathing"
+    },
+    { "id": "combat", "label": "Combat, veterancy, and nuclear outcomes" },
+    {
+      "id": "cities",
+      "label": "City founding, growth, capture, production, and worklists"
+    },
+    {
+      "id": "city-economy",
+      "label": "City output, buildings, happiness, corruption, specialists, and trade"
+    },
+    {
+      "id": "research-government",
+      "label": "Research, government, and domestic economy"
+    },
+    {
+      "id": "diplomacy-espionage",
+      "label": "Diplomacy, covert actions, and incident consequences"
+    },
+    {
+      "id": "workers-extras",
+      "label": "Workers, extras, automation, and huts"
+    },
+    {
+      "id": "random-systems",
+      "label": "Barbarians, disasters, climate, and other random systems"
+    },
+    {
+      "id": "victory-space",
+      "label": "Scoring, victory, end game, and spaceship"
+    },
+    {
+      "id": "default-ai",
+      "label": "Freeciv default-AI decisions and outcomes"
+    }
+  ]
+}

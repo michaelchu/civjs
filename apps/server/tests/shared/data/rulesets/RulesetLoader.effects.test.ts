@@ -200,6 +200,18 @@ describe('RulesetLoader classic effects ruleset', () => {
     }
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/classic/effects.ruleset:157-173
+   * @reference reference/freeciv/data/classic/effects.ruleset:904-925
+   * @reference reference/freeciv/data/classic/effects.ruleset:953-980
+   * @reference reference/freeciv/data/classic/effects.ruleset:1020-1045
+   * @reference reference/freeciv/data/classic/effects.ruleset:1097-1110
+   * @reference reference/freeciv/data/classic/effects.ruleset:1175-1201
+   * @reference reference/freeciv/data/classic/effects.ruleset:1314-1379
+   * @reference reference/freeciv/data/classic/effects.ruleset:1764-1781
+   * @assertion Converted city-building effects retain the referenced classic effect type and value for output, contentment, defense, growth, and corruption.
+   */
   it('loads the classic city building output and contentment effects', () => {
     const effects = createLoader().loadEffectsRuleset().effects;
 

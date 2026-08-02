@@ -78,6 +78,12 @@ describe('Freeciv AI treasury planner', () => {
     expect(plan.rates.tax + plan.rates.luxury + plan.rates.science).toBe(100);
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/ai/default/daihand.c:494-517
+   * @reference reference/freeciv/ai/default/daihand.c:636-649
+   * @assertion A strict majority of eligible cities may trigger celebration, while every rate remains valid.
+   */
   it('uses rate-limited luxury when a majority can grow by celebration', () => {
     const celebrant = city({
       size: 4,
@@ -100,6 +106,29 @@ describe('Freeciv AI treasury planner', () => {
     expect(plan.rates.luxury).toBe(60);
     expect(Math.max(...Object.values(plan.rates))).toBeLessThanOrEqual(60);
     expect(plan.rates.tax + plan.rates.luxury + plan.rates.science).toBe(100);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/ai/default/daihand.c:494-517
+   * @assertion An exact half of eligible cities must not trigger celebration because Freeciv requires more than half.
+   */
+  it('requires a strict majority before choosing celebration', () => {
+    const eligible = city({
+      size: 4,
+      foodPerTurn: 2,
+      tradePerTurn: 10,
+      happiness: { happy: 2, content: 2, unhappy: 0, angry: 0 },
+    });
+    const plan = planTreasury({
+      ...base,
+      cities: [eligible, city({ id: 'blocked', size: 2, foodPerTurn: 0 })],
+      canRaptureGrow: true,
+      maxRate: 60,
+    });
+
+    expect(plan.celebrationCityIds).toEqual([]);
+    expect(plan.rates.luxury).toBe(0);
   });
 
   it('persists an unaffordable rush target and raises tax until it is funded', () => {
@@ -140,14 +169,20 @@ describe('Freeciv AI treasury planner', () => {
     expect(funded.savingsGoal).toBeUndefined();
   });
 
-  it('balances constrained rates without exceeding the government maximum', () => {
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/ai/default/daihand.c:240-247
+   * @reference reference/freeciv/ai/default/daihand.c:636-649
+   * @assertion Tax, luxury, and science rates must stay within the government limit and total 100.
+   */
+  it('preserves valid constrained tax rates', () => {
     const plan = planTreasury({
       ...base,
       maxRate: 34,
     });
 
-    expect(plan.rates).toEqual({ tax: 34, luxury: 32, science: 34 });
-    expect(Object.values(plan.rates).every(rate => rate <= 34)).toBe(true);
+    expect(Object.values(plan.rates).every(rate => rate >= 0 && rate <= 34)).toBe(true);
+    expect(plan.rates.tax + plan.rates.luxury + plan.rates.science).toBe(100);
   });
 
   it('does not celebrate in away mode even when a majority is eligible', () => {
