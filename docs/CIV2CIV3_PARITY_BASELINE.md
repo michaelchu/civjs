@@ -81,6 +81,9 @@ npm run check:civ2civ3-oracle
 The runner checks the bundled reference tree, every bundled gameplay source
 file, the upstream source commit, and the binary version before it runs. It
 keeps saves in an isolated temporary directory and emits structured results.
+CI invokes it once without a scenario filter, so every deterministic fixture
+runs in one Freeciv server session. Jest then reads the resulting JSON bundle;
+individual parity assertions never start their own native server process.
 The first fixture creates a controlled city and ground defender, then confirms
 that City Walls produce the reference `Defend_Bonus` of 150 (the normal city
 50 plus City Walls 100). This is a working differential-test foundation, not

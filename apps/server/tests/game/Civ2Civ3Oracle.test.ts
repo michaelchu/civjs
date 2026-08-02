@@ -1,9 +1,8 @@
-import { execFileSync } from 'node:child_process';
-import { resolve } from 'node:path';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import { loadRulesetTechnologies } from '@game/managers/ResearchManager';
 import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { CIV2CIV3_ORACLE_BASELINE, loadCiv2Civ3OracleResults } from './Civ2Civ3OracleResults';
 
 function civ2civ3CityWallsGroundDefense(): number {
   const warrior = rulesetUnitsService.getUnitTypes('civ2civ3').warriors;
@@ -63,13 +62,9 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
     });
   });
 
-  const oracleConfigured = [
-    process.env.FREECIV_ORACLE_BIN,
-    process.env.FREECIV_ORACLE_DATA,
-    process.env.FREECIV_ORACLE_SOURCE,
-  ].every(Boolean);
+  const oracle = loadCiv2Civ3OracleResults();
 
-  if (oracleConfigured) {
+  if (oracle) {
     /**
      * @evidence parity
      * @reference reference/freeciv/data/civ2civ3/effects.ruleset:1861-1890
@@ -77,22 +72,8 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
      * @c2c3-surface combat
      * @c2c3-surface-scenario differential
      */
-    it('matches the pinned Freeciv server scenario', () => {
-      const repositoryRoot = resolve(process.cwd(), '..', '..');
-      const output = execFileSync(
-        process.execPath,
-        [resolve(repositoryRoot, 'tools/run-freeciv-oracle.mjs'), '--scenario=civ2civ3-city-walls'],
-        { encoding: 'utf8', env: process.env }
-      );
-      const oracle = JSON.parse(output) as {
-        baseline: { commit: string; version: string };
-        results: Record<string, number>;
-      };
-
-      expect(oracle.baseline).toEqual({
-        version: '3.3.90.5-dev',
-        commit: '440b3c9650d3052792296868cb15591bd40612ea',
-      });
+    it('matches the batched pinned Freeciv City Walls fixture', () => {
+      expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
       expect(civ2civ3CityWallsGroundDefense()).toBe(oracle.results.city_walls_ground_defense);
     });
 
@@ -105,31 +86,14 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
      * @c2c3-surface research-government
      * @c2c3-surface-scenario differential
      */
-    it('matches the pinned Freeciv research-cost scenario', () => {
-      const repositoryRoot = resolve(process.cwd(), '..', '..');
-      const output = execFileSync(
-        process.execPath,
-        [
-          resolve(repositoryRoot, 'tools/run-freeciv-oracle.mjs'),
-          '--scenario=civ2civ3-research-cost',
-        ],
-        { encoding: 'utf8', env: process.env }
-      );
-      const oracle = JSON.parse(output) as {
-        baseline: { commit: string; version: string };
-        results: Record<string, number>;
-      };
-
-      expect(oracle.baseline).toEqual({
-        version: '3.3.90.5-dev',
-        commit: '440b3c9650d3052792296868cb15591bd40612ea',
-      });
-      expect(civ2civ3ResearchBaseCosts()).toEqual(oracle.results);
+    it('matches the batched pinned Freeciv research-cost fixture', () => {
+      expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
+      expect(oracle.results).toMatchObject(civ2civ3ResearchBaseCosts());
     });
   } else {
-    it.skip('matches the pinned Freeciv server scenario when the oracle is configured', () =>
+    it.skip('matches the batched pinned Freeciv City Walls fixture when an oracle bundle exists', () =>
       undefined);
-    it.skip('matches the pinned Freeciv research-cost scenario when the oracle is configured', () =>
+    it.skip('matches the batched pinned Freeciv research-cost fixture when an oracle bundle exists', () =>
       undefined);
   }
 });

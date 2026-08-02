@@ -1,5 +1,3 @@
-import { execFileSync } from 'node:child_process';
-import { resolve } from 'node:path';
 import { UnitManager } from '@game/managers/UnitManager';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { EffectsManager } from '@game/managers/EffectsManager';
@@ -7,6 +5,7 @@ import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 import { ActionType } from '@app-types/shared/actions';
 import { MapTopology } from '@game/map/MapTopology';
 import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
+import { CIV2CIV3_ORACLE_BASELINE, loadCiv2Civ3OracleResults } from './Civ2Civ3OracleResults';
 
 describe('UnitManager', () => {
   let unitManager: UnitManager;
@@ -3530,11 +3529,7 @@ describe('UnitManager', () => {
       };
     };
 
-    const oracleConfigured = [
-      process.env.FREECIV_ORACLE_BIN,
-      process.env.FREECIV_ORACLE_DATA,
-      process.env.FREECIV_ORACLE_SOURCE,
-    ].every(Boolean);
+    const oracle = loadCiv2Civ3OracleResults();
 
     it('detonates a nuclear actor, destroys the blast stack, damages cities, and adds fallout', async () => {
       const map = makeMap();
@@ -3727,7 +3722,7 @@ describe('UnitManager', () => {
       );
     });
 
-    if (oracleConfigured) {
+    if (oracle) {
       /**
        * @evidence parity
        * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1402-1428
@@ -3737,7 +3732,7 @@ describe('UnitManager', () => {
        * @c2c3-surface workers-extras
        * @c2c3-surface-scenario differential
        */
-      it('matches the pinned Freeciv hut-frighten fixture', async () => {
+      it('matches the batched pinned Freeciv hut-frighten fixture', async () => {
         const map = makeMap(true);
         const manager = new UnitManager(
           gameId,
@@ -3762,31 +3757,14 @@ describe('UnitManager', () => {
 
         await manager.moveUnit(fighter.id, 11, 10);
 
-        const repositoryRoot = resolve(process.cwd(), '..', '..');
-        const output = execFileSync(
-          process.execPath,
-          [
-            resolve(repositoryRoot, 'tools/run-freeciv-oracle.mjs'),
-            '--scenario=civ2civ3-hut-frighten',
-          ],
-          { encoding: 'utf8', env: process.env }
-        );
-        const oracle = JSON.parse(output) as {
-          baseline: { commit: string; version: string };
-          results: Record<string, number>;
-        };
-
-        expect(oracle.baseline).toEqual({
-          version: '3.3.90.5-dev',
-          commit: '440b3c9650d3052792296868cb15591bd40612ea',
-        });
+        expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
         expect(manager.getUnit(fighter.id)).toBeDefined();
         expect(map.tiles.get('11,10').improvements).not.toContain('Hut');
         expect(oracle.results.hut_frighten_unit_survived).toBe(1);
         expect(oracle.results.hut_frighten_hut_removed).toBe(1);
       });
     } else {
-      it.skip('matches the pinned Freeciv hut-frighten fixture when the oracle is configured', () =>
+      it.skip('matches the batched pinned Freeciv hut-frighten fixture when an oracle bundle exists', () =>
         undefined);
     }
 
