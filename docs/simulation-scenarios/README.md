@@ -44,6 +44,13 @@ seeded war from an AI declaration:
         "playerNumber": 1,
         "otherPlayerNumber": 2
       }
+    ],
+    "events": [
+      {
+        "type": "phase_end",
+        "data": { "phase": "research", "success": true },
+        "minCount": 1
+      }
     ]
   }
 }
@@ -51,6 +58,17 @@ seeded war from an AI declaration:
 
 An expectation failure is written to `diagnostics.expectations`, emitted as a
 `run_failed` progress record, and exits with code `6`.
+
+Generic `events` expectations match persisted replay events by type and can
+optionally filter by exact turn, turn range, player numbers, and a partial
+nested `data` object. Use `minCount` and `maxCount` to assert that an event
+occurred, or that an unexpected event never occurred. Events currently include
+the turn and phase lifecycle records emitted by the simulator; as gameplay
+systems publish richer events, the same assertion form covers production,
+research, combat, city founding, and trade.
+The phase ordering follows the server turn sequence in
+`reference/freeciv/server/srv_main.c`; the simulator's lifecycle event types
+are defined in `apps/server/src/game/services/GameEventService.ts`.
 
 Every completed replay checkpoint is also checked against the reference
 server's per-turn sanity checks. The result is written to

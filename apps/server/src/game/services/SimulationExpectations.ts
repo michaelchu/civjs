@@ -79,6 +79,44 @@ const diplomacyEventExpectationSchema = z
     }
   });
 
+const eventExpectationSchema = z
+  .object({
+    type: z.string().trim().min(1),
+    turn: z.number().int().min(0).optional(),
+    minTurn: z.number().int().min(0).optional(),
+    maxTurn: z.number().int().min(0).optional(),
+    playerNumber: z.number().int().min(1).optional(),
+    otherPlayerNumber: z.number().int().min(1).optional(),
+    data: z.record(z.string(), z.unknown()).optional(),
+    minCount: z.number().int().min(0).default(1),
+    maxCount: z.number().int().min(0).optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.playerNumber !== undefined && value.playerNumber === value.otherPlayerNumber) {
+      context.addIssue({
+        code: 'custom',
+        path: ['otherPlayerNumber'],
+        message: 'must reference a different player',
+      });
+    }
+    addRangeIssue(context, value.minTurn, value.maxTurn, 'turn');
+    addRangeIssue(context, value.minCount, value.maxCount, 'count');
+    if (value.turn !== undefined && value.minTurn !== undefined && value.turn < value.minTurn) {
+      context.addIssue({
+        code: 'custom',
+        path: ['turn'],
+        message: 'must not be below minTurn',
+      });
+    }
+    if (value.turn !== undefined && value.maxTurn !== undefined && value.turn > value.maxTurn) {
+      context.addIssue({
+        code: 'custom',
+        path: ['turn'],
+        message: 'must not exceed maxTurn',
+      });
+    }
+  });
+
 export const simulationExpectationSchema = z
   .object({
     minCompletedTurns: z.number().int().min(0).optional(),
@@ -87,6 +125,7 @@ export const simulationExpectationSchema = z
     players: z.array(playerExpectationSchema).default([]),
     diplomacy: z.array(diplomacyExpectationSchema).default([]),
     diplomacyEvents: z.array(diplomacyEventExpectationSchema).default([]),
+    events: z.array(eventExpectationSchema).default([]),
   })
   .superRefine((value, context) => {
     addRangeIssue(context, value.minCompletedTurns, value.maxCompletedTurns, 'completedTurns');
@@ -95,7 +134,7 @@ export const simulationExpectationSchema = z
 export type SimulationExpectations = z.infer<typeof simulationExpectationSchema>;
 
 export interface SimulationExpectationContext {
-  completedTurns: ReadonlyArray<{ turn: number; snapshot: unknown }>;
+  completedTurns: ReadonlyArray<{ turn: number; snapshot: unknown; events?: unknown[] }>;
   endReason: string;
   standings: unknown;
 }
@@ -128,6 +167,13 @@ interface FinalState {
   research: Record<string, unknown>;
 }
 
+interface ReplayEvent {
+  type: string;
+  turn: number;
+  playerIds: string[];
+  data: Record<string, unknown>;
+}
+
 export function evaluateSimulationExpectations(
   expectations: SimulationExpectations,
   context: SimulationExpectationContext
@@ -139,6 +185,7 @@ export function evaluateSimulationExpectations(
   const playerNumberById = new Map(
     finalState.players.map(player => [player.playerId, player.playerNumber])
   );
+  const replayEvents = readReplayEvents(context.completedTurns);
 
   checkTurnBounds(expectations, completedTurns, failures);
   if (expectations.endReason && expectations.endReason !== context.endReason) {
@@ -183,7 +230,149 @@ export function evaluateSimulationExpectations(
     }
   }
 
+  for (const [index, expected] of expectations.events.entries()) {
+    checkEventExpectation(expected, replayEvents, playerNumberById, failures, `events[${index}]`);
+  }
+
   return { passed: failures.length === 0, failures };
+}
+
+function checkEventExpectation(
+  expected: SimulationExpectations['events'][number],
+  events: ReplayEvent[],
+  playerNumberById: Map<string, number>,
+  failures: string[],
+  path: string
+): void {
+  const observed = events.filter(event =>
+    matchesEventExpectation(event, expected, playerNumberById)
+  ).length;
+  if (observed < expected.minCount) {
+    failures.push(
+      `${path}: expected ${expected.type} at least ${expected.minCount} time(s), observed ${observed}`
+    );
+  }
+  if (expected.maxCount !== undefined && observed > expected.maxCount) {
+    failures.push(
+      `${path}: expected ${expected.type} at most ${expected.maxCount} time(s), observed ${observed}`
+    );
+  }
+}
+
+function matchesEventExpectation(
+  event: ReplayEvent,
+  expected: SimulationExpectations['events'][number],
+  playerNumberById: Map<string, number>
+): boolean {
+  return (
+    event.type === expected.type &&
+    matchesEventTurn(event.turn, expected) &&
+    matchesEventPlayers(event, expected, playerNumberById) &&
+    (expected.data === undefined || matchesRecord(event.data, expected.data))
+  );
+}
+
+function matchesEventTurn(
+  turn: number,
+  expected: SimulationExpectations['events'][number]
+): boolean {
+  if (expected.turn !== undefined && turn !== expected.turn) return false;
+  if (expected.minTurn !== undefined && turn < expected.minTurn) return false;
+  if (expected.maxTurn !== undefined && turn > expected.maxTurn) return false;
+  return true;
+}
+
+function matchesEventPlayers(
+  event: ReplayEvent,
+  expected: SimulationExpectations['events'][number],
+  playerNumberById: Map<string, number>
+): boolean {
+  const playerNumber = playerNumberById.get(event.playerIds[0]);
+  const otherPlayerNumber = playerNumberById.get(event.playerIds[1]);
+  return (
+    (expected.playerNumber === undefined || playerNumber === expected.playerNumber) &&
+    (expected.otherPlayerNumber === undefined || otherPlayerNumber === expected.otherPlayerNumber)
+  );
+}
+
+function readReplayEvents(
+  completedTurns: ReadonlyArray<{ turn: number; snapshot: unknown; events?: unknown[] }>
+): ReplayEvent[] {
+  return completedTurns.flatMap(({ turn, snapshot, events }) => [
+    ...readStoredEvents(turn, events),
+    ...readDiplomacyReplayEvents(turn, snapshot),
+  ]);
+}
+
+function readStoredEvents(turn: number, events: unknown[] | undefined): ReplayEvent[] {
+  return (events ?? []).flatMap(value => {
+    const record = asRecord(value);
+    const data = asRecord(record.eventData);
+    const type = readString(record.eventType) ?? readString(data.type);
+    if (!type) return [];
+    return [
+      {
+        type,
+        turn: readNonNegativeInteger(data.turn) ?? turn,
+        playerIds: readEventPlayerIds(record, data),
+        data,
+      },
+    ];
+  });
+}
+
+function readDiplomacyReplayEvents(turn: number, snapshot: unknown): ReplayEvent[] {
+  return asArray(asRecord(snapshot).diplomacyEvents).flatMap(value => {
+    const record = asRecord(value);
+    const type = readString(record.type);
+    if (!type) return [];
+    return [
+      {
+        type,
+        turn,
+        playerIds: asArray(record.playerIds)
+          .map(readString)
+          .filter((playerId): playerId is string => playerId !== undefined),
+        data: record,
+      },
+    ];
+  });
+}
+
+function readEventPlayerIds(
+  record: Record<string, unknown>,
+  data: Record<string, unknown>
+): string[] {
+  const ids = [
+    ...asArray(data.playerIds).map(readString),
+    readString(record.playerId),
+    readString(record.relatedPlayerId),
+    readString(data.playerId),
+    readString(data.targetPlayerId),
+  ].filter((playerId): playerId is string => playerId !== undefined);
+  return [...new Set(ids)];
+}
+
+function matchesRecord(
+  observed: Record<string, unknown>,
+  expected: Record<string, unknown>
+): boolean {
+  return Object.entries(expected).every(([key, expectedValue]) =>
+    matchesValue(observed[key], expectedValue)
+  );
+}
+
+function matchesValue(observed: unknown, expected: unknown): boolean {
+  if (expected === null || typeof expected !== 'object') return Object.is(observed, expected);
+  if (Array.isArray(expected)) {
+    return (
+      Array.isArray(observed) &&
+      observed.length === expected.length &&
+      expected.every((value, index) => matchesValue(observed[index], value))
+    );
+  }
+  if (observed === null || typeof observed !== 'object' || Array.isArray(observed)) return false;
+  return matchesRecord(asRecord(observed), expected as Record<string, unknown>);
 }
 
 function checkTurnBounds(
@@ -460,6 +649,10 @@ function asArray(value: unknown): unknown[] {
 
 function readString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
+}
+
+function readNonNegativeInteger(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined;
 }
 
 function readBoolean(value: unknown): boolean | undefined {

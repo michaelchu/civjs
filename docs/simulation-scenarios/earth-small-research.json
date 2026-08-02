@@ -64,5 +64,16 @@
       { "playerNumber": 2, "unitType": "warriors", "x": 36, "y": 17 }
     ]
   },
+  "expect": {
+    "minCompletedTurns": 60,
+    "endReason": "max_turns",
+    "events": [
+      {
+        "type": "phase_end",
+        "data": { "phase": "research", "success": true },
+        "minCount": 60
+      }
+    ]
+  },
   "turnTimeLimit": 0
 }

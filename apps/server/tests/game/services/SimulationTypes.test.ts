@@ -137,6 +137,7 @@ describe('headless simulation configuration', () => {
       diplomacyEvents: [
         { type: 'war_declared', playerNumber: 1, otherPlayerNumber: 2, minCount: 1 },
       ],
+      events: [],
     });
   });
 });
