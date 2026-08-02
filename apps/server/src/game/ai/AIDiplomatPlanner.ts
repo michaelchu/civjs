@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIDiplomatPlanner
+ * Implements AIDiplomat Planner decision logic for AI-controlled players.
+ */
 import { ActionType } from '@app-types/shared/actions';
 import type { CityState } from '@game/cities/CityTypes';
 import type { Unit } from '@game/units/UnitTypes';

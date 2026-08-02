@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIMilitaryProductionPlanner
+ * Implements AIMilitary Production Planner decision logic for AI-controlled players.
+ */
 import {
   buildMilitaryTravelTimes,
   militaryTravelKey,

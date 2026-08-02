@@ -1,3 +1,7 @@
+/**
+ * @module server/game/cities/CityTypes
+ * Defines City Types city behavior and contracts.
+ */
 import type { ActionType } from '@app-types/shared/actions';
 import type { SpecialistType } from '@game/constants/SpecialistDefinitions';
 import type { BuildingCultureRequirement } from '@shared/data/rulesets/schemas';

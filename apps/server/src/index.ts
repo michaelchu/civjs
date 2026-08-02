@@ -1,3 +1,7 @@
+/**
+ * @module server/index
+ * Bootstraps the authoritative game server.
+ */
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';

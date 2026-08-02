@@ -1,3 +1,7 @@
+/**
+ * @module server/game/managers/DiplomacyManager
+ * Coordinates authoritative Diplomacy Manager game state.
+ */
 import { and, eq } from 'drizzle-orm';
 import type { DatabaseProvider } from '@database';
 import { players } from '@database/schema';

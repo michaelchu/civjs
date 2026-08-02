@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/SelectionTray
+ * Defines the Selection Tray client UI component.
+ */
 import React from 'react';
 import {
   ArrowRight,

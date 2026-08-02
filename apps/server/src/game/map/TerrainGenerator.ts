@@ -1,4 +1,5 @@
 /**
+ * @module server/game/map/TerrainGenerator
  * Specialized terrain generation algorithms from freeciv
  * @reference freeciv/server/generator/mapgen.c
  * @reference freeciv/server/generator/height_map.c

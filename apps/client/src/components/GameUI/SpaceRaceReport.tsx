@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/SpaceRaceReport
+ * Defines the Space Race Report client UI component.
+ */
 import React, { useMemo } from 'react';
 import { CheckCircle2, Clock3, Rocket, Satellite, Sparkles } from 'lucide-react';
 import type { Player } from '../../types';

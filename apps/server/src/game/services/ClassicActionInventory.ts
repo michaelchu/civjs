@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/ClassicActionInventory
+ * Provides the server-side Classic Action Inventory service.
+ */
 export type ClassicActionDisposition =
   'implemented' | 'engine_resolved' | 'scheduled' | 'inapplicable';
 

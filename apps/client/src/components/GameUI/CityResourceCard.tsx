@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/CityResourceCard
+ * Defines the City Resource Card client UI component.
+ */
 import type { LucideIcon } from 'lucide-react';
 
 interface CityResourceCardProps {

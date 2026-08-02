@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/HudIconButton
+ * Defines the Hud Icon Button client UI component.
+ */
 import * as React from 'react';
 import { Button } from '../ui/button';
 import { cn } from '../../lib/utils';

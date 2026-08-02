@@ -1,3 +1,7 @@
+/**
+ * @module server/network/handlers/EconomicHandler
+ * Handles Economic Handler socket events.
+ */
 import { Server, Socket } from 'socket.io';
 import { and, eq } from 'drizzle-orm';
 import { players } from '@database/schema';

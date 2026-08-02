@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/HudDialogContent
+ * Defines the Hud Dialog Content client UI component.
+ */
 import React from 'react';
 import { DialogContent } from '../ui/dialog';
 import { cn } from '../../lib/utils';

@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/HudActionButton
+ * Defines the Hud Action Button client UI component.
+ */
 import React from 'react';
 
 export interface HudActionButtonProps extends Omit<

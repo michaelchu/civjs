@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/CityFoundingValidationService
+ * Provides the server-side City Founding Validation Service service.
+ */
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 /**
  * City founding validation service based on Freeciv reference implementation

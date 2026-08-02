@@ -1,4 +1,5 @@
 /**
+ * @module server/game/orchestrators/GameLifecycleManager
  * GameLifecycleManager - Handles game creation, initialization, starting, and cleanup
  * Extracted from GameManager.ts following the established refactoring patterns
  */

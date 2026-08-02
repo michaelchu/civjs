@@ -1,4 +1,5 @@
 /**
+ * @module server/game/services/TurnPhaseService
  * TurnPhaseService - Manages multi-phase turn processing
  *
  * This service implements the freeciv-style turn phases where different

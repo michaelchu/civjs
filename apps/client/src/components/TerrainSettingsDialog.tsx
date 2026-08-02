@@ -1,3 +1,7 @@
+/**
+ * @module client/components/TerrainSettingsDialog
+ * Defines the Terrain Settings Dialog client UI component.
+ */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { gameClient } from '../services/GameClient';

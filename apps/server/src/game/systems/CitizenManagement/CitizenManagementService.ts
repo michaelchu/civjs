@@ -1,4 +1,5 @@
 /**
+ * @module server/game/systems/CitizenManagement/CitizenManagementService
  * CitizenManagementService - Main service for citizen assignment optimization
  * @reference freeciv/common/aicore/cm.c - main CM functions
  *

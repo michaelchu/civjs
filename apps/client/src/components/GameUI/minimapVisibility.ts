@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/minimapVisibility
+ * Defines the minimap Visibility client UI component.
+ */
 import type { Tile } from '../../types';
 
 export const isMinimapMarkerVisible = (

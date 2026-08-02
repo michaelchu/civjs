@@ -1,4 +1,5 @@
-/** Default names used when an automated player founds a city. */
+/**
+ * @module server/game/constants/CityNames Default names used when an automated player founds a city. */
 export const DEFAULT_CITY_NAMES = [
   'New Rome',
   'Alexandria',

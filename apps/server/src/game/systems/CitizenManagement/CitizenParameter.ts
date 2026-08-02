@@ -1,4 +1,5 @@
 /**
+ * @module server/game/systems/CitizenManagement/CitizenParameter
  * CitizenParameter - Configuration parameters for citizen management optimization
  * @reference freeciv/common/aicore/cm.h - struct cm_parameter
  *

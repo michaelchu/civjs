@@ -1,4 +1,5 @@
 /**
+ * @module client/utils/focusManagement
  * Focus Management Utilities
  * Handles multi-unit selection and focus advancement logic
  * @reference freeciv-web/javascript/control.js advance_unit_focus(), set_unit_focus()

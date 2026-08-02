@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/CityCaptureService
+ * Provides the server-side City Capture Service service.
+ */
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import type { CityState } from '@game/cities/CityTypes';

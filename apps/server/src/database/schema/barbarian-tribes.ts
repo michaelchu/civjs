@@ -1,4 +1,5 @@
 /**
+ * @module server/database/schema/barbarian-tribes
  * Database schema for barbarian tribes
  * Tracks active barbarian groups spawned during random events
  */

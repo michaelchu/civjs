@@ -1,3 +1,7 @@
+/**
+ * @module server/game/units/UnitHutService
+ * Defines Unit Hut Service unit behavior and contracts.
+ */
 import type { DatabaseProvider } from '@database';
 import { players } from '@database/schema';
 import { getTerrainMovementCost } from '@game/constants/MovementConstants';

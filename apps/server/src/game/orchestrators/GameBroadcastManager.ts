@@ -1,4 +1,5 @@
 /**
+ * @module server/game/orchestrators/GameBroadcastManager
  * GameBroadcastManager - Handles all Socket.IO broadcasting and real-time communication
  * Extracted from GameManager.ts following the established refactoring patterns
  */

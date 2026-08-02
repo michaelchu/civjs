@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Canvas2D/tilesets/Amplio2TilesetProvider
+ * Defines the Amplio2 Tileset Provider tileset integration.
+ */
 // Amplio2TilesetProvider - Port of freeciv-web's sprite loading system
 // Based on freeciv-web/mapview.js init_sprites() and init_cache_sprites()
 // NOTE: Freeciv constants are now loaded globally in index.html

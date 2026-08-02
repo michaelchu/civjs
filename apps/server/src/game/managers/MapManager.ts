@@ -1,3 +1,7 @@
+/**
+ * @module server/game/managers/MapManager
+ * Coordinates authoritative Map Manager game state.
+ */
 import { logger } from '@utils/logger';
 import { PlayerState } from '@game/runtime/GameTypes';
 import { MapData, MapTile, MapStartpos, type MapGenerationOptions } from '@game/map/MapTypes';
@@ -260,8 +264,6 @@ export class MapManager {
     throw lastError ?? new Error(`Unable to generate a playable ${requested} map`);
   }
 
-  // === PUBLIC API METHODS (delegated to services) ===
-
   /**
    * Get current map data
    */
@@ -364,8 +366,6 @@ export class MapManager {
   public validateMap(): { valid: boolean; issues: string[] } {
     return this.mapAccessService.validateMap();
   }
-
-  // === UTILITY METHODS ===
 
   /**
    * Generate a random seed string

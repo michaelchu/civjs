@@ -1,3 +1,7 @@
+/**
+ * @module server/network/SocketCoordinator
+ * Coordinates Socket Coordinator server networking.
+ */
 import { Server, Socket } from 'socket.io';
 import { logger } from '../utils/logger';
 import { PacketHandler } from './PacketHandler';

@@ -1,3 +1,7 @@
+/**
+ * @module server/game/random/FreecivIdentityAllocator
+ * Provides Freeciv Identity Allocator deterministic random behavior.
+ */
 import { randomUUID } from 'node:crypto';
 
 const IDENTITY_NUMBER_SIZE = 250_000;

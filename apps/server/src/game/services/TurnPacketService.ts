@@ -1,4 +1,5 @@
 /**
+ * @module server/game/services/TurnPacketService
  * TurnPacketService - Handles turn-related packet communication
  *
  * This service abstracts all turn-related packet sending operations to match

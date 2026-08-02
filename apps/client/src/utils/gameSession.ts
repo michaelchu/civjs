@@ -1,4 +1,5 @@
 /**
+ * @module client/utils/gameSession
  * Simple username storage utility, following freeciv-web's simpleStorage pattern
  * Only stores username for login convenience, like the original implementation
  */

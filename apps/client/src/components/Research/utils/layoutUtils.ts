@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Research/utils/layoutUtils
+ * Provides research UI layout Utils helpers.
+ */
 import dagre from 'dagre';
 import { type Node, type Edge, Position } from 'reactflow';
 import { type TechnologyNodeData } from '../TechnologyNode';

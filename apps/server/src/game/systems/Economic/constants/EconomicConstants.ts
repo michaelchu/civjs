@@ -1,4 +1,5 @@
 /**
+ * @module server/game/systems/Economic/constants/EconomicConstants
  * Economic System Constants
  * Game balance constants for the economic system
  *

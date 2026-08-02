@@ -1,4 +1,5 @@
 /**
+ * @module server/game/map/terrain/ContinentProcessor
  * Continent generation and landmass processing algorithms from freeciv
  * @reference freeciv/server/generator/mapgen.c continent generation
  * Handles continent assignment, tiny island removal, and landmass processing

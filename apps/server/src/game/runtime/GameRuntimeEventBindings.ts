@@ -1,3 +1,7 @@
+/**
+ * @module server/game/runtime/GameRuntimeEventBindings
+ * Defines Game Runtime Event Bindings game runtime wiring.
+ */
 import type { GameInstance } from './GameTypes';
 import type { UnitLifecycleEvent } from '@game/units/UnitTypes';
 

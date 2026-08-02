@@ -1,4 +1,5 @@
 /**
+ * @module server/game/orchestrators/PlayerConnectionManager
  * PlayerConnectionManager - Handles all player join/leave operations and connection management
  * Extracted from GameManager.ts following the established refactoring patterns
  */

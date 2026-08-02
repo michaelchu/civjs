@@ -1,3 +1,7 @@
+/**
+ * @module server/game/map/IslandMapService
+ * Implements Island Map Service map behavior.
+ */
 import { logger } from '@utils/logger';
 import { PlayerState } from '@game/runtime/GameTypes';
 import { MapData, MapTile, MapStartpos } from './MapTypes';

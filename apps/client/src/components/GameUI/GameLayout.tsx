@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/GameLayout
+ * Defines the Game Layout client UI component.
+ */
 import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { MapCanvas } from '../Canvas2D/MapCanvas';

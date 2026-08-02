@@ -1,3 +1,7 @@
+/**
+ * @module server/game/automation/WorkerAutomationTypes
+ * Defines Worker Automation Types automation behavior.
+ */
 import { ActionType } from '@app-types/shared/actions';
 
 export type UnitAutomationMode = 'explore' | 'worker';

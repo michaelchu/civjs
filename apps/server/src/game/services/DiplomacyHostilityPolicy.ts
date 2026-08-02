@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/DiplomacyHostilityPolicy
+ * Provides the server-side Diplomacy Hostility Policy service.
+ */
 import type { DiplomacyManager } from '@game/managers/DiplomacyManager';
 
 /**

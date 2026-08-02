@@ -1,3 +1,7 @@
+/**
+ * @module server/game/runtime/GameInstanceFactory
+ * Defines Game Instance Factory game runtime wiring.
+ */
 import { isSettableAILevel } from '@game/ai/AIProfile';
 import type { BorderManager } from '@game/managers/BorderManager';
 import type { CityManager } from '@game/managers/CityManager';

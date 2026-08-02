@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Research/ResearchDemo
+ * Defines the Research Demo research UI component.
+ */
 import React, { useEffect } from 'react';
 import { useGameStore } from '../../store/gameStore';
 

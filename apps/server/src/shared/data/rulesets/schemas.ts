@@ -1,4 +1,5 @@
 /**
+ * @module server/shared/data/rulesets/schemas
  * Zod schemas for ruleset validation
  * Ensures JSON data matches TypeScript interfaces at runtime
  */

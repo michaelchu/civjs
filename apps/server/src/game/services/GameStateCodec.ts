@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/GameStateCodec
+ * Provides the server-side Game State Codec service.
+ */
 export const CURRENT_GAME_STATE_VERSION = 2;
 
 export interface AuthoritativeGameState {

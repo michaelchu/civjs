@@ -1,3 +1,7 @@
+/**
+ * @module server/game/map/IslandGenerator
+ * Implements Island Generator map behavior.
+ */
 import { logger } from '@utils/logger';
 import {
   MapTile,

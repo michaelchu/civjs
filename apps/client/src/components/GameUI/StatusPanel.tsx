@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/StatusPanel
+ * Defines the Status Panel client UI component.
+ */
 import React from 'react';
 import {
   Building2,

@@ -1,3 +1,7 @@
+/**
+ * @module server/game/map/ScenarioProvider
+ * Implements Scenario Provider map behavior.
+ */
 import type { PlayerState } from '@game/runtime/GameTypes';
 import type { MapData } from './MapTypes';
 

@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/CitiesPanel
+ * Defines the Cities Panel client UI component.
+ */
 import React, { useMemo, useState } from 'react';
 import {
   AlertTriangle,

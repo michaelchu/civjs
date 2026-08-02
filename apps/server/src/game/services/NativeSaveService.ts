@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/NativeSaveService
+ * Provides the server-side Native Save Service service.
+ */
 import { createHash } from 'node:crypto';
 import { GameReplayService, type GameReplay } from './GameReplayService';
 import { gameStateCodec, type AuthoritativeGameState } from './GameStateCodec';

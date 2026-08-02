@@ -1,4 +1,5 @@
 /**
+ * @module server/game/systems/Economic/services/TreasuryService
  * TreasuryService - Handles player gold accumulation and spending
  *
  * Manages the player's treasury including:

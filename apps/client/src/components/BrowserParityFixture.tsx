@@ -1,3 +1,7 @@
+/**
+ * @module client/components/BrowserParityFixture
+ * Defines the Browser Parity Fixture client UI component.
+ */
 import { useState } from 'react';
 import type { City, Tile } from '../types';
 import { useGameStore } from '../store/gameStore';

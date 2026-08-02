@@ -1,4 +1,5 @@
 /**
+ * @module server/game/services/RulesetUnitsService
  * Service for accessing unit types from rulesets instead of hardcoded constants
  * Provides the same interface as the old UNIT_TYPES constant but loads dynamically from rulesets
  */
@@ -233,7 +234,6 @@ export class RulesetUnitsService {
   }
 }
 
-// Create singleton instance
 export const rulesetUnitsService = RulesetUnitsService.getInstance();
 
 // Provide backward-compatible exports that use the dynamic service

@@ -1,3 +1,7 @@
+/**
+ * @module server/database/schema/turn-phases
+ * Defines the database schema for turn phases.
+ */
 import {
   pgTable,
   uuid,

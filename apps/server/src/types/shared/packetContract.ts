@@ -1,4 +1,5 @@
 /**
+ * @module server/types/shared/packetContract
  * Canonical CivJS protocol v1 identifiers and transport metadata.
  *
  * Numeric identifiers are deployed CivJS wire values. They are intentionally

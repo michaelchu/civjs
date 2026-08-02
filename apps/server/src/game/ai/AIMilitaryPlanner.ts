@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIMilitaryPlanner
+ * Implements AIMilitary Planner decision logic for AI-controlled players.
+ */
 import { amortize } from '@game/ai/AIPlanner';
 import type { CityState } from '@game/cities/CityTypes';
 import type { Unit } from '@game/units/UnitTypes';

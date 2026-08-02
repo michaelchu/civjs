@@ -1,3 +1,7 @@
+/**
+ * @module server/game/systems/Economic/TradeDistribution
+ * Implements the Trade Distribution game system.
+ */
 import type { TaxRates } from './types/EconomicTypes';
 
 export interface TradeOutputs {

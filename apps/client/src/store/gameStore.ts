@@ -1,3 +1,7 @@
+/**
+ * @module client/store/gameStore
+ * Defines game Store client state and actions.
+ */
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import type { GameState, ClientState, GameTab, MapViewport, ResearchState, Unit } from '../types';

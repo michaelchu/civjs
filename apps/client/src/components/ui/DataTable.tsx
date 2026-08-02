@@ -1,3 +1,7 @@
+/**
+ * @module client/components/ui/DataTable
+ * Defines the reusable Data Table UI primitive.
+ */
 import {
   type ColumnDef,
   type ColumnFiltersState,

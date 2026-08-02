@@ -1,3 +1,7 @@
+/**
+ * @module client/types/packets
+ * Declares packets client contracts.
+ */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export { PacketType, PACKET_NAMES, PROTOCOL_VERSION } from '@protocol';
 import { PacketType } from '@protocol';

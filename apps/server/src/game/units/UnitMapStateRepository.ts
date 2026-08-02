@@ -1,3 +1,7 @@
+/**
+ * @module server/game/units/UnitMapStateRepository
+ * Defines Unit Map State Repository unit behavior and contracts.
+ */
 import type { DatabaseProvider } from '@database';
 import { games } from '@database/schema';
 import type { MapManager } from '@game/managers/MapManager';

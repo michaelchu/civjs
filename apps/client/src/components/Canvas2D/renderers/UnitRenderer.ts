@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Canvas2D/renderers/UnitRenderer
+ * Implements the Unit Renderer canvas rendering stage.
+ */
 import type { Unit, MapViewport } from '../../../types';
 import type { GraphicDefinition, UnitOverlayOffsets } from '../../../services/RulesetService';
 import { BaseRenderer, type RenderState } from './BaseRenderer';

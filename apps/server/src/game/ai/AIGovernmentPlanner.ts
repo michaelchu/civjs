@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIGovernmentPlanner
+ * Implements AIGovernment Planner decision logic for AI-controlled players.
+ */
 import type { CityState } from '@game/cities/CityTypes';
 import type { Unit } from '@game/units/UnitTypes';
 import { EffectType, OutputType } from '@game/managers/EffectsManager';

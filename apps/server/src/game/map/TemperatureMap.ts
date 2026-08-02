@@ -1,3 +1,7 @@
+/**
+ * @module server/game/map/TemperatureMap
+ * Implements Temperature Map map behavior.
+ */
 import { MapTile, TemperatureType } from './MapTypes';
 import { MapTopology, type MapTopologyOptions, WrapFlag } from './MapTopology';
 import { getMapSqSize } from './MapGenerationUtils';

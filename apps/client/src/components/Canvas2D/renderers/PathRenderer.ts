@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Canvas2D/renderers/PathRenderer
+ * Implements the Path Renderer canvas rendering stage.
+ */
 import type { AccessibleTile, GotoPath, PathTile } from '../../../services/PathfindingService';
 import type { MapViewport } from '../../../types';
 import { BaseRenderer, type RenderState } from './BaseRenderer';

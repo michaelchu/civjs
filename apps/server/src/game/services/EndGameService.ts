@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/EndGameService
+ * Provides the server-side End Game Service service.
+ */
 import { eq } from 'drizzle-orm';
 import type { Server as SocketServer } from 'socket.io';
 import type { DatabaseProvider } from '@database';

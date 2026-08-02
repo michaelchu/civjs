@@ -1,3 +1,7 @@
+/**
+ * @module server/game/events/AchievementService
+ * Defines Achievement Service game event behavior and contracts.
+ */
 import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 import { logger } from '@utils/logger';
 import {

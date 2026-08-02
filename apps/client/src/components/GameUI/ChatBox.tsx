@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/ChatBox
+ * Defines the Chat Box client UI component.
+ */
 import React, { useEffect, useRef, useState } from 'react';
 import { MessageSquare, Send, X } from 'lucide-react';
 import { gameClient } from '../../services/GameClient';

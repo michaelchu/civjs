@@ -1,3 +1,7 @@
+/**
+ * @module client/components/ui/dialog
+ * Defines the reusable dialog UI primitive.
+ */
 import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { XIcon } from 'lucide-react';

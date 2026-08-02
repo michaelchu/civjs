@@ -1,4 +1,5 @@
 /**
+ * @module server/game/services/CityOptimizationService
  * CityOptimizationService - Handles citizen assignment optimization
  *
  * Extracted from CityManager.ts to create a dedicated service for citizen optimization.

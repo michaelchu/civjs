@@ -1,3 +1,7 @@
+/**
+ * @module server/game/managers/ResearchManager
+ * Coordinates authoritative Research Manager game state.
+ */
 import { DatabaseProvider } from '@database';
 import { research as researchTable, playerTechs } from '@database/schema';
 import { eq, and } from 'drizzle-orm';

@@ -1,4 +1,5 @@
 /**
+ * @module server/game/map/StartingPositionGenerator
  * Reference-compliant Starting Position Generator
  *
  * This implementation faithfully ports the freeciv starting position generation logic

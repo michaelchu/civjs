@@ -1,3 +1,7 @@
+/**
+ * @module server/game/managers/TurnManager
+ * Coordinates authoritative Turn Manager game state.
+ */
 import { logger } from '@utils/logger';
 import { DatabaseProvider } from '@database';
 import { gameState } from '@database/redis';

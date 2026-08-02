@@ -1,3 +1,7 @@
+/**
+ * @module server/game/map/FreecivScenarioLoader
+ * Implements Freeciv Scenario Loader map behavior.
+ */
 import fs from 'node:fs';
 import path from 'node:path';
 import { PlayerState } from '@game/runtime/GameTypes';

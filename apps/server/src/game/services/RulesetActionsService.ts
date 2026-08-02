@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/RulesetActionsService
+ * Provides the server-side Ruleset Actions Service service.
+ */
 import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { ActionEnabler } from '@shared/data/rulesets/schemas';
 import { RulesetRequirementEvaluator } from './RulesetRequirementEvaluator';

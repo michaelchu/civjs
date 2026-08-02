@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/ObjectivesJournal
+ * Defines the Objectives Journal client UI component.
+ */
 import React from 'react';
 import {
   AlertTriangle,

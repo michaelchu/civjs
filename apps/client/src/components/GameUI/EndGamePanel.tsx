@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/EndGamePanel
+ * Defines the End Game Panel client UI component.
+ */
 import React, { useEffect, useRef } from 'react';
 import { useGameStore } from '../../store/gameStore';
 

@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Dialogs/RevolutionDialog
+ * Defines the Revolution Dialog client UI component.
+ */
 import React, { useState, useMemo } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import type { Government, GovernmentState } from '../../types';

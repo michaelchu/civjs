@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIAirliftPlanner
+ * Implements AIAirlift Planner decision logic for AI-controlled players.
+ */
 import type { AIUnitTask } from '@game/ai/AIStateStore';
 import type { CityDangerAssessment } from '@game/ai/AICityDangerPlanner';
 import type { CityState } from '@game/cities/CityTypes';

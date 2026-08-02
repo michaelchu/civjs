@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/HudTooltip
+ * Defines the Hud Tooltip client UI component.
+ */
 import React from 'react';
 import { createPortal } from 'react-dom';
 

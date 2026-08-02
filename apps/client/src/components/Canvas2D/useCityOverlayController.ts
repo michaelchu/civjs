@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Canvas2D/useCityOverlayController
+ * Provides the useCityOverlayController canvas hook.
+ */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { gameClient } from '../../services/GameClient';
 import type { City, ProductionOption } from '../../types';

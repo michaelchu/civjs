@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIWorkerPlanner
+ * Implements AIWorker Planner decision logic for AI-controlled players.
+ */
 import { ActionType } from '@app-types/shared/actions';
 import type { WorkerAutomationTask } from '@game/automation/WorkerAutomationTypes';
 import type { CityState } from '@game/cities/CityTypes';

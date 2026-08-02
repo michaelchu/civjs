@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Canvas2D/renderers/TerrainRenderer
+ * Implements the Terrain Renderer canvas rendering stage.
+ */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Tile } from '../../../types';
 import {

@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AICityController
+ * Implements AICity Controller decision logic for AI-controlled players.
+ */
 import { ActionType } from '@app-types/shared/actions';
 import { OutputType } from '@game/constants/GameConstants';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';

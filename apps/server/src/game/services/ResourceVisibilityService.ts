@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/ResourceVisibilityService
+ * Provides the server-side Resource Visibility Service service.
+ */
 import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 const normalize = (value: string): string => value.trim().toLowerCase().replace(/[_-]+/g, ' ');

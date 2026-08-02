@@ -1,3 +1,7 @@
+/**
+ * @module client/services/PresentationResolver
+ * Provides the client-side Presentation Resolver service.
+ */
 import type {
   CityStyle,
   GraphicDefinition,

@@ -1,4 +1,5 @@
 /**
+ * @module server/game/managers/BorderManager
  * BorderManager - Port of Freeciv border system to CivJS
  *
  * Handles territorial borders, tile ownership, and border strength calculations

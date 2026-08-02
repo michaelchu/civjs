@@ -1,3 +1,7 @@
+/**
+ * @module server/game/map/RiverGenerator
+ * Implements River Generator map behavior.
+ */
 import { logger } from '@utils/logger';
 import { MapTile, TerrainType, TerrainProperty } from './MapTypes';
 import { MapTopology, type MapTopologyOptions } from './MapTopology';

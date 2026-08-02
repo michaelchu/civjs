@@ -1,3 +1,7 @@
+/**
+ * @module server/game/simulation/runtime/SimulationExecutionService
+ * Defines Simulation Execution Service headless simulation behavior.
+ */
 import type { GameManager } from '@game/managers/GameManager';
 import type { GameInstance } from '@game/runtime/GameTypes';
 

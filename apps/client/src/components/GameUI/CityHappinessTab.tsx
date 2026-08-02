@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/CityHappinessTab
+ * Defines the City Happiness Tab client UI component.
+ */
 import { Frown, Heart, Smile, Users } from 'lucide-react';
 import type { City } from '../../types';
 import { TabsContent } from '../ui/tabs';

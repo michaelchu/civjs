@@ -1,3 +1,7 @@
+/**
+ * @module client/services/GameSessionCoordinator
+ * Provides the client-side Game Session Coordinator service.
+ */
 export type GameSessionPhase =
   | 'idle'
   | 'connecting'

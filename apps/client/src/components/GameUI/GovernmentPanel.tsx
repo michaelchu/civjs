@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/GovernmentPanel
+ * Defines the Government Panel client UI component.
+ */
 import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { gameClient } from '../../services/GameClient';

@@ -1,3 +1,7 @@
+/**
+ * @module server/network/handlers/MapVisibilityHandler
+ * Handles Map Visibility Handler socket events.
+ */
 import { Server, Socket } from 'socket.io';
 import { logger } from '@utils/logger';
 import { PacketHandler } from '../PacketHandler';

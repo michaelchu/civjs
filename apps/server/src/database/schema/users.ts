@@ -1,3 +1,7 @@
+/**
+ * @module server/database/schema/users
+ * Defines the database schema for users.
+ */
 import { pgTable, uuid, varchar, timestamp, boolean, integer, jsonb } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 

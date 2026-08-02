@@ -1,4 +1,5 @@
 /**
+ * @module server/game/map/terrain/BiomeProcessor
  * Biome and wetness processing algorithms from freeciv
  * @reference freeciv/server/generator/mapgen.c biome and wetness processing
  * Handles biome-based terrain grouping, natural transitions, and wetness calculations

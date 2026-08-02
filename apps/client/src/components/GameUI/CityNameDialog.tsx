@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/CityNameDialog
+ * Defines the City Name Dialog client UI component.
+ */
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,

@@ -1,3 +1,7 @@
+/**
+ * @module server/game/managers/PathfindingManager
+ * Coordinates authoritative Pathfinding Manager game state.
+ */
 import { logger } from '@utils/logger';
 import { calculateMovementCost } from '@game/constants/MovementConstants';
 import type { Unit } from '@game/units/UnitTypes';

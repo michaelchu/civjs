@@ -1,3 +1,7 @@
+/**
+ * @module server/routes/rulesets
+ * Registers rulesets HTTP routes.
+ */
 import { Router } from 'express';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { resolveUnitOverlayOffsets } from '@game/services/UnitPresentationService';

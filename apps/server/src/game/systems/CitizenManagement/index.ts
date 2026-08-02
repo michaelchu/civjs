@@ -1,4 +1,5 @@
 /**
+ * @module server/game/systems/CitizenManagement/index
  * CitizenManagement System - Main exports
  *
  * Provides intelligent citizen assignment optimization following Freeciv's

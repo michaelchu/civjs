@@ -1,3 +1,7 @@
+/**
+ * @module server/game/managers/VisibilityManager
+ * Coordinates authoritative Visibility Manager game state.
+ */
 import { logger } from '@utils/logger';
 import { UnitManager } from '@game/managers/UnitManager';
 import { MapManager } from '@game/managers/MapManager';

@@ -1,3 +1,7 @@
+/**
+ * @module client/components/ui/slider
+ * Defines the reusable slider UI primitive.
+ */
 import * as React from 'react';
 import * as SliderPrimitive from '@radix-ui/react-slider';
 

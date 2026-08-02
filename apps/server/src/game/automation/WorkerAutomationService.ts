@@ -1,3 +1,7 @@
+/**
+ * @module server/game/automation/WorkerAutomationService
+ * Defines Worker Automation Service automation behavior.
+ */
 import { ActionType } from '@app-types/shared/actions';
 import { planWorkerImprovements, type WorkerAssignment } from '@game/ai/AIWorkerPlanner';
 import type { GameInstance } from '@game/runtime/GameTypes';

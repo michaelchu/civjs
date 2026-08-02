@@ -1,4 +1,5 @@
 /**
+ * @module server/game/constants/BorderConstants
  * Border system constants ported from Freeciv
  * @reference freeciv/common/borders.c and freeciv-web implementation
  */

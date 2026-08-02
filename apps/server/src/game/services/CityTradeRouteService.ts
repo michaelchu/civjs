@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/CityTradeRouteService
+ * Provides the server-side City Trade Route Service service.
+ */
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import type { CityState, TradeRoute, TradeRouteCalculation } from '@game/cities/CityTypes';

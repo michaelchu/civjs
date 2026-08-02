@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/GameMenu
+ * Defines the Game Menu client UI component.
+ */
 import React, { useEffect, useState } from 'react';
 import { LogOut, Menu, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';

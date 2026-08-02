@@ -1,3 +1,7 @@
+/**
+ * @module server/game/simulation/expectations/ExpectationSchema
+ * Defines Expectation Schema headless simulation behavior.
+ */
 import { z } from 'zod';
 
 export const simulationDiplomaticStateSchema = z.enum([

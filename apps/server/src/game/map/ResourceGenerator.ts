@@ -1,3 +1,7 @@
+/**
+ * @module server/game/map/ResourceGenerator
+ * Implements Resource Generator map behavior.
+ */
 import { MapTile, TerrainType, ResourceType } from './MapTypes';
 
 export class ResourceGenerator {

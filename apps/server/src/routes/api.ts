@@ -1,3 +1,7 @@
+/**
+ * @module server/routes/api
+ * Registers api HTTP routes.
+ */
 import { Router } from 'express';
 import nationsRouter from './nations';
 import rulesetsRouter from './rulesets';

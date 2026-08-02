@@ -1,3 +1,7 @@
+/**
+ * @module server/network/handlers/GovernmentHandler
+ * Handles Government Handler socket events.
+ */
 import { Server, Socket } from 'socket.io';
 import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';

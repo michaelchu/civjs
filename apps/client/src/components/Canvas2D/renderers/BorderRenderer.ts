@@ -1,4 +1,5 @@
 /**
+ * @module client/components/Canvas2D/renderers/BorderRenderer
  * BorderRenderer - Renders national borders on the canvas
  * Ported from freeciv-web to modern TypeScript
  *

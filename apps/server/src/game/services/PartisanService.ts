@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/PartisanService
+ * Provides the server-side Partisan Service service.
+ */
 import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
 import type { Server as SocketServer } from 'socket.io';
 

@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIStateStore
+ * Implements AIState Store decision logic for AI-controlled players.
+ */
 import type { DatabaseProvider } from '@database';
 import { players } from '@database/schema';
 import { and, eq } from 'drizzle-orm';

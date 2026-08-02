@@ -1,3 +1,7 @@
+/**
+ * @module client/components/ui/DeleteGameDialog
+ * Defines the reusable Delete Game Dialog UI primitive.
+ */
 import React from 'react';
 import {
   Dialog,

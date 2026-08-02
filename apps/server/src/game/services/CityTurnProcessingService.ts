@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/CityTurnProcessingService
+ * Provides the server-side City Turn Processing Service service.
+ */
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 /**
  * CityTurnProcessingService - Handles city turn processing pipeline

@@ -1,4 +1,5 @@
 /**
+ * @module client/utils/playerColors
  * Player color utilities for converting between RGB objects and CSS hex strings
  * These should match the server-side color definitions
  */

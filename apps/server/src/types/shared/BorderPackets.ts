@@ -1,4 +1,5 @@
 /**
+ * @module server/types/shared/BorderPackets
  * Border system network packets for CivJS
  * These packets handle border synchronization between client and server
  */

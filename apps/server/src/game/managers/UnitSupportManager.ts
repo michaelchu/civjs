@@ -1,4 +1,5 @@
 /**
+ * @module server/game/managers/UnitSupportManager
  * Unit Support Manager - Unit upkeep cost system
  * Direct port of freeciv unit support calculations
  *

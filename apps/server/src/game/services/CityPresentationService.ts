@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/CityPresentationService
+ * Provides the server-side City Presentation Service service.
+ */
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import type { CityState } from '@game/cities/CityTypes';
 import type { PlayerState } from '@game/runtime/GameTypes';

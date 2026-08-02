@@ -1,3 +1,7 @@
+/**
+ * @module server/game/simulation/config/SimulationTypes
+ * Defines Simulation Types headless simulation behavior.
+ */
 import { z } from 'zod';
 import { isSettableAILevel, type SettableAILevel } from '@game/ai/AIProfile';
 import type { TerrainSettings } from '@game/runtime/GameTypes';

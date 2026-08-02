@@ -1,3 +1,7 @@
+/**
+ * @module server/network/handlers/CityProductionHandler
+ * Handles City Production Handler socket events.
+ */
 import { logger } from '@utils/logger';
 import { Socket } from 'socket.io';
 import type { RequirementsManager } from '@game/managers/RequirementsManager';

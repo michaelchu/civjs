@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIWonderPlanner
+ * Implements AIWonder Planner decision logic for AI-controlled players.
+ */
 import type { BuildingType, CityState } from '@game/cities/CityTypes';
 import type { Unit } from '@game/units/UnitTypes';
 import type { UnitType } from '@game/services/RulesetUnitsService';

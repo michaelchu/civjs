@@ -1,4 +1,5 @@
 /**
+ * @module server/game/orchestrators/GameService
  * Base interface for all game services following the established architecture patterns
  */
 

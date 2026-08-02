@@ -1,4 +1,5 @@
 /**
+ * @module server/game/systems/Economic/index
  * Economic System - Export barrel for the economic game system
  */
 

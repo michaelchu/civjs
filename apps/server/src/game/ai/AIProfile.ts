@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIProfile
+ * Implements AIProfile decision logic for AI-controlled players.
+ */
 export const AI_LEVELS = [
   'restricted',
   'novice',

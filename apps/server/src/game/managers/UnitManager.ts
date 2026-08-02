@@ -1,3 +1,7 @@
+/**
+ * @module server/game/managers/UnitManager
+ * Coordinates authoritative Unit Manager game state.
+ */
 import { DatabaseProvider } from '@database';
 import { units } from '@database/schema/units';
 import { games } from '@database/schema/games';

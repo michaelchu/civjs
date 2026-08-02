@@ -1,3 +1,7 @@
+/**
+ * @module client/services/GovernmentCatalog
+ * Provides the client-side Government Catalog service.
+ */
 export const getMockGovernments = () => ({
   anarchy: {
     id: 'anarchy',

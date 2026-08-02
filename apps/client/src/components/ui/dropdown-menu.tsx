@@ -1,3 +1,7 @@
+/**
+ * @module client/components/ui/dropdown-menu
+ * Defines the reusable dropdown menu UI primitive.
+ */
 'use client';
 
 import * as React from 'react';

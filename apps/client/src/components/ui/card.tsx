@@ -1,3 +1,7 @@
+/**
+ * @module client/components/ui/card
+ * Defines the reusable card UI primitive.
+ */
 import * as React from 'react';
 
 import { cn } from '@/lib/utils';

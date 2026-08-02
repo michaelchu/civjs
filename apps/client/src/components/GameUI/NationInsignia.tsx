@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/NationInsignia
+ * Defines the Nation Insignia client UI component.
+ */
 import React from 'react';
 import { cn } from '../../lib/utils';
 import { getContrastingTextColor } from '../../utils/playerColors';

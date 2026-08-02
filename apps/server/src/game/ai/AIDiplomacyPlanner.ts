@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIDiplomacyPlanner
+ * Implements AIDiplomacy Planner decision logic for AI-controlled players.
+ */
 import { amortize } from '@game/ai/AIPlanner';
 import type { FreecivAIState } from '@game/ai/AIStateStore';
 import type { CityState } from '@game/cities/CityTypes';

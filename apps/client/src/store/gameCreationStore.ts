@@ -1,3 +1,7 @@
+/**
+ * @module client/store/gameCreationStore
+ * Defines game Creation Store client state and actions.
+ */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 

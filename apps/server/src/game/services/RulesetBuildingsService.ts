@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/RulesetBuildingsService
+ * Provides the server-side Ruleset Buildings Service service.
+ */
 import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type {
   BuildingCultureRequirement,

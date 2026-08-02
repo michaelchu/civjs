@@ -1,3 +1,7 @@
+/**
+ * @module client/services/GameClient
+ * Provides the client-side Game Client service.
+ */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Socket } from 'socket.io-client';
 import { SERVER_URL } from '../config';

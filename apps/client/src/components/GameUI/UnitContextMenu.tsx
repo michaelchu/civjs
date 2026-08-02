@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/UnitContextMenu
+ * Defines the Unit Context Menu client UI component.
+ */
 import React from 'react';
 import {
   DropdownMenu,

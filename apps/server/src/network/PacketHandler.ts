@@ -1,3 +1,7 @@
+/**
+ * @module server/network/PacketHandler
+ * Coordinates Packet Handler server networking.
+ */
 /* eslint-disable complexity */
 import { Socket } from 'socket.io';
 import { AsyncLocalStorage } from 'node:async_hooks';

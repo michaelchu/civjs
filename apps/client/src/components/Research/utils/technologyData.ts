@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Research/utils/technologyData
+ * Provides research UI technology Data helpers.
+ */
 import { type Node, type Edge, MarkerType } from 'reactflow';
 import type { Technology } from '../../../types';
 import { type TechnologyNodeData } from '../TechnologyNode';

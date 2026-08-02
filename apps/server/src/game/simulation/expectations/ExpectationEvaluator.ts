@@ -1,3 +1,7 @@
+/**
+ * @module server/game/simulation/expectations/ExpectationEvaluator
+ * Defines Expectation Evaluator headless simulation behavior.
+ */
 import type { SimulationExpectations } from './ExpectationSchema';
 import {
   asArray,

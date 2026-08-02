@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIAirPlanner
+ * Implements AIAir Planner decision logic for AI-controlled players.
+ */
 import { killDesire } from '@game/ai/AIMilitaryPlanner';
 import { SINGLE_MOVE } from '@game/constants/MovementConstants';
 import type { CityState } from '@game/cities/CityTypes';

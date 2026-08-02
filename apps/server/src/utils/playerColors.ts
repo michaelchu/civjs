@@ -1,4 +1,5 @@
 /**
+ * @module server/utils/playerColors
  * Nation color system with 3-color themes for visual distinction
  * Colors are chosen to be distinct, historically appropriate, and avoid ocean-like blues
  */

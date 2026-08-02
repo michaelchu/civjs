@@ -1,3 +1,7 @@
+/**
+ * @module client/components/shared/ButtonGroup
+ * Defines the Button Group client UI component.
+ */
 import React from 'react';
 
 interface ButtonOption {

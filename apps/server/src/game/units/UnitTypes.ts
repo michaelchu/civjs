@@ -1,3 +1,7 @@
+/**
+ * @module server/game/units/UnitTypes
+ * Defines Unit Types unit behavior and contracts.
+ */
 import type {
   UnitAutomationMode,
   WorkerAutomationTask,

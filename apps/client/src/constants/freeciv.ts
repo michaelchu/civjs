@@ -1,4 +1,5 @@
 /**
+ * @module client/constants/freeciv
  * Freeciv constants for sprite matching and cell types
  * These constants are used for tileset sprite rendering and matching logic
  * Ported from freeciv-web to TypeScript

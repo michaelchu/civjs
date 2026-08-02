@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/ScoreReport
+ * Defines the Score Report client UI component.
+ */
 import React from 'react';
 import { BarChart3, Trophy } from 'lucide-react';
 import type { Player } from '../../types';

@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/CityDataService
+ * Provides the server-side City Data Service service.
+ */
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 /**
  * CityDataService - Handles city data transformation and serialization for client communication

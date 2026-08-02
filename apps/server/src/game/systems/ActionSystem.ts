@@ -1,3 +1,7 @@
+/**
+ * @module server/game/systems/ActionSystem
+ * Implements the Action System game system.
+ */
 import { logger } from '@utils/logger';
 import {
   ActionType,

@@ -1,3 +1,7 @@
+/**
+ * @module server/game/constants/SpecialistDefinitions
+ * Defines Specialist Definitions game constants.
+ */
 import classicCities from '@shared/data/rulesets/classic/cities.json';
 
 /**

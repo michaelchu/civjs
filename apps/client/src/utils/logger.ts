@@ -1,3 +1,7 @@
+/**
+ * @module client/utils/logger
+ * Provides logger client utilities.
+ */
 type ClientLogLevel = 'silent' | 'error' | 'warn' | 'info' | 'debug';
 
 const levels: Record<ClientLogLevel, number> = {

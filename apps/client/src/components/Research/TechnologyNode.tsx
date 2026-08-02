@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Research/TechnologyNode
+ * Defines the Technology Node research UI component.
+ */
 import React from 'react';
 import { Handle, Position, type NodeProps } from 'reactflow';
 import { cn } from '../../lib/utils';

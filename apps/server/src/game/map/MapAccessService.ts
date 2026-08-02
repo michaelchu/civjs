@@ -1,3 +1,7 @@
+/**
+ * @module server/game/map/MapAccessService
+ * Implements Map Access Service map behavior.
+ */
 import { logger } from '@utils/logger';
 import { PlayerState } from '@game/runtime/GameTypes';
 import { MapData, MapTile } from './MapTypes';

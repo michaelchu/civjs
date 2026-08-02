@@ -1,4 +1,5 @@
 /**
+ * @module server/game/services/TurnProcessingService
  * TurnProcessingService - Coordinates game mechanics during turn processing
  *
  * This service handles the integration between TurnManager and specific game systems

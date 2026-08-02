@@ -1,3 +1,7 @@
+/**
+ * @module server/game/map/MapTypes
+ * Implements Map Types map behavior.
+ */
 // Terrain properties from freeciv reference (gen_headers/enums/terrain_enums.def)
 export enum TerrainProperty {
   COLD = 'cold',

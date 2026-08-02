@@ -1,4 +1,5 @@
 /**
+ * @module client/utils/mapInteraction
  * Map Interaction Utilities
  * Handles mouse/touch interaction logic for unit selection and focus
  * @reference freeciv-web/javascript/control.js click events and unit selection

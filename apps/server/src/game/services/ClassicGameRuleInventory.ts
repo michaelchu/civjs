@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/ClassicGameRuleInventory
+ * Provides the server-side Classic Game Rule Inventory service.
+ */
 export type ClassicGameRuleDisposition = 'implemented' | 'partial' | 'preserved';
 
 export interface ClassicGameRuleCoverage {

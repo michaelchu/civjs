@@ -1,4 +1,5 @@
 /**
+ * @module server/game/map/terrain/HeightMapProcessor
  * Height map processing algorithms extracted from TerrainGenerator
  * @reference freeciv/server/generator/height_map.c
  * @reference freeciv/server/generator/mapgen.c

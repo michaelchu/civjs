@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/CityInfoOverlay
+ * Defines the City Info Overlay client UI component.
+ */
 import React, { useEffect, useState } from 'react';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Badge } from '../ui/badge';

@@ -1,4 +1,5 @@
 /**
+ * @module server/game/events/GameEventService
  * GameEventService - Comprehensive turn-based event system
  *
  * This service provides a general-purpose event system for turn-based triggers,

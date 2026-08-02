@@ -1,28 +1,29 @@
+/**
+ * @module server/database/index
+ * Re-exports the database server module API.
+ */
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from './schema';
 import logger from '../utils/logger';
 import { DatabaseProvider, ProductionDatabaseProvider } from './DatabaseProvider';
 
-// Database connection string. POSTGRES_URL is retained as an optional override.
+/** POSTGRES_URL remains an optional backwards-compatible connection override. */
 const connectionString =
   process.env.POSTGRES_URL ||
   process.env.DATABASE_URL ||
   'postgresql://civjs:civjs_dev@localhost:5432/civjs_dev';
 
-// Create postgres connection
-// Disable prefetch for transaction-pooling-compatible connections.
+/** PostgreSQL client configured for transaction-pooling-compatible connections. */
 const queryClient = postgres(connectionString, {
-  prepare: false, // Keep prepared statements disabled for broad connection compatibility.
+  prepare: false,
   max: 10,
   idle_timeout: 20,
   connect_timeout: 10,
 });
 
-// Create drizzle instance
 export const db = drizzle(queryClient, { schema });
 
-// Test database connection
 export async function testConnection(): Promise<boolean> {
   try {
     await queryClient`SELECT 1`;
@@ -34,15 +35,12 @@ export async function testConnection(): Promise<boolean> {
   }
 }
 
-// Close database connection
 export async function closeConnection(): Promise<void> {
   await queryClient.end();
   logger.info('Database connection closed');
 }
 
-// Create production database provider
 export const productionDatabaseProvider = new ProductionDatabaseProvider(db);
 
-// Export types and interfaces
 export type Database = typeof db;
 export { schema, DatabaseProvider, ProductionDatabaseProvider };

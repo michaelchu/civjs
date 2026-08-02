@@ -1,3 +1,7 @@
+/**
+ * @module server/game/units/UnitMovementCostService
+ * Defines Unit Movement Cost Service unit behavior and contracts.
+ */
 import { getTerrainMovementCost, SINGLE_MOVE } from '@game/constants/MovementConstants';
 import { EffectType, type EffectsManager } from '@game/managers/EffectsManager';
 import type { TerrainType } from '@game/map/MapTypes';

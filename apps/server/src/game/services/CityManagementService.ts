@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/CityManagementService
+ * Provides the server-side City Management Service service.
+ */
 import { GameInstance } from '@game/runtime/GameTypes';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { CityDataService } from '@game/services/CityDataService';

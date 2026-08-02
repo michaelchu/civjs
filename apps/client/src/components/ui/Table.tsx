@@ -1,3 +1,7 @@
+/**
+ * @module client/components/ui/Table
+ * Defines the reusable Table UI primitive.
+ */
 import React, { type ReactNode } from 'react';
 import { clsx } from 'clsx';
 

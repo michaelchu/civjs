@@ -1,3 +1,7 @@
+/**
+ * @module client/services/MapTileReducer
+ * Provides the client-side Map Tile Reducer service.
+ */
 import type { Tile } from '../types';
 
 export interface MapTileWireData {

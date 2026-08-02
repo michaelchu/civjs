@@ -1,4 +1,5 @@
 /**
+ * @module server/game/services/BorderNetworkService
  * BorderNetworkService - Handles border system network communication
  * Manages client-server synchronization for border data
  */

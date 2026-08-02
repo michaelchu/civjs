@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/CityGovernorService
+ * Provides the server-side City Governor Service service.
+ */
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import {

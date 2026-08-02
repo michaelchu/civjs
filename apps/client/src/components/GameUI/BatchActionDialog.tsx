@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/BatchActionDialog
+ * Defines the Batch Action Dialog client UI component.
+ */
 import React from 'react';
 import { Trash2, X } from 'lucide-react';
 import type { CityWorklistPreset } from '../../services/UserPreferences';

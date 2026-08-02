@@ -1,4 +1,5 @@
 /**
+ * @module server/game/map/terrain/TerrainPlacementProcessor
  * Terrain placement and distribution algorithms from freeciv
  * @reference freeciv/server/generator/mapgen.c make_terrains(), place_terrain(), rand_map_pos_characteristic()
  * Exact copies of freeciv terrain placement algorithms

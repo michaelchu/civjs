@@ -1,4 +1,5 @@
 /**
+ * @module server/game/systems/Economic/services/TaxRateService
  * TaxRateService - Handles tax rate allocation and validation
  *
  * Manages the core economic mechanic of converting trade points into

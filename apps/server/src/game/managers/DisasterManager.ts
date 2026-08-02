@@ -1,3 +1,7 @@
+/**
+ * @module server/game/managers/DisasterManager
+ * Coordinates authoritative Disaster Manager game state.
+ */
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 /**
  * Ruleset-native city disasters.

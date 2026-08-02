@@ -1,3 +1,7 @@
+/**
+ * @module client/services/UserPreferences
+ * Provides the client-side User Preferences service.
+ */
 export interface UserPreferences {
   muted: boolean;
   volume: number;

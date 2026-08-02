@@ -1,3 +1,7 @@
+/**
+ * @module server/game/events/UnitMovementAccumulator
+ * Defines Unit Movement Accumulator game event behavior and contracts.
+ */
 import type { EventTurnContext, GameEventData, UnitMovementAggregate } from './GameEventTypes';
 
 interface TurnMovementBucket {

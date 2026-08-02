@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/GameTabs
+ * Defines the Game Tabs client UI component.
+ */
 import React from 'react';
 import { Building2, Flag, FlaskConical, Landmark, Map as MapIcon } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';

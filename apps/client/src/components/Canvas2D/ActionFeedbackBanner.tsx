@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Canvas2D/ActionFeedbackBanner
+ * Defines the Action Feedback Banner canvas component.
+ */
 import { useEffect } from 'react';
 
 export interface ActionFeedback {

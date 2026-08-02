@@ -1,4 +1,5 @@
 /**
+ * @module server/shared/data/rulesets/RulesetLoader
  * Ruleset loader service for loading and validating JSON-based rulesets
  * Provides type-safe, validated access to ruleset data with synchronous loading
  */
@@ -1290,5 +1291,4 @@ export class RulesetLoader {
   }
 }
 
-// Export singleton instance for easy access
 export const rulesetLoader = RulesetLoader.getInstance();

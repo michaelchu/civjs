@@ -1,3 +1,7 @@
+/**
+ * @module server/database/schema/index
+ * Re-exports the database/schema server module API.
+ */
 // Export all schema tables and types
 export * from './users';
 export * from './games';

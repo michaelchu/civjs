@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Canvas2D/renderers/CityRenderer
+ * Implements the City Renderer canvas rendering stage.
+ */
 import type { City, MapViewport } from '../../../types';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
 import type { CityStyle, NationStyle } from '../../../services/RulesetService';

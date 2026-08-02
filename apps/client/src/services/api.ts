@@ -1,3 +1,7 @@
+/**
+ * @module client/services/api
+ * Provides the client-side api service.
+ */
 import { SERVER_URL } from '../config';
 
 /**

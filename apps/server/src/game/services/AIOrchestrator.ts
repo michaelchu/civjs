@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/AIOrchestrator
+ * Provides the server-side AIOrchestrator service.
+ */
 import type { DatabaseProvider } from '@database';
 import { FreecivAIPlayerController } from '@game/ai/AIPlayerController';
 import {

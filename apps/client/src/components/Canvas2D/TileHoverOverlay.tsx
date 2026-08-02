@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Canvas2D/TileHoverOverlay
+ * Defines the Tile Hover Overlay canvas component.
+ */
 import React from 'react';
 
 interface TileHoverOverlayProps {

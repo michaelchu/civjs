@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/GameReplayService
+ * Provides the server-side Game Replay Service service.
+ */
 import { and, asc, count, desc, eq, isNotNull, lte } from 'drizzle-orm';
 import type { DatabaseProvider } from '@database';
 import { gameTurns, games, turnEvents, turnPhases } from '@database/schema';

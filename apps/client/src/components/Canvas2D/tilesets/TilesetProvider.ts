@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Canvas2D/tilesets/TilesetProvider
+ * Defines the Tileset Provider tileset integration.
+ */
 export interface TilesetMetadata {
   id: string;
   name: string;

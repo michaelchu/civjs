@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIRecoveryPlanner
+ * Implements AIRecovery Planner decision logic for AI-controlled players.
+ */
 import type { AIUnitTask } from '@game/ai/AIStateStore';
 import type { CityState } from '@game/cities/CityTypes';
 import type { Unit } from '@game/units/UnitTypes';

@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AITargeting
+ * Implements AITargeting decision logic for AI-controlled players.
+ */
 import type { AIProfile } from '@game/ai/AIProfile';
 import type { GameInstance } from '@game/runtime/GameTypes';
 import type { Unit } from '@game/units/UnitTypes';

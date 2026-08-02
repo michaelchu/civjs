@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/ClimateManager
+ * Provides the server-side Climate Manager service.
+ */
 import { eq, sql } from 'drizzle-orm';
 import type { DatabaseProvider } from '@database';
 import { games } from '@database/schema';

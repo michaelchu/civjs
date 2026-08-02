@@ -1,4 +1,5 @@
 /**
+ * @module server/game/constants/GameConstants
  * Game Constants - Core game enumeration and constant values
  * @reference freeciv/common/fc_types.h - Output_type_id
  */

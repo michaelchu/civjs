@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/NationPresentationService
+ * Provides the server-side Nation Presentation Service service.
+ */
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 /**

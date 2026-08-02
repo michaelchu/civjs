@@ -1,3 +1,7 @@
+/**
+ * @module server/database/schema/turn-actions
+ * Defines the database schema for turn actions.
+ */
 import {
   index,
   integer,

@@ -1,3 +1,7 @@
+/**
+ * @module server/scripts/migrate
+ * Runs the migrate server task.
+ */
 /* eslint-disable no-console */
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';

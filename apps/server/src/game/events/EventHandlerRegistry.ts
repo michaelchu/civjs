@@ -1,3 +1,7 @@
+/**
+ * @module server/game/events/EventHandlerRegistry
+ * Defines Event Handler Registry game event behavior and contracts.
+ */
 import { logger } from '@utils/logger';
 import { GameEventType, type EventHandler, type GameEvent } from './GameEventTypes';
 

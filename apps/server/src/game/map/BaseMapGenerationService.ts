@@ -1,3 +1,7 @@
+/**
+ * @module server/game/map/BaseMapGenerationService
+ * Implements Base Map Generation Service map behavior.
+ */
 import { logger } from '@utils/logger';
 import { PlayerState } from '@game/runtime/GameTypes';
 import { MapData, MapTile, MapStartpos, type MapGenerationOptions } from './MapTypes';

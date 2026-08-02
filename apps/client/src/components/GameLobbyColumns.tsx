@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameLobbyColumns
+ * Defines the Game Lobby Columns client UI component.
+ */
 /* eslint-disable react-refresh/only-export-components */
 import React, { useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';

@@ -1,4 +1,5 @@
 /**
+ * @module server/game/managers/PolicyManager
  * Policy Manager - Civic Policies System (Multipliers)
  * Direct port of freeciv multipliers system from common/multipliers.c
  *

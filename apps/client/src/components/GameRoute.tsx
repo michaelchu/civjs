@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameRoute
+ * Defines the Game Route client UI component.
+ */
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';

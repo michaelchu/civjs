@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AISpecialUnitController
+ * Implements AISpecial Unit Controller decision logic for AI-controlled players.
+ */
 import { ActionType } from '@app-types/shared/actions';
 import { planAirMissions, type AirMission, type AirRefuelPoint } from '@game/ai/AIAirPlanner';
 import { planDiplomatMissions, type DiplomatMission } from '@game/ai/AIDiplomatPlanner';

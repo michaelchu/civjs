@@ -1,3 +1,7 @@
+/**
+ * @module server/types/common
+ * Declares common server contracts.
+ */
 export interface Position {
   x: number;
   y: number;

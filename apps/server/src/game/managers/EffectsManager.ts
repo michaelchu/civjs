@@ -1,4 +1,5 @@
 /**
+ * @module server/game/managers/EffectsManager
  * Effects Manager - Centralized system for calculating game effects
  * Based on freeciv common/effects.c and effects.h
  *
@@ -1009,5 +1010,4 @@ export class EffectsManager {
   }
 }
 
-// Export singleton instance
 export const effectsManager = new EffectsManager();

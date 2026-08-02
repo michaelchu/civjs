@@ -1,3 +1,7 @@
+/**
+ * @module server/game/runtime/UnitManagerFactory
+ * Defines Unit Manager Factory game runtime wiring.
+ */
 import type { DatabaseProvider } from '@database';
 import type { CityManager } from '@game/managers/CityManager';
 import type { EffectsManager } from '@game/managers/EffectsManager';

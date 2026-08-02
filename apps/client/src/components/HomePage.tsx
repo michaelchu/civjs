@@ -1,3 +1,7 @@
+/**
+ * @module client/components/HomePage
+ * Defines the Home Page client UI component.
+ */
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SERVER_URL } from '../config';

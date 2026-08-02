@@ -1,3 +1,7 @@
+/**
+ * @module server/game/events/TurnEventWriter
+ * Defines Turn Event Writer game event behavior and contracts.
+ */
 import type { DatabaseProvider } from '@database';
 import { turnEvents, type NewTurnEvent } from '@database/schema/turn-events';
 import { logger } from '@utils/logger';

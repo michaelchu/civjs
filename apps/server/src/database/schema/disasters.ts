@@ -1,4 +1,5 @@
 /**
+ * @module server/database/schema/disasters
  * Database schema for city disasters
  * Records all disaster events that affect cities during turn processing
  */

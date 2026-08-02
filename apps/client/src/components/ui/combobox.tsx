@@ -1,3 +1,7 @@
+/**
+ * @module client/components/ui/combobox
+ * Defines the reusable combobox UI primitive.
+ */
 import * as React from 'react';
 import { Check, ChevronsUpDown } from 'lucide-react';
 

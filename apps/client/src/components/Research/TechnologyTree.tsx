@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Research/TechnologyTree
+ * Defines the Technology Tree research UI component.
+ */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactFlow, {
   type Node,

@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/NotificationFeed
+ * Defines the Notification Feed client UI component.
+ */
 import React from 'react';
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';

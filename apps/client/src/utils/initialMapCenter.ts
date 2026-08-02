@@ -1,3 +1,7 @@
+/**
+ * @module client/utils/initialMapCenter
+ * Provides initial Map Center client utilities.
+ */
 import type { City, GameState, Tile, Unit } from '../types';
 
 export interface MapCenterTile {

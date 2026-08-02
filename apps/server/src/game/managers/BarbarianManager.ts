@@ -1,4 +1,5 @@
 /**
+ * @module server/game/managers/BarbarianManager
  * BarbarianManager - Manages barbarian civilizations and spawning
  *
  * This manager handles the creation, spawning, and management of barbarian

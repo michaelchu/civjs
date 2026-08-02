@@ -1,3 +1,7 @@
+/**
+ * @module server/database/schema/player-policies
+ * Defines the database schema for player policies.
+ */
 import { pgTable, uuid, varchar, integer, timestamp } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { players } from './players';

@@ -1,4 +1,5 @@
-/** Return the first unused city name from a nation's ruleset catalogue. */
+/**
+ * @module client/utils/cityNames Return the first unused city name from a nation's ruleset catalogue. */
 export function getNextNationCityName(
   cityNames: string[] | undefined,
   usedNames: Iterable<string>

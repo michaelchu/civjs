@@ -1,3 +1,7 @@
+/**
+ * @module client/services/PathfindingService
+ * Provides the client-side Pathfinding Service service.
+ */
 import { gameClient } from './GameClient';
 
 export interface PathTile {
@@ -330,5 +334,4 @@ export class PathfindingService {
   }
 }
 
-// Export singleton instance
 export const pathfindingService = PathfindingService.getInstance();

@@ -1,3 +1,7 @@
+/**
+ * @module server/database/schema/research
+ * Defines the database schema for research.
+ */
 import { pgTable, uuid, varchar, integer, timestamp } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { games } from './games';

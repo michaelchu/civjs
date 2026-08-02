@@ -1,4 +1,5 @@
 /**
+ * @module server/game/systems/Economic/EconomicManager
  * EconomicManager - Main orchestrator for the economic system
  *
  * Coordinates all economic operations including:
@@ -116,10 +117,6 @@ export class EconomicManager {
     });
   }
 
-  // ============================================================================
-  // Tax Rate Management
-  // ============================================================================
-
   /**
    * Get current tax rates for a player
    */
@@ -182,10 +179,6 @@ export class EconomicManager {
     return this.taxRateService.convertTradeToOutputs(playerId, tradePoints);
   }
 
-  // ============================================================================
-  // Treasury Management
-  // ============================================================================
-
   /**
    * Get current gold amount for a player
    */
@@ -223,10 +216,6 @@ export class EconomicManager {
   ): Promise<{ success: boolean; newBalance?: number; error?: string }> {
     return this.treasuryService.spendGold(playerId, amount, type, description, metadata);
   }
-
-  // ============================================================================
-  // Turn Processing
-  // ============================================================================
 
   /**
    * Process economic calculations for a single city
@@ -321,10 +310,6 @@ export class EconomicManager {
     return this.lastTurnSummaries.get(playerId);
   }
 
-  // ============================================================================
-  // Rush Building System
-  // ============================================================================
-
   /**
    * Calculate rush building cost for a city
    */
@@ -354,10 +339,6 @@ export class EconomicManager {
   ): Promise<{ success: boolean; error?: string }> {
     return this.treasuryService.executeRushBuilding(playerId, cityId, rushCalculation);
   }
-
-  // ============================================================================
-  // Economic Analysis
-  // ============================================================================
 
   /**
    * Get economic warnings for a player
@@ -396,10 +377,6 @@ export class EconomicManager {
       treasuryStats,
     };
   }
-
-  // ============================================================================
-  // Cleanup and Utilities
-  // ============================================================================
 
   /**
    * Reset economic data for game restart

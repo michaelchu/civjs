@@ -1,3 +1,7 @@
+/**
+ * @module server/scripts/run-headless-simulation
+ * Runs the run headless simulation server task.
+ */
 import { access, mkdir, readFile, stat } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { resolve } from 'node:path';

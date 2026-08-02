@@ -1,4 +1,5 @@
 /**
+ * @module server/game/systems/CitizenManagement/CitizenTileType
  * CitizenTileType - Represents unique combinations of tile outputs for optimization
  * @reference freeciv/common/aicore/cm.c - struct cm_tile_type
  *

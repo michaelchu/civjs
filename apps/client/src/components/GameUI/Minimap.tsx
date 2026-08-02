@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/Minimap
+ * Defines the Minimap client UI component.
+ */
 import React, { useCallback, useEffect, useRef } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { HudPanel } from './HudPanel';

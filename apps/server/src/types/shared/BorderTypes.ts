@@ -1,4 +1,5 @@
 /**
+ * @module server/types/shared/BorderTypes
  * Shared border system types for CivJS
  * These types are used across client-server communication
  * @reference freeciv/common/borders.h and port plan Phase 1.1

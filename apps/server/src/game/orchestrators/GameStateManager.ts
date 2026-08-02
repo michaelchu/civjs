@@ -1,4 +1,5 @@
 /**
+ * @module server/game/orchestrators/GameStateManager
  * GameStateManager - Handles all database operations and game state persistence
  * Extracted from GameManager.ts following the established refactoring patterns
  */

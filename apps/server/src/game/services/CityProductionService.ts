@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/CityProductionService
+ * Provides the server-side City Production Service service.
+ */
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import type { BuildingCatalog, CityState } from '@game/cities/CityTypes';

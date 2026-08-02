@@ -1,4 +1,5 @@
 /**
+ * @module server/game/map/TerrainRuleset
  * Terrain ruleset configuration for CivJS
  * @reference freeciv/data/classic/terrain.ruleset
  * @reference freeciv/common/terrain.h:136-147

@@ -1,4 +1,5 @@
 /**
+ * @module server/game/systems/Economic/types/EconomicTypes
  * Economic System Types
  * Core interfaces and types for the economic game system
  *

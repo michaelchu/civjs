@@ -1,4 +1,5 @@
 /**
+ * @module server/game/services/TurnCoordinationService
  * TurnCoordinationService - Coordinates post-turn cleanup and state updates
  *
  * This service handles the coordination of various game systems after turn processing

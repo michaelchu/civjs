@@ -1,4 +1,5 @@
 /**
+ * @module client/hooks/useKeyboardControls
  * Keyboard Controls Hook
  * Integrates KeyboardController with React and game state
  */

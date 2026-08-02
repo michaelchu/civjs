@@ -1,3 +1,7 @@
+/**
+ * @module client/components/ui/popover
+ * Defines the reusable popover UI primitive.
+ */
 import * as React from 'react';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 

@@ -1,3 +1,7 @@
+/**
+ * @module client/config/index
+ * Defines client runtime configuration.
+ */
 // Client configuration
 export const config = {
   // Server URL - use an explicit override when provided; otherwise use the local server.

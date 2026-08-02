@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/ClimateReport
+ * Defines the Climate Report client UI component.
+ */
 import React from 'react';
 import { Droplets, Mountain, Waves, Wind } from 'lucide-react';
 import type { Tile } from '../../types';

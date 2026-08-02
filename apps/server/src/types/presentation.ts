@@ -1,3 +1,7 @@
+/**
+ * @module server/types/presentation
+ * Declares presentation server contracts.
+ */
 export interface CombatPresentationCombatant {
   id: string;
   role: 'attacker' | 'defender';

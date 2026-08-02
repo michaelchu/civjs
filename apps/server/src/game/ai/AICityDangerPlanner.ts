@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AICityDangerPlanner
+ * Implements AICity Danger Planner decision logic for AI-controlled players.
+ */
 import type { AIProfile } from '@game/ai/AIProfile';
 import type { CityState } from '@game/cities/CityTypes';
 import type { GameInstance } from '@game/runtime/GameTypes';

@@ -1,4 +1,7 @@
-// Export all socket handlers for clean imports
+/**
+ * @module server/network/handlers/index
+ * Re-exports the network/handlers server module API.
+ */
 export { SocketHandler, BaseSocketHandler } from './BaseSocketHandler';
 export { ConnectionHandler } from './ConnectionHandler';
 export { GameManagementHandler } from './GameManagementHandler';

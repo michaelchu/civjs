@@ -1,4 +1,5 @@
 /**
+ * @module server/game/map/TerrainUtils
  * Terrain utility functions extracted from TerrainGenerator
  * @reference freeciv/server/generator/ various utility functions
  * Collection of reusable terrain manipulation utilities

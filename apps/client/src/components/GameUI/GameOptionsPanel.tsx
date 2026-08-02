@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/GameOptionsPanel
+ * Defines the Game Options Panel client UI component.
+ */
 import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { gameClient, type AdvisorRecommendations } from '../../services/GameClient';

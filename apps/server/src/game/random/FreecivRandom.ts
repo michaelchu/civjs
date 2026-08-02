@@ -1,3 +1,7 @@
+/**
+ * @module server/game/random/FreecivRandom
+ * Provides Freeciv Random deterministic random behavior.
+ */
 import { randomBytes } from 'node:crypto';
 
 const MAX_UINT32 = 0xffff_ffff;

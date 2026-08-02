@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIDomesticController
+ * Implements AIDomestic Controller decision logic for AI-controlled players.
+ */
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { BUILDING_TYPES } from '@game/managers/CityManager';
 import type { GameInstance } from '@game/runtime/GameTypes';

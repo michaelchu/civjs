@@ -1,3 +1,7 @@
+/**
+ * @module server/database/schema/player-turn-status
+ * Defines the database schema for player turn status.
+ */
 import { pgTable, uuid, varchar, timestamp, boolean, jsonb, integer } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { gameTurns } from './game-turns';

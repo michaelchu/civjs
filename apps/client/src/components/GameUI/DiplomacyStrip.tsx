@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/DiplomacyStrip
+ * Defines the Diplomacy Strip client UI component.
+ */
 import React from 'react';
 import { Eye, Handshake, Shield, Swords, Users } from 'lucide-react';
 import { gameClient } from '../../services/GameClient';

@@ -1,4 +1,5 @@
 /**
+ * @module client/services/KeyboardController
  * Keyboard Controller Service
  * Handles global keyboard events and maps them to unit actions
  * @reference freeciv-web/javascript/control.js map_handle_key(), global_keyboard_listener()
@@ -382,5 +383,4 @@ export class KeyboardController {
   }
 }
 
-// Export singleton instance
 export const keyboardController = new KeyboardController();

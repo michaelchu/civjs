@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AISpaceshipPlanner
+ * Implements AISpaceship Planner decision logic for AI-controlled players.
+ */
 import { BUILDING_TYPES } from '@game/managers/CityManager';
 import type { CityState } from '@game/cities/CityTypes';
 import {

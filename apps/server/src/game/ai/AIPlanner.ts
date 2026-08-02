@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIPlanner
+ * Implements AIPlanner decision logic for AI-controlled players.
+ */
 import type { CityState, BuildingType } from '@game/cities/CityTypes';
 import type { Technology } from '@game/managers/ResearchManager';
 import type { Unit } from '@game/units/UnitTypes';

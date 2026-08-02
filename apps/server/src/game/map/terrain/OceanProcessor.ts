@@ -1,4 +1,5 @@
 /**
+ * @module server/game/map/terrain/OceanProcessor
  * Ocean and water processing algorithms from freeciv
  * @reference freeciv/server/generator/mapgen.c ocean and water processing
  * Handles ocean depth smoothing, ocean type selection, and water body identification

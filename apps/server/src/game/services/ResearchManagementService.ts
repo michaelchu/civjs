@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/ResearchManagementService
+ * Provides the server-side Research Management Service service.
+ */
 import { GameInstance } from '@game/runtime/GameTypes';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import { logger } from '@utils/logger';

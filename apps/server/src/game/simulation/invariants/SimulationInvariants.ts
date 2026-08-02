@@ -1,3 +1,7 @@
+/**
+ * @module server/game/simulation/invariants/SimulationInvariants
+ * Defines Simulation Invariants headless simulation behavior.
+ */
 import {
   asArray,
   asRecord,

@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIGuardPlanner
+ * Implements AIGuard Planner decision logic for AI-controlled players.
+ */
 import type { CityState } from '@game/cities/CityTypes';
 import type { Unit } from '@game/units/UnitTypes';
 import type { UnitType } from '@game/services/RulesetUnitsService';

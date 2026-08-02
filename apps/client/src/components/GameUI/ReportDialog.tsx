@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/ReportDialog
+ * Defines the Report Dialog client UI component.
+ */
 import React from 'react';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { HudDialogContent } from './HudDialogContent';

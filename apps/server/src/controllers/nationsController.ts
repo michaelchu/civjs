@@ -1,3 +1,7 @@
+/**
+ * @module server/controllers/nationsController
+ * Handles nations Controller HTTP controller behavior.
+ */
 import { Request, Response } from 'express';
 import { RulesetLoader } from '../shared/data/rulesets/RulesetLoader';
 import { DEFAULT_RULESET } from '../shared/data/rulesets/defaultRuleset';

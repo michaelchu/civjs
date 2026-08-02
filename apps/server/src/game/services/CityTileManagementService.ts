@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/CityTileManagementService
+ * Provides the server-side City Tile Management Service service.
+ */
 import { logger } from '@utils/logger';
 import { BaseGameService } from '@game/orchestrators/GameService';
 import type { CityState, WorkableTile } from '@game/cities/CityTypes';

@@ -1,3 +1,7 @@
+/**
+ * @module server/config/index
+ * Re-exports the config server module API.
+ */
 import dotenv from 'dotenv';
 import { z } from 'zod';
 

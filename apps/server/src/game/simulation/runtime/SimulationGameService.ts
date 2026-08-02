@@ -1,3 +1,7 @@
+/**
+ * @module server/game/simulation/runtime/SimulationGameService
+ * Defines Simulation Game Service headless simulation behavior.
+ */
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { DatabaseProvider } from '@database';

@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIPlayerController
+ * Implements AIPlayer Controller decision logic for AI-controlled players.
+ */
 import { FreecivAICityController } from '@game/ai/AICityController';
 import { FreecivAIDiplomacyController } from '@game/ai/AIDiplomacyController';
 import { FreecivAIDomesticController } from '@game/ai/AIDomesticController';

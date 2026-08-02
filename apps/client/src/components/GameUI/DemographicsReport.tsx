@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/DemographicsReport
+ * Defines the Demographics Report client UI component.
+ */
 import React from 'react';
 import { BarChart3, Coins, FlaskConical, Map, Shield, Users } from 'lucide-react';
 import type { City, Player, Tile, Unit } from '../../types';

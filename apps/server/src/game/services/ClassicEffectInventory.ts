@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/ClassicEffectInventory
+ * Provides the server-side Classic Effect Inventory service.
+ */
 export type ClassicEffectDisposition = 'implemented' | 'pending';
 
 export interface ClassicEffectCoverage {

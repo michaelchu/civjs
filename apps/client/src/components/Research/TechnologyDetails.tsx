@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Research/TechnologyDetails
+ * Defines the Technology Details research UI component.
+ */
 import React from 'react';
 import { X, ExternalLink, Zap, Clock, Target } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';

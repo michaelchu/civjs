@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/HudPanel
+ * Defines the Hud Panel client UI component.
+ */
 import * as React from 'react';
 import { cn } from '../../lib/utils';
 

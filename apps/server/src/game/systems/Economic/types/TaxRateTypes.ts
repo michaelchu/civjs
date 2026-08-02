@@ -1,4 +1,5 @@
 /**
+ * @module server/game/systems/Economic/types/TaxRateTypes
  * Tax Rate System Types
  * Specific types for tax rate allocation and validation
  *

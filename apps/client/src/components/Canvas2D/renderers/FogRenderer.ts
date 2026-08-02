@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Canvas2D/renderers/FogRenderer
+ * Implements the Fog Renderer canvas rendering stage.
+ */
 import { BaseRenderer, type RenderState } from './BaseRenderer';
 
 const TILE_UNKNOWN = 0;

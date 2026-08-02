@@ -1,3 +1,7 @@
+/**
+ * @module client/services/MapSnapshotAssembler
+ * Provides the client-side Map Snapshot Assembler service.
+ */
 import type { GameState, Tile } from '../types';
 import { mapTileFromWire, type MapTileWireData } from './MapTileReducer';
 

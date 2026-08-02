@@ -1,3 +1,7 @@
+/**
+ * @module server/database/schema/turn-map-changes
+ * Defines the database schema for turn map changes.
+ */
 import { pgTable, uuid, varchar, timestamp, jsonb, integer, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { gameTurns } from './game-turns';

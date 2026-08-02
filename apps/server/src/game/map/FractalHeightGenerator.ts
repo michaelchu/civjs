@@ -1,4 +1,5 @@
 /**
+ * @module server/game/map/FractalHeightGenerator
  * Phase 4: Fractal Height Generation System
  * Advanced height map generation using diamond-square algorithm and fracture maps
  * @reference freeciv/server/generator/height_map.c and fracture_map.c

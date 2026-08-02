@@ -1,3 +1,7 @@
+/**
+ * @module server/game/map/MapGenerationUtils
+ * Implements Map Generation Utils map behavior.
+ */
 import { MapStartpos } from './MapTypes';
 
 /**

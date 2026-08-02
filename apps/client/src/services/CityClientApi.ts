@@ -1,3 +1,7 @@
+/**
+ * @module client/services/CityClientApi
+ * Provides the client-side City Client Api service.
+ */
 import type { Socket } from 'socket.io-client';
 import { useGameStore } from '../store/gameStore';
 import type { City, CityBatchAction, CityBatchResult, ProductionOption } from '../types';

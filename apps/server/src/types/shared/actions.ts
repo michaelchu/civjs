@@ -1,3 +1,7 @@
+/**
+ * @module server/types/shared/actions
+ * Declares actions server contracts.
+ */
 // Action types for the Actions & Orders System
 // @reference freeciv/common/actions.h
 

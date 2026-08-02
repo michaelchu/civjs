@@ -1,3 +1,7 @@
+/**
+ * @module client/services/RulesetService
+ * Provides the client-side Ruleset Service service.
+ */
 import { SERVER_URL } from '../config';
 
 export interface CityStyle {

@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIFerryPlanner
+ * Implements AIFerry Planner decision logic for AI-controlled players.
+ */
 import type { Unit } from '@game/units/UnitTypes';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 import type { AIUnitTask } from '@game/ai/AIStateStore';

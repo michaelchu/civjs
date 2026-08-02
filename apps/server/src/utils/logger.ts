@@ -1,3 +1,7 @@
+/**
+ * @module server/utils/logger
+ * Provides logger server utilities.
+ */
 import winston from 'winston';
 import path from 'path';
 

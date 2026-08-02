@@ -1,3 +1,7 @@
+/**
+ * @module server/game/simulation/runtime/HeadlessSimulationRunner
+ * Defines Headless Simulation Runner headless simulation behavior.
+ */
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';

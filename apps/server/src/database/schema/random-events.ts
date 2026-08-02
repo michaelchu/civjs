@@ -1,4 +1,5 @@
 /**
+ * @module server/database/schema/random-events
  * Database schema for random events log
  * General log of all random events that occur during turn processing
  */

@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Canvas2D/renderers/BaseRenderer
+ * Implements the Base Renderer canvas rendering stage.
+ */
 import type { MapViewport, Unit, City, GameState, PresentationEffect } from '../../../types';
 import type { AccessibleTile, GotoPath } from '../../../services/PathfindingService';
 import type { TilesetProvider } from '../tilesets/TilesetProvider';

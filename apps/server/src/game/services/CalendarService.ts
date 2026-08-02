@@ -1,4 +1,5 @@
 /**
+ * @module server/game/services/CalendarService
  * Calendar service implementing freeciv-compliant calendar system with fragments support
  *
  * @reference freeciv/common/calendar.c game_next_year() and calendar_text()

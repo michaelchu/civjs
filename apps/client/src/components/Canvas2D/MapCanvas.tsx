@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Canvas2D/MapCanvas
+ * Defines the Map Canvas canvas component.
+ */
 import React, { useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { MapRenderer } from './MapRenderer';

@@ -1,3 +1,7 @@
+/**
+ * @module server/routes/nations
+ * Registers nations HTTP routes.
+ */
 import { Router } from 'express';
 import { NationsController } from '../controllers/nationsController';
 

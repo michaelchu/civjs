@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Canvas2D/MapRenderer
+ * Defines the Map Renderer canvas component.
+ */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { GameState, MapViewport, Tile } from '../../types';
 import { Amplio2TilesetProvider } from './tilesets/Amplio2TilesetProvider';
@@ -24,26 +28,28 @@ export class MapRenderer {
   private tileWidth = 96;
   private tileHeight = 48;
 
-  // Tileset loader for sprite management
+  /** Sprite definitions and images shared by every rendering stage. */
   private tilesetLoader: TilesetProvider;
   private isInitialized = false;
   private isDisposed = false;
 
-  // Flag to force immediate render bypassing timing checks
+  /** Bypasses frame throttling for an explicitly requested visual update. */
   private forceImmediateRender = false;
   private pendingRenderTimeoutId: number | null = null;
 
-  // @reference freeciv-web/javascript/2dcanvas/mapview_common.js:27-36
-  // Performance timing system ported from freeciv-web
+  /**
+   * Frame-timing state compatible with the Freeciv-web map renderer.
+   * @reference freeciv-web/javascript/2dcanvas/mapview_common.js:27-36
+   */
   private lastRedrawTime = 0;
-  private MAPVIEW_REFRESH_INTERVAL = 35; // Default 35ms (~28 FPS)
+  private MAPVIEW_REFRESH_INTERVAL = 35;
   private totalDraws = 0;
   private meanTime = 0;
   private stopChecking = false;
-  private calibrateThreshold = 1000000000; // 1 billion for calibration
+  private calibrateThreshold = 1000000000;
   private isSmallScreen = false;
 
-  // Specialized renderers
+  /** Layer-specific renderers, invoked in Freeciv draw order. */
   private terrainRenderer: TerrainRenderer;
   private unitRenderer: UnitRenderer;
   private cityRenderer: CityRenderer;
@@ -54,6 +60,10 @@ export class MapRenderer {
   private fogOfWarEnabled = true;
   private currentMap: GameState['map'] = { width: 0, height: 0, tiles: {} };
 
+  /**
+   * Creates the renderer and its layer-specific stages.
+   * @reference freeciv-web/javascript/2dcanvas/mapview.js:3796
+   */
   constructor(
     ctx: CanvasRenderingContext2D,
     tilesetProvider: TilesetProvider = new Amplio2TilesetProvider(),
@@ -63,14 +73,11 @@ export class MapRenderer {
     this.tilesetLoader = tilesetProvider;
     this.setupCanvas();
 
-    // @reference freeciv-web/javascript/2dcanvas/mapview.js:3796
-    // Screen size optimization from freeciv-web
     this.isSmallScreen = window.innerWidth <= 640 || window.innerHeight <= 590;
     if (this.isSmallScreen) {
-      this.MAPVIEW_REFRESH_INTERVAL = 12; // Higher refresh rate for small screens
+      this.MAPVIEW_REFRESH_INTERVAL = 12;
     }
 
-    // Initialize specialized renderers
     this.terrainRenderer = new TerrainRenderer(
       ctx,
       this.tilesetLoader,
@@ -95,6 +102,7 @@ export class MapRenderer {
     );
   }
 
+  /** Loads the tileset and distributes its resolved graphics to each renderer. */
   async initialize(): Promise<void> {
     try {
       await this.tilesetLoader.load();
@@ -110,7 +118,6 @@ export class MapRenderer {
       this.tileWidth = tileSize.width;
       this.tileHeight = tileSize.height;
 
-      // Update tile size in all specialized renderers
       this.terrainRenderer.updateTileSize(this.tileWidth, this.tileHeight);
       this.unitRenderer.updateTileSize(this.tileWidth, this.tileHeight);
       this.cityRenderer.updateTileSize(this.tileWidth, this.tileHeight);
@@ -147,10 +154,9 @@ export class MapRenderer {
     }
   }
 
+  /** Configures the canvas for crisp pixel-art sprite rendering. */
   private setupCanvas() {
-    // Disable image smoothing for pixel-perfect sprite rendering
     this.ctx.imageSmoothingEnabled = false;
-    // Also disable webkitImageSmoothingEnabled for older browsers
     (this.ctx as any).webkitImageSmoothingEnabled = false;
     (this.ctx as any).mozImageSmoothingEnabled = false;
     (this.ctx as any).msImageSmoothingEnabled = false;
@@ -158,18 +164,19 @@ export class MapRenderer {
     this.ctx.font = '14px Arial, sans-serif';
   }
 
+  /**
+   * Renders a map snapshot in Freeciv layer order, throttling ordinary frames
+   * while allowing interaction feedback to request an immediate redraw.
+   * @reference freeciv-web/javascript/2dcanvas/mapview_common.js:522-540,688-700
+   */
   render(state: RenderState, immediate = false) {
     if (this.isDisposed) return;
 
     this.renderState = state;
     this.currentMap = state.map;
-    // @reference freeciv-web/javascript/2dcanvas/mapview_common.js:688-700
-    // Implement freeciv-web's performance timing system
     const currentTime = new Date().getTime();
     const timeSinceLastRender = currentTime - this.lastRedrawTime;
 
-    // Skip render if not enough time has passed (freeciv-web timing logic)
-    // Unless immediate render is requested (for critical updates like goto paths)
     if (
       !immediate &&
       !this.forceImmediateRender &&
@@ -238,28 +245,20 @@ export class MapRenderer {
 
     const visibleTiles = this.getVisibleTiles(mapTiles, state.viewport);
 
-    // Follow freeciv-web layer order exactly:
-    // LAYER_TERRAIN1, LAYER_TERRAIN2, LAYER_TERRAIN3, LAYER_ROADS,
-    // LAYER_SPECIAL1, LAYER_CITY1, LAYER_SPECIAL2, LAYER_UNIT, LAYER_FOG...
-
-    // LAYER_TERRAIN1-3 + LAYER_ROADS + LAYER_SPECIAL1: Render terrain layer (includes rivers + resources)
-    // Resources render in LAYER_SPECIAL1 in freeciv-web - they are NOT hidden by cities
+    /*
+     * Freeciv draws terrain and specials before borders, cities, units, fog,
+     * and interaction overlays. Keep that order so each layer occludes only
+     * the information it is permitted to hide.
+     * @reference freeciv-web/javascript/2dcanvas/mapview.js:580-720
+     */
     this.terrainRenderer.renderTerrain(state, visibleTiles);
 
-    // LAYER_SPECIAL1: Render borders before resources and other specials.
-    // @reference freeciv-web/javascript/2dcanvas/mapview.js:580-720 - Border rendering in layer order
     this.borderRenderer.render(state);
     this.terrainRenderer.renderSpecials(state, visibleTiles);
 
-    // LAYER_CITY1: Render cities layer BEFORE units (freeciv-web order)
     this.cityRenderer.renderCities(state);
 
-    // LAYER_SPECIAL2: Empty layer in our implementation (handled by specific renderers)
-    // In freeciv-web this handles airbase, buoy, etc. but not resources
-
-    // LAYER_UNIT: Render units layer ON TOP of cities. During combat, replace
-    // authoritative unit records with ephemeral visual copies so immediate
-    // server removal cannot cut off the death animation or health timeline.
+    /* During combat, preserve short-lived visual unit copies after server removal. */
     const presentationUnitOverrides =
       this.presentationEffectRenderer?.getUnitOverrides?.(state) ?? {};
     const presentationState = Object.keys(presentationUnitOverrides).length
@@ -270,25 +269,16 @@ export class MapRenderer {
       : state;
     this.unitRenderer.renderUnits(presentationState);
 
-    // Presentation effects sit above units but below fog so they cannot reveal
-    // information from an unauthorized tile.
     const hasActivePresentationEffects = this.presentationEffectRenderer?.render(state) ?? false;
     const hasActiveBorderAnimation =
       this.borderRenderer.hasActiveAnimation?.(state.reducedMotion) ?? false;
 
-    // LAYER_FOG: Freeciv draws fog after units so unseen dynamic entities
-    // cannot leak through the remembered terrain layer.
     if (this.fogOfWarEnabled) {
       this.fogRenderer.render(state);
     }
 
-    // Render paths and overlays on top of everything
     this.pathRenderer.renderPaths(state);
-
-    // Keep the selected-unit highlight above movement and path overlays.
     this.unitRenderer.renderUnitSelection(presentationState);
-
-    // Keep the selected unit and its annotation above the selection highlight.
     this.unitRenderer.renderSelectedUnit?.(presentationState);
 
     if (
@@ -303,8 +293,6 @@ export class MapRenderer {
       });
     }
 
-    // @reference freeciv-web/javascript/2dcanvas/mapview_common.js:522-540
-    // Complete timing measurement and adjust refresh interval
     const renderEnd = performance.now();
     const elapsed = renderEnd - renderStart;
 
@@ -312,13 +300,11 @@ export class MapRenderer {
     this.totalDraws++;
     this.meanTime = (this.meanTime * (this.totalDraws - 1) + elapsed) / this.totalDraws;
 
-    // Dynamic performance calibration from freeciv-web
     if (!this.stopChecking && this.totalDraws % 100 === 0) {
       this.MAPVIEW_REFRESH_INTERVAL = Math.max(12, Math.min(140, this.meanTime + 10));
 
       if (this.totalDraws > this.calibrateThreshold) {
         this.stopChecking = true;
-        // Additional adjustment for short-turn games (like freeciv-web)
         this.MAPVIEW_REFRESH_INTERVAL *= 2.2;
         this.MAPVIEW_REFRESH_INTERVAL = Math.max(40, Math.min(140, this.MAPVIEW_REFRESH_INTERVAL));
       }
@@ -449,23 +435,18 @@ export class MapRenderer {
     const canvasWidth = this.ctx.canvas?.width || viewport.width;
     const canvasHeight = this.ctx.canvas?.height || viewport.height;
 
-    // Convert canvas corners to map coordinates using canvasToMap
-    // (equivalent to base_canvas_to_map_pos).
     const corners = [
-      this.canvasToMap(0, 0, viewport), // Top-left corner (r in freeciv-web)
-      this.canvasToMap(canvasWidth, 0, viewport), // Top-right corner (s in freeciv-web)
-      this.canvasToMap(0, canvasHeight, viewport), // Bottom-left corner (t in freeciv-web)
-      this.canvasToMap(canvasWidth, canvasHeight, viewport), // Bottom-right corner (u in freeciv-web)
+      this.canvasToMap(0, 0, viewport),
+      this.canvasToMap(canvasWidth, 0, viewport),
+      this.canvasToMap(0, canvasHeight, viewport),
+      this.canvasToMap(canvasWidth, canvasHeight, viewport),
     ];
 
-    // Check if any corner is outside map bounds (same logic as freeciv-web conditional)
     return corners.some(
       corner =>
         corner.mapX < 0 || corner.mapX >= mapWidth || corner.mapY < 0 || corner.mapY >= mapHeight
     );
   }
-
-  // Helper functions copied from freeciv-web for map wrapping and boundaries
 
   /**
    * Map wrapping flags from freeciv-web map.js

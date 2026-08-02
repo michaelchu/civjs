@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/DiplomatActionEconomics
+ * Provides the server-side Diplomat Action Economics service.
+ */
 import type { CityState } from '@game/cities/CityTypes';
 import type { GameInstance } from '@game/runtime/GameTypes';
 import type { Unit } from '@game/units/UnitTypes';

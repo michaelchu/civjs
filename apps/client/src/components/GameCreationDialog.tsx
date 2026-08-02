@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameCreationDialog
+ * Defines the Game Creation Dialog client UI component.
+ */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageBackground } from './shared/PageBackground';

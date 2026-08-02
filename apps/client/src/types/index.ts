@@ -1,3 +1,7 @@
+/**
+ * @module client/types/index
+ * Declares index client contracts.
+ */
 // Basic game types
 export interface Tile {
   x: number;

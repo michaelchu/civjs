@@ -1,4 +1,5 @@
 /**
+ * @module server/game/systems/CitizenManagement/CitizenResult
  * CitizenResult - Result of citizen management optimization
  * @reference freeciv/common/aicore/cm.h - struct cm_result
  *

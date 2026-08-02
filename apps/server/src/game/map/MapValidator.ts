@@ -1,3 +1,7 @@
+/**
+ * @module server/game/map/MapValidator
+ * Implements Map Validator map behavior.
+ */
 import { MapTile, TerrainType } from './MapTypes';
 import { PlayerState } from '@game/runtime/GameTypes';
 import { logger } from '@utils/logger';

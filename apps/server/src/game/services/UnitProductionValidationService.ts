@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/UnitProductionValidationService
+ * Provides the server-side Unit Production Validation Service service.
+ */
 import type { UnitType } from '@game/services/RulesetUnitsService';
 import {
   RulesetRequirementEvaluator,

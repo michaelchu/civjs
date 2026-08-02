@@ -1,3 +1,7 @@
+/**
+ * @module server/game/cities/CityRepository
+ * Defines City Repository city behavior and contracts.
+ */
 import type { DatabaseProvider } from '@database';
 import { cities } from '@database/schema';
 import { SpecialistType } from '@game/constants/SpecialistDefinitions';

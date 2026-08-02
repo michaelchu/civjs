@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/ResearchPacing
+ * Provides the server-side Research Pacing service.
+ */
 import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
 export interface ResearchPacingSettings {

@@ -1,3 +1,7 @@
+/**
+ * @module server/database/schema/cities
+ * Defines the database schema for cities.
+ */
 import { pgTable, uuid, varchar, integer, boolean, jsonb, timestamp } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { players } from './players';

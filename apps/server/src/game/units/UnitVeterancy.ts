@@ -1,3 +1,7 @@
+/**
+ * @module server/game/units/UnitVeterancy
+ * Defines Unit Veterancy unit behavior and contracts.
+ */
 import type { VeteranLevel } from './UnitTypes';
 
 const VETERAN_LEVELS: readonly VeteranLevel[] = [

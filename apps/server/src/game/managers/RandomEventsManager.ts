@@ -1,4 +1,5 @@
 /**
+ * @module server/game/managers/RandomEventsManager
  * RandomEventsManager - Orchestrates all random events during turn processing
  *
  * This manager coordinates the various random events that occur during

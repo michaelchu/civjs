@@ -1,3 +1,7 @@
+/**
+ * @module client/components/ConnectionDialog
+ * Defines the Connection Dialog client UI component.
+ */
 import React, { useState } from 'react';
 import { gameClient } from '../services/GameClient';
 import { useGameStore } from '../store/gameStore';

@@ -1,4 +1,5 @@
 /**
+ * @module server/game/managers/CultureManager
  * Culture Manager - Implements Freeciv culture system
  *
  * Direct port of freeciv/common/culture.c and culture.h

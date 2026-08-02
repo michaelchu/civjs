@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/CityCalculationService
+ * Provides the server-side City Calculation Service service.
+ */
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 /**
  * CityCalculationService - Pure calculation methods for cities

@@ -1,3 +1,7 @@
+/**
+ * @module server/network/handlers/DiplomacyHandler
+ * Handles Diplomacy Handler socket events.
+ */
 import type { Server, Socket } from 'socket.io';
 import { BaseSocketHandler } from './BaseSocketHandler';
 import type { PacketHandler } from '../PacketHandler';

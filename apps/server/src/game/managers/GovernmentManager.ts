@@ -1,3 +1,7 @@
+/**
+ * @module server/game/managers/GovernmentManager
+ * Coordinates authoritative Government Manager game state.
+ */
 import { DatabaseProvider } from '@database';
 import { governmentChanges, players as playersTable } from '@database/schema';
 import { eq, and, desc } from 'drizzle-orm';

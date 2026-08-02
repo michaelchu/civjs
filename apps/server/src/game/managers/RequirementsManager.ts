@@ -1,4 +1,5 @@
 /**
+ * @module server/game/managers/RequirementsManager
  * Requirements Manager - Handles requirement evaluation including culture requirements
  *
  * Implements the freeciv requirements system with focus on VUT_MINCULTURE

@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/GameInstanceRecoveryService
+ * Provides the server-side Game Instance Recovery Service service.
+ */
 import { eq, sql } from 'drizzle-orm';
 import { DatabaseProvider } from '@database';
 import {

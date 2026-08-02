@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Canvas2D/renderers/FeatureRenderer
+ * Implements the Feature Renderer canvas rendering stage.
+ */
 import type { Tile, MapViewport } from '../../../types';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
 

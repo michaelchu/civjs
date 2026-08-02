@@ -1,3 +1,7 @@
+/**
+ * @module server/database/schema/games
+ * Defines the database schema for games.
+ */
 import { pgTable, uuid, varchar, timestamp, integer, jsonb } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { users } from './users';

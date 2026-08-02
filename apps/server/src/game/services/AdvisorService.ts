@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/AdvisorService
+ * Provides the server-side Advisor Service service.
+ */
 import { ActionType } from '@app-types/shared/actions';
 import { createAIProfile } from '@game/ai/AIProfile';
 import { buildAuthoritativeCityDangerAssessments } from '@game/ai/AICityDangerPlanner';

@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/ReportRail
+ * Defines the Report Rail client UI component.
+ */
 import React from 'react';
 import { Building2, Flag, FlaskConical, Landmark } from 'lucide-react';
 import { HudIconButton } from './HudIconButton';

@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/TurnDoneButton
+ * Defines the Turn Done Button client UI component.
+ */
 import React from 'react';
 import { Check, LoaderCircle } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';

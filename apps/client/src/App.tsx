@@ -1,3 +1,7 @@
+/**
+ * @module client/App
+ * Composes the client application routes.
+ */
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { HomePage } from './components/HomePage';
 import { GameCreationDialog } from './components/GameCreationDialog';

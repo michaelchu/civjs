@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/NationsPanel
+ * Defines the Nations Panel client UI component.
+ */
 import React, { useEffect, useMemo, useState } from 'react';
 import { MapPin } from 'lucide-react';
 import { gameClient } from '../../services/GameClient';

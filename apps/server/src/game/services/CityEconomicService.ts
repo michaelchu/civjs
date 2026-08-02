@@ -1,4 +1,5 @@
 /**
+ * @module server/game/services/CityEconomicService
  * CityEconomicService - Handles city-level economic calculations
  *
  * Calculates gold production and costs for individual cities, integrating with:

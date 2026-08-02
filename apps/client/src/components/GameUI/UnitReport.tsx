@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/UnitReport
+ * Defines the Unit Report client UI component.
+ */
 import React from 'react';
 import { Coins, Crosshair, Heart, Home, Shield, Swords, Wheat } from 'lucide-react';
 import type { City, Unit } from '../../types';

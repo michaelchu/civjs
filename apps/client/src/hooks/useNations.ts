@@ -1,3 +1,7 @@
+/**
+ * @module client/hooks/useNations
+ * Provides the useNations React hook.
+ */
 import { useState, useEffect, useCallback } from 'react';
 import { nationsApi, type Nation, type NationTraits, type NationLeader } from '../services/api';
 

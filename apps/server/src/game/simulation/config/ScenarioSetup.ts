@@ -1,3 +1,7 @@
+/**
+ * @module server/game/simulation/config/ScenarioSetup
+ * Defines Scenario Setup headless simulation behavior.
+ */
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import type { DatabaseProvider } from '@database';

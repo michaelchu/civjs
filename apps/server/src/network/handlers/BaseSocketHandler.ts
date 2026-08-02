@@ -1,3 +1,7 @@
+/**
+ * @module server/network/handlers/BaseSocketHandler
+ * Handles Base Socket Handler socket events.
+ */
 import { Server, Socket } from 'socket.io';
 import { PacketType } from '@app-types/packet';
 import { PacketHandler } from '../PacketHandler';

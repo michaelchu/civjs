@@ -1,3 +1,7 @@
+/**
+ * @module client/components/ui/command
+ * Defines the reusable command UI primitive.
+ */
 import * as React from 'react';
 import { Command as CommandPrimitive } from 'cmdk';
 import { SearchIcon } from 'lucide-react';

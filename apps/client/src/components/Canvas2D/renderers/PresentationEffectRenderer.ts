@@ -1,3 +1,7 @@
+/**
+ * @module client/components/Canvas2D/renderers/PresentationEffectRenderer
+ * Implements the Presentation Effect Renderer canvas rendering stage.
+ */
 import type { PresentationEffect, Unit } from '../../../types';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
 

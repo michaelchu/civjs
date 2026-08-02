@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/WarCalculator
+ * Defines the War Calculator client UI component.
+ */
 import React, { useEffect, useMemo, useState } from 'react';
 import { Crosshair, Heart, Shield, Swords, TriangleAlert } from 'lucide-react';
 import type { Unit } from '../../types';

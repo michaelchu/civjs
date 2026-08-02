@@ -1,3 +1,7 @@
+/**
+ * @module server/game/rules/ClassicIrrigationRules
+ * Defines Classic Irrigation Rules game rules.
+ */
 import type { MapTile } from '@game/managers/MapManager';
 import { isOceanTerrain } from '@game/map/TerrainUtils';
 

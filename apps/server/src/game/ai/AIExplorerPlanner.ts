@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIExplorerPlanner
+ * Implements AIExplorer Planner decision logic for AI-controlled players.
+ */
 import type { AIUnitTask } from '@game/ai/AIStateStore';
 import type { MapData, MapTile } from '@game/managers/MapManager';
 import type { PathfindingResult } from '@game/managers/PathfindingManager';

@@ -1,4 +1,5 @@
 /**
+ * @module server/game/constants/MovementConstants
  * Movement system constants
  * Implements freeciv's movement fragment system and terrain costs
  *

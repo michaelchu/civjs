@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/CivilopediaDialog
+ * Defines the Civilopedia Dialog client UI component.
+ */
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   BookOpen,

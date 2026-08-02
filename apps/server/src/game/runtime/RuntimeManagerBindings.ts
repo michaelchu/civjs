@@ -1,3 +1,7 @@
+/**
+ * @module server/game/runtime/RuntimeManagerBindings
+ * Defines Runtime Manager Bindings game runtime wiring.
+ */
 import type { CityManager } from '@game/managers/CityManager';
 import type { GovernmentManager } from '@game/managers/GovernmentManager';
 import type { ResearchManager } from '@game/managers/ResearchManager';

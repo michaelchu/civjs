@@ -1,3 +1,7 @@
+/**
+ * @module server/game/managers/GameManager
+ * Coordinates authoritative Game Manager game state.
+ */
 /* eslint-disable complexity */
 import { eq, sql } from 'drizzle-orm';
 import { Server as SocketServer } from 'socket.io';

@@ -1,3 +1,7 @@
+/**
+ * @module server/database/schema/game-turns
+ * Defines the database schema for game turns.
+ */
 import {
   pgTable,
   uuid,

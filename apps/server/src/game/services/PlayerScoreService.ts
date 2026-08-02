@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/PlayerScoreService
+ * Provides the server-side Player Score Service service.
+ */
 export interface PlayerScoreInputs {
   cities?: Array<{
     population?: number;

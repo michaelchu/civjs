@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIUnitController
+ * Implements AIUnit Controller decision logic for AI-controlled players.
+ */
 import type { GameInstance } from '@game/runtime/GameTypes';
 import type { Unit } from '@game/units/UnitTypes';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';

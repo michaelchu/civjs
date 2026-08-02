@@ -1,4 +1,5 @@
 /**
+ * @module server/game/services/UnitPresentationService
  * Presentation-only unit placement data copied from the Amplio2 reference
  * tileset's insert_utype_into_offset_arrays(). These values never participate
  * in game rules or authoritative coordinates.

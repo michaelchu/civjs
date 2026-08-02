@@ -1,3 +1,7 @@
+/**
+ * @module server/database/schema/government-changes
+ * Defines the database schema for government changes.
+ */
 import { pgTable, uuid, varchar, integer, timestamp } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { players } from './players';

@@ -1,3 +1,7 @@
+/**
+ * @module server/game/events/GameEventTypes
+ * Defines Game Event Types game event behavior and contracts.
+ */
 export enum GameEventType {
   TURN_BEGIN = 'turn_begin',
   TURN_END = 'turn_end',

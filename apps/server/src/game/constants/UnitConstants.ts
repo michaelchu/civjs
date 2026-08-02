@@ -1,4 +1,5 @@
 /**
+ * @module server/game/constants/UnitConstants
  * Unit constants - now dynamically loaded from rulesets
  * @deprecated Use RulesetUnitsService directly for new code
  * This file provides backward compatibility by re-exporting from the dynamic service

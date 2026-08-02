@@ -1,3 +1,7 @@
+/**
+ * @module server/game/map/FairIslandsService
+ * Implements Fair Islands Service map behavior.
+ */
 import { logger } from '@utils/logger';
 import { PlayerState } from '@game/runtime/GameTypes';
 import {

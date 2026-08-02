@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIDiplomacyController
+ * Implements AIDiplomacy Controller decision logic for AI-controlled players.
+ */
 import { createAIProfile } from '@game/ai/AIProfile';
 import type { AIDiplomacyMemory, FreecivAIState } from '@game/ai/AIStateStore';
 import type {

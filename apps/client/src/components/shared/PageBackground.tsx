@@ -1,3 +1,7 @@
+/**
+ * @module client/components/shared/PageBackground
+ * Defines the Page Background client UI component.
+ */
 import React from 'react';
 import { clsx } from 'clsx';
 

@@ -1,4 +1,5 @@
 /**
+ * @module server/game/services/CityHappinessService
  * CityHappinessService - Handles all city happiness calculations
  *
  * Extracted from CityManager.ts to create a dedicated service for the happiness subsystem.

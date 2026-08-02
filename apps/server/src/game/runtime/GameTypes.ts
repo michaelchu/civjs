@@ -1,3 +1,7 @@
+/**
+ * @module server/game/runtime/GameTypes
+ * Defines Game Types game runtime wiring.
+ */
 import type { AILevel, AITraits, SettableAILevel } from '@game/ai/AIProfile';
 import type { CityManager } from '@game/managers/CityManager';
 import type { BorderManager } from '@game/managers/BorderManager';

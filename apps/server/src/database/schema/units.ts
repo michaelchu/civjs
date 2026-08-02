@@ -1,3 +1,7 @@
+/**
+ * @module server/database/schema/units
+ * Defines the database schema for units.
+ */
 import { pgTable, uuid, varchar, integer, boolean, jsonb, decimal } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { players } from './players';

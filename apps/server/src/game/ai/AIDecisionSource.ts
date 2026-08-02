@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIDecisionSource
+ * Implements AIDecision Source decision logic for AI-controlled players.
+ */
 import { createAIProfile, type AIProfile } from '@game/ai/AIProfile';
 import type { GameInstance } from '@game/runtime/GameTypes';
 import { type IntegerRandomSource } from '@game/random/FreecivRandom';

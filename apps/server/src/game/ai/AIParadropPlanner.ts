@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AIParadropPlanner
+ * Implements AIParadrop Planner decision logic for AI-controlled players.
+ */
 import type { CityState } from '@game/cities/CityTypes';
 import type { MapTile } from '@game/map/MapTypes';
 import type { Unit } from '@game/units/UnitTypes';

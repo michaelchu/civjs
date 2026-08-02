@@ -1,3 +1,7 @@
+/**
+ * @module server/game/managers/CityManager
+ * Coordinates authoritative City Manager game state.
+ */
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 /* eslint-disable complexity */
 import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
@@ -65,7 +69,6 @@ export {
   type WorkableTile,
 } from '@game/cities/CityTypes';
 
-// Import the specialized services
 import { CityManagementService } from '@game/services/CityManagementService';
 import { CityTileManagementService } from '@game/services/CityTileManagementService';
 import { CityBuildingService } from '@game/services/CityBuildingService';
@@ -80,7 +83,6 @@ import {
 } from '@game/systems/CitizenManagement/CitizenParameter';
 import { OutputType } from '@game/constants/GameConstants';
 
-// Import the newly extracted services
 import {
   CityTurnProcessingService,
   type CityGameplayEvent,
@@ -97,7 +99,7 @@ import {
 } from '@game/services/SpaceshipService';
 
 export const CITY_MAP_MAX_RADIUS = 3;
-export const CITY_MAP_MAX_RADIUS_SQ = CITY_MAP_MAX_RADIUS * CITY_MAP_MAX_RADIUS + 1; // 10
+export const CITY_MAP_MAX_RADIUS_SQ = CITY_MAP_MAX_RADIUS * CITY_MAP_MAX_RADIUS + 1;
 
 // CivJS uses a stricter default than Freeciv so neighboring city centers have
 // at least two intervening tiles.
@@ -105,10 +107,12 @@ export const GAME_DEFAULT_CITYMINDIST = 3;
 export const GAME_MIN_CITYMINDIST = 1;
 export const GAME_MAX_CITYMINDIST = 11;
 
-// Following Freeciv VUT (Value Universal Type) constants
-// Reference: freeciv-web/javascript/city.js production system
-export const VUT_UTYPE = 0; // Unit type
-export const VUT_IMPROVEMENT = 1; // Building/improvement
+/**
+ * Freeciv Value Universal Type codes used by production selections.
+ * @reference freeciv-web/javascript/city.js production system
+ */
+export const VUT_UTYPE = 0;
+export const VUT_IMPROVEMENT = 1;
 
 // Helper functions for production conversion
 export function vutToProductionKind(vut: number): 'unit' | 'building' {
@@ -119,14 +123,17 @@ export function productionKindToVut(kind: 'unit' | 'building'): number {
   return kind === 'unit' ? VUT_UTYPE : VUT_IMPROVEMENT;
 }
 
-// Following Freeciv happiness feeling stages
-// Reference: freeciv-web/javascript/city.js:92-97
-export const FEELING_BASE = 0; // before any of the modifiers below
-export const FEELING_LUXURY = 1; // after luxury
-export const FEELING_EFFECT = 2; // after building effects
-export const FEELING_NATIONALITY = 3; // after citizen nationality effects
-export const FEELING_MARTIAL = 4; // after units enforce martial order
-export const FEELING_FINAL = 5; // after wonders (final result)
+/**
+ * Ordered Freeciv happiness feeling stages, from the base state through the
+ * final wonder effects.
+ * @reference freeciv-web/javascript/city.js:92-97
+ */
+export const FEELING_BASE = 0;
+export const FEELING_LUXURY = 1;
+export const FEELING_EFFECT = 2;
+export const FEELING_NATIONALITY = 3;
+export const FEELING_MARTIAL = 4;
+export const FEELING_FINAL = 5;
 
 export { SpecialistType, SPECIALIST_TYPES, type SpecialistDefinition };
 
@@ -158,14 +165,13 @@ export const BUILDING_TYPES: Record<string, BuildingType> =
  * - CityManagementService: High-level coordination
  */
 export class CityManager {
-  // Core state
   private cities: Map<string, CityState> = new Map();
   private gameId: string;
   private databaseProvider: DatabaseProvider;
   private callbacks: CityManagerCallbacks;
   private gameplayEventObserver?: (event: CityGameplayEvent) => void;
   private mapManager?: MapManager;
-  private io?: SocketServer; // Socket.IO server for emitting events
+  private io?: SocketServer;
   private validationService?: CityFoundingValidationService;
   private tileExplorationProvider?: TileExplorationProvider;
   private unitProvider: () => Map<string, Unit> = () => new Map();
@@ -176,7 +182,6 @@ export class CityManager {
    */
   private playersWithFirstCity: Set<string> = new Set();
 
-  // Specialized services
   private managementService?: CityManagementService;
   private tileManagementService?: CityTileManagementService;
   private buildingService?: CityBuildingService;
@@ -188,7 +193,6 @@ export class CityManager {
   private citiesNeedingCitizenReconciliation = new Set<string>();
   private pendingWorkedTilesByCity = new Map<string, Array<{ x: number; y: number }> | null>();
 
-  // Newly extracted services
   private turnProcessingService?: CityTurnProcessingService;
   private effectsManager: EffectsManager;
   private governmentManager?: GovernmentManager;
@@ -381,7 +385,6 @@ export class CityManager {
    * Initialize the CityManager and its services
    */
   async initialize(): Promise<void> {
-    // Initialize specialized services
     this.buildingService = new CityBuildingService(
       this.cities,
       this.databaseProvider,
@@ -436,11 +439,9 @@ export class CityManager {
       this.reconcileCitizenAssignments.bind(this)
     );
 
-    // Initialize citizen management service
     this.citizenManagementService = CitizenManagementService.getInstance();
     await this.citizenManagementService.initialize();
 
-    // Initialize optimization service (will be fully initialized after setMapManager)
     this.optimizationService = new CityOptimizationService(
       this.cities,
       this.citizenManagementService,
@@ -453,15 +454,10 @@ export class CityManager {
       this.effectsManager.getRulesetName()
     );
 
-    // setMapManager is commonly called before initialize. Rebuild the
-    // map-dependent services now that governor and optimization exist.
+    /* Rebuild map-dependent services after the governor and optimizer exist. */
     if (this.mapManager) {
       this.setMapManager(this.mapManager);
     }
-
-    // Initialize high-level coordination service
-    // Note: CityManagementService needs different constructor parameters
-    // this.managementService = new CityManagementService(...);
   }
 
   /**
@@ -506,7 +502,6 @@ export class CityManager {
       );
     });
 
-    // Initialize CityTileManagementService now that we have MapManager
     this.tileManagementService = new CityTileManagementService(
       this.cities,
       this.mapManager,
@@ -542,12 +537,10 @@ export class CityManager {
       this.calculateCityOutputs(city.id);
     }
 
-    // Update optimization service with tile management service
     if (this.optimizationService) {
       this.optimizationService.setTileManagementService(this.tileManagementService);
     }
 
-    // Initialize turn processing service now that we have all dependencies
     this.turnProcessingService = new CityTurnProcessingService({
       gameId: this.gameId,
       cities: this.cities,
@@ -606,8 +599,6 @@ export class CityManager {
     this.governmentManager = governmentManager;
   }
 
-  // === CORE CITY LIFECYCLE METHODS ===
-
   private citymindistPreventsCityOnTile(x: number, y: number): boolean {
     const minDistance = GAME_DEFAULT_CITYMINDIST;
     const topology = (this.mapManager as Partial<MapManager> | undefined)?.getTopology?.();
@@ -640,21 +631,19 @@ export class CityManager {
       };
     }
 
-    // Use the validation service if available
     if (this.validationService) {
       const validation = this.validationService.validateCityFounding(
         x,
         y,
         unit,
         playerId,
-        this.cities // Pass cities map directly
+        this.cities
       );
       if (!validation.canFound) return validation;
 
       return this.validationService.validateNoEnemyUnits(x, y, playerId, this.unitProvider());
     }
 
-    // Fallback validation logic
     if (this.citymindistPreventsCityOnTile(x, y)) {
       return {
         canFound: false,
@@ -692,7 +681,6 @@ export class CityManager {
       throw new Error('City name is already in use');
     }
 
-    // Validate city founding
     const validation = this.validateCityFounding(x, y, playerId, settlerId);
     if (!validation.canFound) {
       logger.warn(`City founding failed: ${validation.errorMessage}`, {
@@ -785,7 +773,6 @@ export class CityManager {
       }
     }
 
-    // Initialize workable tiles using the service
     if (this.tileManagementService) {
       this.tileManagementService.initializeWorkableTiles(city);
       // A newly founded city starts with its citizen working the land. Player
@@ -820,10 +807,8 @@ export class CityManager {
       ];
     }
 
-    // Calculate city outputs to ensure science and other values are properly set
     this.calculateCityOutputs(cityId);
 
-    // Save to database
     try {
       await this.saveCityToDatabase(city);
     } catch (error) {
@@ -840,7 +825,6 @@ export class CityManager {
       throw error;
     }
 
-    // Trigger callback
     this.notifyGameplayEvent({ type: 'founded', city });
     if (this.callbacks.onCityFounded) {
       this.callbacks.onCityFounded(city);
@@ -883,8 +867,6 @@ export class CityManager {
     }
   }
 
-  // === PRODUCTION METHODS ===
-
   async processCityTurn(cityId: string, currentTurn: number): Promise<void> {
     if (!this.turnProcessingService) {
       logger.warn(`Cannot process city turn - turn processing service not available`);
@@ -909,8 +891,6 @@ export class CityManager {
       city.didBuyTurn = undefined;
   }
 
-  // === PUBLIC TESTING METHODS (delegating to services) ===
-
   /**
    * Calculate granary size for a given population - delegates to CityCalculationService
    * @param population City population
@@ -931,8 +911,6 @@ export class CityManager {
     // Now properly delegate to the public method on the service
     return this.turnProcessingService.processFoodAndGrowth(city, currentTurn);
   }
-
-  // === SPECIALIST MANAGEMENT ===
 
   async changeSpecialist(
     cityId: string,
@@ -964,8 +942,6 @@ export class CityManager {
     this.calculateCityOutputs(cityId);
     return true;
   }
-
-  // === PRODUCTION QUEUE MANAGEMENT ===
 
   async addToWorklist(
     cityId: string,
@@ -1268,8 +1244,6 @@ export class CityManager {
     return rallyPoint;
   }
 
-  // === DATABASE OPERATIONS ===
-
   public inferProductionType(productionId: string | null): 'unit' | 'building' | null {
     return this.repository.inferProductionType(productionId);
   }
@@ -1312,8 +1286,6 @@ export class CityManager {
       });
     }
   }
-
-  // === CALCULATION METHODS ===
 
   public calculateDetailedHappiness(cityId: string): {
     stage: number;
@@ -1568,8 +1540,6 @@ export class CityManager {
     this.calculateCityOutputs(cityId);
   }
 
-  // === CITIZEN OPTIMIZATION METHODS ===
-
   /**
    * Optimize citizen assignments for a city using the CitizenManagement system
    * @param cityId The city to optimize
@@ -1583,7 +1553,6 @@ export class CityManager {
       return false;
     }
 
-    // Delegate to CityOptimizationService for citizen optimization
     const result = await this.optimizationService.optimizeCitizens(cityId, parameters);
     return result.success;
   }
@@ -1644,7 +1613,6 @@ export class CityManager {
       return false;
     }
 
-    // Delegate to CityOptimizationService for manual optimization
     const result = await this.optimizationService.optimizeCityManually(cityId, parameters);
     if (result.success) {
       const city = this.cities.get(cityId);
@@ -1661,17 +1629,16 @@ export class CityManager {
     const city = this.cities.get(cityId);
     if (!city) return null;
 
-    // Check if city has stored citizen parameters
     if (city.governor && (city.governor as any).citizenParameters) {
       return (city.governor as any).citizenParameters;
     }
 
-    // Return default parameters if none stored
     return CitizenParameterFactory.createDefault();
   }
 
   /**
-   * Set citizen optimization parameters for a city
+   * Sets citizen optimization parameters for a city. Until a dedicated model
+   * exists, the values are persisted alongside the city's governor settings.
    * @param cityId The city to set parameters for
    * @param parameters The optimization parameters to set
    */
@@ -1679,8 +1646,6 @@ export class CityManager {
     const city = this.cities.get(cityId);
     if (!city) return false;
 
-    // For now, we'll store parameters in the city's governor settings
-    // In the future, we might add a dedicated citizen management config
     if (!city.governor) {
       city.governor = {
         isEnabled: false,
@@ -1695,17 +1660,12 @@ export class CityManager {
       };
     }
 
-    // Store citizen parameters in a way that doesn't break the interface
-    // We'll extend the governor with additional data for now
     (city.governor as any).citizenParameters = parameters;
 
     await this.saveCityToDatabase(city);
     return true;
   }
 
-  // === SERVICE DELEGATION METHODS ===
-
-  // Delegate to tile management service
   async assignCitizenToTile(cityId: string, tileX: number, tileY: number): Promise<boolean> {
     if (!this.tileManagementService) return false;
     return this.tileManagementService.assignCitizenToTile(cityId, tileX, tileY);
@@ -1749,7 +1709,6 @@ export class CityManager {
     return this.tileManagementService.getWorkableTiles(cityId);
   }
 
-  // Delegate to building service
   canCityBuildBuilding(cityId: string, buildingId: string): boolean {
     if (!this.buildingService) return false;
     return this.buildingService.canCityBuildBuilding(cityId, buildingId);
@@ -1811,7 +1770,6 @@ export class CityManager {
     return this.buildingService.calculateBuildingMaintenanceCost(cityId);
   }
 
-  // Delegate to trade route service
   async establishTradeRoute(
     sourceCityId: string,
     partnerCityId: string,
@@ -1866,7 +1824,6 @@ export class CityManager {
 
   calculateTradeRouteValue(sourceCityId: string, partnerCityId: string): number {
     if (!this.tradeRouteService) return 0;
-    // Get city objects for the service call
     const sourceCity = this.cities.get(sourceCityId);
     const partnerCity = this.cities.get(partnerCityId);
     if (!sourceCity || !partnerCity) return 0;
@@ -1895,7 +1852,6 @@ export class CityManager {
     return removed;
   }
 
-  // Delegate to production service
   calculateBuyCost(cityId: string): {
     canBuy: boolean;
     goldCost: number;
@@ -1963,7 +1919,6 @@ export class CityManager {
     return result;
   }
 
-  // Delegate to governor service
   async configureCityGovernor(
     cityId: string,
     playerId: string,
@@ -1991,7 +1946,6 @@ export class CityManager {
     return this.governorService.getCityGovernorInfo(cityId);
   }
 
-  // Delegate to capture service
   async captureCity(
     cityId: string,
     conquerorPlayerId: string,
@@ -2099,8 +2053,6 @@ export class CityManager {
     await this.saveCityToDatabase(city);
     return true;
   }
-
-  // === UTILITY METHODS ===
 
   private async updateTradeRoutesOnPlayerChange(
     cityId: string,
@@ -2222,8 +2174,6 @@ export class CityManager {
 
     return true;
   }
-
-  // === QUERY METHODS ===
 
   public getPlayerCities(playerId: string): CityState[] {
     return Array.from(this.cities.values()).filter(city => city.playerId === playerId);
@@ -2407,8 +2357,6 @@ export class CityManager {
     const currentCityCount = this.getPlayerCityCount(playerId);
     return currentCityCount < 50; // Arbitrary limit
   }
-
-  // === GETTERS ===
 
   public getCity(cityId: string): CityState | undefined {
     return this.cities.get(cityId);
@@ -2662,8 +2610,7 @@ export class CityManager {
     return this.captureService;
   }
 
-  // === ESSENTIAL COMPATIBILITY METHODS ===
-  // Only the methods that are actually used by other parts of the system
+  /** Compatibility methods consumed by the surrounding game lifecycle. */
 
   /**
    * Cleanup method - used by GameLifecycleManager

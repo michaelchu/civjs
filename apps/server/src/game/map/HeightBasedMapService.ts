@@ -1,3 +1,7 @@
+/**
+ * @module server/game/map/HeightBasedMapService
+ * Implements Height Based Map Service map behavior.
+ */
 import { logger } from '@utils/logger';
 import { PlayerState } from '@game/runtime/GameTypes';
 import { MapData, MapTile } from './MapTypes';

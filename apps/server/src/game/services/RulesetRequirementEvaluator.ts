@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/RulesetRequirementEvaluator
+ * Provides the server-side Ruleset Requirement Evaluator service.
+ */
 import type { RulesetRequirement, RulesetRequirementRange } from '@shared/data/rulesets/schemas';
 
 export interface RulesetRequirementFacts {

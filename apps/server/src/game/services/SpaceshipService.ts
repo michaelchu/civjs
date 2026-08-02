@@ -1,3 +1,7 @@
+/**
+ * @module server/game/services/SpaceshipService
+ * Provides the server-side Spaceship Service service.
+ */
 import type { CityState } from '@game/cities/CityTypes';
 
 export const SPACESHIP_PART_LIMITS = {

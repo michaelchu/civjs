@@ -1,3 +1,7 @@
+/**
+ * @module server/types/packet
+ * Declares packet server contracts.
+ */
 import { z } from 'zod';
 export { PacketType, PACKET_NAMES, PROTOCOL_VERSION } from './shared/packetContract';
 import { PacketType } from './shared/packetContract';

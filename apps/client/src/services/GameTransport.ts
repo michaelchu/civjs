@@ -1,3 +1,7 @@
+/**
+ * @module client/services/GameTransport
+ * Provides the client-side Game Transport service.
+ */
 import { io, type Socket } from 'socket.io-client';
 
 export interface GameTransportLifecycle {

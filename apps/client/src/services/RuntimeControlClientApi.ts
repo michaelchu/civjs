@@ -1,3 +1,7 @@
+/**
+ * @module client/services/RuntimeControlClientApi
+ * Provides the client-side Runtime Control Client Api service.
+ */
 import { useGameStore } from '../store/gameStore';
 import type { GovernmentState } from '../types';
 

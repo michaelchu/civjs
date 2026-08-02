@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AITreasuryPlanner
+ * Implements AITreasury Planner decision logic for AI-controlled players.
+ */
 import type { BuildingType, CityState } from '@game/cities/CityTypes';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 import type { AITreasuryGoal } from '@game/ai/AIStateStore';

@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/TurnActionCluster
+ * Defines the Turn Action Cluster client UI component.
+ */
 import React from 'react';
 import {
   BarChart3,

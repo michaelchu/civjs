@@ -1,3 +1,7 @@
+/**
+ * @module server/game/ai/AITransportController
+ * Implements AITransport Controller decision logic for AI-controlled players.
+ */
 import { ActionType } from '@app-types/shared/actions';
 import { planFerries, scoreFerryBeachhead, type FerryAssignment } from '@game/ai/AIFerryPlanner';
 import type { AIUnitTask, FreecivAIState } from '@game/ai/AIStateStore';

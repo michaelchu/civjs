@@ -1,3 +1,7 @@
+/**
+ * @module client/components/GameUI/IntelligenceReport
+ * Defines the Intelligence Report client UI component.
+ */
 import React, { useMemo } from 'react';
 import { Eye, Flag, MapPin, Radar, ShieldAlert, Swords, Users } from 'lucide-react';
 import type { City, DiplomacyNation, Player, Tile, Unit } from '../../types';

@@ -1,4 +1,5 @@
 /**
+ * @module server/game/map/MapTopology
  * Freeciv-compatible map topology and wrapping primitives.
  *
  * CivJS stores tiles in native rectangular coordinates. This class is the

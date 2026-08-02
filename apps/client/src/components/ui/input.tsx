@@ -1,3 +1,7 @@
+/**
+ * @module client/components/ui/input
+ * Defines the reusable input UI primitive.
+ */
 import * as React from 'react';
 
 import { cn } from '@/lib/utils';
