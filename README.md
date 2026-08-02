@@ -59,11 +59,10 @@ npm run docker:down
 
 ## Local development
 
-To run the client and server directly, start PostgreSQL, Redis, and migrations
-first:
+To run the client and server directly, start PostgreSQL and migrations first:
 
 ```bash
-docker compose up -d postgres redis migrations
+docker compose up -d postgres migrations
 cp apps/server/.env.example apps/server/.env
 cp apps/client/.env.example apps/client/.env
 ```
@@ -73,7 +72,6 @@ Use these values in `apps/server/.env` for the default Docker services:
 ```dotenv
 PORT=3001
 DATABASE_URL=postgresql://civjs:civjs_secret@localhost:5432/civjs
-REDIS_URL=redis://localhost:6379
 SOCKET_CORS_ORIGIN=http://localhost:3000
 ```
 
@@ -115,8 +113,8 @@ civjs/
 
 The client renders the world map and maintains the player-facing experience.
 The server owns game rules, turn progression, and persistence. PostgreSQL
-stores games and gameplay entities; Redis supports real-time connections and
-caching.
+stores games and gameplay entities; the server's in-memory runtime and Socket.IO
+connections coordinate live play.
 
 ## Documentation
 
@@ -134,7 +132,7 @@ part of the player-facing product description.
 
 - Client: React, TypeScript, Vite, Tailwind CSS, Zustand, Socket.IO Client
 - Server: Node.js, TypeScript, Express, Socket.IO, Drizzle ORM
-- Services: PostgreSQL 16 and Redis 7
+- Services: PostgreSQL 16
 - Tooling: Docker Compose, ESLint, Prettier, Vitest, Jest, and Playwright
 
 ## Contributing

@@ -21,23 +21,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis Cache
-  redis:
-    image: redis:7-alpine
-    container_name: civjs-redis
-    ports:
-      - '6379:6379'
-    volumes:
-      - redis_data:/data
-    networks:
-      - civjs-network
-    command: redis-server --appendonly yes
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # Database Migrations
   migrations:
     build:
@@ -57,7 +40,7 @@ services:
       - ./apps/server/drizzle.config.ts:/app/drizzle.config.ts:ro
     networks:
       - civjs-network
-    restart: "no"  # Run once and exit
+    restart: 'no' # Run once and exit
 
   # Game Server
   civjs-server:
@@ -69,14 +52,11 @@ services:
       NODE_ENV: development
       PORT: 3001
       DATABASE_URL: postgresql://civjs:civjs_secret@postgres:5432/civjs
-      REDIS_URL: redis://redis:6379
       SOCKET_CORS_ORIGIN: 'http://localhost:3000'
     ports:
       - '3001:3001'
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       migrations:
         condition: service_completed_successfully
@@ -118,4 +98,3 @@ networks:
 
 volumes:
   postgres_data:
-  redis_data:

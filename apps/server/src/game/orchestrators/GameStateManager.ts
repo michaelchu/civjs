@@ -6,7 +6,6 @@
 
 import { BaseGameService } from './GameService';
 import { DatabaseProvider } from '@database';
-import { gameState } from '@database/redis';
 import { games, players } from '@database/schema';
 import { eq, sql } from 'drizzle-orm';
 import type { TerrainSettings } from '@game/runtime/GameTypes';
@@ -18,7 +17,6 @@ export interface GameStateRepository {
   loadGameFromDatabase(gameId: string): Promise<any | null>;
   persistMapData(gameId: string, mapData: any, terrainSettings?: TerrainSettings): Promise<void>;
   restoreMapDataToManager(mapManager: MapManager, mapData: any, seed: string): Promise<void>;
-  cacheGameState(gameId: string, state: any): Promise<void>;
 }
 
 export class GameStateManager extends BaseGameService implements GameStateRepository {
@@ -48,14 +46,6 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
       .insert(games)
       .values(gameData)
       .returning();
-
-    // Cache basic game data in Redis for performance
-    await this.cacheGameState(newGame.id, {
-      state: newGame.status,
-      currentTurn: newGame.currentTurn,
-      turnPhase: newGame.turnPhase,
-      playerCount: 0,
-    });
 
     this.logger.info('Game created successfully in database', { gameId: newGame.id });
     return newGame;
@@ -295,18 +285,6 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
   }
 
   /**
-   * Cache game state in Redis
-   */
-  async cacheGameState(gameId: string, state: any): Promise<void> {
-    try {
-      await gameState.setGameState(gameId, state);
-    } catch (error) {
-      this.logger.error('Failed to cache game state in Redis:', error);
-      // Don't throw - Redis caching is not critical
-    }
-  }
-
-  /**
    * Serialize map tiles for database storage
    * @reference Original GameManager.ts:833-862 serializeMapTiles()
    */
@@ -457,13 +435,6 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
 
       // Delete game (cascade should handle players)
       await this.databaseProvider.getDatabase().delete(games).where(eq(games.id, gameId));
-
-      // Clean up Redis cache
-      try {
-        await gameState.clearGameState(gameId);
-      } catch (redisError) {
-        this.logger.warn('Failed to clean up Redis cache for deleted game:', redisError);
-      }
 
       this.logger.info('Game deleted successfully from database', { gameId, deletedBy: userId });
     } catch (error) {

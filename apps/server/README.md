@@ -8,7 +8,6 @@ A modern, scalable game server for a Civilization-inspired strategy game, built 
 
 - **Real-time multiplayer** using Socket.IO
 - **PostgreSQL database** with Drizzle ORM for game persistence
-- **Redis caching** for fast game state access
 - **Docker support** for easy deployment
 - **Type-safe** with TypeScript throughout
 - **Packet-based protocol** inspired by Freeciv
@@ -19,7 +18,6 @@ A modern, scalable game server for a Civilization-inspired strategy game, built 
 - **Runtime**: Node.js 20+ with TypeScript
 - **Framework**: Express + Socket.IO
 - **Database**: PostgreSQL with Drizzle ORM
-- **Cache**: Redis with ioredis
 - **Validation**: Zod
 - **Logging**: Winston
 - **Containerization**: Docker & Docker Compose
@@ -29,7 +27,6 @@ A modern, scalable game server for a Civilization-inspired strategy game, built 
 - Node.js 20+ and npm
 - Docker and Docker Compose (for containerized setup)
 - PostgreSQL 16+ (for local development without Docker)
-- Redis 7+ (for local development without Docker)
 
 ## Quick Start with Docker
 
@@ -55,7 +52,6 @@ npm run docker:up
 This will start:
 
 - PostgreSQL on port 5432
-- Redis on port 6379
 - pgAdmin on port 5050 (admin@civjs.local / admin)
 
 4. Install dependencies:
@@ -96,20 +92,13 @@ createdb civjs_dev
 DATABASE_URL=postgresql://username:password@localhost:5432/civjs_dev
 ```
 
-3. Set up Redis:
-
-```bash
-# Make sure Redis is running
-redis-server
-```
-
-4. Run database migrations:
+3. Run database migrations:
 
 ```bash
 npm run db:push
 ```
 
-5. Start the development server:
+4. Start the development server:
 
 ```bash
 npm run dev
@@ -140,7 +129,6 @@ civjs-server/
 │   ├── config/          # Configuration management
 │   ├── database/        # Database schemas and connections
 │   │   ├── schema/      # Drizzle ORM schemas
-│   │   └── redis.ts     # Redis client and helpers
 │   ├── game/           # Game logic (to be implemented)
 │   │   ├── GameManager.ts
 │   │   ├── TurnManager.ts
@@ -173,7 +161,7 @@ The database uses the following main tables:
 ### HTTP Endpoints
 
 - `GET /health` - Health check
-- `GET /ready` - PostgreSQL and Redis readiness check
+- `GET /ready` - PostgreSQL readiness check
 - `GET /metrics` - Runtime socket and memory metrics
 - `GET /api/info` - Server information
 
@@ -210,7 +198,6 @@ Key variables:
 
 - `PORT` - Server port (default: 3000)
 - `DATABASE_URL` - PostgreSQL connection string
-- `REDIS_URL` - Redis connection string
 - `NODE_ENV` - Environment (development/production)
 - `LOG_LEVEL` - Logging level (debug/info/warn/error). Defaults to `warn`; use `info` or `debug` for gameplay diagnostics.
 

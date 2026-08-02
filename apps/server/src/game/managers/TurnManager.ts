@@ -4,7 +4,6 @@
  */
 import { logger } from '@utils/logger';
 import { DatabaseProvider } from '@database';
-import { gameState } from '@database/redis';
 import { gameTurns, games, players, turnActions } from '@database/schema';
 import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
@@ -862,13 +861,6 @@ export class TurnManager {
         })}::jsonb`,
       })
       .where(eq(games.id, this.gameId));
-
-    // Update Redis cache
-    await gameState.setGameState(this.gameId, {
-      currentTurn: this.currentTurn,
-      year: this.currentYear,
-      turnStartedAt: this.turnStartTime,
-    });
 
     // Create new turn record
     await this.createTurnRecord();

@@ -1,14 +1,6 @@
 import { TurnManager } from '@game/managers/TurnManager';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
-// Mock Redis
-jest.mock('@database/redis', () => ({
-  gameState: {
-    setGameState: jest.fn(),
-    getGameState: jest.fn(),
-  },
-}));
-
 // Mock all turn services
 jest.mock('@game/services/TurnPacketService', () => {
   return {

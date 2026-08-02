@@ -200,11 +200,8 @@ export function exitCodeForError(error: unknown): number {
 
 async function closeRuntimeConnections(): Promise<void> {
   try {
-    const [{ closeConnection }, { redis }] = await Promise.all([
-      import('@database'),
-      import('@database/redis'),
-    ]);
-    await Promise.allSettled([closeConnection(), redis.quit()]);
+    const { closeConnection } = await import('@database');
+    await closeConnection();
   } catch {
     // Preserve the simulation result; connection cleanup is best effort.
   }

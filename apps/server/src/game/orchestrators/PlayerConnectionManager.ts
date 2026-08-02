@@ -8,7 +8,6 @@ import { BaseGameService } from './GameService';
 import { logger } from '@utils/logger';
 import { DEFAULT_TAX_RATES } from '@game/systems/Economic/constants/EconomicConstants';
 import { DatabaseProvider } from '@database';
-import { gameState } from '@database/redis';
 import { games, players } from '@database/schema';
 import { eq, sql } from 'drizzle-orm';
 import { RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
@@ -174,14 +173,6 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
 
     // Track player to game mapping
     this.playerToGame.set(newPlayer.id, gameId);
-
-    // Update Redis cache
-    await gameState.setGameState(gameId, {
-      state: game.status,
-      currentTurn: game.currentTurn,
-      turnPhase: game.turnPhase,
-      playerCount: game.players.length + 1,
-    });
 
     this.logger.info('Player joined game', { gameId, playerId: newPlayer.id, userId });
 

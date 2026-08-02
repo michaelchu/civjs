@@ -21,23 +21,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis Cache
-  redis:
-    image: redis:7-alpine
-    container_name: civjs-redis
-    ports:
-      - '6379:6379'
-    volumes:
-      - redis_data:/data
-    networks:
-      - civjs-network
-    command: redis-server --appendonly yes
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # Game Server
   server:
     build:
@@ -48,14 +31,11 @@ services:
       NODE_ENV: production
       PORT: 3000
       DATABASE_URL: postgresql://civjs:civjs_secret@postgres:5432/civjs
-      REDIS_URL: redis://redis:6379
       SOCKET_CORS_ORIGIN: '*'
     ports:
       - '3000:3000'
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     networks:
       - civjs-network
@@ -69,4 +49,3 @@ networks:
 
 volumes:
   postgres_data:
-  redis_data:

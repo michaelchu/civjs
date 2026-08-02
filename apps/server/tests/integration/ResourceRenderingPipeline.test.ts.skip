@@ -18,7 +18,7 @@ describe('Resource Rendering Pipeline Integration', () => {
 
   beforeEach(async () => {
     const mockDb = mockDatabase();
-    gameManager = new GameManager(mockDb.db, mockDb.redis);
+    gameManager = new GameManager(mockDb.db);
   });
 
   describe('Complete Pipeline Validation', () => {

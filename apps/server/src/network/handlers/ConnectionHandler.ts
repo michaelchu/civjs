@@ -7,7 +7,6 @@ import { logger } from '@utils/logger';
 import { PacketHandler } from '../PacketHandler';
 import { BaseSocketHandler } from './BaseSocketHandler';
 import { PacketType, PROTOCOL_VERSION, ServerJoinReqSchema } from '@app-types/packet';
-import { sessionCache } from '@database/redis';
 import { db, type Database } from '@database';
 import { users } from '@database/schema';
 import { eq } from 'drizzle-orm';
@@ -93,7 +92,6 @@ export class ConnectionHandler extends BaseSocketHandler {
         connection.username = username;
       }
 
-      await sessionCache.setSession(socket.id, userId);
       socket.join(`player:${userId}`);
 
       handler.send(socket, PacketType.SERVER_JOIN_REPLY, {

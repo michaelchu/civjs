@@ -7,7 +7,6 @@
 import { BaseGameService } from './GameService';
 import { logger } from '@utils/logger';
 import { DatabaseProvider } from '@database';
-import { gameState } from '@database/redis';
 import {
   cities,
   games,
@@ -228,14 +227,6 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       .values(gameData)
       .returning();
 
-    // Cache basic game data in Redis for performance
-    await gameState.setGameState(newGame.id, {
-      state: newGame.status,
-      currentTurn: newGame.currentTurn,
-      turnPhase: newGame.turnPhase,
-      playerCount: 0,
-    });
-
     this.logger.info('Game created successfully', { gameId: newGame.id });
     return newGame.id;
   }
@@ -322,11 +313,6 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
 
       await this.persistAuthoritativeStreams(gameId, gameInstance);
       await this.activateGameRecord(gameId, gameInstance.turnManager.getCurrentTurn());
-      await this.updateRedisForGameStart(
-        gameId,
-        game.players.length,
-        gameInstance.turnManager.getCurrentTurn()
-      );
 
       this.onBroadcastMapData?.(gameId, gameInstance.mapManager.getMapData());
       this.onBroadcast?.(gameId, 'game-started', {
@@ -340,12 +326,6 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       this.games.delete(gameId);
       try {
         await this.markGameStartFailed(gameId, game, error);
-        await gameState.setGameState(gameId, {
-          state: 'waiting',
-          currentTurn: 0,
-          turnPhase: 'movement',
-          playerCount: game.players.length,
-        });
       } catch (recoveryError) {
         this.logger.error('Failed to persist recoverable game-start state', {
           gameId,
@@ -832,9 +812,6 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       this.games.delete(gameId);
     }
 
-    // Clear Redis cache
-    await gameState.clearGameState(gameId);
-
     // Notify all players in the game room
     this.io.to(`game:${gameId}`).emit('game_deleted', { gameId });
   }
@@ -1221,19 +1198,6 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     for (const player of databasePlayers) {
       player.gold = DEFAULT_STARTING_GOLD;
     }
-  }
-
-  private async updateRedisForGameStart(
-    gameId: string,
-    playerCount: number,
-    currentTurn: number
-  ): Promise<void> {
-    await gameState.setGameState(gameId, {
-      state: 'active',
-      currentTurn,
-      turnPhase: 'movement',
-      playerCount,
-    });
   }
 
   private buildPlayersMapFromDb(dbPlayers: any[]): Map<string, PlayerState> {

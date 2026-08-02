@@ -2,11 +2,9 @@ import { ConnectionHandler } from '@network/handlers/ConnectionHandler';
 import { PacketHandler } from '@network/PacketHandler';
 import { PacketType } from '@app-types/packet';
 import { Server, Socket } from 'socket.io';
-import { sessionCache } from '@database/redis';
 import { db } from '@database';
 
 // Mock dependencies
-jest.mock('../../../src/database/redis');
 jest.mock('../../../src/database');
 jest.mock('../../../src/utils/logger', () => ({
   logger: {
@@ -73,9 +71,6 @@ describe('ConnectionHandler', () => {
       values: jest.fn().mockReturnThis(),
       returning: jest.fn().mockResolvedValue([{ id: mockUserId }]),
     });
-
-    // Mock session cache
-    (sessionCache.setSession as jest.Mock) = jest.fn().mockResolvedValue(undefined);
   });
 
   describe('register', () => {
@@ -115,7 +110,6 @@ describe('ConnectionHandler', () => {
 
       expect(db.query.users.findFirst).toHaveBeenCalled();
       expect(mockSocket.join).toHaveBeenCalledWith(`player:${mockUserId}`);
-      expect(sessionCache.setSession).toHaveBeenCalledWith(mockSocketId, mockUserId);
 
       expect(mockPacketHandler.send).toHaveBeenCalledWith(
         mockSocket,

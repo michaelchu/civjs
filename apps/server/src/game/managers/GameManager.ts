@@ -6,7 +6,6 @@
 import { eq, sql } from 'drizzle-orm';
 import { Server as SocketServer } from 'socket.io';
 import { DatabaseProvider, productionDatabaseProvider } from '@database';
-import { gameState } from '@database/redis';
 import { games, players } from '@database/schema';
 import { logger } from '@utils/logger';
 
@@ -2242,9 +2241,6 @@ export class GameManager {
               endedAt: new Date(),
             })
             .where(eq(games.id, gameId));
-
-          // Clear Redis cache
-          await gameState.clearGameState(gameId);
         }
       }
     }

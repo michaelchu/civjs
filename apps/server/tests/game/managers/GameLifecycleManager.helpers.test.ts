@@ -1,6 +1,5 @@
 import { GameLifecycleManager } from '@game/orchestrators/GameLifecycleManager';
 import { GameStateManager } from '@game/orchestrators/GameStateManager';
-import { gameState } from '@database/redis';
 import { FreecivRandom } from '@game/random/FreecivRandom';
 
 // Minimal stubs for dependencies
@@ -177,7 +176,6 @@ describe('GameLifecycleManager helper behavior', () => {
       hostId: 'hostA',
       players: [],
     });
-    const clearGameState = jest.spyOn(gameState, 'clearGameState').mockResolvedValue(undefined);
     const io = { to: jest.fn(() => ({ emit: jest.fn() })) } as any;
     const databaseProvider = {
       getDatabase: () => ({
@@ -191,8 +189,6 @@ describe('GameLifecycleManager helper behavior', () => {
 
     expect(deleteTable).toHaveBeenCalledWith(expect.anything());
     expect(where).toHaveBeenCalled();
-    expect(clearGameState).toHaveBeenCalledWith('g1');
-    clearGameState.mockRestore();
   });
 
   test('deleteGame rejects a non-host', async () => {

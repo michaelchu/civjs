@@ -14,9 +14,8 @@ coupled, and establishes explicit boundaries before further feature growth.
 ## Current deployment assumption
 
 One Node.js process owns each live game's in-memory runtime. PostgreSQL is the
-durable authority; Redis is a cache. Do not run multiple server instances that
-can accept commands for the same game until the multi-instance milestones are
-complete.
+durable authority. Do not run multiple server instances that can accept commands
+for the same game until the multi-instance milestones are complete.
 
 This assumption must be documented in deployment configuration and preserved
 by any future autoscaling change.
@@ -145,7 +144,7 @@ GameRuntime (one fully initialized runtime per live game)
         +-- ports: persistence, broadcasting, rulesets, clock/randomness
         |
         v
-PostgreSQL / Redis / Socket.IO adapters
+PostgreSQL / Socket.IO adapters
 ```
 
 `GameRuntimeFactory` should be the sole place that creates or hydrates a game

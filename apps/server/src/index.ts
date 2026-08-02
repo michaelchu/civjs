@@ -12,7 +12,6 @@ import dotenv from 'dotenv';
 import config from './config';
 import logger from './utils/logger';
 import { testConnection, closeConnection, productionDatabaseProvider } from './database';
-import redis from './database/redis';
 import { setupSocketHandlers } from './network/SocketCoordinator';
 import apiRouter from './routes/api';
 
@@ -81,17 +80,11 @@ app.get('/health', (_req: any, res: any) => {
 });
 
 app.get('/ready', async (_req: any, res: any) => {
-  const [databaseReady, redisReady] = await Promise.all([
-    productionDatabaseProvider.testConnection(),
-    redis
-      .ping()
-      .then(() => true)
-      .catch(() => false),
-  ]);
-  const ready = databaseReady && redisReady;
+  const databaseReady = await productionDatabaseProvider.testConnection();
+  const ready = databaseReady;
   res.status(ready ? 200 : 503).json({
     status: ready ? 'ready' : 'not_ready',
-    checks: { database: databaseReady, redis: redisReady },
+    checks: { database: databaseReady },
     timestamp: new Date().toISOString(),
   });
 });
@@ -175,7 +168,6 @@ async function shutdown() {
 
   // Close database connections
   await closeConnection();
-  await redis.quit();
 
   process.exit(0);
 }

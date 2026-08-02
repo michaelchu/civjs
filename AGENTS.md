@@ -83,7 +83,7 @@ npm run db:studio
 - `shared/`: data and types shared across server subsystems
 - `controllers/`, `routes/`, `config/`, `scripts/`, `types/`, and `utils/`: supporting server code
 
-The server is authoritative for game state. PostgreSQL is used for persistence and Redis is used for caching or coordination where configured. The client communicates with the server through Socket.IO.
+The server is authoritative for game state. PostgreSQL provides durable persistence, while the process-local game runtime and Socket.IO manage live play. The client communicates with the server through Socket.IO.
 
 ## Working agreements
 
