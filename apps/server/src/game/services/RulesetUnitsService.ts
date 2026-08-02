@@ -233,10 +233,12 @@ export class RulesetUnitsService {
   }
 
   private parseVeteranNumbers(value: unknown): number[] {
-    const values = Array.isArray(value) ? value : typeof value === 'string' ? value.split(',') : [value];
-    return values
-      .map(item => Number(String(item).trim()))
-      .filter(item => Number.isFinite(item));
+    const values = Array.isArray(value)
+      ? value
+      : typeof value === 'string'
+        ? value.split(',')
+        : [value];
+    return values.map(item => Number(String(item).trim())).filter(item => Number.isFinite(item));
   }
 
   private firstValue<T>(...values: Array<T | undefined | null>): T {

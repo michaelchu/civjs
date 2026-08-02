@@ -154,10 +154,7 @@ describe('RulesetUnitsService', () => {
       'expert',
     ]);
     expect(units.diplomat?.veteranLevels?.map(level => level.powerFactor)).toEqual([
-      1,
-      1.05,
-      1.1,
-      1.15,
+      1, 1.05, 1.1, 1.15,
     ]);
     expect(units.nuclear?.veteranLevels).toEqual([
       expect.objectContaining({

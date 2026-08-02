@@ -134,10 +134,7 @@ export class VisibilityManager {
 
       const revealedTiles = revealsMap ? allMapTiles : cityTiles;
       for (const recipientId of activePlayerIds) {
-        if (
-          recipientId === playerId ||
-          this.sharedVisionProvider(recipientId).has(playerId)
-        ) {
+        if (recipientId === playerId || this.sharedVisionProvider(recipientId).has(playerId)) {
           this.grantExploredTiles(recipientId, revealedTiles);
         }
       }

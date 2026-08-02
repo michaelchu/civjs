@@ -96,7 +96,10 @@ describe('VisibilityManager', () => {
         mapManager,
         new EffectsManager('civ2civ3')
       );
-      const cityTiles = [{ x: 2, y: 3 }, { x: 17, y: 16 }];
+      const cityTiles = [
+        { x: 2, y: 3 },
+        { x: 17, y: 16 },
+      ];
       c2c3Visibility.setPlayerBuildingsProvider(playerId => {
         if (playerId === 'apollo-owner') return new Set(['apollo_program']);
         if (playerId === 'internet-owner') return new Set(['internet']);
@@ -116,9 +119,7 @@ describe('VisibilityManager', () => {
 
       expect(c2c3Visibility.getExploredTiles('apollo-owner').size).toBe(mapWidth * mapHeight);
       expect(c2c3Visibility.getExploredTiles('apollo-ally').size).toBe(mapWidth * mapHeight);
-      expect(c2c3Visibility.getExploredTiles('internet-owner')).toEqual(
-        new Set(['2,3', '17,16'])
-      );
+      expect(c2c3Visibility.getExploredTiles('internet-owner')).toEqual(new Set(['2,3', '17,16']));
       expect(c2c3Visibility.getExploredTiles('unaffected')).toEqual(new Set());
       expect(c2c3Visibility.getVisibleTiles('apollo-owner')).toEqual(new Set());
 

@@ -43,8 +43,8 @@ export function bindCoreManagerProviders(input: {
     isAI: players.get(playerId)?.isAI === true,
     aiLevel: players.get(playerId)?.aiLevel,
   }));
-  unitManager.setPlayerGovernmentProvider(playerId =>
-    governmentManager.getPlayerGovernment(playerId)?.currentGovernment
+  unitManager.setPlayerGovernmentProvider(
+    playerId => governmentManager.getPlayerGovernment(playerId)?.currentGovernment
   );
   researchManager.setPlayerBuildingsProvider(playerBuildings);
   researchManager.setTechnologyLossHandler(async playerId => {

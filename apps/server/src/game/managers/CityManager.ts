@@ -2189,9 +2189,7 @@ export class CityManager {
   ): Array<{ x: number; y: number; visionRadiusSq: number }> {
     const playerCities = this.getCitiesByPlayer(playerId);
     const playerBuildings = new Set(playerCities.flatMap(city => city.buildings ?? []));
-    const worldBuildings = new Set(
-      [...this.cities.values()].flatMap(city => city.buildings ?? [])
-    );
+    const worldBuildings = new Set([...this.cities.values()].flatMap(city => city.buildings ?? []));
     const playerTechs = new Set(this.playerTechsProvider(playerId));
 
     return playerCities.map(city => ({
