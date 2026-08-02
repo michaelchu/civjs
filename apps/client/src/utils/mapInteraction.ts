@@ -5,7 +5,7 @@
  * @reference freeciv-web/javascript/control.js click events and unit selection
  */
 
-import type { Unit } from '../types';
+import type { City, Unit } from '../types';
 
 export interface MapClickResult {
   action: 'select' | 'focus' | 'goto' | 'context' | 'none';
@@ -20,6 +20,38 @@ export interface ClickOptions {
   altKey: boolean;
   button: number; // 0=left, 2=right
   isGotoMode: boolean;
+}
+
+/**
+ * Find the unit that gets the city-click shortcut. Units that cannot act are
+ * intentionally excluded so the city remains reachable when a stack is on
+ * top of it.
+ */
+export function findSelectableCityUnit(
+  unitsAtTile: Unit[],
+  city: City | undefined,
+  currentPlayerId: string
+): Unit | null {
+  if (!city) return null;
+
+  return (
+    unitsAtTile.find(unit => {
+      if (unit.playerId !== currentPlayerId || unit.transportedBy) return false;
+      if (unit.doneMoving || unit.movesLeft <= 0) return false;
+      if (typeof unit.activity === 'string' && unit.activity.toLowerCase() !== 'idle') {
+        return false;
+      }
+      return true;
+    }) ?? null
+  );
+}
+
+export function findCityAtTile(
+  cities: Record<string, City>,
+  tileX: number,
+  tileY: number
+): City | undefined {
+  return Object.values(cities).find(city => city.x === tileX && city.y === tileY);
 }
 
 /**
@@ -63,11 +95,15 @@ export function determineMapClickAction(
     return result;
   }
 
-  // Determine which unit to select based on current focus and click behavior
-  const selectedUnit = determineUnitToSelect(playerUnitsAtTile, currentFocus, options.shiftKey);
-
   result.action = options.shiftKey ? 'focus' : 'select';
-  result.unitIds = selectedUnit ? [selectedUnit.id] : [];
+  if (options.shiftKey) {
+    // Shift-clicking a tile selects/toggles the complete friendly stack.
+    result.unitIds = playerUnitsAtTile.map(unit => unit.id);
+  } else {
+    // Determine which unit to select based on current focus and click behavior
+    const selectedUnit = determineUnitToSelect(playerUnitsAtTile, currentFocus, false);
+    result.unitIds = selectedUnit ? [selectedUnit.id] : [];
+  }
 
   return result;
 }
@@ -84,7 +120,8 @@ function determineUnitToSelect(
   if (unitsAtTile.length === 0) return null;
   if (unitsAtTile.length === 1) return unitsAtTile[0];
 
-  // If shift-clicking, just return the first unit for multi-select
+  // This branch is retained for callers that use the helper directly. The
+  // public click result now returns the complete stack for shift-clicking.
   if (isShiftClick) {
     return unitsAtTile[0];
   }
@@ -124,12 +161,9 @@ export function shouldIgnoreClick(
 ): boolean {
   const now = Date.now();
 
-  // Check cooldown period
-  if (now - lastClickTime < cooldownMs) {
-    return true;
-  }
-
-  // Check if clicking same tile too quickly
+  // The reference client only applies this cooldown to repeated orders on
+  // the same tile. A broad time-only check makes a city or tile-info click
+  // disappear after any unrelated preceding interaction.
   if (
     lastClickTile &&
     lastClickTile.x === currentTile.x &&

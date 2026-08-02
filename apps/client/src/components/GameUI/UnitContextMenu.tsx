@@ -31,6 +31,8 @@ import {
   Crosshair,
   Compass,
   Bot,
+  Building2,
+  Info,
 } from 'lucide-react';
 import type { Unit } from '../../types';
 import { ActionType } from '../../types/shared/actions';
@@ -40,6 +42,10 @@ interface UnitContextMenuProps {
   position: { x: number; y: number } | null;
   onClose: () => void;
   onActionSelect: (action: ActionType, targetX?: number, targetY?: number) => void;
+  onShowCity?: () => void;
+  onShowTileInfo?: () => void;
+  onSelectAllOnTile?: () => void;
+  onSelectSameType?: () => void;
 }
 
 interface UnitActionInfo {
@@ -62,6 +68,10 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
   position,
   onClose,
   onActionSelect,
+  onShowCity,
+  onShowTileInfo,
+  onSelectAllOnTile,
+  onSelectSameType,
 }) => {
   if (!unit || !position) {
     return null;
@@ -404,6 +414,21 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
 
   const availableActions = getAvailableActions(unit);
 
+  const contextActions: Array<{
+    name: string;
+    icon: React.ComponentType<{ className?: string }>;
+    onSelect: () => void;
+  }> = [
+    ...(onShowCity ? [{ name: 'Show City', icon: Building2, onSelect: onShowCity }] : []),
+    ...(onShowTileInfo ? [{ name: 'Tile Info', icon: Info, onSelect: onShowTileInfo }] : []),
+    ...(onSelectAllOnTile
+      ? [{ name: 'Select All on Tile', icon: Compass, onSelect: onSelectAllOnTile }]
+      : []),
+    ...(onSelectSameType
+      ? [{ name: 'Select Same Type', icon: Compass, onSelect: onSelectSameType }]
+      : []),
+  ];
+
   const handleActionClick = (action: ActionType) => {
     onActionSelect(action);
     onClose();
@@ -467,6 +492,21 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
           zIndex: 1000,
         }}
       >
+        {contextActions.map((contextAction, index) => (
+          <React.Fragment key={contextAction.name}>
+            {index > 0 && <DropdownMenuSeparator />}
+            <DropdownMenuItem
+              onClick={() => {
+                contextAction.onSelect();
+                onClose();
+              }}
+            >
+              <contextAction.icon className="mr-2 h-4 w-4" />
+              {contextAction.name}
+            </DropdownMenuItem>
+          </React.Fragment>
+        ))}
+        {contextActions.length > 0 && <DropdownMenuSeparator />}
         {availableActions.map((actionInfo, index) => renderMenuItem(actionInfo, index))}
       </DropdownMenuContent>
     </DropdownMenu>

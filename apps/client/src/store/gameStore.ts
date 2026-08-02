@@ -66,6 +66,8 @@ interface GameStore extends GameState {
   updateGameState: (partialState: Partial<GameState>) => void;
   setViewport: (viewport: Partial<MapViewport>) => void;
   selectUnit: (unitId: string | null) => void;
+  selectUnits: (unitIds: string[]) => void;
+  toggleUnits: (unitIds: string[]) => void;
   selectCity: (cityId: string | null) => void;
 
   // Multi-unit focus actions
@@ -195,15 +197,58 @@ export const useGameStore = create<GameStore>()(
     },
 
     selectUnit: (unitId: string | null) => {
-      set({
+      set(state => ({
         selectedUnitId: unitId,
+        selectedCityId: unitId ? null : state.selectedCityId,
         // Sync with focus system for backward compatibility
         focusedUnits: unitId ? [unitId] : [],
+      }));
+    },
+
+    selectUnits: (unitIds: string[]) => {
+      const state = get();
+      const validUnitIds = unitIds.filter(unitId =>
+        canFocusUnit(state.units[unitId], state.currentPlayerId)
+      );
+      set({
+        selectedUnitId: validUnitIds[0] ?? null,
+        selectedCityId: null,
+        focusedUnits: validUnitIds,
+        lastFocusedUnit: state.focusedUnits[0] ?? null,
+      });
+    },
+
+    toggleUnits: (unitIds: string[]) => {
+      const state = get();
+      const validUnitIds = unitIds.filter(unitId =>
+        canFocusUnit(state.units[unitId], state.currentPlayerId)
+      );
+      if (validUnitIds.length === 0) return;
+
+      const currentFocus = state.focusedUnits;
+      const allSelected = validUnitIds.every(unitId => currentFocus.includes(unitId));
+      const nextFocus = allSelected
+        ? currentFocus.filter(unitId => !validUnitIds.includes(unitId))
+        : [...currentFocus, ...validUnitIds.filter(unitId => !currentFocus.includes(unitId))];
+
+      set({
+        selectedUnitId: nextFocus[0] ?? null,
+        selectedCityId: null,
+        focusedUnits: nextFocus,
+        lastFocusedUnit: currentFocus[0] ?? null,
       });
     },
 
     selectCity: (cityId: string | null) => {
-      set({ selectedCityId: cityId });
+      set(
+        cityId
+          ? {
+              selectedCityId: cityId,
+              selectedUnitId: null,
+              focusedUnits: [],
+            }
+          : { selectedCityId: null }
+      );
     },
 
     // Research actions

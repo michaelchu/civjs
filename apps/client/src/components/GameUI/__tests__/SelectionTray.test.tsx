@@ -126,6 +126,18 @@ describe('SelectionTray', () => {
     expect(screen.getByRole('button', { name: 'Go to' })).toBeDisabled();
   });
 
+  it('keeps foreign-unit action dialogs read-only', () => {
+    const foreignUnit = { ...unit, playerId: 'player-2' };
+    useGameStore.setState({
+      selectedUnitId: 'unit-1',
+      focusedUnits: ['unit-1'],
+      units: { 'unit-1': foreignUnit },
+    });
+    render(<SelectionTray />);
+
+    expect(screen.getByRole('button', { name: 'More unit actions' })).toBeDisabled();
+  });
+
   it('shows queued order controls when the unit has a command queue', () => {
     useGameStore.setState({
       selectedUnitId: 'unit-1',

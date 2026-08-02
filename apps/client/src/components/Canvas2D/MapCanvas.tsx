@@ -9,6 +9,7 @@ import { ActionFeedbackBanner, type ActionFeedback } from './ActionFeedbackBanne
 import { UnitContextMenu } from '../GameUI/UnitContextMenu';
 import { CityNameDialog } from '../GameUI/CityNameDialog';
 import { CityInfoOverlay } from '../GameUI/CityInfoOverlay';
+import { TileInfoOverlay } from '../GameUI/TileInfoOverlay';
 import type { Unit, City, MapViewport } from '../../types';
 import { ActionType } from '../../types/shared/actions';
 import { gameClient } from '../../services/GameClient';
@@ -16,8 +17,9 @@ import { useNation } from '../../hooks/useNations';
 import { pathfindingService, type GotoPath } from '../../services/PathfindingService';
 import {
   determineMapClickAction,
+  findCityAtTile,
+  findSelectableCityUnit,
   getUnitsAtTile,
-  shouldIgnoreClick,
   type ClickOptions,
 } from '../../utils/mapInteraction';
 import {
@@ -35,6 +37,24 @@ interface MapCanvasProps {
   height: number;
   rulesetName?: string;
 }
+
+type SelectionDragMode = 'left' | 'right' | null;
+interface SelectionRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+const getSelectionRect = (
+  start: { x: number; y: number },
+  end: { x: number; y: number }
+): SelectionRect => ({
+  left: Math.min(start.x, end.x),
+  top: Math.min(start.y, end.y),
+  width: Math.abs(end.x - start.x),
+  height: Math.abs(end.y - start.y),
+});
 
 export const MapCanvas: React.FC<MapCanvasProps> = ({
   width,
@@ -60,7 +80,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const [contextMenu, setContextMenu] = useState<{
     unit: Unit;
     position: { x: number; y: number };
+    city?: City;
   } | null>(null);
+  const [tileInfoPosition, setTileInfoPosition] = useState<{ x: number; y: number } | null>(null);
+  const [selectionRect, setSelectionRect] = useState<SelectionRect | null>(null);
   const [actionFeedback, setActionFeedback] = useState<ActionFeedback | null>(null);
   const dismissActionFeedback = useCallback(() => setActionFeedback(null), []);
 
@@ -112,9 +135,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const hasReceivedUnitSnapshot = useGameStore(state => state.hasReceivedUnitSnapshot);
   const setViewport = useGameStore(state => state.setViewport);
   const selectUnit = useGameStore(state => state.selectUnit);
+  const selectUnits = useGameStore(state => state.selectUnits);
+  const toggleUnits = useGameStore(state => state.toggleUnits);
   const selectCity = useGameStore(state => state.selectCity);
   const cityOverlay = useCityOverlayController(cities, selectCity);
-  const addToFocus = useGameStore(state => state.addToFocus);
   const currentPlayer = players[currentPlayerId];
   const { nation: currentNation } = useNation(currentPlayer?.nation ?? '', rulesetName);
   const suggestedCityName = useMemo(() => {
@@ -123,6 +147,55 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       Object.values(cities).map(city => city.name)
     );
   }, [cities, currentNation]);
+
+  const clearMapSelection = useCallback(() => {
+    selectUnit(null);
+    selectCity(null);
+    setSelectedUnit(null);
+  }, [selectCity, selectUnit]);
+
+  const openCityInfo = useCallback(
+    (city: City) => {
+      setContextMenu(null);
+      setSelectedUnit(null);
+      selectUnit(null);
+      cityOverlay.open(city);
+    },
+    [cityOverlay, selectUnit]
+  );
+
+  const openTileInfo = useCallback((x: number, y: number) => {
+    setContextMenu(null);
+    setTileInfoPosition({ x, y });
+  }, []);
+
+  const selectUnitsAndMirror = useCallback(
+    (unitIds: string[]) => {
+      selectUnits(unitIds);
+      const state = useGameStore.getState();
+      setSelectedUnit(state.focusedUnits[0] ? (state.units[state.focusedUnits[0]] ?? null) : null);
+    },
+    [selectUnits]
+  );
+
+  const toggleUnitsAndMirror = useCallback(
+    (unitIds: string[]) => {
+      toggleUnits(unitIds);
+      const state = useGameStore.getState();
+      setSelectedUnit(state.focusedUnits[0] ? (state.units[state.focusedUnits[0]] ?? null) : null);
+    },
+    [toggleUnits]
+  );
+
+  const openUnitContextMenu = useCallback(
+    (unit: Unit, position: { x: number; y: number }, city?: City) => {
+      if (unit.playerId !== currentPlayerId) return;
+      setContextMenu({ unit, position, city });
+      selectUnit(unit.id);
+      setSelectedUnit(unit);
+    },
+    [currentPlayerId, selectUnit]
+  );
 
   useEffect(() => {
     const unit = selectedUnitId ? units[selectedUnitId] : undefined;
@@ -141,15 +214,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     };
   }, [currentPlayerId, selectedUnitId, units]);
 
-  // Track click state for multi-select
-  const lastClickTime = useRef<number>(0);
-  const lastClickTile = useRef<{ x: number; y: number } | null>(null);
-
   // Handle keyboard-triggered actions
   useEffect(() => {
     const handleActivateGoto = (event: CustomEvent) => {
       const { unit } = event.detail;
-      if (unit && focusedUnits.includes(unit.id)) {
+      if (unit && unit.playerId === currentPlayerId && focusedUnits.includes(unit.id)) {
         setGotoMode({
           active: true,
           unit,
@@ -162,7 +231,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
     const handleShowActionDialog = (event: CustomEvent) => {
       const { unit } = event.detail;
-      if (!unit || !canvasRef.current) return;
+      if (!unit || unit.playerId !== currentPlayerId || !canvasRef.current) return;
       const bounds = canvasRef.current.getBoundingClientRect();
       setSelectedUnit(unit);
       selectUnit(unit.id);
@@ -177,7 +246,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
     const handleActivateTargetAction = (event: CustomEvent) => {
       const { unit, action } = event.detail;
-      if (!unit || !action) return;
+      if (!unit || unit.playerId !== currentPlayerId || !action) return;
       setSelectedUnit(unit);
       selectUnit(unit.id);
       setTargetActionMode({ unit, action });
@@ -219,7 +288,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         handleShowCityNameDialog as EventListener
       );
     };
-  }, [focusedUnits, selectUnit, setGotoMode]);
+  }, [currentPlayerId, focusedUnits, selectUnit, setGotoMode]);
 
   // Handle mouse and touch events - copied from freeciv-web 2D canvas behavior
   const [isDragging, setIsDragging] = useState(false);
@@ -588,6 +657,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const currentRenderViewport = useRef(viewport);
   const dragRenderFrame = useRef<number | null>(null);
   const dragStartTime = useRef<number>(0);
+  const selectionDragMode = useRef<SelectionDragMode>(null);
+  const rightDragHandled = useRef(false);
+  const lastTouchTap = useRef<{ x: number; y: number; time: number } | null>(null);
   const DRAG_THRESHOLD = 5; // pixels
   const LONG_PRESS_MS = 500; // touch and hold duration to emulate right-click
   const longPressTimeoutRef = useRef<number | null>(null);
@@ -824,12 +896,163 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     [selectUnit, targetActionOptions]
   );
 
+  const selectUnitsInCanvasRect = useCallback(
+    (start: { x: number; y: number }, end: { x: number; y: number }) => {
+      const renderer = rendererRef.current;
+      if (!renderer) return;
+
+      const left = Math.min(start.x, end.x);
+      const right = Math.max(start.x, end.x);
+      const top = Math.min(start.y, end.y);
+      const bottom = Math.max(start.y, end.y);
+      const xSamples = new Set<number>([left, right]);
+      const ySamples = new Set<number>([top, bottom]);
+
+      for (let x = left; x <= right; x += 12) xSamples.add(x);
+      for (let y = top; y <= bottom; y += 12) ySamples.add(y);
+
+      const selectedIds = new Set<string>();
+      const activeViewport = useGameStore.getState().viewport;
+      for (const canvasX of xSamples) {
+        for (const canvasY of ySamples) {
+          const mapPos = renderer.canvasToMap(canvasX, canvasY, activeViewport);
+          const tileX = Math.floor(mapPos.mapX);
+          const tileY = Math.floor(mapPos.mapY);
+          getUnitsAtTile(units, tileX, tileY)
+            .filter(unit => unit.playerId === currentPlayerId)
+            .forEach(unit => selectedIds.add(unit.id));
+        }
+      }
+
+      if (selectedIds.size > 0) {
+        selectUnitsAndMirror([...selectedIds]);
+      } else {
+        clearMapSelection();
+      }
+    },
+    [clearMapSelection, currentPlayerId, selectUnitsAndMirror, units]
+  );
+
+  const handleMapTileClick = useCallback(
+    (
+      tileX: number,
+      tileY: number,
+      options: ClickOptions,
+      position?: { x: number; y: number },
+      showContextMenuOnCityUnit = false
+    ) => {
+      const unitsAtTile = getUnitsAtTile(units, tileX, tileY);
+      const cityAtTile = findCityAtTile(cities, tileX, tileY);
+
+      // City clicks have priority over the visual unit stack. A movable
+      // friendly unit exposes a context menu (which includes Show City),
+      // while a blocked/foreign stack falls through to the city dialog.
+      if (!options.shiftKey && cityAtTile) {
+        const cityUnit = findSelectableCityUnit(unitsAtTile, cityAtTile, currentPlayerId);
+        if (cityUnit) {
+          if (showContextMenuOnCityUnit && position) {
+            openUnitContextMenu(cityUnit, position, cityAtTile);
+          } else {
+            selectUnit(cityUnit.id);
+            setSelectedUnit(cityUnit);
+          }
+          return;
+        }
+
+        if (!options.isGotoMode) {
+          openCityInfo(cityAtTile);
+          return;
+        }
+      }
+
+      const clickResult = determineMapClickAction(
+        tileX,
+        tileY,
+        unitsAtTile,
+        currentPlayerId,
+        focusedUnits,
+        options
+      );
+
+      switch (clickResult.action) {
+        case 'select':
+          if (clickResult.unitIds.length > 0) {
+            const unit = units[clickResult.unitIds[0]];
+            if (unit) {
+              selectUnit(unit.id);
+              setSelectedUnit(unit);
+            }
+          } else {
+            // Foreign units remain inspectable, but their action tray is
+            // read-only because SelectionTray gates actions by ownership.
+            const foreignUnit = unitsAtTile.find(unit => unit.playerId !== currentPlayerId);
+            if (foreignUnit) {
+              selectUnit(foreignUnit.id);
+              setSelectedUnit(foreignUnit);
+            } else {
+              clearMapSelection();
+            }
+          }
+          break;
+        case 'focus':
+          toggleUnitsAndMirror(clickResult.unitIds);
+          break;
+        case 'none':
+          break;
+      }
+    },
+    [
+      cities,
+      clearMapSelection,
+      currentPlayerId,
+      focusedUnits,
+      openCityInfo,
+      openUnitContextMenu,
+      selectUnit,
+      toggleUnitsAndMirror,
+      units,
+    ]
+  );
+
+  const handleRightClickTile = useCallback(
+    (tileX: number, tileY: number, position: { x: number; y: number }) => {
+      const unitsAtTile = getUnitsAtTile(units, tileX, tileY);
+      const cityAtTile = findCityAtTile(cities, tileX, tileY);
+      const ownUnit = unitsAtTile.find(unit => unit.playerId === currentPlayerId);
+
+      if (ownUnit) {
+        openUnitContextMenu(ownUnit, position, cityAtTile);
+        return;
+      }
+
+      // Reference behavior: right-clicking an empty or foreign tile recenters
+      // the map rather than opening an actionable foreign-unit menu.
+      setContextMenu(null);
+      document.dispatchEvent(
+        new CustomEvent('center-map-on-tile', { detail: { x: tileX, y: tileY } })
+      );
+    },
+    [cities, currentPlayerId, openUnitContextMenu, units]
+  );
+
   const handleMouseDown = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
-      if (event.button !== 0) return; // Only handle left mouse button
-
       const canvas = canvasRef.current;
       if (!canvas) return;
+
+      // Middle-click is the reference client's direct tile-info shortcut.
+      if (event.button === 1) {
+        const rect = canvas.getBoundingClientRect();
+        const canvasX = event.clientX - rect.left;
+        const canvasY = event.clientY - rect.top;
+        const mapPos = rendererRef.current?.canvasToMap(canvasX, canvasY, viewport);
+        if (mapPos) openTileInfo(Math.floor(mapPos.mapX), Math.floor(mapPos.mapY));
+        event.preventDefault();
+        return;
+      }
+
+      if (event.button !== 0 && event.button !== 2) return;
+
       const slideViewport = cancelCameraSlide();
       const interactionViewport = slideViewport ?? viewport;
 
@@ -839,6 +1062,15 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
       // Close context menu if open
       setContextMenu(null);
+      rightDragHandled.current = false;
+
+      selectionDragMode.current =
+        event.button === 2 || (event.altKey && !event.shiftKey && !event.ctrlKey)
+          ? event.button === 2
+            ? 'right'
+            : 'left'
+          : null;
+      setSelectionRect(null);
 
       // Record drag start for potential drag operation
       dragStart.current = { x: canvasX, y: canvasY };
@@ -848,7 +1080,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
       // Don't immediately set dragging - wait for actual movement
     },
-    [cancelCameraSlide, viewport]
+    [cancelCameraSlide, openTileInfo, viewport]
   );
 
   const handleMouseMove = useCallback(
@@ -860,17 +1092,20 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       const canvasX = event.clientX - rect.left;
       const canvasY = event.clientY - rect.top;
 
-      // Check if we should start dragging
-      if (!isDragging && dragStartTime.current > 0) {
-        const dragDistance = Math.sqrt(
-          Math.pow(canvasX - dragStart.current.x, 2) + Math.pow(canvasY - dragStart.current.y, 2)
-        );
+      const dragDistance = Math.hypot(canvasX - dragStart.current.x, canvasY - dragStart.current.y);
+      const isAreaSelection = selectionDragMode.current !== null;
 
-        if (dragDistance > DRAG_THRESHOLD) {
-          setIsDragging(true);
-          canvas.style.cursor = 'move';
-        }
+      // Check if we should start dragging or selecting a rectangle.
+      if (!isDragging && dragStartTime.current > 0 && dragDistance > DRAG_THRESHOLD) {
+        setIsDragging(true);
+        canvas.style.cursor = isAreaSelection ? 'crosshair' : 'move';
       }
+
+      if (isAreaSelection && dragStartTime.current > 0 && dragDistance > DRAG_THRESHOLD) {
+        setSelectionRect(getSelectionRect(dragStart.current, { x: canvasX, y: canvasY }));
+        return;
+      }
+      if (isAreaSelection) return;
 
       // Handle tile hover detection when not dragging
       if (!isDragging) {
@@ -928,6 +1163,27 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       const canvasX = event.clientX - rect.left;
       const canvasY = event.clientY - rect.top;
 
+      const areaMode = selectionDragMode.current;
+      const areaWasDragged =
+        areaMode !== null &&
+        (isDragging ||
+          Math.hypot(canvasX - dragStart.current.x, canvasY - dragStart.current.y) >
+            DRAG_THRESHOLD);
+
+      if (areaMode) {
+        if (areaWasDragged) {
+          selectUnitsInCanvasRect(dragStart.current, { x: canvasX, y: canvasY });
+          rightDragHandled.current = areaMode === 'right';
+        }
+        selectionDragMode.current = null;
+        setSelectionRect(null);
+        setIsDragging(false);
+        canvas.style.cursor = 'crosshair';
+        dragStartTime.current = 0;
+        event.preventDefault();
+        return;
+      }
+
       // If we were dragging, handle the drag end
       if (isDragging) {
         canvas.style.cursor = 'crosshair';
@@ -977,51 +1233,13 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           isGotoMode: false,
         };
 
-        // Check click cooldown to prevent rapid clicking
-        if (
-          shouldIgnoreClick(lastClickTime.current, lastClickTile.current, { x: tileX, y: tileY })
-        ) {
-          dragStartTime.current = 0;
-          return;
-        }
-
-        const unitsAtTile = getUnitsAtTile(units, tileX, tileY);
-        const clickResult = determineMapClickAction(
+        handleMapTileClick(
           tileX,
           tileY,
-          unitsAtTile,
-          currentPlayerId,
-          focusedUnits,
-          clickOptions
+          clickOptions,
+          { x: event.clientX, y: event.clientY },
+          true
         );
-
-        // Update click tracking
-        lastClickTime.current = Date.now();
-        lastClickTile.current = { x: tileX, y: tileY };
-
-        // Handle the click result
-        switch (clickResult.action) {
-          case 'select':
-            if (clickResult.unitIds.length > 0) {
-              selectUnit(clickResult.unitIds[0]);
-              setSelectedUnit(units[clickResult.unitIds[0]] as Unit);
-            } else {
-              selectUnit(null);
-              setSelectedUnit(null);
-            }
-            break;
-
-          case 'focus':
-            if (clickResult.unitIds.length > 0) {
-              addToFocus(clickResult.unitIds[0], true);
-              setSelectedUnit(units[clickResult.unitIds[0]] as Unit);
-            }
-            break;
-
-          case 'none':
-            // No action needed
-            break;
-        }
       }
 
       // Reset drag tracking
@@ -1030,16 +1248,13 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     [
       isDragging,
       setViewport,
-      selectUnit,
-      addToFocus,
-      units,
+      handleMapTileClick,
+      selectUnitsInCanvasRect,
       viewport,
       gotoMode.active,
       executeGoto,
       targetActionMode,
       executeTargetAction,
-      currentPlayerId,
-      focusedUnits,
     ]
   );
 
@@ -1060,6 +1275,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
       // Close any open context menu
       setContextMenu(null);
+      selectionDragMode.current = null;
+      setSelectionRect(null);
 
       // Prepare drag like mouse: don't set dragging until we move beyond threshold
       setIsDragging(false);
@@ -1086,28 +1303,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           if (gotoMode.active) {
             deactivateGotoMode();
           } else if (rendererRef.current) {
-            // Open unit context menu or city info at touch position
+            // Emulate the reference right-click behavior on long press.
             const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, interactionViewport);
             const tileX = Math.floor(mapPos.mapX);
             const tileY = Math.floor(mapPos.mapY);
-
-            const unitAtPosition = Object.values(units).find(
-              unit => unit.x === tileX && unit.y === tileY
-            );
-            const cityAtPosition = Object.values(cities).find(
-              city => city.x === tileX && city.y === tileY
-            );
-
-            if (unitAtPosition) {
-              setContextMenu({
-                unit: unitAtPosition as Unit,
-                position: { x: touch.clientX, y: touch.clientY },
-              });
-              selectUnit(unitAtPosition.id);
-              setSelectedUnit(unitAtPosition as Unit);
-            } else if (cityAtPosition) {
-              cityOverlay.open(cityAtPosition as City);
-            }
+            handleRightClickTile(tileX, tileY, { x: touch.clientX, y: touch.clientY });
           }
         }
       }, LONG_PRESS_MS);
@@ -1115,16 +1315,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       // Prevent default to avoid page scrolling
       event.preventDefault();
     },
-    [
-      cancelCameraSlide,
-      viewport,
-      gotoMode.active,
-      deactivateGotoMode,
-      units,
-      cities,
-      selectUnit,
-      cityOverlay,
-    ]
+    [cancelCameraSlide, viewport, gotoMode.active, deactivateGotoMode, handleRightClickTile]
   );
 
   const handleTouchMove = useCallback(
@@ -1250,17 +1441,33 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         } else if (targetActionMode) {
           void executeTargetAction(tileX, tileY);
         } else {
-          // Normal selection
-          const unitAtPosition = Object.values(units).find(
-            unit => unit.x === tileX && unit.y === tileY
+          const now = Date.now();
+          const previousTap = lastTouchTap.current;
+          const isDoubleTap = Boolean(
+            previousTap &&
+            now - previousTap.time < 350 &&
+            previousTap.x === tileX &&
+            previousTap.y === tileY
           );
 
-          if (unitAtPosition) {
-            selectUnit(unitAtPosition.id);
-            setSelectedUnit(unitAtPosition as Unit);
+          if (isDoubleTap) {
+            openTileInfo(tileX, tileY);
+            lastTouchTap.current = null;
           } else {
-            selectUnit(null);
-            setSelectedUnit(null);
+            lastTouchTap.current = { x: tileX, y: tileY, time: now };
+            handleMapTileClick(
+              tileX,
+              tileY,
+              {
+                shiftKey: false,
+                ctrlKey: false,
+                altKey: false,
+                button: 0,
+                isGotoMode: false,
+              },
+              { x: tapClientX, y: tapClientY },
+              true
+            );
           }
         }
       }
@@ -1281,8 +1488,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       executeGoto,
       targetActionMode,
       executeTargetAction,
-      selectUnit,
-      units,
+      handleMapTileClick,
+      openTileInfo,
     ]
   );
 
@@ -1300,6 +1507,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const handleContextMenu = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
       event.preventDefault(); // Prevent browser context menu
+
+      if (rightDragHandled.current) {
+        rightDragHandled.current = false;
+        return;
+      }
 
       // If in goto mode, right-click cancels it
       if (gotoMode.active) {
@@ -1324,45 +1536,15 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       const tileX = Math.floor(mapPos.mapX);
       const tileY = Math.floor(mapPos.mapY);
 
-      // Find unit at right-clicked position
-      const unitAtPosition = Object.values(units).find(
-        unit => unit.x === tileX && unit.y === tileY
-      );
-
-      // Find city at right-clicked position
-      const cityAtPosition = Object.values(cities).find(
-        city => city.x === tileX && city.y === tileY
-      );
-
-      if (unitAtPosition) {
-        // Show context menu for the unit
-        setContextMenu({
-          unit: unitAtPosition as Unit,
-          position: { x: event.clientX, y: event.clientY },
-        });
-        selectUnit(unitAtPosition.id);
-        setSelectedUnit(unitAtPosition as Unit);
-      } else if (cityAtPosition) {
-        // Show info overlay for the city
-        cityOverlay.open(cityAtPosition as City);
-      }
+      handleRightClickTile(tileX, tileY, { x: event.clientX, y: event.clientY });
     },
-    [
-      selectUnit,
-      units,
-      cities,
-      viewport,
-      gotoMode.active,
-      deactivateGotoMode,
-      cityOverlay,
-      targetActionMode,
-    ]
+    [viewport, gotoMode.active, deactivateGotoMode, targetActionMode, handleRightClickTile]
   );
 
   // Handle unit action selection
   const handleActionSelect = useCallback(
     async (action: ActionType, targetX?: number, targetY?: number) => {
-      if (!selectedUnit) return;
+      if (!selectedUnit || selectedUnit.playerId !== currentPlayerId) return;
 
       // Special handling for GOTO action - enter interactive mode
       if (action === ActionType.GOTO) {
@@ -1483,7 +1665,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         });
       }
     },
-    [selectedUnit]
+    [currentPlayerId, selectedUnit]
   );
 
   // Close context menu when clicking elsewhere
@@ -1563,7 +1745,29 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
   // Global mouse up handler to catch mouse up events outside the canvas
   useEffect(() => {
-    const handleGlobalMouseUp = () => {
+    const handleGlobalMouseUp = (event: MouseEvent) => {
+      if (selectionDragMode.current && canvasRef.current) {
+        const canvas = canvasRef.current;
+        const rect = canvas.getBoundingClientRect();
+        const canvasX = event.clientX - rect.left;
+        const canvasY = event.clientY - rect.top;
+        const areaMode = selectionDragMode.current;
+        const wasDragged =
+          isDragging ||
+          Math.hypot(canvasX - dragStart.current.x, canvasY - dragStart.current.y) > DRAG_THRESHOLD;
+
+        if (wasDragged) {
+          selectUnitsInCanvasRect(dragStart.current, { x: canvasX, y: canvasY });
+          rightDragHandled.current = areaMode === 'right';
+        }
+        selectionDragMode.current = null;
+        setSelectionRect(null);
+        setIsDragging(false);
+        canvas.style.cursor = 'crosshair';
+        dragStartTime.current = 0;
+        return;
+      }
+
       if (isDragging && rendererRef.current) {
         const canvas = canvasRef.current;
         if (canvas) {
@@ -1596,10 +1800,27 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       document.addEventListener('mouseup', handleGlobalMouseUp);
       return () => document.removeEventListener('mouseup', handleGlobalMouseUp);
     }
-  }, [isDragging, setViewport]);
+  }, [isDragging, selectUnitsInCanvasRect, setViewport]);
 
   // Removed zoom functionality to match freeciv-web 2D canvas behavior
   // Freeciv-web's 2D renderer does not support zoom - only the WebGL renderer does
+
+  const contextCity = contextMenu
+    ? (contextMenu.city ?? findCityAtTile(cities, contextMenu.unit.x, contextMenu.unit.y))
+    : undefined;
+  const contextTileUnits = contextMenu
+    ? getUnitsAtTile(units, contextMenu.unit.x, contextMenu.unit.y)
+    : [];
+  const contextOwnedUnits = contextTileUnits.filter(unit => unit.playerId === currentPlayerId);
+  const tileInfoTile = tileInfoPosition
+    ? (map.tiles[`${tileInfoPosition.x},${tileInfoPosition.y}`] ?? null)
+    : null;
+  const tileInfoUnits = tileInfoPosition
+    ? getUnitsAtTile(units, tileInfoPosition.x, tileInfoPosition.y)
+    : [];
+  const tileInfoCity = tileInfoPosition
+    ? findCityAtTile(cities, tileInfoPosition.x, tileInfoPosition.y)
+    : undefined;
 
   return (
     <div className="relative overflow-hidden bg-blue-900 w-full h-full">
@@ -1637,6 +1858,13 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           </button>
         </div>
       )}
+      {selectionRect && (
+        <div
+          aria-label="Unit selection area"
+          className="pointer-events-none absolute z-20 border border-cyan-200/90 bg-cyan-300/15"
+          style={selectionRect}
+        />
+      )}
       <canvas
         ref={canvasRef}
         aria-label="World map"
@@ -1664,6 +1892,24 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           position={contextMenu.position}
           onClose={handleCloseContextMenu}
           onActionSelect={handleActionSelect}
+          onShowCity={contextCity ? () => openCityInfo(contextCity) : undefined}
+          onShowTileInfo={() => openTileInfo(contextMenu.unit.x, contextMenu.unit.y)}
+          onSelectAllOnTile={
+            contextOwnedUnits.length > 1
+              ? () => selectUnitsAndMirror(contextOwnedUnits.map(unit => unit.id))
+              : undefined
+          }
+          onSelectSameType={
+            contextOwnedUnits.filter(unit => unit.unitTypeId === contextMenu.unit.unitTypeId)
+              .length > 1
+              ? () =>
+                  selectUnitsAndMirror(
+                    contextOwnedUnits
+                      .filter(unit => unit.unitTypeId === contextMenu.unit.unitTypeId)
+                      .map(unit => unit.id)
+                  )
+              : undefined
+          }
         />
       )}
 
@@ -1718,6 +1964,18 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         }}
         onSetRallyPoint={(cityId, rallyPoint) => gameClient.setCityRallyPoint(cityId, rallyPoint)}
       />
+
+      {tileInfoPosition && (
+        <TileInfoOverlay
+          tile={tileInfoTile}
+          x={tileInfoPosition.x}
+          y={tileInfoPosition.y}
+          units={tileInfoUnits}
+          city={tileInfoCity}
+          isOpen={true}
+          onClose={() => setTileInfoPosition(null)}
+        />
+      )}
     </div>
   );
 };
