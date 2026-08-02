@@ -123,4 +123,49 @@ describe('RulesetUnitsService', () => {
       })
     );
   });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/units.ruleset:70-88
+   * @reference reference/freeciv/data/civ2civ3/units.ruleset:612-646
+   * @reference reference/freeciv/data/civ2civ3/units.ruleset:2349-2367
+   * @reference reference/freeciv/data/civ2civ3/units.ruleset:2424-2438
+   * @assertion Units without local veteran_* entries inherit c2c3's four-level profile, while local profiles preserve their own level count, combat factors, movement bonuses, and promotion chances.
+   */
+  it('maps c2c3 global and per-unit veteran profiles without a generic fallback', () => {
+    const units = rulesetUnitsService.getUnitTypes('civ2civ3');
+
+    expect(units.warriors?.veteranLevels).toEqual([
+      expect.objectContaining({
+        name: 'green',
+        powerFactor: 1,
+        moveBonus: 0,
+        baseRaiseChance: 50,
+        workRaiseChance: 3,
+      }),
+      expect.objectContaining({ name: 'veteran', powerFactor: 1.5, moveBonus: 0 }),
+      expect.objectContaining({ name: 'hardened', powerFactor: 1.75, moveBonus: 0 }),
+      expect.objectContaining({ name: 'elite', powerFactor: 2, moveBonus: 0 }),
+    ]);
+    expect(units.engineers?.veteranLevels?.map(level => level.name)).toEqual([
+      'beginner',
+      'seasoned',
+      'senior',
+      'expert',
+    ]);
+    expect(units.diplomat?.veteranLevels?.map(level => level.powerFactor)).toEqual([
+      1,
+      1.05,
+      1.1,
+      1.15,
+    ]);
+    expect(units.nuclear?.veteranLevels).toEqual([
+      expect.objectContaining({
+        name: 'green',
+        powerFactor: 1,
+        moveBonus: 0,
+        baseRaiseChance: 0,
+      }),
+    ]);
+  });
 });

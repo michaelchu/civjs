@@ -76,6 +76,8 @@ export enum EffectType {
   GROWTH_FOOD = 'Growth_Food',
   SHRINK_FOOD = 'Shrink_Food',
   VETERAN_BUILD = 'Veteran_Build',
+  VETERAN_COMBAT = 'Veteran_Combat',
+  VETERAN_WORK = 'Veteran_Work',
   HP_REGEN = 'HP_Regen',
   MIN_HP_PCT = 'Min_HP_Pct',
   HP_REGEN_2 = 'HP_Regen_2',

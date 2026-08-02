@@ -43,7 +43,7 @@ import type {
 import { UnitMovementCostService } from '@game/units/UnitMovementCostService';
 import { UnitHutService } from '@game/units/UnitHutService';
 import { UnitMapStateRepository } from '@game/units/UnitMapStateRepository';
-import { getVeteranLevel } from '@game/units/UnitVeterancy';
+import { getVeteranLevel, getVeteranLevelCount } from '@game/units/UnitVeterancy';
 
 export type {
   CombatResult,
@@ -185,6 +185,10 @@ export class UnitManager {
   private gameLossHandler?: (playerId: string) => Promise<void>;
   private gameManagerCallback?: UnitManagerCallbacks;
   private playerTechsProvider: (playerId: string) => Set<string> = () => new Set();
+  private playerGovernmentProvider: (playerId: string) => string | undefined = () => undefined;
+  private playerAIProvider: (playerId: string) => { isAI: boolean; aiLevel?: string } = () => ({
+    isAI: false,
+  });
   private hostilityProvider?: (
     attackerPlayerId: string,
     defenderPlayerId: string
@@ -392,6 +396,16 @@ export class UnitManager {
     this.playerTechsProvider = provider;
   }
 
+  public setPlayerGovernmentProvider(provider: (playerId: string) => string | undefined): void {
+    this.playerGovernmentProvider = provider;
+  }
+
+  public setPlayerAIProvider(
+    provider: (playerId: string) => { isAI: boolean; aiLevel?: string }
+  ): void {
+    this.playerAIProvider = provider;
+  }
+
   public setExploredTilesProvider(provider: (playerId: string) => Set<string>): void {
     if (this.gameManagerCallback) {
       this.gameManagerCallback.getExploredTiles = provider;
@@ -573,7 +587,7 @@ export class UnitManager {
     y: number
   ): { veteranLevel: number; createdTurn: number; movementPoints: number } {
     const city = this.gameManagerCallback?.getCityAt?.(x, y);
-    const veteranLevel =
+    const calculatedVeteranLevel =
       city && city.playerId === playerId && this.effectsManager
         ? this.effectsManager.calculateEffect(EffectType.VETERAN_BUILD, {
             playerId,
@@ -583,6 +597,10 @@ export class UnitManager {
             cityBuildings: new Set(city.buildings ?? []),
           }).value
         : 0;
+    const veteranLevel = Math.min(
+      Math.max(0, calculatedVeteranLevel),
+      getVeteranLevelCount(unitType) - 1
+    );
     return {
       veteranLevel,
       createdTurn: this.currentTurnProvider?.() ?? 1,
@@ -1103,9 +1121,13 @@ export class UnitManager {
       attackerStrength,
       defenderStrength,
       attackerVeteranChance:
-        totalCombatStrength > 0 ? (defenderCombatStrength * 200) / totalCombatStrength : 0,
+        totalCombatStrength > 0
+          ? Math.floor((defenderCombatStrength * 200) / totalCombatStrength)
+          : 0,
       defenderVeteranChance:
-        totalCombatStrength > 0 ? (attackerCombatStrength * 200) / totalCombatStrength : 0,
+        totalCombatStrength > 0
+          ? Math.floor((attackerCombatStrength * 200) / totalCombatStrength)
+          : 0,
     };
   }
 
@@ -1561,10 +1583,10 @@ export class UnitManager {
   }
 
   /**
-   * Classic uses per-level promotion chances rather than accumulated XP.
-   * Its selected game rule disables opponent-strength scaling.
+   * Freeciv uses the active unit's own veteran system, then applies effects
+   * such as c2c3 Tribalism and Magellan's Expedition to combat odds.
    * @reference reference/freeciv/server/unittools.c:219-278
-   * @reference reference/freeciv/data/classic/units.ruleset:64-82
+   * @reference reference/freeciv/data/civ2civ3/units.ruleset:70-88
    */
   private async maybePromoteAfterCombat(
     unit: Unit,
@@ -1576,19 +1598,42 @@ export class UnitManager {
     if (rules.only_real_fight_makes_veteran && (opponentStrength <= 0 || ownStrength <= 0)) {
       return false;
     }
-    const configuredChances = rulesetLoader.loadUnitsRuleset(this.getRulesetName()).veteran_system
-      ?.veteran_base_raise_chance;
-    const raiseChances = Array.isArray(configuredChances)
-      ? configuredChances.map(value => Number(value))
-      : String(configuredChances ?? '50, 33, 20, 0')
-          .split(',')
-          .map(value => Number(value.trim()));
-    const baseChance = raiseChances[unit.veteranLevel] ?? 0;
     const scale = rules.combat_odds_scaled_veterancy ? combatOdds : 100;
-    const chance = (baseChance * scale) / 100;
-    if (chance <= 0 || randomInt(this.random, 100) >= chance) {
+    return this.maybeGainVeteranLevel(unit, scale, false);
+  }
+
+  /**
+   * Applies Freeciv's ACTION_GAIN_VETERANCY gate and source-derived chance
+   * calculation for either combat or useful worker activity.
+   * @reference reference/freeciv/server/unittools.c:238-278
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1430-1435
+   */
+  private async maybeGainVeteranLevel(
+    unit: Unit,
+    baseChance: number,
+    worker: boolean
+  ): Promise<boolean> {
+    const unitType = this.unitTypes[unit.unitTypeId];
+    if (
+      !unitType ||
+      unit.veteranLevel + 1 >= getVeteranLevelCount(unitType) ||
+      unitType.flags?.includes('NoVeteran') ||
+      (worker && !unitType.flags?.includes('Workers'))
+    ) {
       return false;
     }
+
+    const veteranLevel = getVeteranLevel(unitType, unit.veteranLevel);
+    const raiseChance = worker ? veteranLevel.workRaiseChance : veteranLevel.baseRaiseChance;
+    const effectType = worker ? EffectType.VETERAN_WORK : EffectType.VETERAN_COMBAT;
+    const effectBonus =
+      this.effectsManager?.calculateEffect(
+        effectType,
+        this.getVeterancyEffectContext(unit, unitType)
+      ).value ?? 0;
+    const modifier = baseChance + effectBonus;
+    const chance = Math.trunc((raiseChance * modifier) / 100);
+    if (chance <= 0 || randomInt(this.random, 100) >= chance) return false;
 
     unit.veteranLevel += 1;
     await this.databaseProvider
@@ -1597,6 +1642,41 @@ export class UnitManager {
       .set({ veteranLevel: unit.veteranLevel })
       .where(eq(units.id, unit.id));
     return true;
+  }
+
+  private async maybePromoteAfterWork(unit: Unit): Promise<boolean> {
+    return this.maybeGainVeteranLevel(unit, 100, true);
+  }
+
+  /**
+   * A diplomatic unit that survives an aggressive mission gets the same
+   * source-defined, effect-adjusted veterancy opportunity as Freeciv.
+   * @reference reference/freeciv/server/diplomats.c:2414-2426
+   */
+  async maybePromoteAfterDiplomaticAction(unitId: string): Promise<boolean> {
+    const unit = this.units.get(unitId);
+    return unit ? this.maybeGainVeteranLevel(unit, 100, false) : false;
+  }
+
+  private getVeterancyEffectContext(unit: Unit, unitType: UnitType): EffectContext {
+    const city = this.gameManagerCallback?.getCityAt?.(unit.x, unit.y);
+    const playerAI = this.playerAIProvider(unit.playerId);
+    return {
+      playerId: unit.playerId,
+      playerIsAI: playerAI.isAI,
+      aiLevel: playerAI.aiLevel,
+      government: this.playerGovernmentProvider(unit.playerId),
+      action: 'Gain Veterancy',
+      unitId: unit.id,
+      unitType: unitType.id,
+      unitClass: unitType.rulesetUnitClass,
+      unitClassFlags: new Set(unitType.rulesetUnitClassFlags),
+      unitTypeFlags: new Set(unitType.flags ?? []),
+      playerTechs: this.playerTechsProvider(unit.playerId),
+      playerBuildings: new Set(this.gameManagerCallback?.getPlayerBuildings?.(unit.playerId) ?? []),
+      cityBuildings: new Set(city?.buildings ?? []),
+      tileIsCityCenter: Boolean(city),
+    };
   }
 
   /**
@@ -2113,7 +2193,7 @@ export class UnitManager {
    * @reference reference/freeciv/common/combat.c:608-647
    */
   private calculateAttackStrength(unit: Unit, unitType: UnitType): number {
-    const veteranLevel = getVeteranLevel(unit.veteranLevel);
+    const veteranLevel = getVeteranLevel(unitType, unit.veteranLevel);
     let strength = Math.floor((unitType.attack ?? unitType.combat) * veteranLevel.powerFactor);
     const combatRules = rulesetLoader.getCombatRules(this.getRulesetName());
     if (combatRules.tired_attack && unit.movementLeft < SINGLE_MOVE) {
@@ -2136,7 +2216,7 @@ export class UnitManager {
   ): number {
     let strength = unitType.defense ?? unitType.combat;
 
-    const veteranLevel = getVeteranLevel(unit.veteranLevel);
+    const veteranLevel = getVeteranLevel(unitType, unit.veteranLevel);
     strength = Math.floor(strength * veteranLevel.powerFactor);
 
     strength = this.applyCombatBonusStrength(strength, unitType, attackerType);
@@ -2416,8 +2496,10 @@ export class UnitManager {
   }
 
   /**
-   * Award experience to unit and check for promotion
-   * @reference freeciv/server/unittools.c unit_versus_unit()
+   * Retain experience bookkeeping for clients that display it. Freeciv does
+   * not promote from an accumulated experience table: authoritative combat,
+   * worker, and diplomatic opportunities call maybeGainVeteranLevel().
+   * @reference reference/freeciv/server/unittools.c:238-278
    */
   async awardExperience(unitId: string, experiencePoints: number): Promise<boolean> {
     const unit = this.units.get(unitId);
@@ -2425,77 +2507,13 @@ export class UnitManager {
       return false;
     }
 
-    const oldLevel = unit.veteranLevel;
     unit.experience += experiencePoints;
-
-    // Check for promotion
-    const newLevel = this.calculateVeteranLevelFromExperience(unit.experience);
-
-    if (newLevel > oldLevel) {
-      unit.veteranLevel = newLevel;
-
-      // Update movement points for veteran bonus
-      const unitType = this.unitTypes[unit.unitTypeId];
-      const maxMovement = this.getUnitMovementPoints(unit.playerId, unitType, newLevel);
-
-      // If unit hasn't moved this turn, give them bonus movement
-      if (unit.movementLeft === this.getUnitMovementPoints(unit.playerId, unitType, oldLevel)) {
-        unit.movementLeft = maxMovement;
-      }
-
-      // Update database
-      await this.databaseProvider
-        .getDatabase()
-        .update(units)
-        .set({
-          veteranLevel: unit.veteranLevel,
-          experience: unit.experience,
-          movementPoints: unit.movementLeft.toString(),
-        })
-        .where(eq(units.id, unitId));
-
-      logger.info(`Unit ${unitId} promoted to ${getVeteranLevel(newLevel).name}!`, {
-        unitId,
-        oldLevel,
-        newLevel,
-        experience: unit.experience,
-        experienceAwarded: experiencePoints,
-      });
-
-      return true; // Unit was promoted
-    } else {
-      // Just update experience
-      await this.databaseProvider
-        .getDatabase()
-        .update(units)
-        .set({ experience: unit.experience })
-        .where(eq(units.id, unitId));
-    }
-
-    return false; // No promotion
-  }
-
-  /**
-   * Calculate veteran level from total experience
-   */
-  private calculateVeteranLevelFromExperience(experience: number): number {
-    const veteranLevels = [
-      { level: 0, required: 0 }, // Green
-      { level: 1, required: 20 }, // Veteran
-      { level: 2, required: 40 }, // Hardened
-      { level: 3, required: 80 }, // Elite
-    ];
-
-    let level = 0;
-    for (const vet of veteranLevels) {
-      if (experience >= vet.required) {
-        level = vet.level;
-      } else {
-        break;
-      }
-    }
-
-    return level;
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({ experience: unit.experience })
+      .where(eq(units.id, unitId));
+    return false;
   }
 
   /**
@@ -4992,6 +5010,12 @@ export class UnitManager {
     const currentWork =
       previousWork + group.reduce((sum, unit) => sum + this.getActivityWorkRate(unit), 0);
 
+    // In Freeciv each turn of useful worker activity has its own veteran
+    // roll, regardless of whether the activity completes on this turn.
+    for (const unit of group) {
+      await this.maybePromoteAfterWork(unit);
+    }
+
     if (currentWork >= requiredWork) {
       await this.completeActivity(group[0]!, group[0]!.orders![0]!);
       for (const unit of group) {
@@ -5291,6 +5315,7 @@ export class UnitManager {
 
     // Process turn of activity
     order.activity.turnsRemaining--;
+    await this.maybePromoteAfterWork(unit);
 
     if (order.activity.turnsRemaining <= 0) {
       // Activity completed

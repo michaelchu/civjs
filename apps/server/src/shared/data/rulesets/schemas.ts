@@ -226,6 +226,22 @@ export const UnitTypeRulesetSchema = z
     convert_to: z.string().optional(), // Unit to convert to
     convert_time: z.number().optional(), // Time to convert
     veteran_levels: z.number().min(1).optional().default(1), // Number of veteran levels
+    // Per-unit veteran systems override the ruleset-wide veteran_system
+    // section. Secfile conversion preserves single values and comma-delimited
+    // lists in their original shapes, so retain both forms here.
+    veteran_names: z.union([z.string(), z.array(z.string())]).optional(),
+    veteran_base_raise_chance: z
+      .union([z.number(), z.string(), z.array(z.number()), z.array(z.string())])
+      .optional(),
+    veteran_work_raise_chance: z
+      .union([z.number(), z.string(), z.array(z.number()), z.array(z.string())])
+      .optional(),
+    veteran_power_fact: z
+      .union([z.number(), z.string(), z.array(z.number()), z.array(z.string())])
+      .optional(),
+    veteran_move_bonus: z
+      .union([z.number(), z.string(), z.array(z.number()), z.array(z.string())])
+      .optional(),
     graphic: z.string().optional(),
     graphic_alt: z.string().optional(),
     sound_move: z.string().optional(),

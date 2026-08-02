@@ -820,6 +820,7 @@ export class GameManager {
       await game.unitManager.removeUnit(unit.id);
       result.unitDestroyed = true;
     } else {
+      await game.unitManager.maybePromoteAfterDiplomaticAction(unit.id);
       await game.unitManager.finishDiplomatMission(unit.id);
     }
     await this.refreshSharedVision(gameId);
@@ -996,6 +997,7 @@ export class GameManager {
       await game.unitManager.removeUnit(actor.id);
       result.unitDestroyed = true;
     } else {
+      await game.unitManager.maybePromoteAfterDiplomaticAction(actor.id);
       await game.unitManager.finishDiplomatMission(actor.id);
     }
     return result;

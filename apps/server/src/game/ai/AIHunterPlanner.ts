@@ -6,6 +6,7 @@ import type { Unit } from '@game/units/UnitTypes';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 import type { AIUnitTask } from '@game/ai/AIStateStore';
 import type { CityState } from '@game/cities/CityTypes';
+import { getVeteranLevel } from '@game/units/UnitVeterancy';
 
 export interface HunterTarget {
   unit: Unit;
@@ -48,7 +49,7 @@ function attackPower(unit: Unit, type: UnitType): number {
     Math.max(0, type.attack ?? type.combat ?? 0) *
     Math.max(1, type.firepower ?? 1) *
     Math.max(0.1, unit.health / 100) *
-    (1 + unit.veteranLevel * 0.25)
+    getVeteranLevel(type, unit.veteranLevel).powerFactor
   );
 }
 

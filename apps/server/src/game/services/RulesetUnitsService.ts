@@ -6,6 +6,7 @@
 
 import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { RulesetRequirement, UnitClass, UnitTypeRuleset } from '@shared/data/rulesets/schemas';
+import type { VeteranLevel } from '@game/units/UnitTypes';
 
 export type UnitMovementType = 'land' | 'sea' | 'air';
 
@@ -53,6 +54,8 @@ export interface UnitType {
   obsolete_by?: string;
   pop_cost?: number;
   veteran_levels?: number;
+  /** Source-derived per-unit veteran profile, including global fallback. */
+  veteranLevels?: readonly VeteranLevel[];
   buildRequirements?: RulesetRequirement[];
 }
 
@@ -85,7 +88,7 @@ export class RulesetUnitsService {
       if (!unitClass) {
         throw new Error(`Unit '${unitId}' references missing unit class '${unit.unit_class}'`);
       }
-      mappedUnits[unitId] = this.mapRulesetUnit(unit, unitClass.flags);
+      mappedUnits[unitId] = this.mapRulesetUnit(unit, unitClass.flags, ruleset.veteran_system);
     }
 
     this.cache.set(rulesetName, mappedUnits);
@@ -120,7 +123,11 @@ export class RulesetUnitsService {
   /**
    * Map ruleset unit to backward-compatible UnitType interface
    */
-  private mapRulesetUnit(unit: UnitTypeRuleset, unitClassFlags: string[]): UnitType {
+  private mapRulesetUnit(
+    unit: UnitTypeRuleset,
+    unitClassFlags: string[],
+    veteranSystem?: Record<string, unknown>
+  ): UnitType {
     const canFoundCity = this.hasFoundCityRole(unit);
     return {
       id: unit.id,
@@ -162,6 +169,7 @@ export class RulesetUnitsService {
       obsolete_by: unit.obsolete_by,
       pop_cost: unit.pop_cost,
       veteran_levels: unit.veteran_levels,
+      veteranLevels: this.mapVeteranLevels(unit, veteranSystem),
       buildRequirements: (
         (unit as UnitTypeRuleset & { reqs?: RulesetRequirement[] }).reqs ?? []
       ).map(requirement => ({
@@ -170,6 +178,65 @@ export class RulesetUnitsService {
         present: requirement.present ?? true,
       })),
     };
+  }
+
+  /**
+   * Freeciv units inherit the ruleset-wide veteran system unless they define
+   * any veteran_* member themselves. The converter's legacy veteran_levels
+   * fallback alone cannot distinguish inheritance from a one-level override,
+   * so select the source profile by the raw per-unit fields.
+   * @reference reference/freeciv/common/unittype.c:1138-1165
+   * @reference reference/freeciv/data/civ2civ3/units.ruleset:70-88
+   */
+  private mapVeteranLevels(
+    unit: UnitTypeRuleset,
+    veteranSystem?: Record<string, unknown>
+  ): VeteranLevel[] {
+    const unitValues = unit as Record<string, unknown>;
+    const profileKeys = [
+      'veteran_names',
+      'veteran_base_raise_chance',
+      'veteran_work_raise_chance',
+      'veteran_power_fact',
+      'veteran_move_bonus',
+    ];
+    const source = profileKeys.some(key => unitValues[key] !== undefined)
+      ? unitValues
+      : (veteranSystem ?? {});
+    const names = this.parseVeteranNames(source.veteran_names);
+    const baseRaiseChances = this.parseVeteranNumbers(source.veteran_base_raise_chance);
+    const workRaiseChances = this.parseVeteranNumbers(source.veteran_work_raise_chance);
+    const powerFactors = this.parseVeteranNumbers(source.veteran_power_fact);
+    const moveBonuses = this.parseVeteranNumbers(source.veteran_move_bonus);
+    const levelCount = Math.max(
+      1,
+      names.length,
+      baseRaiseChances.length,
+      workRaiseChances.length,
+      powerFactors.length,
+      moveBonuses.length
+    );
+
+    return Array.from({ length: levelCount }, (_, level) => ({
+      name: names[level] ?? `Level ${level}`,
+      powerFactor: (powerFactors[level] ?? powerFactors.at(-1) ?? 100) / 100,
+      moveBonus: moveBonuses[level] ?? moveBonuses.at(-1) ?? 0,
+      baseRaiseChance: baseRaiseChances[level] ?? baseRaiseChances.at(-1) ?? 0,
+      workRaiseChance: workRaiseChances[level] ?? workRaiseChances.at(-1) ?? 0,
+      experienceRequired: 0,
+    }));
+  }
+
+  private parseVeteranNames(value: unknown): string[] {
+    if (Array.isArray(value)) return value.map(item => String(item).trim()).filter(Boolean);
+    return typeof value === 'string' && value.trim() ? [value.trim()] : [];
+  }
+
+  private parseVeteranNumbers(value: unknown): number[] {
+    const values = Array.isArray(value) ? value : typeof value === 'string' ? value.split(',') : [value];
+    return values
+      .map(item => Number(String(item).trim()))
+      .filter(item => Number.isFinite(item));
   }
 
   private firstValue<T>(...values: Array<T | undefined | null>): T {

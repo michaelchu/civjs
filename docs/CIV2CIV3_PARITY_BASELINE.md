@@ -93,7 +93,11 @@ same one-session bundle verifies c2c3's base and Electricity city-vision
 radius plus Apollo Program's `Reveal_Map` and Internet's `Reveal_Cities`
 effects. CivJS applies the two player knowledge effects at the source turn
 boundary, retaining fog of war and propagating knowledge through shared
-vision. This is a working differential-test foundation, not a whole-game
+vision. The same session also verifies Magellan's Expedition's `+50`
+`Veteran_Combat` effect on an eligible Sea unit. CivJS carries each unit's
+source-defined veteran profile through combat strength, movement, combat
+promotion, and useful worker activity rather than applying one generic
+experience table. This is a working differential-test foundation, not a whole-game
 certificate; new scenarios must cover the remaining action and turn-state
 matrices before a parity claim is justified.
 

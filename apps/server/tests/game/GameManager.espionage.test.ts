@@ -64,6 +64,7 @@ describe('GameManager classic espionage actions', () => {
         getPlayerUnits: jest.fn().mockReturnValue([]),
         removeUnit: jest.fn(),
         finishDiplomatMission: jest.fn(),
+        maybePromoteAfterDiplomaticAction: jest.fn().mockResolvedValue(false),
         bribeUnit: jest.fn(),
         sabotageUnit: jest.fn(),
       },
@@ -103,6 +104,7 @@ describe('GameManager classic espionage actions', () => {
       manager.executeDiplomatAction(gameId, actorPlayerId, 'actor', ActionType.POISON_WATER, 5, 5)
     ).resolves.toMatchObject({ success: true });
     expect(game.cityManager.poisonCity).toHaveBeenCalledWith(city.id, actorPlayerId);
+    expect(game.unitManager.maybePromoteAfterDiplomaticAction).toHaveBeenCalledWith('actor');
     expect(game.unitManager.finishDiplomatMission).toHaveBeenCalledWith('actor');
   });
 

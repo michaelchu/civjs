@@ -48,8 +48,18 @@ export type UnitLifecycleEvent =
 
 export interface VeteranLevel {
   name: string;
+  /** Percentage multiplier applied to the unit's base combat strength. */
   powerFactor: number;
+  /** Additional movement fragments granted at this level. */
   moveBonus: number;
+  /** Chance to gain the next level after combat before effect modifiers. */
+  baseRaiseChance: number;
+  /** Chance to gain the next level after useful worker activity. */
+  workRaiseChance: number;
+  /**
+   * Legacy compatibility metadata. Freeciv promotion is chance-based, not
+   * experience-threshold based, so authoritative paths do not use this.
+   */
   experienceRequired: number;
 }
 

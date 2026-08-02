@@ -22,6 +22,21 @@ function civ2civ3CityWallsGroundDefense(): number {
   }).value;
 }
 
+function civ2civ3MagellansVeteranCombat(): number {
+  const destroyer = rulesetUnitsService.getUnitTypes('civ2civ3').destroyer;
+  if (!destroyer) throw new Error('Civ2Civ3 Destroyer unit is missing from the ruleset.');
+
+  return new EffectsManager('civ2civ3').calculateEffect(EffectType.VETERAN_COMBAT, {
+    playerId: 'oracle-player',
+    unitId: 'oracle-destroyer',
+    unitType: destroyer.id,
+    unitClass: destroyer.rulesetUnitClass,
+    unitClassFlags: new Set(destroyer.rulesetUnitClassFlags),
+    unitTypeFlags: new Set(destroyer.flags ?? []),
+    playerBuildings: new Set(['magellans_expedition']),
+  }).value;
+}
+
 function civ2civ3VisibilityEffects(): Record<string, number> {
   const effects = new EffectsManager('civ2civ3');
   return {
@@ -152,6 +167,18 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
 
   /**
    * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3372-3380
+   * @reference reference/freeciv/server/unittools.c:238-278
+   * @assertion A c2c3 sea combat unit receives Magellan's Expedition's +50 Veteran_Combat effect only through its owning player's wonder.
+   * @c2c3-surface combat
+   * @c2c3-surface-scenario normal
+   */
+  it('applies the c2c3 Magellan Veteran_Combat fixture', () => {
+    expect(civ2civ3MagellansVeteranCombat()).toBe(50);
+  });
+
+  /**
+   * @evidence parity
    * @reference reference/freeciv/data/civ2civ3/effects.ruleset:387-405
    * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2899-2905
    * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3544-3550
@@ -220,6 +247,19 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
 
     /**
      * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3372-3380
+     * @reference reference/freeciv/server/unittools.c:238-278
+     * @assertion CivJS and the pinned Freeciv c2c3 server expose the same Magellan's Expedition Veteran_Combat bonus for a sea unit.
+     * @c2c3-surface combat
+     * @c2c3-surface-scenario differential
+     */
+    it('matches the batched pinned Freeciv Magellan Veteran_Combat fixture', () => {
+      expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
+      expect(civ2civ3MagellansVeteranCombat()).toBe(oracle.results.magellans_veteran_combat);
+    });
+
+    /**
+     * @evidence parity
      * @reference reference/freeciv/data/civ2civ3/effects.ruleset:387-405
      * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2899-2905
      * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3544-3550
@@ -281,6 +321,8 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
     });
   } else {
     it.skip('matches the batched pinned Freeciv City Walls fixture when an oracle bundle exists', () =>
+      undefined);
+    it.skip('matches the batched pinned Freeciv Magellan Veteran_Combat fixture when an oracle bundle exists', () =>
       undefined);
     it.skip('matches the batched pinned Freeciv visibility-effects fixture when an oracle bundle exists', () =>
       undefined);

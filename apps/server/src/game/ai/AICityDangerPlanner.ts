@@ -7,6 +7,7 @@ import type { CityState } from '@game/cities/CityTypes';
 import type { GameInstance } from '@game/runtime/GameTypes';
 import type { Unit } from '@game/units/UnitTypes';
 import type { UnitType } from '@game/services/RulesetUnitsService';
+import { getVeteranLevel } from '@game/units/UnitVeterancy';
 
 export interface CityDangerAssessment {
   city: CityState;
@@ -47,7 +48,7 @@ function healthPoints(unit: Unit, type: UnitType): number {
 }
 
 export function unitAttackRating(unit: Unit, type: UnitType): number {
-  const veteranBonus = 1 + unit.veteranLevel * 0.25;
+  const veteranBonus = getVeteranLevel(type, unit.veteranLevel).powerFactor;
   return (
     Math.max(0, type.attack ?? type.combat ?? 0) *
     healthPoints(unit, type) *
@@ -57,7 +58,7 @@ export function unitAttackRating(unit: Unit, type: UnitType): number {
 }
 
 export function unitDefenseRating(unit: Unit, type: UnitType): number {
-  const veteranBonus = 1 + unit.veteranLevel * 0.25;
+  const veteranBonus = getVeteranLevel(type, unit.veteranLevel).powerFactor;
   const badCityDefender = type.flags?.includes('BadCityDefender') === true;
   const firepower = badCityDefender
     ? Math.min(1, Math.max(1, type.firepower ?? 1)) / 2

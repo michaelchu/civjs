@@ -60,8 +60,13 @@ export class UnitMovementCostService {
       playerTechs: this.getPlayerTechs(playerId),
       playerBuildings: new Set(this.getPlayerBuildings(playerId)),
     }).value;
-    const baseMovement =
-      Math.max(0, unitType.movement + getVeteranLevel(veteranLevel).moveBonus) * SINGLE_MOVE;
+    // veteran_move_bonus is already expressed in Freeciv movement fragments,
+    // while UnitType.movement is expressed in whole moves.
+    // @reference reference/freeciv/data/civ2civ3/units.ruleset:85-88
+    const baseMovement = Math.max(
+      0,
+      unitType.movement * SINGLE_MOVE + getVeteranLevel(unitType, veteranLevel).moveBonus
+    );
     const unitClass = rulesetLoader.loadUnitsRuleset(this.getRulesetName()).unit_classes[
       unitType.rulesetUnitClass ?? ''
     ];

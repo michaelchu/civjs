@@ -199,7 +199,7 @@ describe('UnitManager', () => {
       unitManager = new UnitManager(gameId, mockDbProvider, mapWidth, mapHeight, mapManager);
     });
 
-    const createCiv2Civ3Manager = () =>
+    const createCiv2Civ3Manager = (random: () => number = Math.random) =>
       new UnitManager(
         gameId,
         mockDbProvider,
@@ -208,7 +208,7 @@ describe('UnitManager', () => {
         mapManager,
         undefined,
         new EffectsManager('civ2civ3'),
-        undefined,
+        random,
         rulesetUnitsService.getUnitTypes('civ2civ3')
       );
 
@@ -354,6 +354,34 @@ describe('UnitManager', () => {
       expect(tile.hasRoad).toBe(true);
       expect(tile.improvements).toContain('road');
       expect(worker.orders).toEqual([]);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/units.ruleset:70-88
+     * @reference reference/freeciv/data/civ2civ3/units.ruleset:612-646
+     * @reference reference/freeciv/server/unittools.c:893-900
+     * @assertion A c2c3 Engineer rolls its configured work veterancy chance once per useful activity turn, before terrain transformation is complete.
+     * @c2c3-surface workers-extras
+     * @c2c3-surface-scenario turn
+     */
+    it('applies c2c3 Engineer work veterancy during an unfinished transform activity', async () => {
+      tile.terrain = 'forest';
+      const manager = createCiv2Civ3Manager(() => 0);
+      manager.setPlayerTechsProvider(() => new Set(['Fusion Power']));
+      const engineer = await manager.createUnit('player-123', 'engineers', 10, 10);
+
+      await manager.executeUnitAction(
+        engineer.id,
+        ActionType.TRANSFORM_TERRAIN,
+        undefined,
+        undefined,
+        'player-123'
+      );
+      await manager.processUnitOrders('player-123');
+
+      expect(engineer.orders?.[0]?.activity?.turnsRemaining).toBe(11);
+      expect(engineer.veteranLevel).toBe(1);
     });
 
     /**
@@ -2115,6 +2143,171 @@ describe('UnitManager', () => {
           civ2civ3Manager.getUnitType('warriors')
         )
       ).toBe(0);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/units.ruleset:70-88
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:1547-1556
+     * @reference reference/freeciv/server/unittools.c:238-278
+     * @assertion A Tribal c2c3 Legion that defeats a Warrior gains veterancy when the +50 Veteran_Combat effect raises its odds above the deterministic roll.
+     * @c2c3-action Gain Veterancy
+     * @c2c3-scenario normal
+     * @c2c3-surface combat
+     * @c2c3-surface-scenario normal
+     */
+    it('applies c2c3 Tribal Veteran_Combat to a real combat promotion', async () => {
+      const rolls = [...Array(10).fill(0.99), 0.4];
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        new EffectsManager('civ2civ3'),
+        () => rolls.shift() ?? 0,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      manager.setPlayerGovernmentProvider(() => 'Tribal');
+      const legion = await manager.createUnit('player-123', 'legion', 10, 10);
+      const warrior = await manager.createUnit('player-456', 'warriors', 11, 10);
+
+      const result = await manager.attackUnit(legion.id, warrior.id);
+
+      expect(result).toMatchObject({
+        attackerDestroyed: false,
+        defenderDestroyed: true,
+        experienceGained: { attacker: 1, defender: 0 },
+      });
+      expect(manager.getUnit(legion.id)?.veteranLevel).toBe(1);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/server/unittools.c:238-278
+     * @assertion Accumulated CivJS experience bookkeeping cannot bypass Freeciv's Gain Veterancy opportunity and promote a c2c3 unit.
+     */
+    it('does not promote c2c3 units from the legacy accumulated experience table', async () => {
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        new EffectsManager('civ2civ3'),
+        () => 0,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      await expect(manager.awardExperience(warrior.id, 1000)).resolves.toBe(false);
+      expect(manager.getUnit(warrior.id)).toMatchObject({ experience: 1000, veteranLevel: 0 });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/server/diplomats.c:2414-2426
+     * @reference reference/freeciv/server/unittools.c:238-278
+     * @assertion A surviving c2c3 Spy mission receives the source-defined Gain Veterancy roll instead of an accumulated experience promotion.
+     * @c2c3-action Gain Veterancy
+     * @c2c3-scenario normal
+     */
+    it('applies the c2c3 veterancy opportunity for a surviving Spy mission', async () => {
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        new EffectsManager('civ2civ3'),
+        () => 0,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      const spy = await manager.createUnit('player-123', 'spy', 10, 10);
+
+      await expect(manager.maybePromoteAfterDiplomaticAction(spy.id)).resolves.toBe(true);
+      expect(manager.getUnit(spy.id)?.veteranLevel).toBe(1);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1430-1435
+     * @reference reference/freeciv/data/civ2civ3/units.ruleset:2859-2887
+     * @reference reference/freeciv/server/unittools.c:248-278
+     * @assertion A c2c3 Storm's NoVeteran flag rejects the Gain Veterancy action even when it is given a guaranteed combat roll.
+     * @c2c3-action Gain Veterancy
+     * @c2c3-scenario rejected
+     */
+    it('rejects c2c3 Gain Veterancy for a NoVeteran unit', async () => {
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        new EffectsManager('civ2civ3'),
+        () => 0,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      const storm = await manager.createUnit('player-123', 'storm', 10, 10);
+
+      await expect((manager as any).maybePromoteAfterCombat(storm, 200, 1, 1)).resolves.toBe(false);
+      expect(storm.veteranLevel).toBe(0);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/units.ruleset:2349-2367
+     * @reference reference/freeciv/server/unittools.c:248-278
+     * @assertion A c2c3 Nuclear unit has exactly one veteran level, so Gain Veterancy cannot promote it beyond green even with a guaranteed roll.
+     * @c2c3-action Gain Veterancy
+     * @c2c3-scenario boundary
+     */
+    it('caps c2c3 Gain Veterancy at a unit-specific one-level profile', async () => {
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        new EffectsManager('civ2civ3'),
+        () => 0,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      const nuclear = await manager.createUnit('player-123', 'nuclear', 10, 10);
+
+      await expect((manager as any).maybePromoteAfterCombat(nuclear, 200, 1, 1)).resolves.toBe(
+        false
+      );
+      expect(nuclear.veteranLevel).toBe(0);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/units.ruleset:70-88
+     * @reference reference/freeciv/data/civ2civ3/units.ruleset:612-646
+     * @assertion A hardened c2c3 Engineer receives no movement fragments from veterancy; its source-defined move bonus remains zero.
+     */
+    it('keeps c2c3 veteran movement source-derived instead of using a generic bonus', () => {
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        new EffectsManager('civ2civ3'),
+        Math.random,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      const engineerType = manager.getUnitType('engineers')!;
+
+      expect((manager as any).getUnitMovementPoints('player-123', engineerType, 2, 100)).toBe(6);
     });
 
     it('applies the classic pearl-harbor firepower rule in a city', async () => {
