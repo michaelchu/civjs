@@ -167,6 +167,68 @@ describe('CityManager', () => {
       await expect(cityManager.helpWonder(city.id, 'player-456', 50)).resolves.toBe(false);
     });
 
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:648-674
+     * @reference reference/freeciv/common/player.c:1523-1565
+     * @reference reference/freeciv/server/unithand.c:5950-6060
+     * @assertion C2C3 permits an allied Caravan to add its full shield value to another player's Great Wonder or recycle at that city, but rejects the contribution at Peace.
+     * @c2c3-action Help Wonder
+     * @c2c3-action Disband Unit Recover
+     * @c2c3-scenario normal, rejected
+     */
+    it('applies allied c2c3 caravan contributions and rejects peaceful foreign targets', async () => {
+      cityManager.setTradeProviders(jest.fn(), jest.fn(), jest.fn().mockResolvedValue('alliance'));
+      const wonder = await cityManager.foundCity(10, 10, 'Ally Wonder', 'player-456');
+      wonder.currentProduction = 'colossus';
+      const production = await cityManager.foundCity(14, 10, 'Ally Production', 'player-456');
+      production.currentProduction = 'warriors';
+
+      await expect(
+        cityManager.executeUnitCityAction(
+          ActionType.HELP_WONDER,
+          'player-123',
+          'caravan',
+          'home-city',
+          wonder.x,
+          wonder.y
+        )
+      ).resolves.toMatchObject({ success: true, unitDestroyed: true });
+      await expect(
+        cityManager.executeUnitCityAction(
+          ActionType.DISBAND_UNIT_RECOVER,
+          'player-123',
+          'caravan',
+          'home-city',
+          production.x,
+          production.y
+        )
+      ).resolves.toMatchObject({ success: true, unitDestroyed: true });
+      expect(wonder.productionStock).toBe(50);
+      expect(production.productionStock).toBe(25);
+
+      cityManager.setTradeProviders(jest.fn(), jest.fn(), jest.fn().mockResolvedValue('peace'));
+      await expect(
+        cityManager.executeUnitCityAction(
+          ActionType.HELP_WONDER,
+          'player-123',
+          'caravan',
+          'home-city',
+          wonder.x,
+          wonder.y
+        )
+      ).resolves.toMatchObject({ success: false });
+      expect(wonder.productionStock).toBe(50);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:664-674
+     * @reference reference/freeciv/server/unithand.c:5950-6060
+     * @assertion C2C3 Disband Unit Recover uses the ruleset's fifty-percent shield value.
+     * @c2c3-action Disband Unit Recover
+     * @c2c3-scenario boundary
+     */
     it('recovers half of a disbanded unit cost through the action path', async () => {
       const civ2civ3CityManager = new CityManager(
         gameId,

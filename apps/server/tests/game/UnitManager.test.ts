@@ -1429,7 +1429,7 @@ describe('UnitManager', () => {
         unitManager.executeUnitAction(unit.id, ActionType.CHANGE_HOME_CITY, 10, 10, 'player-123')
       ).resolves.toMatchObject({ success: true });
       expect(unit.homeCityId).toBe('city-2');
-      expect(unit.movementLeft).toBe(0);
+      expect(unit.movementLeft).toBe(3);
     });
   });
 

@@ -2522,7 +2522,9 @@ export class CityManager {
         message = 'Unit joined the city';
         break;
       case ActionType.HELP_WONDER:
-        success = await this.helpWonder(city.id, playerId, unitType.cost);
+        success =
+          (await this.canContributeToCity(playerId, city)) &&
+          (await this.helpWonder(city.id, city.playerId, unitType.cost));
         message = `Added ${unitType.cost} shields to the wonder`;
         break;
       case ActionType.DISBAND_UNIT_RECOVER:
@@ -2533,7 +2535,9 @@ export class CityManager {
               action: 'Disband Unit Recover',
             }).value ?? 0);
           const recoveredShields = Math.max(0, Math.floor((unitType.cost * shieldValuePct) / 100));
-          success = await this.recoverUnitShields(city.id, playerId, recoveredShields);
+          success =
+            (await this.canContributeToCity(playerId, city)) &&
+            (await this.recoverUnitShields(city.id, city.playerId, recoveredShields));
           message = `Recovered ${recoveredShields} shields`;
         }
         break;
@@ -2552,6 +2556,21 @@ export class CityManager {
       unitDestroyed: success,
       cityId: city.id,
     };
+  }
+
+  /**
+   * C2C3's Help Wonder and Disband Unit Recover enablers exclude the
+   * intermediate diplomatic states but deliberately allow allied, team, and
+   * no-contact foreign cities. The unit layer performs the same synchronous
+   * availability check; this is the authoritative asynchronous guard.
+   *
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:648-674
+   * @reference reference/freeciv/common/player.c:1523-1565
+   */
+  private async canContributeToCity(playerId: string, city: CityState): Promise<boolean> {
+    if (city.playerId === playerId) return true;
+    const relation = await this.diplomaticStateProvider(playerId, city.playerId);
+    return relation === 'no_contact' || relation === 'alliance' || relation === 'team';
   }
 
   public getAllCities(): CityState[] {

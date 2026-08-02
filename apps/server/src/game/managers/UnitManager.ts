@@ -220,6 +220,7 @@ export class UnitManager {
   private hostilePlayersProvider?: (playerId: string) => ReadonlySet<string>;
   private alliedPlayersProvider?: (playerId: string) => ReadonlySet<string>;
   private sameTeamProvider?: (firstPlayerId: string, secondPlayerId: string) => boolean;
+  private diplomaticStateLookup?: (firstPlayerId: string, secondPlayerId: string) => string;
   private tileExtrasChangedCallback?: (change: {
     x: number;
     y: number;
@@ -389,6 +390,17 @@ export class UnitManager {
     provider: (firstPlayerId: string, secondPlayerId: string) => boolean
   ): void {
     this.sameTeamProvider = provider;
+  }
+
+  /**
+   * Supply the current relation cache for synchronous action availability
+   * checks. The database-backed relation lookup remains the authoritative
+   * path for actions that need asynchronous resolution.
+   */
+  public setDiplomaticStateLookup(
+    lookup: (firstPlayerId: string, secondPlayerId: string) => string
+  ): void {
+    this.diplomaticStateLookup = lookup;
   }
 
   /** Wake sentried units when a hostile unit enters their visible area. */
@@ -3565,7 +3577,37 @@ export class UnitManager {
     const maxRange = this.getCityUnitActionMaxRange(actionType);
     const distance = this.calculateDistance(unit.x, unit.y, targetX, targetY);
     if (distance > maxRange) return false;
-    return city.playerId === unit.playerId;
+    return this.canTargetCityUnitAction(unit, actionType, city);
+  }
+
+  /**
+   * C2C3 permits a Caravan to help an allied, team, or no-contact city
+   * (but not a city at war, cease-fire, armistice, or peace) and likewise
+   * permits recycling a unit there. Other city utility actions remain
+   * domestic-only.
+   *
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:648-674
+   * @reference reference/freeciv/common/player.c:1523-1565
+   */
+  private canTargetCityUnitAction(
+    unit: Unit,
+    actionType: ActionType,
+    city: CityAtLocation
+  ): boolean {
+    if (city.playerId === unit.playerId) return true;
+    if (![ActionType.HELP_WONDER, ActionType.DISBAND_UNIT_RECOVER].includes(actionType)) {
+      return false;
+    }
+    const relation = this.getKnownDiplomaticState(unit.playerId, city.playerId);
+    return relation === 'no_contact' || relation === 'alliance' || relation === 'team';
+  }
+
+  private getKnownDiplomaticState(firstPlayerId: string, secondPlayerId: string): string {
+    const cachedRelation = this.diplomaticStateLookup?.(firstPlayerId, secondPlayerId);
+    if (cachedRelation) return cachedRelation;
+    if (this.sameTeamProvider?.(firstPlayerId, secondPlayerId)) return 'team';
+    if (this.alliedPlayersProvider?.(firstPlayerId).has(secondPlayerId)) return 'alliance';
+    return 'no_contact';
   }
 
   private getCityUnitActionMaxRange(actionType: ActionType): number {
@@ -3587,10 +3629,11 @@ export class UnitManager {
     return {
       [ActionType.MARKETPLACE]: () =>
         Boolean(unit.homeCityId && unitType.flags?.includes('TradeRoute')),
-      [ActionType.HELP_WONDER]: () => Boolean(unitType.flags?.includes('HelpWonder')),
+      [ActionType.HELP_WONDER]: () =>
+        Boolean(unitType.flags?.includes('HelpWonder') && unit.movementLeft > 0),
       [ActionType.JOIN_CITY]: () =>
         Boolean(unitType.flags?.includes('AddToCity') && unit.movementLeft > 0),
-      [ActionType.DISBAND_UNIT_RECOVER]: () => true,
+      [ActionType.DISBAND_UNIT_RECOVER]: () => !unitType.flags?.includes('EvacuateFirst'),
     };
   }
 
@@ -3604,11 +3647,10 @@ export class UnitManager {
       return { success: false, message: 'Unit cannot change home city' };
     }
     unit.homeCityId = city.id;
-    unit.movementLeft = 0;
     await this.databaseProvider
       .getDatabase()
       .update(units)
-      .set({ homeCityId: city.id, movementPoints: '0' })
+      .set({ homeCityId: city.id, movementPoints: String(unit.movementLeft) })
       .where(eq(units.id, unit.id));
     return { success: true, message: `Home city changed to ${city.id}` };
   }
@@ -5247,8 +5289,8 @@ export class UnitManager {
     if (city.playerId !== unit.playerId) return false;
     if (unit.x !== targetX) return false;
     if (unit.y !== targetY) return false;
-    if (!unit.homeCityId) return false;
-    return this.canUnitHaveHomeCity(unitType);
+    if (unitType.flags?.includes('Diplomat')) return true;
+    return Boolean(unit.homeCityId && this.canUnitHaveHomeCity(unitType));
   }
 
   private canUnitHaveHomeCity(unitType: UnitType): boolean {

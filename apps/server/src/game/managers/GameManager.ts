@@ -104,6 +104,7 @@ export class GameManager {
   private sharedVisionByGame = new Map<string, Map<string, Set<string>>>();
   private hostilePlayersByGame = new Map<string, Map<string, Set<string>>>();
   private alliedPlayersByGame = new Map<string, Map<string, Set<string>>>();
+  private diplomaticStatesByGame = new Map<string, Map<string, Map<string, string>>>();
   private researchDiplomacyByGame = new Map<
     string,
     Map<string, Map<string, ResearchDiplomacyState>>
@@ -274,6 +275,7 @@ export class GameManager {
     this.sharedVisionByGame.clear();
     this.hostilePlayersByGame.clear();
     this.alliedPlayersByGame.clear();
+    this.diplomaticStatesByGame.clear();
     this.researchDiplomacyByGame.clear();
     this.endTurnLocks.clear();
     this.treatyPlayerLocks.clear();
@@ -1421,6 +1423,10 @@ export class GameManager {
     gameInstance.unitManager.setAlliedPlayersProvider(
       playerId => this.alliedPlayersByGame.get(gameId)?.get(playerId) ?? new Set()
     );
+    gameInstance.unitManager.setDiplomaticStateLookup(
+      (playerId, otherPlayerId) =>
+        this.diplomaticStatesByGame.get(gameId)?.get(playerId)?.get(otherPlayerId) ?? 'no_contact'
+    );
     const economicManager = gameInstance.turnManager.getEconomicManager();
     gameInstance.cityManager.setTradeProviders(
       async (playerId, amount) =>
@@ -1583,9 +1589,14 @@ export class GameManager {
     const sharedVision = new Map<string, Set<string>>();
     const hostilePlayers = new Map<string, Set<string>>();
     const alliedPlayers = new Map<string, Set<string>>();
+    const diplomaticStates = new Map<string, Map<string, string>>();
     const researchDiplomacy = new Map<string, Map<string, ResearchDiplomacyState>>();
     for (const playerId of gameInstance.players.keys()) {
       const snapshot = await this.diplomacyManager.getSnapshot(gameId, playerId);
+      diplomaticStates.set(
+        playerId,
+        new Map(snapshot.nations.map(nation => [nation.id, nation.relation.state]))
+      );
       researchDiplomacy.set(
         playerId,
         new Map(
@@ -1636,6 +1647,7 @@ export class GameManager {
     this.sharedVisionByGame.set(gameId, sharedVision);
     this.hostilePlayersByGame.set(gameId, hostilePlayers);
     this.alliedPlayersByGame.set(gameId, alliedPlayers);
+    this.diplomaticStatesByGame.set(gameId, diplomaticStates);
     this.researchDiplomacyByGame.set(gameId, researchDiplomacy);
     gameInstance.visibilityManager.updateAllPlayersVisibility([...gameInstance.players.keys()]);
   }
@@ -2283,6 +2295,7 @@ export class GameManager {
     this.sharedVisionByGame.delete(gameId);
     this.hostilePlayersByGame.delete(gameId);
     this.alliedPlayersByGame.delete(gameId);
+    this.diplomaticStatesByGame.delete(gameId);
     this.researchDiplomacyByGame.delete(gameId);
     this.endTurnLocks.delete(gameId);
   }
@@ -2498,6 +2511,7 @@ export class GameManager {
           this.sharedVisionByGame.delete(gameId);
           this.hostilePlayersByGame.delete(gameId);
           this.alliedPlayersByGame.delete(gameId);
+          this.diplomaticStatesByGame.delete(gameId);
           this.researchDiplomacyByGame.delete(gameId);
           this.endTurnLocks.delete(gameId);
 

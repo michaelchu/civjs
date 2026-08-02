@@ -580,10 +580,10 @@ export class ActionSystem {
       (unit, targetX, targetY) =>
         Boolean(
           unit.homeCityId &&
+          unit.movementLeft > 0 &&
           targetX !== undefined &&
           targetY !== undefined &&
-          unit.x === targetX &&
-          unit.y === targetY &&
+          this.getActionTargetDistance(unit, targetX, targetY) <= 1 &&
           this.gameManagerCallback?.getCityAt?.(targetX, targetY) &&
           this.gameManagerCallback?.establishTradeRoute
         ),
@@ -903,8 +903,16 @@ export class ActionSystem {
   /**
    * Check if unit can be disbanded
    */
-  private canDisbandUnit(_unit: Unit): boolean {
-    return true; // Most units can be disbanded
+  private canDisbandUnit(unit: Unit): boolean {
+    return !this.unitTypes[unit.unitTypeId]?.flags?.includes('EvacuateFirst');
+  }
+
+  private getActionTargetDistance(unit: Unit, targetX: number, targetY: number): number {
+    const topology = this.mapManager?.getTopology?.();
+    return (
+      topology?.realDistance(unit.x, unit.y, targetX, targetY) ??
+      Math.max(Math.abs(unit.x - targetX), Math.abs(unit.y - targetY))
+    );
   }
 
   /**
