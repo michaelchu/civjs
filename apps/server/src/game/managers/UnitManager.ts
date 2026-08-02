@@ -3852,7 +3852,7 @@ export class UnitManager {
     const y = targetY as number;
     const targetCity = this.gameManagerCallback?.getCityAt?.(x, y);
     const hostileUnits = this.getHostileUnitsAt(unit, x, y);
-    const territoryError = await this.validateParadropTerritory(unit, x, y, targetCity);
+    const territoryError = await this.validateParadropTerritory(unit, targetCity);
     if (territoryError) return territoryError;
     if (hostileUnits.length > 0) {
       await this.destroyUnit(unit.id);
@@ -3901,22 +3901,40 @@ export class UnitManager {
 
   private async validateParadropTerritory(
     unit: Unit,
-    x: number,
-    y: number,
     targetCity: CityAtLocation | null | undefined
   ): Promise<ActionResult | undefined> {
-    const targetOwner = targetCity?.playerId ?? this.mapManager?.getTile(x, y)?.owner;
-    if (!targetOwner || targetOwner === unit.playerId) return undefined;
-    const relation = await this.getDiplomaticState(unit.playerId, targetOwner);
-    if (!this.canParadropIntoRelation(relation)) {
-      return { success: false, message: 'Cannot paradrop onto foreign territory without war' };
+    // The non-city target enablers have no DiplRel requirement. Territory
+    // ownership alone must therefore not block an ordinary paradrop.
+    if (!targetCity || targetCity.playerId === unit.playerId) return undefined;
+    const relation = await this.getDiplomaticState(unit.playerId, targetCity.playerId);
+    if (relation === 'peace' || relation === 'ceasefire' || relation === 'armistice') {
+      // A current foreign city under a non-attack diplomatic relation is
+      // rejected before do_paradrop() can resolve it. This applies whether
+      // the player sees the city now or knows it from an earlier sighting.
+      return {
+        success: false,
+        message: 'Cannot paradrop onto a foreign city during peace, ceasefire, or armistice',
+      };
     }
-    if (!targetCity) return undefined;
-    return this.captureParadropCity(unit, targetCity);
-  }
-
-  private canParadropIntoRelation(relation: string): boolean {
-    return relation === 'war' || relation === 'alliance' || relation === 'team';
+    // Only the separate Paradrop Unit Enter Conquer enabler, whose actor
+    // requirement is DiplRel War, captures a foreign city.  The ordinary
+    // action may enter an allied or team city unchanged.
+    if (relation === 'war') return this.captureParadropCity(unit, targetCity);
+    if (relation === 'alliance' || relation === 'team') return undefined;
+    if (relation === 'no_contact') {
+      // Freeciv permits an ordinary Paradrop Unit Enter onto a known-but-stale
+      // foreign city tile before contact, then removes the actor when the
+      // actual non-allied city is resolved. CivJS does not retain per-player
+      // stale city visibility, so an accepted no-contact city request follows
+      // that observable resolution.
+      await this.destroyUnit(unit.id);
+      return {
+        success: true,
+        message: 'The unit was lost while paradropping into a foreign city',
+        unitDestroyed: true,
+      };
+    }
+    return { success: false, message: 'Cannot paradrop onto the foreign city' };
   }
 
   private async captureParadropCity(

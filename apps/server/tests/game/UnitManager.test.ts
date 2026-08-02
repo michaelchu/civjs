@@ -3810,16 +3810,35 @@ describe('UnitManager', () => {
   });
 
   describe('Civ2Civ3 transport-sensitive relocation actions', () => {
+    const tileOwners = new Map<string, string>();
+    const oracle = loadCiv2Civ3OracleResults();
     const actionMap = {
       getTile: jest.fn((x: number, y: number) => ({
         x,
         y,
         terrain: 'grassland',
         improvements: [],
+        owner: tileOwners.get(`${x},${y}`),
       })),
+      getTopology: jest.fn(
+        () =>
+          new MapTopology(mapWidth, mapHeight, {
+            topologyId: TopologyFlag.ISO | TopologyFlag.HEX,
+            wrapId: WrapFlag.X | WrapFlag.Y,
+          })
+      ),
     };
 
-    const createManager = () => {
+    const defaultCities = () =>
+      new Map<string, { id: string; playerId: string; buildings: string[] }>([
+        ['10,10', { id: 'source-city', playerId: 'player-123', buildings: ['airport'] }],
+        ['30,20', { id: 'destination-city', playerId: 'player-123', buildings: [] }],
+      ]);
+
+    const createManager = (
+      cities = defaultCities(),
+      captureCity = jest.fn().mockResolvedValue(true)
+    ) => {
       const manager = new UnitManager(
         gameId,
         mockDbProvider,
@@ -3830,21 +3849,20 @@ describe('UnitManager', () => {
           foundCity: jest.fn(),
           requestPath: jest.fn(),
           broadcastUnitMoved: jest.fn(),
-          getCityAt: (x, y) => {
-            if (x === 10 && y === 10)
-              return { id: 'source-city', playerId: 'player-123', buildings: ['airport'] };
-            if (x === 30 && y === 20)
-              return { id: 'destination-city', playerId: 'player-123', buildings: [] };
-            return null;
-          },
+          getCityAt: (x, y) => cities.get(`${x},${y}`) ?? null,
           reserveAirlift: jest.fn().mockResolvedValue(true),
+          captureCity,
         },
         new EffectsManager('civ2civ3'),
         Math.random,
         rulesetUnitsService.getUnitTypes('civ2civ3')
       );
-      return manager;
+      return { manager, captureCity };
     };
+
+    beforeEach(() => {
+      tileOwners.clear();
+    });
 
     /**
      * @evidence parity
@@ -3857,7 +3875,7 @@ describe('UnitManager', () => {
      * @c2c3-surface-scenario normal
      */
     it('unloads a transported Civ2Civ3 paratrooper when it paradrops', async () => {
-      const manager = createManager();
+      const { manager } = createManager();
       const transport = await manager.createUnit('player-123', 'trireme', 10, 10);
       const paratrooper = await manager.createUnit('player-123', 'paratroopers', 10, 10);
       await expect(manager.loadUnitOntoTransport(transport.id, paratrooper.id)).resolves.toBe(true);
@@ -3872,6 +3890,237 @@ describe('UnitManager', () => {
 
     /**
      * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:983-1013
+     * @assertion Paradrop Unit Enter requires all six c2c3 move fragments and rejects a target beyond the source paratrooper range without moving the actor.
+     * @c2c3-action Paradrop Unit Enter
+     * @c2c3-scenario rejected, boundary
+     */
+    it('enforces Civ2Civ3 ordinary paradrop movement and range limits', async () => {
+      const { manager } = createManager();
+      const paratrooper = await manager.createUnit('player-123', 'paratroopers', 10, 10);
+      paratrooper.movementLeft = 5;
+
+      expect(manager.canUnitPerformAction(paratrooper.id, ActionType.PARADROP, 16, 10)).toBe(false);
+      await expect(
+        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 16, 10, 'player-123')
+      ).resolves.toMatchObject({ success: false });
+      expect(paratrooper).toMatchObject({ x: 10, y: 10, movementLeft: 5 });
+
+      paratrooper.movementLeft = 6;
+      expect(manager.canUnitPerformAction(paratrooper.id, ActionType.PARADROP, 21, 10)).toBe(false);
+      await expect(
+        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 21, 10, 'player-123')
+      ).resolves.toMatchObject({ success: false });
+      expect(paratrooper).toMatchObject({ x: 10, y: 10, movementLeft: 6 });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:983-1013
+     * @assertion An allied claimed city is a normal Paradrop Unit Enter destination, rather than a Paradrop Unit Enter Conquer target.
+     * @c2c3-action Paradrop Unit Enter
+     * @c2c3-scenario normal
+     */
+    it('does not capture an allied city while carrying out an ordinary Civ2Civ3 paradrop', async () => {
+      const cities = defaultCities();
+      cities.set('16,10', { id: 'allied-city', playerId: 'player-456', buildings: [] });
+      const { manager, captureCity } = createManager(cities);
+      (mockDbProvider.getDatabase() as any).query.players.findFirst.mockResolvedValue({
+        diplomaticRelations: { 'player-456': { state: 'alliance' } },
+      });
+      const paratrooper = await manager.createUnit('player-123', 'paratroopers', 10, 10);
+
+      await expect(
+        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 16, 10, 'player-123')
+      ).resolves.toMatchObject({ success: true, newPosition: { x: 16, y: 10 } });
+
+      expect(captureCity).not.toHaveBeenCalled();
+      expect(paratrooper).toMatchObject({ x: 16, y: 10 });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1000-1012
+     * @reference reference/freeciv/server/unittools.c:3140-3288
+     * @assertion The non-city Paradrop Unit Enter enabler has no diplomatic relation requirement, so a paratrooper can land on foreign territory at peace without a city capture.
+     * @c2c3-action Paradrop Unit Enter
+     * @c2c3-scenario normal
+     */
+    it('allows an ordinary Civ2Civ3 paradrop onto peaceful foreign terrain', async () => {
+      tileOwners.set('16,10', 'player-456');
+      const { manager, captureCity } = createManager();
+      (mockDbProvider.getDatabase() as any).query.players.findFirst.mockResolvedValue({
+        diplomaticRelations: { 'player-456': { state: 'peace' } },
+      });
+      const paratrooper = await manager.createUnit('player-123', 'paratroopers', 10, 10);
+
+      await expect(
+        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 16, 10, 'player-123')
+      ).resolves.toMatchObject({ success: true, newPosition: { x: 16, y: 10 } });
+
+      expect(captureCity).not.toHaveBeenCalled();
+      expect(paratrooper).toMatchObject({ x: 16, y: 10 });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:983-1038
+     * @reference reference/freeciv/common/actions.c:2925-2962
+     * @reference reference/freeciv/server/unittools.c:3140-3274
+     * @assertion A no-contact paratrooper that lands on a known-but-stale foreign city tile resolves ordinary Paradrop Unit Enter, loses the actor, and does not capture the city.
+     * @c2c3-action Paradrop Unit Enter
+     * @c2c3-scenario normal
+     */
+    it('loses a Civ2Civ3 paratrooper at a no-contact foreign city', async () => {
+      const cities = defaultCities();
+      cities.set('16,10', { id: 'stale-city', playerId: 'player-456', buildings: [] });
+      const { manager, captureCity } = createManager(cities);
+      (mockDbProvider.getDatabase() as any).query.players.findFirst.mockResolvedValue({
+        diplomaticRelations: {},
+      });
+      const paratrooper = await manager.createUnit('player-123', 'paratroopers', 10, 10);
+
+      await expect(
+        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 16, 10, 'player-123')
+      ).resolves.toMatchObject({ success: true, unitDestroyed: true });
+
+      expect(captureCity).not.toHaveBeenCalled();
+      expect(manager.getUnit(paratrooper.id)).toBeUndefined();
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:983-1038
+     * @reference reference/freeciv/common/actions.c:2925-2962
+     * @reference reference/freeciv/server/unittools.c:3140-3197
+     * @assertion Current foreign city targets under ceasefire or armistice are rejected before ordinary Paradrop Unit Enter can lose or capture the actor.
+     * @c2c3-action Paradrop Unit Enter
+     * @c2c3-scenario rejected
+     */
+    it.each(['ceasefire', 'armistice'])(
+      'rejects a Civ2Civ3 paradrop into a %s city',
+      async relation => {
+        const cities = defaultCities();
+        cities.set('16,10', { id: `${relation}-city`, playerId: 'player-456', buildings: [] });
+        const { manager, captureCity } = createManager(cities);
+        (mockDbProvider.getDatabase() as any).query.players.findFirst.mockResolvedValue({
+          diplomaticRelations: { 'player-456': { state: relation } },
+        });
+        const paratrooper = await manager.createUnit('player-123', 'paratroopers', 10, 10);
+
+        await expect(
+          manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 16, 10, 'player-123')
+        ).resolves.toMatchObject({ success: false });
+
+        expect(captureCity).not.toHaveBeenCalled();
+        expect(paratrooper).toMatchObject({ x: 10, y: 10, movementLeft: 6 });
+      }
+    );
+
+    if (oracle) {
+      /**
+       * @evidence parity
+       * @reference reference/freeciv/data/civ2civ3/actions.ruleset:983-1013
+       * @reference reference/freeciv/common/actions.c:2925-2962
+       * @reference reference/freeciv/server/unittools.c:3140-3274
+       * @assertion CivJS and the pinned Freeciv c2c3 server both accept the known-but-stale no-contact foreign-city Paradrop Unit Enter path and remove the actor without capturing the city.
+       * @c2c3-action Paradrop Unit Enter
+       * @c2c3-scenario normal
+       * @c2c3-surface movement-transport
+       * @c2c3-surface-scenario differential
+       */
+      it('matches the batched pinned Freeciv stale-city paradrop fixture', async () => {
+        const cities = defaultCities();
+        cities.set('16,10', { id: 'stale-city', playerId: 'player-456', buildings: [] });
+        const { manager, captureCity } = createManager(cities);
+        (mockDbProvider.getDatabase() as any).query.players.findFirst.mockResolvedValue({
+          diplomaticRelations: {},
+        });
+        const paratrooper = await manager.createUnit('player-123', 'paratroopers', 10, 10);
+        const result = await manager.executeUnitAction(
+          paratrooper.id,
+          ActionType.PARADROP,
+          16,
+          10,
+          'player-123'
+        );
+
+        expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
+        expect(oracle.results.paradrop_stale_city_relation_no_contact).toBe(1);
+        expect(oracle.results.paradrop_stale_city_target_known).toBe(1);
+        expect(oracle.results.paradrop_stale_city_target_seen).toBe(0);
+        expect({
+          paradrop_stale_city_enter_succeeded: Number(result.success),
+          paradrop_stale_city_actor_survived: Number(Boolean(manager.getUnit(paratrooper.id))),
+        }).toEqual({
+          paradrop_stale_city_enter_succeeded: oracle.results.paradrop_stale_city_enter_succeeded,
+          paradrop_stale_city_actor_survived: oracle.results.paradrop_stale_city_actor_survived,
+        });
+        expect(captureCity).not.toHaveBeenCalled();
+      });
+    } else {
+      it.skip('matches the batched pinned Freeciv stale-city paradrop fixture when an oracle bundle exists', () =>
+        undefined);
+    }
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1015-1038
+     * @reference reference/freeciv/server/unittools.c:3140-3288
+     * @assertion Paradrop Unit Enter Conquer captures a claimed foreign city only while at war.
+     * @c2c3-action Paradrop Unit Enter Conquer
+     * @c2c3-scenario normal
+     */
+    it('captures a warring Civ2Civ3 city after a conquering paradrop', async () => {
+      const cities = defaultCities();
+      cities.set('16,10', { id: 'enemy-city', playerId: 'player-456', buildings: [] });
+      const { manager, captureCity } = createManager(cities);
+      (mockDbProvider.getDatabase() as any).query.players.findFirst.mockResolvedValue({
+        diplomaticRelations: { 'player-456': { state: 'war' } },
+      });
+      const paratrooper = await manager.createUnit('player-123', 'paratroopers', 10, 10);
+
+      await expect(
+        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 16, 10, 'player-123')
+      ).resolves.toMatchObject({ success: true, newPosition: { x: 16, y: 10 } });
+
+      expect(captureCity).toHaveBeenCalledWith('enemy-city', 'player-123', paratrooper.id);
+      expect(paratrooper).toMatchObject({ x: 16, y: 10 });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1015-1038
+     * @assertion Paradrop Unit Enter Conquer requires six move fragments and a war relation, leaving a peaceful foreign city and the actor unchanged when either condition fails.
+     * @c2c3-action Paradrop Unit Enter Conquer
+     * @c2c3-scenario rejected, boundary
+     */
+    it('rejects a Civ2Civ3 conquering paradrop without enough movement or war', async () => {
+      const cities = defaultCities();
+      cities.set('16,10', { id: 'enemy-city', playerId: 'player-456', buildings: [] });
+      const { manager, captureCity } = createManager(cities);
+      const paratrooper = await manager.createUnit('player-123', 'paratroopers', 10, 10);
+      paratrooper.movementLeft = 5;
+
+      await expect(
+        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 16, 10, 'player-123')
+      ).resolves.toMatchObject({ success: false });
+      expect(paratrooper).toMatchObject({ x: 10, y: 10, movementLeft: 5 });
+
+      paratrooper.movementLeft = 6;
+      (mockDbProvider.getDatabase() as any).query.players.findFirst.mockResolvedValue({
+        diplomaticRelations: { 'player-456': { state: 'peace' } },
+      });
+      await expect(
+        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 16, 10, 'player-123')
+      ).resolves.toMatchObject({ success: false });
+
+      expect(captureCity).not.toHaveBeenCalled();
+      expect(paratrooper).toMatchObject({ x: 10, y: 10, movementLeft: 6 });
+    });
+
+    /**
+     * @evidence parity
      * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1043-1049
      * @reference reference/freeciv/server/unittools.c:3062-3095
      * @reference reference/freeciv/server/unittools.c:4083-4122
@@ -3882,7 +4131,7 @@ describe('UnitManager', () => {
      * @c2c3-surface-scenario boundary
      */
     it('airlifts a passenger but not a cargo-carrying Civ2Civ3 actor', async () => {
-      const manager = createManager();
+      const { manager } = createManager();
       const transport = await manager.createUnit('player-123', 'trireme', 10, 10);
       const passenger = await manager.createUnit('player-123', 'warriors', 10, 10);
       await expect(manager.loadUnitOntoTransport(transport.id, passenger.id)).resolves.toBe(true);
@@ -3899,6 +4148,35 @@ describe('UnitManager', () => {
         true
       );
       expect(manager.canUnitPerformAction(helicopter.id, ActionType.AIRLIFT, 30, 20)).toBe(false);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1041-1049
+     * @assertion Airlift Unit rejects an exhausted unit, but its exact minimum of one move fragment authorizes the relocation and consumes the remaining movement.
+     * @c2c3-action Airlift Unit
+     * @c2c3-scenario boundary
+     */
+    it('accepts the final Civ2Civ3 airlift movement fragment', async () => {
+      const { manager } = createManager();
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+      warrior.movementLeft = 0;
+
+      expect(manager.canUnitPerformAction(warrior.id, ActionType.AIRLIFT, 30, 20)).toBe(false);
+      await expect(
+        manager.executeUnitAction(warrior.id, ActionType.AIRLIFT, 30, 20, 'player-123')
+      ).resolves.toMatchObject({ success: false });
+      expect(warrior).toMatchObject({ x: 10, y: 10, movementLeft: 0 });
+
+      warrior.movementLeft = 1;
+      await expect(
+        manager.executeUnitAction(warrior.id, ActionType.AIRLIFT, 30, 20, 'player-123')
+      ).resolves.toMatchObject({
+        success: true,
+        newPosition: { x: 30, y: 20 },
+        newMovementLeft: 0,
+      });
+      expect(warrior).toMatchObject({ x: 30, y: 20, movementLeft: 0 });
     });
   });
 
@@ -5019,6 +5297,36 @@ describe('UnitManager', () => {
       return { manager, applyNuclearCityDamage };
     };
 
+    const createCiv2Civ3HutManager = (
+      map: ReturnType<typeof makeMap>,
+      random: () => number = () => 0,
+      getCityAt: (
+        x: number,
+        y: number
+      ) => { id: string; playerId: string; buildings?: string[] } | null = () => null
+    ) => {
+      const broadcastHutEvent = jest.fn();
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        map.manager,
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          broadcastMapChanged: jest.fn(),
+          broadcastHutEvent,
+          getCityAt,
+        },
+        new EffectsManager('civ2civ3'),
+        random,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      return { manager, broadcastHutEvent };
+    };
+
     const oracle = loadCiv2Civ3OracleResults();
 
     it('detonates a nuclear actor, destroys the blast stack, damages cities, and adds fallout', async () => {
@@ -5387,13 +5695,222 @@ describe('UnitManager', () => {
 
     /**
      * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1374-1391
+     * @reference reference/freeciv/server/unittools.c:3357-3380
+     * @assertion A non-HutFrighten land unit enters a hut from native Grassland; zero movement cannot trigger the consequence, while the final movement fragment does and awards the deterministic hut result.
+     * @c2c3-action Enter Hut
+     * @c2c3-scenario normal, boundary
+     */
+    it('enters a Civ2Civ3 hut from native land using its final movement fragment', async () => {
+      const map = makeMap(true);
+      const random = jest.fn(() => 0);
+      const { manager, broadcastHutEvent } = createCiv2Civ3HutManager(map, random);
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+      warrior.movementLeft = 0;
+
+      await expect(manager.moveUnit(warrior.id, 11, 10)).rejects.toThrow(
+        'Not enough movement points'
+      );
+      expect(map.tiles.get('11,10').improvements).toContain('Hut');
+
+      warrior.movementLeft = 1;
+      await expect(manager.moveUnit(warrior.id, 11, 10)).resolves.toBe(true);
+
+      expect(warrior).toMatchObject({ x: 11, y: 10, movementLeft: 0 });
+      expect(map.tiles.get('11,10').improvements).not.toContain('Hut');
+      expect(random).toHaveBeenCalledTimes(1);
+      expect(broadcastHutEvent).toHaveBeenCalledWith(
+        gameId,
+        'player-123',
+        'Your unit found 25 gold in a goody hut.'
+      );
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1411-1419
+     * @reference reference/freeciv/data/civ2civ3/script.lua:12-15
+     * @reference reference/freeciv/server/unittools.c:3357-3380
+     * @assertion A HutFrighten aircraft on a city center uses Frighten Hut: the final fragment is sufficient, no hut reward is rolled, and a zero-movement unit cannot trigger it.
+     * @c2c3-action Frighten Hut
+     * @c2c3-scenario normal, boundary
+     */
+    it('frightens a Civ2Civ3 hut from a city center using its final movement fragment', async () => {
+      const map = makeMap(true);
+      const random = jest.fn(() => {
+        throw new Error('Frightening a hut must not roll a hut reward');
+      });
+      const { manager, broadcastHutEvent } = createCiv2Civ3HutManager(map, random, (x, y) =>
+        x === 10 && y === 10 ? { id: 'source-city', playerId: 'player-123', buildings: [] } : null
+      );
+      const fighter = await manager.createUnit('player-123', 'fighter', 10, 10);
+      fighter.movementLeft = 0;
+
+      await expect(manager.moveUnit(fighter.id, 11, 10)).rejects.toThrow(
+        'Not enough movement points'
+      );
+      expect(map.tiles.get('11,10').improvements).toContain('Hut');
+
+      fighter.movementLeft = 1;
+      await expect(manager.moveUnit(fighter.id, 11, 10)).resolves.toBe(true);
+
+      expect(map.tiles.get('11,10').improvements).not.toContain('Hut');
+      expect(random).not.toHaveBeenCalled();
+      expect(broadcastHutEvent).toHaveBeenCalledWith(
+        gameId,
+        'player-123',
+        'Your overflight frightens the tribe; they scatter in terror.'
+      );
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1392-1400
+     * @reference reference/freeciv/server/unittools.c:3357-3380
+     * @assertion A non-native Helicopter without HutFrighten enters a hut through Enter Hut 2; zero movement is rejected and the last fragment resolves its reward.
+     * @c2c3-action Enter Hut 2
+     * @c2c3-scenario normal, boundary
+     */
+    it('enters a Civ2Civ3 hut from a non-native helicopter using its final movement fragment', async () => {
+      const map = makeMap(true);
+      const random = jest.fn(() => 0);
+      const { manager, broadcastHutEvent } = createCiv2Civ3HutManager(map, random);
+      const helicopter = await manager.createUnit('player-123', 'helicopter', 10, 10);
+      helicopter.movementLeft = 0;
+
+      await expect(manager.moveUnit(helicopter.id, 11, 10)).rejects.toThrow(
+        'Not enough movement points'
+      );
+      expect(map.tiles.get('11,10').improvements).toContain('Hut');
+
+      helicopter.movementLeft = 1;
+      await expect(manager.moveUnit(helicopter.id, 11, 10)).resolves.toBe(true);
+
+      expect(helicopter).toMatchObject({ x: 11, y: 10, movementLeft: 0 });
+      expect(map.tiles.get('11,10').improvements).not.toContain('Hut');
+      expect(random).toHaveBeenCalledTimes(1);
+      expect(broadcastHutEvent).toHaveBeenCalledWith(
+        gameId,
+        'player-123',
+        'Your unit found 25 gold in a goody hut.'
+      );
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1383-1391
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1411-1419
+     * @reference reference/freeciv/server/unittools.c:3357-3380
+     * @assertion A HutFrighten aircraft at a city center cannot use Enter Hut; its movement instead takes the Frighten Hut path and never rolls a reward.
+     * @c2c3-action Enter Hut
+     * @c2c3-scenario rejected
+     */
+    it('rejects Enter Hut for a HutFrighten Civ2Civ3 aircraft on a city center', async () => {
+      const map = makeMap(true);
+      const random = jest.fn(() => {
+        throw new Error('A rejected Enter Hut path must not roll a hut reward');
+      });
+      const { manager, broadcastHutEvent } = createCiv2Civ3HutManager(map, random, (x, y) =>
+        x === 10 && y === 10 ? { id: 'source-city', playerId: 'player-123', buildings: [] } : null
+      );
+      const fighter = await manager.createUnit('player-123', 'fighter', 10, 10);
+
+      await expect(manager.moveUnit(fighter.id, 11, 10)).resolves.toBe(true);
+
+      expect(random).not.toHaveBeenCalled();
+      expect(broadcastHutEvent).toHaveBeenCalledWith(
+        gameId,
+        'player-123',
+        'Your overflight frightens the tribe; they scatter in terror.'
+      );
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1374-1391
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1402-1419
+     * @reference reference/freeciv/server/unittools.c:3357-3380
+     * @assertion A native non-HutFrighten Warrior cannot use Frighten Hut; it receives the normal Enter Hut reward instead.
+     * @c2c3-action Frighten Hut
+     * @c2c3-scenario rejected
+     */
+    it('rejects Frighten Hut for a native Civ2Civ3 warrior', async () => {
+      const map = makeMap(true);
+      const random = jest.fn(() => 0);
+      const { manager, broadcastHutEvent } = createCiv2Civ3HutManager(map, random);
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      await expect(manager.moveUnit(warrior.id, 11, 10)).resolves.toBe(true);
+
+      expect(random).toHaveBeenCalledTimes(1);
+      expect(broadcastHutEvent).toHaveBeenCalledWith(
+        gameId,
+        'player-123',
+        'Your unit found 25 gold in a goody hut.'
+      );
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1392-1400
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1420-1428
+     * @reference reference/freeciv/server/unittools.c:3357-3380
+     * @assertion A non-native HutFrighten aircraft cannot use Enter Hut 2; it takes the Frighten Hut 2 path and does not roll a reward.
+     * @c2c3-action Enter Hut 2
+     * @c2c3-scenario rejected
+     */
+    it('rejects Enter Hut 2 for a non-native HutFrighten Civ2Civ3 aircraft', async () => {
+      const map = makeMap(true);
+      const random = jest.fn(() => {
+        throw new Error('A rejected Enter Hut 2 path must not roll a hut reward');
+      });
+      const { manager, broadcastHutEvent } = createCiv2Civ3HutManager(map, random);
+      const fighter = await manager.createUnit('player-123', 'fighter', 10, 10);
+
+      await expect(manager.moveUnit(fighter.id, 11, 10)).resolves.toBe(true);
+
+      expect(random).not.toHaveBeenCalled();
+      expect(broadcastHutEvent).toHaveBeenCalledWith(
+        gameId,
+        'player-123',
+        'Your overflight frightens the tribe; they scatter in terror.'
+      );
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1392-1400
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1420-1428
+     * @reference reference/freeciv/server/unittools.c:3357-3380
+     * @assertion A non-native Helicopter without HutFrighten cannot use Frighten Hut 2; it enters the hut and receives the ordinary reward.
+     * @c2c3-action Frighten Hut 2
+     * @c2c3-scenario rejected
+     */
+    it('rejects Frighten Hut 2 for a non-native Civ2Civ3 helicopter', async () => {
+      const map = makeMap(true);
+      const random = jest.fn(() => 0);
+      const { manager, broadcastHutEvent } = createCiv2Civ3HutManager(map, random);
+      const helicopter = await manager.createUnit('player-123', 'helicopter', 10, 10);
+
+      await expect(manager.moveUnit(helicopter.id, 11, 10)).resolves.toBe(true);
+
+      expect(random).toHaveBeenCalledTimes(1);
+      expect(broadcastHutEvent).toHaveBeenCalledWith(
+        gameId,
+        'player-123',
+        'Your unit found 25 gold in a goody hut.'
+      );
+    });
+
+    /**
+     * @evidence parity
      * @reference reference/freeciv/data/civ2civ3/script.lua:12-15
      * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1402-1428
      * @reference reference/freeciv/server/unittools.c:3357-3380
      * @reference reference/freeciv/data/default/default.lua:177-185
      * @assertion A c2c3 HutFrighten-class unit on a non-native tile removes a hut without rolling a hut reward, and emits the inherited tribe-scatter event.
      * @c2c3-action Frighten Hut 2
-     * @c2c3-scenario normal
+     * @c2c3-scenario normal, boundary
      * @c2c3-surface workers-extras
      * @c2c3-surface-scenario boundary
      * @c2c3-script-hook hut_frighten
@@ -5422,6 +5939,14 @@ describe('UnitManager', () => {
         rulesetUnitsService.getUnitTypes('civ2civ3')
       );
       const fighter = await manager.createUnit('player-123', 'fighter', 10, 10);
+      fighter.movementLeft = 0;
+
+      await expect(manager.moveUnit(fighter.id, 11, 10)).rejects.toThrow(
+        'Not enough movement points'
+      );
+      expect(map.tiles.get('11,10').improvements).toContain('Hut');
+
+      fighter.movementLeft = 1;
 
       await manager.moveUnit(fighter.id, 11, 10);
 
