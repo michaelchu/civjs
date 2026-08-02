@@ -1,38 +1,47 @@
 # Reference-gap workflow
 
-The simulator is most useful as a small, deterministic test harness around
-one gameplay question. Use a custom scenario setup to put the game into the
-state needed for that question, then combine automatic invariants with
-explicit expectations.
+The simulator is most useful for gameplay questions that emerge across several
+turns or from interactions between authoritative systems and AI planners. It is
+not a replacement for focused unit and manager-integration tests. Use a custom
+scenario setup to establish only the preconditions the multi-turn behavior
+needs, then combine automatic invariants with explicit progress, adaptation,
+and outcome expectations.
 
 ## Investigation loop
 
 1. Choose the reference subsystem and write down the behavior to verify. Start
    with the relevant Freeciv server code under `reference/freeciv/server/` and
    record its path and line range in the scenario or test documentation.
-2. Classify the expected behavior:
+2. Classify the expected behavior and choose the narrowest appropriate layer:
    - State legality: an always-on simulator invariant should detect it.
-   - A transition or event: add a scenario expectation, such as a war
-     declaration or a city founding event.
-   - AI decision parity: seed only the minimum state needed to reach the
-     decision, then compare replay events and diagnostics across runs.
-   - Strategic quality or balance: use a scenario matrix and inspect trends;
-     this cannot be proven by a structural invariant alone.
-3. Create or extend a JSON scenario under
+   - An exact formula, validation rule, or atomic transition: add a unit or
+     focused manager-integration test.
+   - A simulator lifecycle, replay, recovery, or telemetry behavior: add a
+     simulator-contract test.
+   - AI planning, cross-system coordination, adaptation, or progress over time:
+     add a multi-turn gameplay scenario.
+   - Strategic quality or balance: use a scenario matrix and compare trends;
+     this cannot be proven by one deterministic fixture or a structural
+     invariant alone.
+3. For a simulation-worthy behavior, create or extend a JSON scenario under
    `docs/simulation-scenarios/`. Use `scenarioSetup` for custom players,
    cities, units, diplomacy, research, and AI memory. Keep the seed and
-   `maxTurns` explicit.
-4. Add `expect` rules for the observable result. Prefer an event expectation
-   when the question is about an action, and a final-state expectation when
-   it is about the resulting state.
+   `maxTurns` explicit. Seed only what is necessary to reach the behavior; do
+   not preconstruct the intended result.
+4. Add `expect` rules for observable progress and outcomes. Prefer broad turn
+   windows, state deltas, ordered milestones, bounded no-progress intervals,
+   and recorded AI decisions. Avoid exact turns and exact internal choices
+   unless they are the reference behavior being tested.
 5. Run the scenario and inspect `run.json`, especially replay checkpoints,
    `diagnostics.invariants`, `diagnostics.expectations`, diplomacy events,
    state hashes, and AI decision records.
 6. Repeat with a small seed matrix. A single deterministic run proves that a
    setup is reproducible; several seeds help distinguish a code defect from
    an overly specific fixture.
-7. Turn a confirmed gap into a focused regression test and document whether
-   the fix follows the reference behavior or intentionally differs.
+7. Turn the exact defect into a focused regression test and document whether
+   the fix follows the reference behavior or intentionally differs. Retain the
+   original simulation only when it still validates useful multi-turn behavior
+   after the narrow regression exists.
 
 Example command:
 
@@ -66,25 +75,28 @@ incomplete state in:
 - diplomatic state symmetry and treaty-duration consistency; and
 - research bookkeeping and invalid technology targets.
 
-Scenario expectations extend this with gameplay assertions. Existing examples
-cover war declarations, diplomacy state, research setup, city founding, and
-victory. The same pattern can be used for peace treaties, alliances, trade,
-unit transport, combat outcomes, production, growth, technology completion,
-and endgame conditions as those replay events or state fields are exposed.
+Scenario expectations extend this with multi-turn gameplay assertions. Existing
+examples cover war declarations, diplomacy state, research setup, city founding,
+and victory, but most are currently smoke fixtures. Evolve them toward progress
+over turn windows, ordered strategic milestones, adaptation after changing
+state, and outcomes that require coordination between planners and authoritative
+systems.
 
 ## What still needs targeted coverage
 
-Structural invariants do not establish that the AI made the best decision or
-that every reference rule is implemented. Add targeted scenarios for:
+Structural invariants do not establish that the AI made useful progress, adapted
+to prior outcomes, or coordinated several plans. Add gameplay scenarios for:
 
-- action legality and turn transitions that are not represented by a stored
-  state invariant;
-- combat resolution and survival, including terrain and transport edge cases;
-- production, food, trade, happiness, corruption, and research-rate changes;
-- diplomacy proposals, acceptance/rejection, treaty expiry, and trade;
-- city placement, borders, movement, and visibility interactions; and
-- victory precedence and simultaneous endgame conditions.
+- early expansion, tile improvement, production, and research progress;
+- sustained military campaigns, defense, loss replacement, and replanning;
+- ferry production, rendezvous, embarkation, and overseas follow-through;
+- economic and government adaptation under changing pressure;
+- diplomacy that evolves with contact, relative power, incidents, and war;
+- prerequisite planning and progress toward enabled victory conditions;
+- recovery from invalidated worker, settler, military, trade, and ferry plans;
+  and
+- long-run stagnation, deadlock, and seed-dependent strategic quality.
 
-For each gap, prefer a minimal fixture with one clear expected outcome. Keep a
-broader multi-turn scenario as a smoke or regression suite after the focused
-case is reliable.
+Use minimal fixtures for focused mechanics regressions. For gameplay
+simulations, preserve enough natural setup and turn history for the AI to
+observe results and change subsequent decisions.

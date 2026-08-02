@@ -1,31 +1,45 @@
-# Gameplay UAT plan for the headless simulator
+# Gameplay simulation test plan
 
-This document defines the gameplay acceptance tests we should run against the
-headless simulator. It is intended to answer two questions for each case:
+This document defines the acceptance coverage that belongs in the headless
+simulator. Simulation tests are not a second unit-test suite. They should prove
+behavior that emerges only when authoritative gameplay systems and AI planners
+interact across multiple turns.
 
-1. Does the authoritative game state remain legal and internally consistent?
-2. Did the intended gameplay action occur and produce the expected result?
+The overall test strategy has three layers:
 
-The simulator's automatic invariants answer the first question. Scenario
-`expect` rules, replay events, final snapshots, and AI decision records answer
-the second.
+1. **Mechanics regressions** use unit and focused integration tests for exact
+   rules, validation failures, formulas, and atomic state transitions.
+2. **Simulator contract tests** verify execution, determinism, replay,
+   diagnostics, recovery, and telemetry behavior.
+3. **Gameplay simulations** run AI-controlled civilizations for long enough to
+   observe progression, adaptation, coordination, and victory pursuit.
 
-## UAT pass criteria
+Do not add a simulation fixture merely to repeat a manager test. A scenario is
+justified when the behavior depends on several turns, several authoritative
+subsystems, AI feedback from prior outcomes, or a population of seeds.
 
-A test passes only when all of the following are true:
+## Pass criteria
 
-- the simulator exits successfully;
-- `diagnostics.invariants.passed` is `true` and has no violations;
-- `diagnostics.expectations.passed` is `true` when the fixture has an
-  `expect` block;
+Every simulator-contract and gameplay-simulation case must satisfy these common
+criteria:
+
+- the simulator exits with the expected result;
+- `diagnostics.invariants.passed` is `true` with no violations;
+- `diagnostics.expectations.passed` is `true` when the fixture has an `expect`
+  block;
 - the final `snapshot.eventTelemetry` has zero dropped events, persistence
   failures, pending events, and pending movement summaries; and
-- the result is deterministic for a fixed seed when the case is marked
-  deterministic.
+- a fixed seed is reproducible when the case is marked deterministic.
 
-An event proves that an operation was emitted after the authoritative manager
-accepted it. It does not, by itself, prove that the final state is correct;
-pair event assertions with a final-state assertion whenever possible.
+Gameplay simulations must also assert meaningful progress or adaptation. A run
+that merely survives to `maxTurns` is a smoke result, not evidence that the AI
+or gameplay loop is working well.
+
+Prefer assertions about observable outcomes over exact internal choices. Do
+not require a particular action on an exact turn unless the timing itself is
+the reference behavior under test. Use broad turn windows, state deltas,
+ordered milestones, and bounded no-progress intervals so harmless planner
+changes do not make scenarios brittle.
 
 ## Running and inspecting a case
 
@@ -39,7 +53,7 @@ npm run --silent simulation:run -- \
   --no-persist
 ```
 
-Inspect the result, expectations, invariants, and telemetry:
+Inspect its result, expectations, invariants, and telemetry:
 
 ```sh
 jq '{result, expectations: .diagnostics.expectations,
@@ -48,7 +62,7 @@ jq '{result, expectations: .diagnostics.expectations,
   ../artifacts/uat/<fixture>/run.json
 ```
 
-Run the checked-in fixture suite with:
+Run the checked-in suite with:
 
 ```sh
 npm run --silent simulation:run:scenarios -- \
@@ -58,399 +72,248 @@ npm run --silent simulation:run:scenarios -- \
   --continue-on-error
 ```
 
-`maxTurns` is an absolute turn cap. If a setup starts at turn 12, a
-`maxTurns` value of 20 permits turns 12 through 20; it is not a request for 20
-additional turns.
+`maxTurns` is an absolute turn cap. If setup starts at turn 12, a `maxTurns`
+value of 20 permits turns 12 through 20; it does not request 20 additional
+turns.
 
-## Priority and execution status
+## What belongs in mechanics tests
 
-- **P0**: release-blocking correctness or state-corruption risk.
-- **P1**: important gameplay behavior that should be covered before calling a
-  subsystem reliable.
-- **P2**: quality, balance, or long-run regression coverage.
+The following behaviors should normally be tested with unit or focused
+manager-integration tests. A gameplay simulation may encounter them, and the
+always-on invariants must detect corrupt results, but each rule does not need a
+dedicated simulation fixture:
 
-“Ready” means the current simulator can express the setup and assertion with
-existing configuration and replay data. “Fixture needed” means the simulator
-supports the underlying state or event, but we should add a focused fixture.
-“Driver needed” means a deterministic action/proposal API is needed before the
-case can be automated reliably.
+- starting-position distance and map topology;
+- city-founding validation and atomic settler consumption;
+- combat formulas, movement cost, killstack behavior, and protected stacks;
+- city growth, starvation, production completion, and worklist advancement;
+- worker activity legality, duration, map extras, and tile-yield formulas;
+- transport loading, unloading, reciprocity, destruction, and cargo rescue;
+- trade-route eligibility, value, capacity, reciprocity, and cancellation;
+- city-capture ownership reconciliation;
+- diplomacy proposal clauses, acceptance, rejection, expiry, and rollback;
+- government-change legality, revolution duration, and economic formulas;
+- victory-condition evaluation, precedence, ties, and standings; and
+- event retry, fault injection, and isolated persistence failure handling.
 
-## P0: release-blocking gameplay cases
+Add or strengthen a mechanics regression whenever a simulation discovers an
+exact rule defect. Keep the simulation only when it continues to exercise a
+valuable multi-turn behavior after that regression exists.
 
-### UAT-001 — Deterministic turn lifecycle and replay integrity
+## Simulator contract suite
 
-- **Status:** Ready; `earth-small-bootstrap.json`.
-- **Setup:** Run the bootstrap fixture at its configured initial turn for its
-  full cap.
-- **Verify:** Every completed turn has the expected phase sequence, turn/year
-  progression, stable player identities, and a state hash.
-- **Pass:** The run reaches `max_turns`; all invariants pass; no event telemetry
-  is lost; repeating the same fixture produces identical `result.stateHashes`.
-- **Reference:** `reference/freeciv/server/srv_main.c` turn processing and the
-  phase-order notes in `docs/simulation-scenarios/README.md`.
+These tests validate the simulation surface rather than strategic quality.
 
-### UAT-002 — Starting positions do not create unfairly close civilizations
+### SIM-001 — Turn lifecycle, replay, and fixed-seed determinism
 
-- **Status:** Fixture needed; map-aware expectation recommended.
-- **Setup:** Run the default starting-unit path across a seed set, for example
-  31001–31010. Capture the first replay checkpoint before meaningful movement.
-- **Verify:** Each civilization's initial settler/city-start location is on a
-  legal tile and meets the configured minimum separation from every other
-  civilization's starting location. Check both map distance and actual
-  movement topology, including wraparound maps.
-- **Pass:** No two players start inside the minimum separation; no starting
-  unit overlaps an illegal terrain, city, or another player's unit; the same
-  seed reproduces the same positions.
-- **Current gap:** The simulator exposes coordinates and invariants, but does
-  not yet have a first-class `minStartingDistance` expectation. Until that is
-  added, inspect the first snapshot with `jq` and record the measured distances.
-- **Reference:** `reference/freeciv/server/srv_main.c:2664-2819`.
+- **Priority:** P0.
+- **Baseline:** `earth-small-bootstrap.json`.
+- **Verify:** Sequential authoritative turns, phase ordering, turn/year
+  progression, stable identities, checkpoint creation, state hashes, and a
+  clean final telemetry queue.
+- **Pass:** The run reaches its expected end reason, all checkpoints pass
+  invariants, and a repeated fixed-seed run produces equivalent ordered state
+  hashes and diagnostics.
 
-### UAT-003 — City founding is legal and produces a persistent city
+### SIM-002 — Expectation and invariant failure reporting
 
-- **Status:** Ready for basic coverage; `earth-small-city-founding.json`.
-- **Setup:** Use default settlers for the baseline; add a focused custom setup
-  with a settler on a known legal tile for deterministic coverage.
-- **Verify:** A settler can found a city only on a legal tile; the settler is
-  consumed or otherwise handled correctly; the city has the expected owner,
-  coordinates, size, name, and references.
-- **Pass:** At least one `city_founded` event occurs, the final player city
-  count increases, no duplicate city coordinates exist, and all city/unit
-  invariants pass.
-- **Negative cases:** Founding on ocean, an occupied city tile, an illegal
-  terrain, or too close to an existing city must be rejected without creating
-  a partial city or losing the settler.
-- **Reference:** `reference/freeciv/server/citytools.c:639-690` and the city
-  sanity checks in `reference/freeciv/server/sanitycheck.c`.
+- **Priority:** P0.
+- **Verify:** A deliberately unmet expectation and deliberately corrupted
+  checkpoint both fail the run with distinct, actionable diagnostics.
+- **Pass:** The runner never reports a clean result, identifies the affected
+  turn and assertion, and preserves the last valid checkpoint.
+- **Placement:** Prefer service/integration tests; a checked-in negative fixture
+  is optional and should not run in the ordinary green scenario suite.
 
-### UAT-004 — Combat resolves atomically and records casualties
+### SIM-003 — Recovery equivalence
 
-- **Status:** Ready for direct combat; `earth-small-combat.json`.
-- **Setup:** Place hostile units on adjacent tiles, including a low-health
-  defender to make the result deterministic.
-- **Verify:** Combat consumes the correct movement, applies damage, removes a
-  defeated unit, preserves a surviving unit's legal health, and records the
-  combat result.
-- **Pass:** `combat_occurred` and `unit_killed` are present; the final unit
-  snapshot agrees with the event; no unit has invalid health, movement, owner,
-  or transport references.
-- **Reference:** `reference/freeciv/server/unittools.c:283-322,1215-1280` and
-  `reference/freeciv/server/unithand.c:4535-4555,4992-5357`.
+- **Priority:** P0.
+- **Setup:** Run a fixed-seed game continuously and repeat it with a restart at
+  one or more completed-turn boundaries.
+- **Verify:** AI state, accepted plans, random state, identity allocation,
+  authoritative state hashes, and subsequent outcomes remain equivalent.
+- **Pass:** Recovery creates no duplicate turn or event, and the resumed run
+  converges with the uninterrupted control run.
 
-### UAT-005 — Diplomacy state is symmetric and war declarations are real
+### SIM-004 — Telemetry and replay pressure
 
-- **Status:** Ready; `earth-small-war-declaration.json`.
-- **Setup:** Start two AI players in peace with high war desire and a zero war
-  countdown.
-- **Verify:** The AI decision produces a declaration rather than merely a
-  seeded relation. Verify the declaration direction, final bilateral state,
-  proposal/rejection behavior, and the legality of subsequent movement.
-- **Pass:** A `war_declared` event is observed from the expected player, the
-  final relation is `war` in both directions, and no diplomacy invariant fails.
-- **Reference:** `reference/freeciv/server/diplhand.c:147-330` and
-  `reference/freeciv/server/srv_main.c:1385-1388`.
+- **Priority:** P1.
+- **Setup:** Run an active four-or-more-player game for 500 and 1,000 turns.
+- **Verify:** Event persistence remains batched, movement is summarized,
+  checkpoints remain readable, and artifact growth stays within an established
+  baseline.
+- **Pass:** No crash, timeout, invariant violation, telemetry loss, or
+  permanently pending work occurs.
 
-### UAT-006 — Research rates produce legal, attributable progress
+## Multi-turn gameplay simulation suite
 
-- **Status:** Ready; `earth-small-research.json`.
-- **Setup:** Give one player a high science rate and near-complete research;
-  give the other a lower rate and a different research target.
-- **Verify:** Research phases complete, targets remain valid, bulbs progress,
-  the expected technology completes, and production/growth continue while
-  research runs.
-- **Pass:** Research phase events occur for every completed turn; the expected
-  `tech_researched` event occurs with `source: "research"`; the fast player
-  completes the required technology; no research invariant fails.
-- **Reference:** `reference/freeciv/server/techtools.c:650-726`.
+These are the primary gameplay UATs. Each scenario should begin from a natural
+or lightly constrained state. Seed only what is required to reach the phase of
+the game under study; do not preconstruct the intended outcome.
 
-## P1: core gameplay acceptance cases
+### GAME-001 — Early expansion and economic progress
 
-### UAT-007 — City growth and population accounting
+- **Priority:** P0.
+- **Length:** 50–100 turns across a small seed matrix.
+- **Setup:** At least three AI civilizations with ordinary starting units and
+  no prebuilt expansion outcome.
+- **Observe:** City founding, legal placement, population growth, tile
+  improvement, production changes, research, treasury, and exploration.
+- **Pass:** Every surviving civilization demonstrates progress in more than one
+  domain; settlers do not remain indefinitely idle when legal sites exist;
+  cities do not remain indefinitely without production; technology or research
+  progress increases; and no civilization enters an unexplained no-progress
+  interval beyond the configured bound.
+- **Do not assert:** An exact city site, production item, technology, or turn.
 
-- **Status:** Ready for baseline; focused fixture recommended.
-- **Setup:** Give a city enough food to grow within a small turn window, then
-  repeat with starvation or population-loss conditions.
-- **Verify:** Growth changes city size exactly once, carries food correctly,
-  and does not create negative population or invalid city references.
-- **Pass:** `city_growth` includes the expected `oldSize` and `newSize`; the
-  final city population matches the event; starvation/casualty cases never
-  produce size below one.
-- **Reference:** `reference/freeciv/server/cityturn.c:2784-3062`.
+### GAME-002 — Sustained land war and replanning
 
-### UAT-008 — Production completes the requested item exactly once
+- **Priority:** P0.
+- **Length:** 40–100 turns after meaningful contact.
+- **Setup:** Rival civilizations with reachable borders and enough economy to
+  produce military units. A seeded hostile relation is acceptable; preplacing
+  a guaranteed one-hit combat is not.
+- **Observe:** Threat assessment, military production, target selection,
+  movement toward objectives, defender choice, repeated combat, replacement of
+  losses, city defense, and capture or abandonment of infeasible plans.
+- **Pass:** The AI converts strategic intent into gameplay effects, does not
+  repeatedly issue impossible orders, clears stale tasks after losses or map
+  changes, and produces a coherent terminal outcome such as capture, successful
+  defense, negotiated de-escalation, or explicit replanning.
 
-- **Status:** Fixture needed.
-- **Setup:** Create focused cities with enough production stock for a unit, a
-  building, a wonder, and a spaceship part.
-- **Verify:** The requested item completes, the city receives the resulting
-  state, the production queue advances, and the telemetry classification is
-  correct.
-- **Pass:** Each item produces one `city_production_complete`; buildings and
-  wonders also produce `city_building_built`; spaceship parts do not produce a
-  false building event; units produce `unit_created`.
-- **Reference:** `reference/freeciv/server/cityturn.c:2784-3062` and
-  `reference/freeciv/common/spaceship.h` and
-  `reference/freeciv/server/spacerace.h`.
+### GAME-003 — Overseas expansion and ferry coordination
 
-### UAT-009 — Unit movement, movement points, and aggregation
+- **Priority:** P1.
+- **Length:** 75–150 turns.
+- **Setup:** An AI civilization with attractive reachable land separated by
+  water and no initially available land path.
+- **Observe:** Site selection, demand for transport capacity, ferry production,
+  rendezvous, embarkation, sea movement, disembarkation, and follow-through by
+  a settler or military force.
+- **Pass:** The AI completes an overseas objective or records and acts on a
+  valid reason to abandon it; cargo and ferry assignments do not remain stale;
+  and no units become permanently stranded because cooperating planners lose
+  shared state.
 
-- **Status:** Ready for telemetry; fixture needed for edge cases.
-- **Setup:** Move one unit multiple tiles, move several units for the same
-  player, and include a transport/cargo stack.
-- **Verify:** Movement respects terrain cost, zones of control, transport
-  rules, and remaining movement. Replay telemetry aggregates movement rather
-  than writing one durable event per step.
-- **Pass:** The final positions and movement points are legal; a
-  `unit_movement_summary` contains the expected unit count, move count, origin,
-  and final destination; raw `unit_moved` events are absent; telemetry counters
-  remain zero.
-- **Reference:** `reference/freeciv/server/unithand.c:4535-4555` and
-  `reference/freeciv/common/unit.h:264-271`.
+### GAME-004 — Economic and government adaptation
 
-### UAT-009a — Terrain improvements, road effects, and resource accounting
+- **Priority:** P1.
+- **Length:** 75–150 turns with at least one material pressure change.
+- **Setup:** Allow normal development, then introduce or naturally reach upkeep,
+  happiness, war, research, or treasury pressure.
+- **Observe:** Economic-rate changes, government choice, revolution, production
+  priorities, upkeep, research pace, and recovery after the pressure changes.
+- **Pass:** The AI responds in the expected direction, preserves legal rates,
+  avoids persistent insolvency or disorder when a feasible response exists,
+  and does not oscillate repeatedly between equivalent policies.
 
-- **Status:** Road/resource calculation coverage is ready; the deterministic
-  trade/luxury fixture is `earth-small-trade-luxury.json`. Worker activity
-  persistence still needs a longer map-edit driver.
-- **Setup:** Put a worker on legal tiles containing representative terrain and
-  resources. Build a road, upgrade it to a railroad, build irrigation and a
-  mine on separate tiles, then test fortress, airbase, transformation,
-  pillage, and pollution cleanup where the ruleset permits them. Have a city
-  work the improved resource tile before and after each completion.
-- **Verify:** Worker activities use the ruleset duration, complete exactly
-  once, update the authoritative map extra/road flags, persist through a map
-  snapshot/reload, and recalculate the city's worked-tile outputs.
-- **Expected accounting:** Irrigation changes food according to the terrain
-  rules; a mine changes shields; a road applies the ruleset road-trade bonus to
-  a worked tile; a railroad retains the road trade effect and applies the
-  railroad shield effect; mutually exclusive improvements replace one another
-  correctly; pillage removes the selected infrastructure. For example, in
-  `civ2civ3`, a worked tundra tile with Furs has 3 resource trade and a road
-  adds one fixed trade, for 4 total; it must not multiply the resource yield.
-- **Important semantic check:** In the current Civ2/Freeciv model, a road does
-  not create a separate city-to-luxury-resource network. A map resource such
-  as Gold, Gems, Wine, or Spice contributes its configured food/shield/trade
-  yield when the city works that tile, whether or not the tile is roaded. The
-  tile must be inside the city's workable radius and actually worked. “Luxury”
-  in the economy is a conversion of trade via the player's luxury rate or
-  specialist output, not a road-connected resource inventory.
-- **Trade-route distinction:** City trade routes are established by a trader
-  between two city IDs and are valued by distance, city size, relation, and
-  ruleset settings. The current `CityTradeRouteService` does not require a
-  continuous road path, and roads do not automatically create a trade route.
-- **Pass:** Map extras and flags are correct after reload; worked-tile outputs
-  change by the expected ruleset deltas; resource yields are counted once; no
-  roaded tile outside the city radius leaks into city output; and
-  `earth-small-trade-luxury.json` confirms that an explicit route produces a
-  reciprocal route/event and converts route trade into city luxury at a 100%
-  luxury rate. The fixture locks player 1's economic rates so the AI treasury
-  controller cannot change the UAT precondition.
-- **Reference:** `reference/freeciv/common/terrain.c:660-727`,
-  `reference/freeciv/common/traderoutes.c:280-357`, and the worker activity
-  paths in `reference/freeciv/server/unittools.c`.
+### GAME-005 — Diplomacy evolves with game state
 
-### UAT-010 — Collateral combat and protected stacks
+- **Priority:** P1.
+- **Length:** 100–200 turns across multiple seeds.
+- **Setup:** Three or more initially uncontacted or neutral civilizations. Seed
+  personality, but avoid seeding a countdown that guarantees the result except
+  in a focused planner regression.
+- **Observe:** Contact, threat and power changes, proposals, acceptance or
+  rejection, alliances, war declarations, peace attempts, incidents, and
+  visibility changes.
+- **Pass:** Diplomatic actions are attributable to prior game state, bilateral
+  state remains consistent, and the AI changes posture when the strategic
+  situation materially changes. The suite should tolerate different legal
+  outcomes across seeds while rejecting inactivity and contradictory behavior.
 
-- **Status:** Fixture needed; telemetry support is ready.
-- **Setup:** Create an unprotected field stack with a primary defender and at
-  least one collateral unit. Repeat in a city, fortress, and airbase.
-- **Verify:** Field-stack rules destroy collateral units when the reference
-  rules require it; protected stacks preserve collateral units; combat result,
-  final units, and kill events agree.
-- **Pass:** Every destroyed collateral unit has a `unit_killed` event with
-  `role: "collateral"`; protected-stack cases have no collateral kill; no
-  orphaned unit or transport references remain.
-- **Reference:** `reference/freeciv/server/unittools.c:283-322` and the
-  ruleset protection effects used by `reference/freeciv/server/unithand.c`.
+### GAME-006 — Late-game victory pursuit
 
-### UAT-011 — Transport, cargo, embark, and disembark
+- **Priority:** P1.
+- **Length:** 200–500 turns or a mid-game scenario with prerequisites still to
+  be earned.
+- **Setup:** Select one or more victory conditions without pre-setting their
+  final trigger.
+- **Observe:** Research goals, prerequisite infrastructure, wonders or
+  spaceship components, military elimination, alliances, culture, launch
+  timing, and end-game evaluation.
+- **Pass:** At least one AI makes measurable progress toward an enabled victory,
+  changes intermediate plans as prerequisites complete, and the reported winner
+  and standings agree with the authoritative final state.
 
-- **Status:** Fixture needed.
-- **Setup:** Place a transport and legal cargo near a coast; exercise loading,
-  movement at sea, unloading, and destruction of a transport with cargo.
-- **Verify:** Cargo ownership and `transportedBy`/`cargoUnits` references stay
-  reciprocal; cargo cannot move or disembark illegally; destroyed transports
-  apply the reference cargo outcome.
-- **Pass:** Every checkpoint passes transport reciprocity invariants and the
-  final cargo state matches the action result.
-- **Reference:** `reference/freeciv/server/unithand.c` transport action paths
-  and `reference/freeciv/common/unit.h:264-271`.
+### GAME-007 — Recovery from disrupted plans
 
-### UAT-012 — Trade route establishment, value, and reciprocity
+- **Priority:** P1.
+- **Length:** 50–100 turns.
+- **Setup:** Begin an authentic worker, settler, defense, attack, trade, or ferry
+  plan, then invalidate it through an authoritative game event such as unit
+  loss, city capture, diplomacy change, blocked terrain, or target removal.
+- **Observe:** Task invalidation, reassignment, replacement production, and
+  renewed progress.
+- **Pass:** Invalid tasks are cleared within a bounded number of turns, affected
+  units receive legal new work or become intentionally idle, and the
+  civilization resumes progress without restart-only repair.
 
-- **Status:** Ready for the deterministic happy path with
-  `earth-small-trade-luxury.json`; negative and ownership-change variants are
-  still fixture work.
-- **Setup:** The fixture places two eligible cities and a caravan with valid
-  home-city data directly in the partner city. Repeat with duplicate routes,
-  full route capacity, invalid ownership, and a city capture.
-- **Verify:** A valid route is established once, both city records reference
-  the same route, value/goods are assigned, and invalid or duplicate routes
-  are rejected without partial state.
-- **Pass:** A `trade_route_established` event has the expected source city,
-  partner city, value, turn, and goods; the city expectation confirms one
-  reciprocal route, positive trade, and positive luxury conversion; route
-  reciprocity remains valid after every turn and after city ownership changes.
-- **Reference:** `reference/freeciv/common/traderoutes.c:280-357` and
-  `reference/freeciv/server/unithand.c:6059-6415`.
+### GAME-008 — Seed-matrix endurance and stagnation detection
 
-### UAT-013 — City capture and ownership transfer
+- **Priority:** P1.
+- **Length:** 200, 500, and 1,000-turn presets with at least four AIs.
+- **Observe:** Progress per era, living-player count, city/population/technology
+  trends, production diversity, combat and diplomacy activity, victory progress,
+  idle-unit/task age, and no-progress windows.
+- **Pass:** No seed violates invariants or telemetry guarantees; repeated seeds
+  are deterministic; runs do not deadlock; and strategically different seeds
+  are allowed to reach different legal outcomes without collapsing into the
+  same accidental behavior.
 
-- **Status:** Fixture needed.
-- **Setup:** Put a hostile attacker adjacent to a city with one defender;
-  repeat with multiple defenders, buildings, population, trade routes, and a
-  capital.
-- **Verify:** The city changes owner only after the final legal defender is
-  defeated; city ownership, borders, units, buildings, trade routes, and
-  population follow the reference rules.
-- **Pass:** The final snapshot has one owner, no stale foreign ownership
-  references, correct `unit_killed`/combat telemetry, and valid trade-route
-  reciprocity.
-- **Reference:** `reference/freeciv/server/citytools.c` city transfer paths,
-  `reference/freeciv/server/citizenshand.c:386-405`, and
-  `reference/freeciv/server/sanitycheck.c`.
+## Required expectation support
 
-### UAT-014 — Diplomacy proposal acceptance and rejection
+The current final-state and event-count expectations are sufficient for smoke
+fixtures but not for the gameplay suite above. Extend them incrementally with:
 
-- **Status:** Driver needed for deterministic coverage.
-- **Setup:** Start players with contact and test one treaty at a time:
-  ceasefire, peace/armistice, alliance, embassy, shared vision, map, gold,
-  technology, and city transfer. Repeat with unmet requirements.
-- **Verify:** A proposal has the expected lifecycle (`proposal`, `accepted`,
-  `rejected`, or `cancelled`), accepted clauses apply atomically, and rejected
-  clauses change no gameplay state.
-- **Pass:** Final bilateral relation, embassy/vision flags, player gold,
-  technology, city owner, and replay events all agree. A failed clause leaves
-  the treaty and both players unchanged.
-- **Current gap:** `scenarioSetup.diplomacy` seeds relations but does not
-  author a pending treaty. Add a deterministic diplomacy action script or
-  scenario command before making this a release gate.
-- **Reference:** `reference/freeciv/server/diplhand.c:314-436,450-668`.
+- checkpoint assertions scoped to a turn or turn window;
+- initial-to-final and checkpoint-to-checkpoint state deltas;
+- ordered milestones, such as `transport_requested` before embarkation and
+  disembarkation;
+- maximum no-progress or idle-task durations;
+- AI decision-trace matching by player, planner/category, target, result, and
+  turn window;
+- sustained predicates that must hold for a configured number of turns;
+- aggregate and per-player metrics for cities, population, technologies,
+  treasury, production, units, idle tasks, and victory progress; and
+- seed-matrix summaries with thresholds expressed as counts or proportions,
+  rather than requiring identical outcomes from different seeds.
 
-### UAT-015 — Diplomacy expiry and alliance visibility
+Keep expectation semantics observational. They should evaluate authoritative
+snapshots, durable events, and recorded AI decisions without reaching into live
+manager internals.
 
-- **Status:** Fixture/driver needed.
-- **Setup:** Seed ceasefire and armistice relations with short durations;
-  separately seed an alliance and shared vision.
-- **Verify:** Timers decrement once per turn, ceasefire/armistice transitions
-  occur at the correct boundary, war becomes legal only after expiry, and
-  alliance/shared visibility is granted and revoked together.
-- **Pass:** Expected `ceasefire_expired` or `armistice_completed` event occurs;
-  both relation records agree; visibility does not leak after breakup.
-- **Reference:** `reference/freeciv/server/diplhand.c:564-668` and
-  `reference/freeciv/server/srv_main.c:1018-1089`.
+## Existing fixtures and disposition
 
-### UAT-016 — Government change, revolution, and economic rates
+| Fixture                            | Current value                                   | Long-term disposition                                                        |
+| ---------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------- |
+| `earth-small-bootstrap.json`       | Lifecycle and replay smoke                      | Keep under SIM-001                                                           |
+| `earth-small-city-founding.json`   | Confirms default AI can eventually found a city | Fold into GAME-001 once expansion expectations exist                         |
+| `earth-small-combat.json`          | Combat/event smoke                              | Keep temporarily as telemetry smoke; exact combat belongs in mechanics tests |
+| `earth-small-war.json`             | Seeded-war multi-turn diagnostic                | Evolve into GAME-002                                                         |
+| `earth-small-war-declaration.json` | Forced diplomacy decision path                  | Keep as a focused AI planner regression; add an unforced GAME-005 scenario   |
+| `earth-small-research.json`        | Multi-turn research/production/growth smoke     | Evolve into GAME-001 or GAME-004 with progress deltas                        |
+| `earth-small-trade-luxury.json`    | Exact trade/economy calculation                 | Treat as a mechanics/integration regression, not strategic UAT               |
+| `earth-small-victory.json`         | End-condition smoke                             | Keep as simulator smoke; add GAME-006 for actual victory pursuit             |
 
-- **Status:** Fixture needed; output telemetry should be expanded.
-- **Setup:** Seed a government change, revolution duration, tax/luxury/science
-  rates, treasury, unit upkeep, and cities with different specialists.
-- **Verify:** Revolution lasts the configured number of turns, the government
-  changes once, rates sum to the legal total, upkeep and corruption are
-  applied, and research/gold/luxury outputs change in the expected direction.
-- **Pass:** No negative treasury or invalid rate state; research and city
-  outputs match reference-derived expectations within the configured ruleset.
-- **Current gap:** The simulator exposes final research and city state but does
-  not yet provide all per-turn economic transition assertions. Use replay
-  snapshots for now and promote recurring failures into explicit telemetry.
+## Implementation order
 
-## P1: diplomacy trading and victory cases
+1. Document and enforce the boundary between mechanics, simulator-contract,
+   and gameplay-simulation tests.
+2. Add turn-window, state-delta, ordered-milestone, and no-progress expectation
+   primitives.
+3. Convert the existing founding and research fixtures into GAME-001 early
+   expansion coverage.
+4. Evolve the seeded-war diagnostic into GAME-002, including replanning and
+   stale-task assertions.
+5. Add GAME-003 and GAME-007 to exercise coordination between AI planners.
+6. Add economic, diplomacy, and victory-pursuit scenarios.
+7. Add the seed-matrix runner and endurance summaries last, after individual
+   scenarios have trustworthy observability.
 
-### UAT-017 — Technology, gold, city, map, and vision trading
+## Execution record
 
-- **Status:** Driver needed; reference capability confirmed.
-- **Setup:** Use a diplomacy driver to create one treaty clause at a time. Give
-  the giver sufficient gold/technology and make the recipient eligible.
-- **Verify:** Gold transfer applies the configured diplomatic cost, technology
-  transfer marks the recipient's technology as known, city transfer changes
-  ownership, and map/vision clauses update visibility.
-- **Pass:** Each accepted clause is reflected in final state and exactly one
-  successful diplomacy event; invalid clauses are rejected without mutation.
-- **Reference:** `reference/freeciv/server/diplhand.c:181-300,460-558`.
-
-### UAT-018 — Victory-condition matrix
-
-- **Status:** Scenario victory is ready; other conditions need focused fixtures.
-- **Cases:**
-
-  - scenario victory: `earth-small-victory.json`;
-  - conquest: last opposing civilization defeated;
-  - allied victory: all surviving civilizations are allied;
-  - world peace: uninterrupted peace lasts the configured number of turns;
-  - culture: one player reaches the threshold and required lead;
-  - science/spaceship: an eligible spaceship arrives;
-  - turn limit: no earlier condition wins before `max_turns`.
-
-- **Pass:** `endReason`, winner list, `isWinner`, standings, and victory
-  telemetry identify the correct winner(s); no extra turn runs after the game
-  ends.
-- **Reference:** `reference/freeciv/server/srv_main.c:369-670` and
-  `reference/freeciv/server/srv_main.c:3906-3949`.
-
-### UAT-019 — Victory precedence and simultaneous winners
-
-- **Status:** Fixture needed.
-- **Setup:** Construct states where scenario victory, conquest, allied/world
-  peace, culture, spaceship arrival, and turn limit become true on the same
-  turn or adjacent turns.
-- **Verify:** The simulator follows the reference check order, reports all
-  valid winners where the rules allow ties, and does not overwrite a winner
-  with a lower-priority condition.
-- **Pass:** The reported `endReason` and winner IDs match the reference order;
-  the final checkpoint is stable and no events are emitted after completion.
-
-## P2: resilience, determinism, and quality
-
-### UAT-020 — Long-run stability and telemetry pressure
-
-- **Status:** Ready as a harness; long-run fixture needed.
-- **Setup:** Run 100, 500, and 1,000 turns with at least four players, active
-  movement, production, research, diplomacy, and combat.
-- **Verify:** Runtime remains bounded, event persistence remains batched,
-  movement summaries prevent unbounded event growth, and checkpoints remain
-  readable.
-- **Pass:** No timeout, process crash, invariant violation, or telemetry loss;
-  `droppedEvents`, `persistenceFailures`, `pendingEvents`, and
-  `pendingMovementSummaries` remain zero at the final checkpoint.
-
-### UAT-021 — Seed matrix and replay reproducibility
-
-- **Status:** Ready; matrix runner should be extended with a comparison mode.
-- **Setup:** Run each deterministic fixture across at least ten seeds and run
-  each seed twice.
-- **Verify:** The same seed produces identical state hashes and expected event
-  types. Different seeds may produce different strategic outcomes, but must
-  preserve legality and invariant success.
-- **Pass:** No seed-specific invariant failures; repeated runs have identical
-  hashes; any changed outcome is explained by the seed rather than an unstable
-  source of randomness.
-
-### UAT-022 — Failure visibility and retry behavior
-
-- **Status:** Ready at service level; simulator fault injection recommended.
-- **Setup:** Inject a database failure, event-handler failure, and event queue
-  pressure during a run.
-- **Verify:** Failed events are retried up to the configured limit, losses are
-  reported, and the simulator does not claim a clean run when telemetry was
-  dropped.
-- **Pass:** The run either recovers with zero final telemetry counters or fails
-  with an actionable diagnostic identifying the failure type and affected
-  turn/event.
-
-## Recommended implementation order
-
-1. Add UAT-002's map-distance expectation because starting placement affects
-   every later gameplay test.
-2. Add focused production, collateral, transport, trade-route, and city
-   capture fixtures.
-3. Add a deterministic diplomacy action driver for treaty acceptance,
-   rejection, expiry, and clause trading.
-4. Add victory-condition fixtures and an explicit precedence test.
-5. Add a long-run seed matrix and fault-injection mode to the scenario runner.
-
-## UAT execution record
-
-For each run, record:
+For each simulation or matrix run, record:
 
 ```text
 Case ID:
@@ -460,15 +323,18 @@ Ruleset:
 Turns completed:
 Observed end reason:
 Winner(s):
+Progress milestones:
+Longest no-progress interval:
 Expectation result:
 Invariant result:
 Telemetry counters:
 Unexpected warnings/errors:
 Result: PASS / FAIL / BLOCKED
-Evidence: path to run.json and relevant jq output
+Evidence: path to run.json and relevant query output
 ```
 
 The reference-gap workflow in
-[`REFERENCE_GAP_WORKFLOW.md`](./REFERENCE_GAP_WORKFLOW.md) describes how to
-turn a failed UAT case into a minimal parity fixture, a focused regression
-test, and a documented implementation decision.
+[`REFERENCE_GAP_WORKFLOW.md`](./REFERENCE_GAP_WORKFLOW.md) explains how to
+classify a discovered defect, add the narrow regression at the correct layer,
+and retain a simulation only when it continues to exercise valuable multi-turn
+behavior.
