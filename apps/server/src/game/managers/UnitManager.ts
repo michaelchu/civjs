@@ -3058,16 +3058,62 @@ export class UnitManager {
     return { unit, destroyed: false };
   }
 
-  async finishDiplomatMission(unitId: string): Promise<void> {
+  /**
+   * Finish a surviving diplomat-family action using its source action's
+   * movement cost when available. Legacy callers without a source action
+   * retain the historical full-movement finish.
+   *
+   * @reference reference/freeciv/common/unit.c:2199-2223
+   * @reference reference/freeciv/server/actiontools.c:63-75
+   */
+  async finishDiplomatMission(unitId: string, sourceAction?: string): Promise<void> {
     const unit = this.units.get(unitId);
     if (!unit) return;
-    unit.movementLeft = 0;
+    const unitType = this.unitTypes[unit.unitTypeId];
+    const movementCost =
+      sourceAction && unitType
+        ? this.getActionSuccessMovementCost(unit, unitType, sourceAction)
+        : unit.movementLeft;
+    unit.movementLeft = Math.max(0, unit.movementLeft - movementCost);
     unit.orders = [];
     await this.databaseProvider
       .getDatabase()
       .update(units)
-      .set({ movementPoints: '0', orders: [], currentOrder: null })
+      .set({ movementPoints: String(unit.movementLeft), orders: [], currentOrder: null })
       .where(eq(units.id, unitId));
+  }
+
+  /**
+   * Complete C2C3 Bribe Unit's forced move after the target has changed
+   * ownership. The action itself spends all movement rather than relying on
+   * the general terrain move path.
+   *
+   * @reference reference/freeciv/common/actions.c:128-137
+   * @reference reference/freeciv/server/diplomats.c:750-786
+   */
+  async finishBribeMission(unitId: string, targetX: number, targetY: number): Promise<void> {
+    const unit = this.units.get(unitId);
+    if (!unit) return;
+    const previousX = unit.x;
+    const previousY = unit.y;
+    unit.x = targetX;
+    unit.y = targetY;
+    unit.movementLeft = 0;
+    unit.orders = [];
+    unit.fortified = false;
+    await this.databaseProvider
+      .getDatabase()
+      .update(units)
+      .set({
+        x: targetX,
+        y: targetY,
+        movementPoints: '0',
+        orders: [],
+        currentOrder: null,
+        isFortified: false,
+      })
+      .where(eq(units.id, unitId));
+    this.notifyUnitLifecycle({ type: 'moved', unit, previousX, previousY });
   }
 
   /**

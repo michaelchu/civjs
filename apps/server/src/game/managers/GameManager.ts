@@ -602,6 +602,12 @@ export class GameManager {
     if (unit.movementLeft < 1) {
       return { success: false, message: 'The diplomat has no movement remaining' };
     }
+    if (
+      this.diplomatActionRequiresLivableTile(actionType) &&
+      !this.isDiplomatOnLivableTile(game, unit)
+    ) {
+      return { success: false, message: 'The diplomatic unit must be on a livable tile' };
+    }
 
     const unitTargetActions = new Set([ActionType.BRIBE_UNIT, ActionType.SABOTAGE_UNIT]);
     if (unitTargetActions.has(actionType)) {
@@ -621,6 +627,12 @@ export class GameManager {
       return { success: false, message: 'An adjacent foreign city is required' };
     }
     const targetOwnerId = city.playerId;
+    if (
+      this.diplomatActionRejectsBarbarianTarget(actionType) &&
+      this.isBarbarianPlayer(game.players.get(targetOwnerId))
+    ) {
+      return { success: false, message: 'This action cannot target a barbarian city' };
+    }
     await this.diplomacyManager.establishContact(gameId, playerId, targetOwnerId);
     const relation = await this.getDiplomaticState(gameId, playerId, targetOwnerId);
     const theftCount = game.cityManager.getEspionageTheftCount?.(city.id, playerId) ?? 0;
@@ -658,13 +670,15 @@ export class GameManager {
       if (await this.hasRealEmbassy(gameId, playerId, targetOwnerId)) {
         return { success: false, message: 'A real embassy already exists with this nation' };
       }
-      const failure = await attemptMission();
-      if (failure) return failure;
       await this.diplomacyManager.establishEmbassy(gameId, playerId, city.playerId);
       result = { success: true, message: `Embassy established in ${city.name}` };
     } else if (actionType === ActionType.INVESTIGATE_CITY) {
-      const failure = await attemptMission();
-      if (failure) return failure;
+      // Investigate City is an always-successful, non-consuming action for
+      // each C2C3 actor variant (Diplomat, Spy, and Explorer). It must not
+      // enter the diplomatic-combat path used by covert actions.
+      // @reference reference/freeciv/common/actions.c:205-216
+      // @reference reference/freeciv/server/diplomats.c:310-420
+      actorSurvives = true;
       result = {
         success: true,
         message: `${city.name}: size ${city.size}, ${city.buildings.length} improvements, ${city.productionPerTurn ?? 0} shields/turn`,
@@ -673,6 +687,9 @@ export class GameManager {
       const previousThefts = game.cityManager.getEspionageTheftCount?.(city.id, playerId) ?? 0;
       if (!unitFlags.includes('Spy') && previousThefts > 0) {
         return { success: false, message: 'This city has already been targeted by this diplomat' };
+      }
+      if (requestedTechnologyId !== undefined && !unitFlags.includes('Spy')) {
+        return { success: false, message: 'Only spies may choose a technology to steal' };
       }
       const known = new Set(game.researchManager.getResearchedTechs(playerId));
       const availableTechs = game.researchManager
@@ -694,6 +711,9 @@ export class GameManager {
       if (!unitFlags.includes('Spy')) {
         return { success: false, message: 'Only spies can sabotage city production' };
       }
+      if (relation !== 'war') {
+        return { success: false, message: 'Sabotaging a city requires a state of war' };
+      }
       if (!city.currentProduction) {
         return { success: false, message: 'The target city has no active production' };
       }
@@ -706,29 +726,50 @@ export class GameManager {
       this.gameBroadcastManager.broadcastCityData(gameId);
       result = { success: true, message: `Sabotaged production of ${production} in ${city.name}` };
     } else if (actionType === ActionType.SABOTAGE_CITY) {
-      if (!unitFlags.includes('Spy')) {
-        return { success: false, message: 'Only spies can sabotage a city' };
+      if (relation !== 'war') {
+        return { success: false, message: 'Sabotaging a city requires a state of war' };
       }
       const eligibleBuildings =
         game.cityManager.getSabotageableBuildings?.(city.id) ??
         city.buildings.filter(building => building !== 'palace');
-      if (eligibleBuildings.length === 0) {
+      const canSabotageProduction = Boolean(
+        city.currentProduction && (city.productionStock ?? 0) > 0
+      );
+      if (requestedBuildingId !== undefined && !unitFlags.includes('Spy')) {
+        return { success: false, message: 'Only spies may choose an improvement to sabotage' };
+      }
+      if (requestedBuildingId !== undefined && !eligibleBuildings.includes(requestedBuildingId)) {
+        return { success: false, message: 'That improvement is not present in the target city' };
+      }
+      if (eligibleBuildings.length === 0 && !canSabotageProduction) {
         return { success: false, message: 'No eligible improvement to sabotage' };
       }
       const failure = await attemptMission();
       if (failure) return failure;
-      if (requestedBuildingId !== undefined && !eligibleBuildings.includes(requestedBuildingId)) {
-        return { success: false, message: 'That improvement is not present in the target city' };
+      const targetProduction =
+        requestedBuildingId === undefined &&
+        (eligibleBuildings.length === 0 || (canSabotageProduction && game.random.next(2) === 1));
+      if (targetProduction) {
+        const production = await game.cityManager.sabotageCityProduction?.(city.id, playerId);
+        if (!production)
+          return { success: false, message: 'The target city has no active production' };
+        await game.cityManager.recordEspionageTheft?.(city.id, playerId);
+        this.gameBroadcastManager.broadcastCityData(gameId);
+        result = {
+          success: true,
+          message: `Sabotaged production of ${production} in ${city.name}`,
+        };
+      } else {
+        const building = await game.cityManager.sabotageCityBuilding(
+          city.id,
+          playerId,
+          requestedBuildingId
+        );
+        if (!building) return { success: false, message: 'No eligible improvement to sabotage' };
+        await game.cityManager.recordEspionageTheft?.(city.id, playerId);
+        this.gameBroadcastManager.broadcastCityData(gameId);
+        result = { success: true, message: `Sabotaged ${building} in ${city.name}` };
       }
-      const building = await game.cityManager.sabotageCityBuilding(
-        city.id,
-        playerId,
-        requestedBuildingId
-      );
-      if (!building) return { success: false, message: 'No eligible improvement to sabotage' };
-      await game.cityManager.recordEspionageTheft?.(city.id, playerId);
-      this.gameBroadcastManager.broadcastCityData(gameId);
-      result = { success: true, message: `Sabotaged ${building} in ${city.name}` };
     } else if (actionType === ActionType.POISON_WATER) {
       if (!unitFlags.includes('Spy')) {
         return { success: false, message: 'Only spies can poison a city' };
@@ -754,8 +795,11 @@ export class GameManager {
       ) {
         return { success: false, message: 'Cities under Democracy cannot be incited' };
       }
-      if (relation === 'alliance') {
-        return { success: false, message: 'An allied city cannot be incited' };
+      if (relation === 'alliance' || relation === 'team') {
+        return { success: false, message: 'An allied or team city cannot be incited' };
+      }
+      if (!this.c2c3InciteTargetRequirementsMet(game, city)) {
+        return { success: false, message: 'This city is protected from incitement' };
       }
       const economicManager = game.turnManager.getEconomicManager();
       if (!economicManager) return { success: false, message: 'Treasury is unavailable' };
@@ -821,7 +865,15 @@ export class GameManager {
       result.unitDestroyed = true;
     } else {
       await game.unitManager.maybePromoteAfterDiplomaticAction(unit.id);
-      await game.unitManager.finishDiplomatMission(unit.id);
+      await game.unitManager.finishDiplomatMission(
+        unit.id,
+        this.getDiplomatActionMoveCostSource(
+          actionType,
+          unitFlags,
+          requestedTechnologyId,
+          requestedBuildingId
+        )
+      );
     }
     await this.refreshSharedVision(gameId);
     return result;
@@ -864,6 +916,9 @@ export class GameManager {
       return { success: false, message: 'An adjacent foreign city is required' };
     }
     if (actionType === ActionType.STEAL_TECH) {
+      if (!unitType.flags.includes('Spy')) {
+        return { success: false, message: 'Only spies may choose a technology to steal' };
+      }
       const theftCount = game.cityManager.getEspionageTheftCount?.(city.id, playerId) ?? 0;
       if (!unitType.flags.includes('Spy') && theftCount > 0) {
         return { success: false, message: 'This city has already been targeted by this diplomat' };
@@ -929,14 +984,17 @@ export class GameManager {
     };
 
     if (actionType === ActionType.BRIBE_UNIT) {
+      if (!actor.homeCityId) {
+        return { success: false, message: 'A home city is required to bribe a unit' };
+      }
       if (targetType?.flags?.includes('Unbribable')) {
         return { success: false, message: 'That unit cannot be bribed' };
       }
       if (game.cityManager.getCityAt(targetX, targetY)) {
         return { success: false, message: 'Units in a city center cannot be bribed' };
       }
-      if (relation === 'alliance') {
-        return { success: false, message: 'An allied unit cannot be bribed' };
+      if (relation === 'alliance' || relation === 'team') {
+        return { success: false, message: 'An allied or team unit cannot be bribed' };
       }
       if (
         game.governmentManager?.getPlayerGovernment(target.playerId)?.currentGovernment ===
@@ -963,6 +1021,11 @@ export class GameManager {
       await game.unitManager.bribeUnit(target.id, playerId, actor.homeCityId);
       this.broadcastUnitInfo(gameId, target);
       result = { success: true, message: `Bribed ${target.unitTypeId} for ${cost} gold` };
+      // Bribe Unit is a forced-move action. Its actor survives, moves onto
+      // the now-friendly target tile, and has no movement remaining.
+      // @reference reference/freeciv/common/actions.c:128-137
+      // @reference reference/freeciv/server/diplomats.c:750-786
+      actorSurvives = true;
     } else {
       if (!actorFlags.includes('Spy')) {
         return { success: false, message: 'Only spies can sabotage a unit' };
@@ -998,7 +1061,11 @@ export class GameManager {
       result.unitDestroyed = true;
     } else {
       await game.unitManager.maybePromoteAfterDiplomaticAction(actor.id);
-      await game.unitManager.finishDiplomatMission(actor.id);
+      if (actionType === ActionType.BRIBE_UNIT) {
+        await game.unitManager.finishBribeMission(actor.id, targetX, targetY);
+      } else {
+        await game.unitManager.finishDiplomatMission(actor.id, 'Sabotage Unit Escape');
+      }
     }
     return result;
   }
@@ -1012,6 +1079,118 @@ export class GameManager {
     return (
       snapshot.nations.find(nation => nation.id === otherPlayerId)?.relation.state ?? 'no_contact'
     );
+  }
+
+  /**
+   * C2C3's covert-action enablers explicitly require OnLivableTile. The
+   * diplomat-family units are land units, so a city tile or non-ocean terrain
+   * is sufficient for the authoritative state currently represented by CivJS.
+   *
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:379-617
+   */
+  private isDiplomatOnLivableTile(game: GameInstance, unit: Unit): boolean {
+    if (game.cityManager.getCityAt?.(unit.x, unit.y)) return true;
+    const tile = (game.mapManager as Partial<MapManager>).getTile?.(unit.x, unit.y);
+    if (!tile) return true;
+    return !['ocean', 'deepocean', 'coast', 'lake'].includes(
+      tile.terrain.toLowerCase().replace(/[^a-z0-9]/g, '')
+    );
+  }
+
+  private diplomatActionRequiresLivableTile(actionType: ActionType): boolean {
+    return new Set<ActionType>([
+      ActionType.BRIBE_UNIT,
+      ActionType.INCITE_CITY,
+      ActionType.POISON_WATER,
+      ActionType.SABOTAGE_CITY,
+      ActionType.SABOTAGE_CITY_PRODUCTION,
+      ActionType.SABOTAGE_UNIT,
+      ActionType.STEAL_TECH,
+    ]).has(actionType);
+  }
+
+  private diplomatActionRejectsBarbarianTarget(actionType: ActionType): boolean {
+    return [ActionType.ESTABLISH_EMBASSY, ActionType.STEAL_TECH].includes(actionType);
+  }
+
+  /**
+   * Preserve the concrete C2C3 action identity through to UnitManager so
+   * source-defined Action_Success_Actor_Move_Cost effects are applied rather
+   * than treating every surviving diplomat mission as a full-turn action.
+   *
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4437-4532
+   */
+  private getDiplomatActionMoveCostSource(
+    actionType: ActionType,
+    unitFlags: string[],
+    requestedTechnologyId?: string,
+    requestedBuildingId?: string
+  ): string | undefined {
+    const isSpy = unitFlags.includes('Spy');
+    switch (actionType) {
+      case ActionType.ESTABLISH_EMBASSY:
+        return isSpy ? 'Establish Embassy' : undefined;
+      case ActionType.INVESTIGATE_CITY:
+        return 'Investigate City';
+      case ActionType.STEAL_TECH:
+        return isSpy
+          ? requestedTechnologyId === undefined
+            ? 'Steal Tech Escape Expected'
+            : 'Targeted Steal Tech Escape Expected'
+          : undefined;
+      case ActionType.SABOTAGE_CITY:
+        return isSpy
+          ? requestedBuildingId === undefined
+            ? 'Sabotage City Escape'
+            : 'Targeted Sabotage City Escape'
+          : undefined;
+      case ActionType.SABOTAGE_CITY_PRODUCTION:
+        return 'Sabotage City Production Escape';
+      case ActionType.POISON_WATER:
+        return 'Poison City Escape';
+      case ActionType.INCITE_CITY:
+        return isSpy ? 'Incite City Escape' : undefined;
+      default:
+        return undefined;
+    }
+  }
+
+  /**
+   * Apply the C2C3 Incite City target Building requirements directly from the
+   * active ruleset, including city-local Courthouses and player-wide wonders.
+   *
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:548-585
+   */
+  private c2c3InciteTargetRequirementsMet(game: GameInstance, city: CityState): boolean {
+    const rulesetName = game.config?.ruleset ?? DEFAULT_RULESET;
+    const enablers = ['Incite City', 'Incite City Escape'].flatMap(action =>
+      rulesetLoader.getActionEnablersFor(action, rulesetName)
+    );
+    if (enablers.length === 0) return true;
+
+    return enablers.some(enabler =>
+      enabler.target_reqs
+        .filter(requirement => requirement.type === 'Building')
+        .every(requirement => {
+          const buildings =
+            requirement.range === 'City'
+              ? city.buildings
+              : requirement.range === 'Player'
+                ? game.cityManager
+                    .getPlayerCities(city.playerId)
+                    .flatMap(candidate => candidate.buildings ?? [])
+                : [];
+          const hasBuilding = buildings.some(
+            building =>
+              this.normalizeRulesetName(building) === this.normalizeRulesetName(requirement.name)
+          );
+          return requirement.present ? hasBuilding : !hasBuilding;
+        })
+    );
+  }
+
+  private normalizeRulesetName(value: string): string {
+    return value.toLowerCase().replace(/[^a-z0-9]/g, '');
   }
 
   private async executeTreatyTransfers(

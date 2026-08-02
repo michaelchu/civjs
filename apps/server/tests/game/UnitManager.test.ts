@@ -3797,6 +3797,55 @@ describe('UnitManager', () => {
       });
     });
 
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4437-4524
+     * @reference reference/freeciv/common/unit.c:2199-2223
+     * @reference reference/freeciv/server/actiontools.c:63-75
+     * @reference reference/freeciv/server/diplomats.c:750-786
+     * @assertion CivJS persists the source-defined one-fragment Investigate City price and the all-movement forced relocation of a successful C2C3 Bribe Unit actor.
+     * @c2c3-action Investigate City, Bribe Unit
+     * @c2c3-scenario normal
+     */
+    it('persists c2c3 diplomatic action costs and bribe forced movement', async () => {
+      const lifecycleObserver = jest.fn();
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        new EffectsManager('civ2civ3'),
+        undefined,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      manager.setUnitLifecycleObserver(lifecycleObserver);
+      const spy = await manager.createUnit('player-123', 'spy', 10, 10);
+      spy.movementLeft = 4;
+      lifecycleObserver.mockClear();
+
+      await manager.finishDiplomatMission(spy.id, 'Investigate City');
+
+      expect(spy.movementLeft).toBe(3);
+      expect((mockDbProvider.getDatabase() as any).set).toHaveBeenLastCalledWith(
+        expect.objectContaining({ movementPoints: '3', orders: [] })
+      );
+
+      await manager.finishBribeMission(spy.id, 11, 10);
+
+      expect(spy).toMatchObject({ x: 11, y: 10, movementLeft: 0, orders: [] });
+      expect((mockDbProvider.getDatabase() as any).set).toHaveBeenLastCalledWith(
+        expect.objectContaining({ x: 11, y: 10, movementPoints: '0', orders: [] })
+      );
+      expect(lifecycleObserver).toHaveBeenCalledWith({
+        type: 'moved',
+        unit: spy,
+        previousX: 10,
+        previousY: 10,
+      });
+    });
+
     it('halves the target unit remaining health', async () => {
       const unit = await unitManager.createUnit('player-456', 'warriors', 10, 10);
       unit.health = 75;
