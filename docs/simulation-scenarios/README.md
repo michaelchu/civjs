@@ -64,10 +64,18 @@ optionally filter by exact turn, turn range, player numbers, and a partial
 nested `data` object. Use `minCount` and `maxCount` to assert that an event
 occurred, or that an unexpected event never occurred. The simulator publishes
 turn/phase lifecycle events plus city founding, growth, production/building,
-research, unit creation/movement/destruction, combat/kills, and trade-route
-events. These are emitted after the authoritative manager operation succeeds,
-so the same assertion form can validate both AI decisions and their gameplay
-effects.
+research, unit creation/movement-summary/destruction, combat/kills, and
+trade-route events. These are emitted after the authoritative manager operation
+succeeds, so the same assertion form can validate both AI decisions and their
+gameplay effects. Unit movement is intentionally aggregated per player and
+turn into a `unit_movement_summary` event containing move counts and each
+unit's origin and final destination; semantic events are persisted in batches
+rather than one database insert per event. Combat telemetry includes individual
+kill events for attackers, defenders, and collateral victims.
+
+Replay checkpoints expose `snapshot.eventTelemetry` with cumulative dropped-event
+and persistence-failure counts, plus pending event and movement-summary counts.
+A trustworthy long run should finish with all four values at zero.
 
 The event producers follow the corresponding reference operations: city
 founding and production use `reference/freeciv/server/citytools.c:639-690` and

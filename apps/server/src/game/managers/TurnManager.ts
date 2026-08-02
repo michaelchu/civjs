@@ -456,6 +456,10 @@ export class TurnManager {
         signal?.throwIfAborted();
         const gameEnded =
           (await this.endGameEvaluator?.(this.currentTurn, this.currentYear)) ?? false;
+        // Government, diplomacy, climate, and end-game evaluation can also
+        // produce authoritative events after the phase service flushes its
+        // queue. Persist those events before finalizing or advancing the turn.
+        await this.gameEventService.processQueuedEvents(this.currentTurn, this.currentYear);
         await this.completeTurnRecord(phaseResult);
         if (gameEnded) {
           this.clearTurnTimer();
@@ -710,7 +714,7 @@ export class TurnManager {
 
   private setCurrentTurnRecord(turnId: string): void {
     this.turnPhaseService.setCurrentTurnId(turnId);
-    this.gameEventService.setCurrentTurnId(turnId);
+    this.gameEventService.setCurrentTurnContext(turnId, this.currentTurn, this.currentYear);
   }
 
   private async restoreOrCreateTurnRecord(): Promise<void> {

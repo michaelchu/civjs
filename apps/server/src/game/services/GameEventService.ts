@@ -12,7 +12,8 @@
 import { logger } from '@utils/logger';
 import type { GameBroadcastManager } from '@game/orchestrators/GameBroadcastManager';
 import type { DatabaseProvider } from '@database';
-import { turnEvents, NewTurnEvent } from '@database/schema/turn-events';
+import { isSpaceshipPart } from './SpaceshipService';
+import { turnEvents, type NewTurnEvent } from '@database/schema/turn-events';
 
 export enum GameEventType {
   // Turn-based events
@@ -32,6 +33,7 @@ export enum GameEventType {
   UNIT_DESTROYED = 'unit_destroyed',
   UNIT_PROMOTED = 'unit_promoted',
   UNIT_MOVED = 'unit_moved',
+  UNIT_MOVEMENT_SUMMARY = 'unit_movement_summary',
 
   // Research events
   TECH_RESEARCHED = 'tech_researched',
@@ -71,6 +73,7 @@ export interface GameEventData {
 export interface GameEvent {
   id: string;
   type: GameEventType;
+  turnId?: string;
   priority: EventPriority;
   data: GameEventData;
   handled: boolean;
@@ -112,9 +115,28 @@ export interface EventProcessingResult {
   eventsProcessed: number;
   eventsHandled: number;
   eventsFailed: number;
+  eventsDropped: number;
+  persistenceFailures: number;
   achievementsUnlocked: number;
   duration: number;
   errors: string[];
+}
+
+export interface GameEventTelemetryDiagnostics {
+  droppedEvents: number;
+  persistenceFailures: number;
+  pendingEvents: number;
+  pendingMovementSummaries: number;
+}
+
+interface UnitMovementAggregate {
+  unitId: string;
+  unitTypeId: string;
+  moveCount: number;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
 }
 
 export interface PlayerEventStats {
@@ -145,6 +167,11 @@ export class GameEventService {
   private maxRetries = 3;
 
   private currentTurnId: string | null = null;
+  private currentTurn = 0;
+  private currentYear = 0;
+  private droppedEventCount = 0;
+  private persistenceFailureCount = 0;
+  private unitMovementAggregates = new Map<string, Map<string, UnitMovementAggregate>>();
   private playerStatsProvider?: (playerId: string) => PlayerEventStats;
 
   constructor(
@@ -164,72 +191,60 @@ export class GameEventService {
     });
   }
 
+  /** Set the turn record and calendar context used by newly emitted events. */
+  setCurrentTurnContext(turnId: string, turn: number, year: number): void {
+    this.currentTurnId = turnId;
+    this.currentTurn = turn;
+    this.currentYear = year;
+  }
+
   /**
-   * Set the current turn ID for database tracking
+   * Set the current turn ID for database tracking.
+   * @deprecated Use setCurrentTurnContext so event data and turn records stay aligned.
    */
   setCurrentTurnId(turnId: string): void {
     this.currentTurnId = turnId;
+  }
+
+  public getTelemetryDiagnostics(): GameEventTelemetryDiagnostics {
+    return {
+      droppedEvents: this.droppedEventCount,
+      persistenceFailures: this.persistenceFailureCount,
+      pendingEvents: this.eventQueue.length,
+      pendingMovementSummaries: [...this.unitMovementAggregates.values()].reduce(
+        (count, units) => count + units.size,
+        0
+      ),
+    };
   }
 
   setPlayerStatsProvider(provider: (playerId: string) => PlayerEventStats): void {
     this.playerStatsProvider = provider;
   }
 
-  /**
-   * Save an event to the database
-   */
-  private async saveEventToDatabase(event: GameEvent): Promise<void> {
-    if (!this.currentTurnId) {
-      // If no turn ID is set, we can't save to database but shouldn't block event processing
-      return;
-    }
-
+  /** Save handled events in one database operation to avoid one round trip per event. */
+  private async saveEventsToDatabase(events: GameEvent[]): Promise<boolean> {
+    if (events.length === 0 || !this.currentTurnId) return true;
     try {
-      const eventRecord = this.buildEventRecord(event);
-      /*
-      const eventRecord: NewTurnEvent = {
-        gameId: this.gameId,
-        turnId: this.currentTurnId,
-        playerId: event.data.playerId || null,
-        eventType: event.type,
-        eventCategory: this.getEventCategory(event.type),
-        occurredAt: new Date(event.createdAt),
-        title: this.getEventTitle(event),
-        description: this.getEventDescription(event),
-        eventData: event.data,
-        priority: event.priority,
-        isVisible: this.shouldEventBeVisible(event.type),
-        isAchievement: event.type === GameEventType.ACHIEVEMENT_UNLOCKED,
-        status: event.handled ? 'completed' : 'pending',
-        attempts: event.retryCount + 1,
-        lastError: null,
-        achievementId:
-          event.type === GameEventType.ACHIEVEMENT_UNLOCKED ? event.data.achievementId : null,
-        achievementUnlocked: event.type === GameEventType.ACHIEVEMENT_UNLOCKED,
-        locationX: event.data.x || null,
-        locationY: event.data.y || null,
-        relatedUnitId: event.data.unitId || null,
-        relatedCityId: event.data.cityId || null,
-        relatedPlayerId: event.data.targetPlayerId || null,
-      };
-      */
-
-      await this.databaseProvider.getDatabase().insert(turnEvents).values(eventRecord);
+      const records = events.map(event => this.buildEventRecord(event));
+      await this.databaseProvider.getDatabase().insert(turnEvents).values(records);
+      return true;
     } catch (error) {
-      // Log but don't throw - database issues shouldn't break event processing
+      this.persistenceFailureCount += events.length;
       logger.warn('Failed to save event to database', {
         gameId: this.gameId,
-        eventId: event.id,
-        eventType: event.type,
+        eventCount: events.length,
+        eventTypes: [...new Set(events.map(event => event.type))],
         error: error instanceof Error ? error.message : error,
       });
+      return false;
     }
   }
 
   private buildEventRecord(event: GameEvent): NewTurnEvent {
     return {
       gameId: this.gameId,
-      turnId: this.currentTurnId!,
+      turnId: event.turnId ?? this.currentTurnId!,
       playerId: event.data.playerId ?? null,
       eventType: event.type,
       eventCategory: this.getEventCategory(event.type),
@@ -271,6 +286,7 @@ export class GameEventService {
       [GameEventType.UNIT_DESTROYED]: 'unit',
       [GameEventType.UNIT_PROMOTED]: 'unit',
       [GameEventType.UNIT_MOVED]: 'unit',
+      [GameEventType.UNIT_MOVEMENT_SUMMARY]: 'unit',
       [GameEventType.TECH_RESEARCHED]: 'research',
       [GameEventType.RESEARCH_STARTED]: 'research',
       [GameEventType.COMBAT_OCCURRED]: 'combat',
@@ -290,6 +306,8 @@ export class GameEventService {
     const titleMap: Record<string, (data: any) => string> = {
       [GameEventType.CITY_FOUNDED]: data => `City "${data.cityName || 'Unknown'}" founded`,
       [GameEventType.UNIT_CREATED]: data => `${data.unitType || 'Unit'} created`,
+      [GameEventType.UNIT_MOVEMENT_SUMMARY]: data =>
+        `${data.moveCount || 0} unit movement(s) recorded`,
       [GameEventType.TECH_RESEARCHED]: data => `${data.techName || 'Technology'} researched`,
       [GameEventType.TRADE_ROUTE_ESTABLISHED]: data =>
         `Trade route established from ${data.sourceCityId || 'city'} to ${data.partnerCityId || 'city'}`,
@@ -374,11 +392,12 @@ export class GameEventService {
     const gameEvent: GameEvent = {
       id: eventId,
       type,
+      turnId: this.currentTurnId ?? undefined,
       priority: EventPriority.NORMAL,
       data: {
         gameId: this.gameId,
-        turn: 0, // Will be updated by caller
-        year: 0, // Will be updated by caller
+        turn: this.currentTurn,
+        year: this.currentYear,
         timestamp: Date.now(),
         ...data,
       } as GameEventData,
@@ -390,12 +409,16 @@ export class GameEventService {
 
     // Add to queue for processing
     if (this.eventQueue.length >= this.maxEventQueueSize) {
+      const droppedCount = Math.floor(this.maxEventQueueSize * 0.1);
+      this.droppedEventCount += droppedCount;
       logger.warn('Event queue at capacity, dropping oldest events', {
         gameId: this.gameId,
         queueSize: this.eventQueue.length,
+        droppedCount,
+        totalDroppedEvents: this.droppedEventCount,
       });
       // Remove oldest events
-      this.eventQueue.splice(0, Math.floor(this.maxEventQueueSize * 0.1));
+      this.eventQueue.splice(0, droppedCount);
     }
 
     this.eventQueue.push(gameEvent);
@@ -457,7 +480,7 @@ export class GameEventService {
       productionId: item.value,
     };
     const eventId = this.emitEvent(GameEventType.CITY_PRODUCTION_COMPLETE, data);
-    if (item.kind === 'building' || item.kind === 'wonder') {
+    if ((item.kind === 'building' || item.kind === 'wonder') && !isSpaceshipPart(item.value)) {
       this.emitEvent(GameEventType.CITY_BUILDING_BUILT, data);
     }
     return eventId;
@@ -514,7 +537,12 @@ export class GameEventService {
     previousX?: number;
     previousY?: number;
     previousPlayerId?: string;
-  }): string {
+  }): string | undefined {
+    if (event.type === 'moved') {
+      this.recordUnitMovement(event);
+      return undefined;
+    }
+
     const data = {
       playerId: event.unit.playerId,
       unitId: event.unit.id,
@@ -529,15 +557,66 @@ export class GameEventService {
     const eventType =
       event.type === 'created'
         ? GameEventType.UNIT_CREATED
-        : event.type === 'moved'
-          ? GameEventType.UNIT_MOVED
-          : event.type === 'destroyed'
-            ? GameEventType.UNIT_DESTROYED
-            : GameEventType.CUSTOM_EVENT;
+        : event.type === 'destroyed'
+          ? GameEventType.UNIT_DESTROYED
+          : GameEventType.CUSTOM_EVENT;
     return this.emitEvent(eventType, {
       ...data,
       ...(event.type === 'owner_changed' ? { eventName: 'unit_owner_changed' } : {}),
     });
+  }
+
+  private recordUnitMovement(event: {
+    unit: {
+      id: string;
+      playerId: string;
+      unitTypeId: string;
+      x: number;
+      y: number;
+    };
+    previousX?: number;
+    previousY?: number;
+  }): void {
+    let playerMovements = this.unitMovementAggregates.get(event.unit.playerId);
+    if (!playerMovements) {
+      playerMovements = new Map();
+      this.unitMovementAggregates.set(event.unit.playerId, playerMovements);
+    }
+
+    const existing = playerMovements.get(event.unit.id);
+    if (existing) {
+      existing.moveCount += 1;
+      existing.toX = event.unit.x;
+      existing.toY = event.unit.y;
+      return;
+    }
+
+    playerMovements.set(event.unit.id, {
+      unitId: event.unit.id,
+      unitTypeId: event.unit.unitTypeId,
+      moveCount: 1,
+      fromX: event.previousX ?? event.unit.x,
+      fromY: event.previousY ?? event.unit.y,
+      toX: event.unit.x,
+      toY: event.unit.y,
+    });
+  }
+
+  private flushUnitMovementSummaries(): void {
+    if (this.unitMovementAggregates.size === 0) return;
+
+    for (const [playerId, units] of this.unitMovementAggregates) {
+      const unitMoves = [...units.values()].sort((left, right) =>
+        left.unitId.localeCompare(right.unitId)
+      );
+      this.emitEvent(GameEventType.UNIT_MOVEMENT_SUMMARY, {
+        playerId,
+        moveCount: unitMoves.reduce((total, unit) => total + unit.moveCount, 0),
+        unitCount: unitMoves.length,
+        unitMoves,
+      });
+    }
+    this.unitMovementAggregates.clear();
   }
 
   recordCombatOccurred(event: {
@@ -550,6 +629,13 @@ export class GameEventService {
       defenderDestroyed: boolean;
       collateralDestroyedIds?: string[];
     };
+    collateralUnits?: Array<{
+      id: string;
+      playerId: string;
+      unitTypeId: string;
+      x: number;
+      y: number;
+    }>;
   }): string {
     const data = {
       playerId: event.attacker.playerId,
@@ -591,6 +677,20 @@ export class GameEventService {
         role: 'attacker',
       });
     }
+    const collateralIds = new Set(event.result.collateralDestroyedIds ?? []);
+    for (const unit of event.collateralUnits ?? []) {
+      if (!collateralIds.has(unit.id)) continue;
+      this.emitEvent(GameEventType.UNIT_KILLED, {
+        playerId: unit.playerId,
+        targetPlayerId: event.attacker.playerId,
+        unitId: unit.id,
+        unitTypeId: unit.unitTypeId,
+        killerUnitId: event.attacker.id,
+        x: unit.x,
+        y: unit.y,
+        role: 'collateral',
+      });
+    }
     return eventId;
   }
 
@@ -607,10 +707,14 @@ export class GameEventService {
       eventsProcessed: 0,
       eventsHandled: 0,
       eventsFailed: 0,
+      eventsDropped: 0,
+      persistenceFailures: 0,
       achievementsUnlocked: 0,
       duration: 0,
       errors: [],
     };
+
+    this.flushUnitMovementSummaries();
 
     logger.debug('Processing queued events', {
       gameId: this.gameId,
@@ -618,15 +722,17 @@ export class GameEventService {
       turn: currentTurn,
     });
 
-    // Update turn/year for all events
+    // Fill context for events emitted before the first turn record existed.
     for (const event of this.eventQueue) {
       if (event.data.turn === 0) event.data.turn = currentTurn;
       if (event.data.year === 0) event.data.year = currentYear;
+      event.turnId ??= this.currentTurnId ?? undefined;
     }
 
     // Process events in priority order
     const sortedEvents = [...this.eventQueue].sort((a, b) => b.priority - a.priority);
 
+    const readyForPersistence: GameEvent[] = [];
     for (const event of sortedEvents) {
       result.eventsProcessed++;
 
@@ -635,23 +741,13 @@ export class GameEventService {
         const handled = await this.handleEvent(event);
 
         if (handled) {
-          result.eventsHandled++;
-          event.handled = true;
-          event.handledAt = Date.now();
-
-          // Cache the event for potential replay/analysis
-          this.cacheEvent(event);
-
-          // Save event to database for persistent history
-          await this.saveEventToDatabase(event);
-
-          // Check for achievement unlocks
-          const achievementsUnlocked = await this.checkAchievements(event);
-          result.achievementsUnlocked += achievementsUnlocked;
+          readyForPersistence.push(event);
         } else {
           event.retryCount++;
           if (event.retryCount >= event.maxRetries) {
             result.eventsFailed++;
+            result.eventsDropped++;
+            this.droppedEventCount++;
             logger.warn('Event failed after max retries', {
               gameId: this.gameId,
               eventId: event.id,
@@ -671,6 +767,43 @@ export class GameEventService {
           type: event.type,
           error: errorMessage,
         });
+      }
+    }
+
+    const persisted = await this.saveEventsToDatabase(readyForPersistence);
+    if (!persisted) {
+      result.persistenceFailures += readyForPersistence.length;
+      for (const event of readyForPersistence) {
+        event.retryCount++;
+        result.eventsFailed++;
+        if (event.retryCount >= event.maxRetries) {
+          result.eventsDropped++;
+          this.droppedEventCount++;
+        }
+      }
+    } else {
+      for (const event of readyForPersistence) {
+        try {
+          result.eventsHandled++;
+          event.handled = true;
+          event.handledAt = Date.now();
+
+          // Cache the event for potential replay/analysis.
+          this.cacheEvent(event);
+
+          const achievementsUnlocked = await this.checkAchievements(event);
+          result.achievementsUnlocked += achievementsUnlocked;
+        } catch (error) {
+          result.eventsFailed++;
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          result.errors.push(`Event ${event.id}: ${errorMessage}`);
+          logger.error('Error finalizing processed event', {
+            gameId: this.gameId,
+            eventId: event.id,
+            type: event.type,
+            error: errorMessage,
+          });
+        }
       }
     }
 

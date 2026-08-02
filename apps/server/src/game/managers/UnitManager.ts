@@ -156,6 +156,7 @@ export interface UnitCombatEvent {
   attacker: Unit;
   defender: Unit;
   result: CombatResult;
+  collateralUnits?: Unit[];
 }
 
 interface CombatSetup {
@@ -1236,11 +1237,18 @@ export class UnitManager {
     const setup = await this.prepareCombat(attackerId, defenderId);
     const attackerBefore = { ...setup.attacker };
     const defenderBefore = { ...setup.defender };
+    const collateralBefore = setup.defenderTileUnits.map(unit => ({ ...unit }));
     const outcome = this.resolveCombatRounds(setup);
     const result = await this.finalizeCombat(setup, outcome);
     this.emitCombatPresentation(attackerBefore, defenderBefore, result);
     try {
-      this.combatObserver?.({ attacker: attackerBefore, defender: defenderBefore, result });
+      const collateralIds = new Set(result.collateralDestroyedIds ?? []);
+      this.combatObserver?.({
+        attacker: attackerBefore,
+        defender: defenderBefore,
+        result,
+        collateralUnits: collateralBefore.filter(unit => collateralIds.has(unit.id)),
+      });
     } catch (error) {
       logger.warn('Failed to notify combat observer after authoritative combat', {
         gameId: this.gameId,

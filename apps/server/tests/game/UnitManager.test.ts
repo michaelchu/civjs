@@ -1535,6 +1535,8 @@ describe('UnitManager', () => {
         11,
         10
       );
+      const combatObserver = jest.fn();
+      deterministicManager.setCombatObserver(combatObserver);
 
       const result = await deterministicManager.attackUnit(attacker.id, defender.id);
 
@@ -1543,6 +1545,19 @@ describe('UnitManager', () => {
       expect(deterministicManager.getUnit(defender.id)).toBeUndefined();
       expect(deterministicManager.getUnit(stackedDefender.id)).toBeUndefined();
       expect(deterministicManager.getUnit(attacker.id)).toMatchObject({ x: 11, y: 10 });
+      expect(combatObserver).toHaveBeenCalledWith(
+        expect.objectContaining({
+          collateralUnits: [
+            expect.objectContaining({
+              id: defender.id,
+              playerId: 'player-456',
+              unitTypeId: 'warriors',
+              x: 11,
+              y: 10,
+            }),
+          ],
+        })
+      );
     });
 
     it('captures a hostile city after its final defender is defeated', async () => {

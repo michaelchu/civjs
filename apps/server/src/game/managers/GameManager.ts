@@ -1433,6 +1433,7 @@ export class GameManager {
       diplomacy: await this.diplomacyManager.getReplaySnapshot(gameId),
       aiDiplomacy: getAIDiplomacyReplaySnapshot(gameInstance),
       diplomacyEvents: gameInstance.turnManager.getTurnDiplomacyEvents(),
+      eventTelemetry: gameEventService.getTelemetryDiagnostics(),
       endGame: endGameTelemetry,
     }));
     gameInstance.turnManager.setEndGameEvaluator(async (turn, year) => {
