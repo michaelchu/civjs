@@ -607,15 +607,35 @@ export class ActionSystem {
 
   /**
    * Check if unit can fortify
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1090-1108
    */
   private canFortify(unit: Unit): boolean {
     const unitType = this.unitTypes[unit.unitTypeId];
+    const terrainFlags = this.getTerrainFlags(this.getTerrainAt(unit.x, unit.y));
+    const isCityCenter = Boolean(this.gameManagerCallback?.getCityAt?.(unit.x, unit.y));
     return Boolean(
       unitType?.rulesetUnitClassFlags.includes('CanFortify') &&
       !unitType.flags?.includes('Cant_Fortify') &&
       !unit.fortified &&
-      unit.movementLeft > 0
+      (isCityCenter || !terrainFlags.includes('NoFortify'))
     );
+  }
+
+  private getTerrainRulesSafely(terrain: TerrainType) {
+    try {
+      return this.getTerrain(terrain);
+    } catch {
+      // A partially initialized map can use an internal terrain label before
+      // its ruleset definition is available. Do not turn that into a false
+      // terrain flag match.
+      return undefined;
+    }
+  }
+
+  private getTerrainFlags(terrain: TerrainType): string[] {
+    const flags = this.getTerrainRulesSafely(terrain)?.flags;
+    if (Array.isArray(flags)) return flags;
+    return typeof flags === 'string' ? [flags] : [];
   }
 
   /**

@@ -967,8 +967,12 @@ export class UnitManager {
   /**
    * Attack another unit
    */
-  async attackUnit(attackerId: string, defenderId: string): Promise<CombatResult> {
-    const setup = await this.prepareCombat(attackerId, defenderId);
+  async attackUnit(
+    attackerId: string,
+    defenderId: string,
+    action: 'attack' | 'suicide' = 'attack'
+  ): Promise<CombatResult> {
+    const setup = await this.prepareCombat(attackerId, defenderId, action);
     const attackerBefore = { ...setup.attacker };
     const defenderBefore = { ...setup.defender };
     const collateralBefore = setup.defenderTileUnits.map(unit => ({ ...unit }));
@@ -1104,7 +1108,11 @@ export class UnitManager {
     };
   }
 
-  private async prepareCombat(attackerId: string, defenderId: string): Promise<CombatSetup> {
+  private async prepareCombat(
+    attackerId: string,
+    defenderId: string,
+    action: 'attack' | 'suicide'
+  ): Promise<CombatSetup> {
     const attacker = this.units.get(attackerId);
     const requestedDefender = this.units.get(defenderId);
     if (!attacker || !requestedDefender) throw new Error('Unit not found');
@@ -1124,7 +1132,7 @@ export class UnitManager {
     if (!defender) throw new Error('No eligible defender on target tile');
     const attackerType = this.unitTypes[attacker.unitTypeId];
     const defenderType = this.unitTypes[defender.unitTypeId];
-    this.validateCombatRange(attacker, defender, attackerType);
+    this.validateCombatRange(attacker, defender, attackerType, action);
     const attackerStrength = this.calculateAttackStrength(attacker, attackerType);
     const defenderStrength = this.calculateCombatStrength(
       defender,
@@ -1192,7 +1200,12 @@ export class UnitManager {
   }
 
   // eslint-disable-next-line complexity
-  private validateCombatRange(attacker: Unit, defender: Unit, attackerType: UnitType): void {
+  private validateCombatRange(
+    attacker: Unit,
+    defender: Unit,
+    attackerType: UnitType,
+    action: 'attack' | 'suicide'
+  ): void {
     if (
       defender.transportedBy ||
       (attacker.transportedBy && !this.canAttackFromTransport(attackerType))
@@ -1200,8 +1213,23 @@ export class UnitManager {
       throw new Error('Transported units cannot directly participate in combat');
     }
     if ((attackerType.attack ?? 0) <= 0) throw new Error('Unit has no attack strength');
-    if (attacker.movementLeft <= 0 && !attacker.transportedBy) {
+    if (attacker.movementLeft <= 0) {
       throw new Error('No movement points remaining');
+    }
+    if (attackerType.flags?.includes('NonMil')) {
+      throw new Error('Non-military units cannot attack');
+    }
+    if (action === 'attack') {
+      if (attackerType.rulesetUnitClassFlags.includes('Missile')) {
+        throw new Error('Missile units must use a suicide attack');
+      }
+      const sourceTerrain = this.getTerrainAt(attacker.x, attacker.y);
+      const canAttackFromNonNative =
+        attackerType.flags?.includes('Marines') ||
+        attackerType.rulesetUnitClassFlags.includes('AttFromNonNative');
+      if (!this.canUnitEnterTerrain(sourceTerrain, attackerType.id) && !canAttackFromNonNative) {
+        throw new Error('Unit cannot attack from a non-native tile');
+      }
     }
     if (
       this.calculateDistance(attacker.x, attacker.y, defender.x, defender.y) > attackerType.range
@@ -1721,17 +1749,14 @@ export class UnitManager {
     if (!unit) {
       throw new Error(`Unit not found: ${unitId}`);
     }
-
-    unit.fortified = true;
-    unit.movementLeft = 0; // Fortifying uses all movement
-
-    await this.databaseProvider
-      .getDatabase()
-      .update(units)
-      .set({ movementPoints: '0', isFortified: true })
-      .where(eq(units.id, unitId));
-
-    logger.info(`Unit ${unitId} fortified`);
+    const result = await this.executeUnitAction(
+      unitId,
+      ActionType.FORTIFY,
+      undefined,
+      undefined,
+      unit.playerId
+    );
+    if (!result.success) throw new Error(result.message);
   }
 
   /**
@@ -4028,16 +4053,35 @@ export class UnitManager {
 
   private canBombard(unit: Unit, targetX?: number, targetY?: number): boolean {
     const type = this.unitTypes[unit.unitTypeId];
-    if (
-      type.bombardRate <= 0 ||
-      unit.movementLeft <= 0 ||
-      targetX === undefined ||
-      targetY === undefined ||
-      this.calculateDistance(unit.x, unit.y, targetX, targetY) > type.range
-    ) {
-      return false;
-    }
-    return this.getUnitsAt(targetX, targetY).some(target => target.playerId !== unit.playerId);
+    if (targetX === undefined || targetY === undefined) return false;
+    if (!this.hasBombardActorRequirements(unit, type, targetX, targetY)) return false;
+    if (this.getTerrainClass(this.getTerrainAt(targetX, targetY)) === 'Oceanic') return false;
+    return this.hasBombardableTarget(unit, targetX, targetY);
+  }
+
+  private hasBombardActorRequirements(
+    unit: Unit,
+    type: UnitType,
+    targetX: number,
+    targetY: number
+  ): boolean {
+    if (type.bombardRate <= 0) return false;
+    if (this.getRulesetName() === 'civ2civ3' && !type.flags?.includes('Bombarder')) return false;
+    if (unit.transportedBy || unit.movementLeft <= 0) return false;
+    return this.calculateDistance(unit.x, unit.y, targetX, targetY) <= type.range;
+  }
+
+  private hasBombardableTarget(unit: Unit, targetX: number, targetY: number): boolean {
+    const targetCity = this.gameManagerCallback?.getCityAt?.(targetX, targetY);
+    return (
+      (targetCity?.playerId !== undefined && targetCity.playerId !== unit.playerId) ||
+      this.getUnitsAt(targetX, targetY).some(
+        target =>
+          target.playerId !== unit.playerId &&
+          !target.transportedBy &&
+          this.canUnitTargetUnit(unit, target)
+      )
+    );
   }
 
   /**
@@ -4062,7 +4106,10 @@ export class UnitManager {
       ? Math.max(1, Math.floor((type.bombardRate * unit.health) / 100))
       : type.bombardRate;
     const targets = this.getUnitsAt(targetX!, targetY!).filter(
-      target => target.playerId !== unit.playerId && !target.transportedBy
+      target =>
+        target.playerId !== unit.playerId &&
+        !target.transportedBy &&
+        this.canUnitTargetUnit(unit, target)
     );
     const affectedUnitIds: string[] = [];
     for (const target of targets) {
@@ -4080,10 +4127,8 @@ export class UnitManager {
         .set({ health: target.health })
         .where(eq(units.id, target.id));
     }
-    if (affectedUnitIds.length > 0) {
-      const targetCity = this.gameManagerCallback?.getCityAt?.(targetX!, targetY!);
-      await this.applyCivilianCasualty(unit, type, targetCity, targetX!, targetY!);
-    }
+    const targetCity = this.gameManagerCallback?.getCityAt?.(targetX!, targetY!);
+    await this.applyCivilianCasualty(unit, type, targetCity, targetX!, targetY!);
     unit.movementLeft = 0;
     await this.databaseProvider
       .getDatabase()
@@ -4484,8 +4529,10 @@ export class UnitManager {
     targetX?: number,
     targetY?: number
   ): Promise<ActionResult> {
+    const unitType = this.unitTypes[unit.unitTypeId];
     if (
-      !this.unitTypes[unit.unitTypeId].rulesetUnitClassFlags.includes('Missile') ||
+      !unitType?.rulesetUnitClassFlags.includes('Missile') ||
+      unitType.flags?.includes('NonMil') ||
       !this.canTargetCombatUnit(unit, targetX, targetY)
     ) {
       return { success: false, message: 'Unit cannot perform a suicide attack' };
@@ -4493,7 +4540,7 @@ export class UnitManager {
     const defender = this.getUnitsAt(targetX!, targetY!).find(
       target => target.playerId !== unit.playerId && !target.transportedBy
     )!;
-    const combat = await this.attackUnit(unit.id, defender.id);
+    const combat = await this.attackUnit(unit.id, defender.id, 'suicide');
     if (this.units.has(unit.id)) await this.destroyUnit(unit.id);
     return {
       success: true,

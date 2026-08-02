@@ -3484,6 +3484,318 @@ describe('UnitManager', () => {
     });
   });
 
+  describe('Civ2Civ3 direct combat action enablers', () => {
+    const createManager = () => {
+      const terrain = new Map<string, string>();
+      const cityOwners = new Map<string, string>();
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        {
+          getTile: jest.fn((x: number, y: number) => ({
+            x,
+            y,
+            terrain: terrain.get(`${x},${y}`) ?? 'grassland',
+            improvements: [],
+          })),
+        },
+        {
+          foundCity: jest.fn(),
+          requestPath: jest.fn(),
+          broadcastUnitMoved: jest.fn(),
+          getCityAt: (x, y) =>
+            cityOwners.has(`${x},${y}`)
+              ? {
+                  id: `city-${x}-${y}`,
+                  playerId: cityOwners.get(`${x},${y}`)!,
+                  buildings: [],
+                  population: 4,
+                }
+              : null,
+        },
+        new EffectsManager('civ2civ3'),
+        () => 0.99,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      return { manager, terrain, cityOwners };
+    };
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1090-1108
+     * @assertion Fortify permits a CanFortify unit on ordinary terrain even after it has spent its movement, because the source enabler has no MinMoveFrags requirement.
+     * @c2c3-action Fortify
+     * @c2c3-scenario normal
+     */
+    it('fortifies an exhausted Civ2Civ3 warrior on ordinary terrain', async () => {
+      const { manager } = createManager();
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+      warrior.movementLeft = 0;
+
+      expect(manager.canUnitPerformAction(warrior.id, ActionType.FORTIFY)).toBe(true);
+      await expect(
+        manager.executeUnitAction(
+          warrior.id,
+          ActionType.FORTIFY,
+          undefined,
+          undefined,
+          'player-123'
+        )
+      ).resolves.toMatchObject({ success: true });
+      expect(warrior).toMatchObject({ fortified: true, movementLeft: 0 });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1090-1108
+     * @assertion Fortify rejects a unit with the Cant_Fortify type flag even when its class has CanFortify.
+     * @c2c3-action Fortify
+     * @c2c3-scenario rejected
+     */
+    it('rejects Civ2Civ3 worker fortification', async () => {
+      const { manager } = createManager();
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(manager.canUnitPerformAction(worker.id, ActionType.FORTIFY)).toBe(false);
+      await expect(
+        manager.executeUnitAction(worker.id, ActionType.FORTIFY, undefined, undefined, 'player-123')
+      ).resolves.toMatchObject({ success: false });
+      expect(worker.fortified).toBe(false);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:1090-1108
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:353-358
+     * @assertion Fortify rejects NoFortify ocean terrain, while the CityTile Center enabler remains an explicit exception.
+     * @c2c3-action Fortify
+     * @c2c3-scenario boundary
+     */
+    it('applies the Civ2Civ3 NoFortify terrain and city-center exception', async () => {
+      const { manager, terrain, cityOwners } = createManager();
+      terrain.set('10,10', 'ocean');
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+
+      expect(manager.canUnitPerformAction(warrior.id, ActionType.FORTIFY)).toBe(false);
+      await expect(manager.fortifyUnit(warrior.id)).rejects.toThrow('Unit cannot perform Fortify');
+
+      cityOwners.set('10,10', 'player-123');
+      expect(manager.canUnitPerformAction(warrior.id, ActionType.FORTIFY)).toBe(true);
+      await expect(manager.fortifyUnit(warrior.id)).resolves.toBeUndefined();
+      expect(warrior).toMatchObject({ fortified: true, movementLeft: 0 });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:794-824
+     * @assertion Attack allows a non-Missile military unit with movement to attack an adjacent hostile unit from a native tile.
+     * @c2c3-action Attack
+     * @c2c3-scenario normal
+     */
+    it('allows a native Civ2Civ3 attack against a hostile adjacent unit', async () => {
+      const { manager } = createManager();
+      manager.setHostilityProvider(async () => true);
+      const attacker = await manager.createUnit('player-123', 'warriors', 10, 10);
+      const defender = await manager.createUnit('player-456', 'warriors', 11, 10);
+
+      await expect(manager.attackUnit(attacker.id, defender.id)).resolves.toMatchObject({
+        attackerId: attacker.id,
+        defenderId: defender.id,
+      });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:794-824
+     * @assertion Attack requires the C2C3 War diplomatic relation before combat can begin.
+     * @c2c3-action Attack
+     * @c2c3-scenario rejected
+     */
+    it('rejects a Civ2Civ3 attack at peace', async () => {
+      const { manager } = createManager();
+      manager.setHostilityProvider(async () => false);
+      const attacker = await manager.createUnit('player-123', 'warriors', 10, 10);
+      const defender = await manager.createUnit('player-456', 'warriors', 11, 10);
+
+      await expect(manager.attackUnit(attacker.id, defender.id)).rejects.toThrow(
+        'Cannot attack a player unless at war'
+      );
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:794-824
+     * @reference reference/freeciv/data/civ2civ3/units.ruleset:39-44
+     * @assertion Attack rejects a land unit launched from a non-native tile, but permits the Marines type-flag exception.
+     * @c2c3-action Attack
+     * @c2c3-scenario boundary
+     */
+    it('enforces Civ2Civ3 native attack origins and the Marines exception', async () => {
+      const { manager, terrain } = createManager();
+      manager.setHostilityProvider(async () => true);
+      terrain.set('10,10', 'ocean');
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+      const defender = await manager.createUnit('player-456', 'warriors', 11, 10);
+
+      await expect(manager.attackUnit(warrior.id, defender.id)).rejects.toThrow(
+        'Unit cannot attack from a non-native tile'
+      );
+
+      terrain.set('10,12', 'ocean');
+      const marine = await manager.createUnit('player-123', 'marines', 10, 12);
+      const coastalDefender = await manager.createUnit('player-456', 'warriors', 11, 12);
+      coastalDefender.health = 1;
+
+      await expect(manager.attackUnit(marine.id, coastalDefender.id)).resolves.toMatchObject({
+        defenderDestroyed: true,
+      });
+
+      const missile = await manager.createUnit('player-123', 'cruise_missile', 10, 14);
+      const missileTarget = await manager.createUnit('player-456', 'warriors', 11, 14);
+      await expect(manager.attackUnit(missile.id, missileTarget.id)).rejects.toThrow(
+        'Missile units must use a suicide attack'
+      );
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:697-727
+     * @assertion Bombard allows an untransported Bombarder unit to damage an adjacent hostile land stack.
+     * @c2c3-action Bombard
+     * @c2c3-scenario normal
+     */
+    it('bombards a hostile Civ2Civ3 land unit', async () => {
+      const { manager } = createManager();
+      manager.setHostilityProvider(async () => true);
+      const bomber = await manager.createUnit('player-123', 'bomber', 10, 10);
+      const defender = await manager.createUnit('player-456', 'warriors', 11, 10);
+
+      expect(manager.canUnitPerformAction(bomber.id, ActionType.BOMBARD, 11, 10)).toBe(true);
+      await expect(
+        manager.executeUnitAction(bomber.id, ActionType.BOMBARD, 11, 10, 'player-123')
+      ).resolves.toMatchObject({ success: true, affectedUnitIds: [defender.id] });
+      expect(defender.health).toBeLessThan(100);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:697-710
+     * @reference reference/freeciv/server/unithand.c:4632-4735
+     * @assertion Bombard remains legal against a hostile city even when its tile has no unit stack to damage.
+     * @c2c3-action Bombard
+     * @c2c3-scenario normal
+     */
+    it('allows Civ2Civ3 bombardment of an undefended hostile city', async () => {
+      const { manager, cityOwners } = createManager();
+      manager.setHostilityProvider(async () => true);
+      cityOwners.set('11,10', 'player-456');
+      const bomber = await manager.createUnit('player-123', 'bomber', 10, 10);
+
+      expect(manager.canUnitPerformAction(bomber.id, ActionType.BOMBARD, 11, 10)).toBe(true);
+      await expect(
+        manager.executeUnitAction(bomber.id, ActionType.BOMBARD, 11, 10, 'player-123')
+      ).resolves.toMatchObject({ success: true, affectedUnitIds: [] });
+      expect(bomber.movementLeft).toBe(0);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:697-727
+     * @assertion Bombard rejects a target area when diplomacy does not report War.
+     * @c2c3-action Bombard
+     * @c2c3-scenario rejected
+     */
+    it('rejects Civ2Civ3 bombardment at peace', async () => {
+      const { manager } = createManager();
+      manager.setHostilityProvider(async () => false);
+      const bomber = await manager.createUnit('player-123', 'bomber', 10, 10);
+      await manager.createUnit('player-456', 'warriors', 11, 10);
+
+      await expect(
+        manager.executeUnitAction(bomber.id, ActionType.BOMBARD, 11, 10, 'player-123')
+      ).resolves.toMatchObject({ success: false, message: 'Bombardment requires a state of war' });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:697-727
+     * @assertion Bombard excludes Oceanic targets and transported actors before it can be offered to the player.
+     * @c2c3-action Bombard
+     * @c2c3-scenario boundary
+     */
+    it('excludes Civ2Civ3 ocean targets and transported bombarding actors', async () => {
+      const { manager, terrain } = createManager();
+      terrain.set('11,10', 'ocean');
+      const bomber = await manager.createUnit('player-123', 'bomber', 10, 10);
+      await manager.createUnit('player-456', 'warriors', 11, 10);
+
+      expect(manager.canUnitPerformAction(bomber.id, ActionType.BOMBARD, 11, 10)).toBe(false);
+
+      terrain.set('11,10', 'grassland');
+      bomber.transportedBy = 'carrier-id';
+      expect(manager.canUnitPerformAction(bomber.id, ActionType.BOMBARD, 11, 10)).toBe(false);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:872-881
+     * @assertion Suicide Attack lets a Missile-class unit spend movement on an adjacent hostile target and always consumes the actor.
+     * @c2c3-action Suicide Attack
+     * @c2c3-scenario normal
+     */
+    it('consumes a Civ2Civ3 cruise missile after its suicide attack', async () => {
+      const { manager } = createManager();
+      manager.setHostilityProvider(async () => true);
+      const missile = await manager.createUnit('player-123', 'cruise_missile', 10, 10);
+      await manager.createUnit('player-456', 'warriors', 11, 10);
+
+      await expect(
+        manager.executeUnitAction(missile.id, ActionType.SUICIDE_ATTACK, 11, 10, 'player-123')
+      ).resolves.toMatchObject({ success: true, unitDestroyed: true });
+      expect(manager.getUnit(missile.id)).toBeUndefined();
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:872-881
+     * @assertion Suicide Attack rejects an actor outside the Missile unit class.
+     * @c2c3-action Suicide Attack
+     * @c2c3-scenario rejected
+     */
+    it('rejects a non-Missile Civ2Civ3 suicide attack', async () => {
+      const { manager } = createManager();
+      const warrior = await manager.createUnit('player-123', 'warriors', 10, 10);
+      await manager.createUnit('player-456', 'warriors', 11, 10);
+
+      await expect(
+        manager.executeUnitAction(warrior.id, ActionType.SUICIDE_ATTACK, 11, 10, 'player-123')
+      ).resolves.toMatchObject({ success: false, message: 'Unit cannot perform a suicide attack' });
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:872-881
+     * @assertion Suicide Attack has a MinMoveFrags requirement, so a missile with no movement cannot act.
+     * @c2c3-action Suicide Attack
+     * @c2c3-scenario boundary
+     */
+    it('requires movement for a Civ2Civ3 suicide attack', async () => {
+      const { manager } = createManager();
+      const missile = await manager.createUnit('player-123', 'cruise_missile', 10, 10);
+      missile.movementLeft = 0;
+      await manager.createUnit('player-456', 'warriors', 11, 10);
+
+      expect(manager.canUnitPerformAction(missile.id, ActionType.SUICIDE_ATTACK, 11, 10)).toBe(
+        false
+      );
+      await expect(
+        manager.executeUnitAction(missile.id, ActionType.SUICIDE_ATTACK, 11, 10, 'player-123')
+      ).resolves.toMatchObject({ success: false, message: 'Unit cannot perform a suicide attack' });
+    });
+  });
+
   describe('Civ2Civ3 unit upgrades', () => {
     const createManager = () => {
       const manager = new UnitManager(
