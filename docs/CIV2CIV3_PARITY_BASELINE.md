@@ -53,6 +53,15 @@ boundary, turn-state, and differential scenarios; action-specific cases also
 need an explicit rejected outcome. This keeps a future certificate from being
 based solely on a large count of narrow unit tests.
 
+For map setup, CivJS resolves c2c3's source settings rather than applying the
+old neutral map defaults: `FRACTAL`, temperature `60`, `ISO|HEX`, and
+`WRAPX|WRAPY` (`data/civ2civ3/game.ruleset:810-827`). The live `MAP_INFO`
+packet carries the Freeciv wire values `topology_id: 12` and `wrap_id: 3`, and
+the client retains both values through map-snapshot assembly. Existing CivJS
+maps written with its former internal topology values are normalized on load.
+This is source and packet-contract evidence, not a deterministic
+Freeciv-versus-CivJS terrain-output comparison.
+
 The secfile converter deliberately does not execute ruleset Lua. The
 c2c3-local script creates Ruins and map labels, which its own ruleset data
 marks as presentation-only; the inherited default script also governs gameplay
@@ -104,6 +113,14 @@ promotion, and useful worker activity rather than applying one generic
 experience table. This is a working differential-test foundation, not a whole-game
 certificate; new scenarios must cover the remaining action and turn-state
 matrices before a parity claim is justified.
+
+The same oracle bundle now includes a zero-movement self-detonation by a c2c3
+Nuclear on the ruleset's default ISO-hex map. It compares action success,
+destruction of the Nuclear, and destruction of an in-range legal hex neighbor.
+Source-mapped normal, rejected, and maximum-range tests cover the three c2c3
+nuclear actions (`Explode Nuclear`, `Nuke City`, and `Nuke Units`) as well as
+the SDI `Nuke_Proof` team boundary. This strengthens the combat evidence; it
+does not by itself certify the rest of the combat/action matrix.
 
 The turn-time `Have_Contacts` effect is separately source-mapped in
 `DiplomacyManager.test.ts`. In c2c3, Marco Polo's Embassy grants that effect
