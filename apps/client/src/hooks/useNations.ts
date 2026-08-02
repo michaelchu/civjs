@@ -15,6 +15,7 @@ interface UseNationsState {
   metadata: {
     count: number;
     ruleset: string;
+    nationSet?: string;
     default_traits: NationTraits;
   } | null;
 }
@@ -28,7 +29,7 @@ interface UseNationState {
 /**
  * Hook to fetch and manage all nations for a ruleset
  */
-export function useNations(ruleset: string = 'civ2civ3') {
+export function useNations(ruleset: string = 'civ2civ3', nationSet?: string) {
   const [state, setState] = useState<UseNationsState>({
     nations: [],
     loading: true,
@@ -41,7 +42,7 @@ export function useNations(ruleset: string = 'civ2civ3') {
 
     try {
       console.log(`Fetching nations for ruleset: ${ruleset}`);
-      const response = await nationsApi.getNations(ruleset);
+      const response = await nationsApi.getNations(ruleset, nationSet);
       console.log('Nations API response:', response);
 
       if (response.success && response.data) {
@@ -66,7 +67,7 @@ export function useNations(ruleset: string = 'civ2civ3') {
         error: error instanceof Error ? error.message : 'Unknown error',
       }));
     }
-  }, [ruleset]);
+  }, [ruleset, nationSet]);
 
   useEffect(() => {
     fetchNations();
@@ -85,7 +86,7 @@ export function useNations(ruleset: string = 'civ2civ3') {
 /**
  * Hook to fetch and manage a single nation
  */
-export function useNation(id: string, ruleset: string = 'civ2civ3') {
+export function useNation(id: string, ruleset: string = 'civ2civ3', nationSet?: string) {
   const [state, setState] = useState<UseNationState>({
     nation: null,
     loading: true,
@@ -101,7 +102,7 @@ export function useNation(id: string, ruleset: string = 'civ2civ3') {
     setState(prev => ({ ...prev, loading: true, error: null }));
 
     try {
-      const response = await nationsApi.getNation(id, ruleset);
+      const response = await nationsApi.getNation(id, ruleset, nationSet);
 
       if (response.success && response.data) {
         setState({
@@ -123,7 +124,7 @@ export function useNation(id: string, ruleset: string = 'civ2civ3') {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
     }
-  }, [id, ruleset]);
+  }, [id, ruleset, nationSet]);
 
   useEffect(() => {
     fetchNation();
@@ -142,8 +143,8 @@ export function useNation(id: string, ruleset: string = 'civ2civ3') {
 /**
  * Hook to get available nations filtered and sorted for selection
  */
-export function useNationSelection(ruleset: string = 'civ2civ3') {
-  const { nations, loading, error, metadata, refetch } = useNations(ruleset);
+export function useNationSelection(ruleset: string = 'civ2civ3', nationSet?: string) {
+  const { nations, loading, error, metadata, refetch } = useNations(ruleset, nationSet);
 
   // Keep game-internal factions out of the player selection UI.
   const playableNations = nations.filter(
@@ -167,7 +168,11 @@ export function useNationSelection(ruleset: string = 'civ2civ3') {
 /**
  * Hook for nation leaders
  */
-export function useNationLeaders(nationId: string, ruleset: string = 'civ2civ3') {
+export function useNationLeaders(
+  nationId: string,
+  ruleset: string = 'civ2civ3',
+  nationSet?: string
+) {
   const [leaders, setLeaders] = useState<NationLeader[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -179,7 +184,7 @@ export function useNationLeaders(nationId: string, ruleset: string = 'civ2civ3')
     setError(null);
 
     try {
-      const response = await nationsApi.getNationLeaders(nationId, ruleset);
+      const response = await nationsApi.getNationLeaders(nationId, ruleset, nationSet);
 
       if (response.success && response.data) {
         setLeaders(response.data.leaders);
@@ -191,7 +196,7 @@ export function useNationLeaders(nationId: string, ruleset: string = 'civ2civ3')
     } finally {
       setLoading(false);
     }
-  }, [nationId, ruleset]);
+  }, [nationId, ruleset, nationSet]);
 
   useEffect(() => {
     fetchLeaders();

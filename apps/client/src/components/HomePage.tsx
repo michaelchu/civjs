@@ -42,6 +42,7 @@ export const HomePage: React.FC = () => {
         gameType: 'single' as const,
         maxPlayers: 4,
         mapSize: 'small',
+        nationSet: 'core',
         selectedNation: 'random',
         barbarianRate: 1,
         terrainSettings: {

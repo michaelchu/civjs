@@ -296,6 +296,7 @@ describe('GameManagementHandler', () => {
         maxPlayers: 4,
         mapWidth: 50,
         mapHeight: 50,
+        nationSet: 'all',
         selectedNation: 'romans',
         aiLevel: 'hard',
         researchPacing: { scienceBox: 150 },
@@ -321,6 +322,7 @@ describe('GameManagementHandler', () => {
           name: 'New Game',
           hostId: mockUserId,
           maxPlayers: 4,
+          nationSet: 'all',
           aiLevel: 'hard',
           researchPacing: { scienceBox: 150 },
         })

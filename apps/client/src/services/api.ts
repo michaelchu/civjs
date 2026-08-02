@@ -68,6 +68,7 @@ export interface NationsResponse {
   metadata: {
     count: number;
     ruleset: string;
+    nationSet?: string;
     default_traits: NationTraits;
   };
 }
@@ -122,16 +123,27 @@ export const nationsApi = {
   /**
    * Get all available nations for a ruleset
    */
-  async getNations(ruleset: string = 'civ2civ3'): Promise<ApiResponse<NationsResponse>> {
-    return fetchApi<NationsResponse>(`/nations?ruleset=${encodeURIComponent(ruleset)}`);
+  async getNations(
+    ruleset: string = 'civ2civ3',
+    nationSet?: string
+  ): Promise<ApiResponse<NationsResponse>> {
+    const query = new URLSearchParams({ ruleset });
+    if (nationSet) query.set('nationSet', nationSet);
+    return fetchApi<NationsResponse>(`/nations?${query.toString()}`);
   },
 
   /**
    * Get a specific nation by ID
    */
-  async getNation(id: string, ruleset: string = 'civ2civ3'): Promise<ApiResponse<NationResponse>> {
+  async getNation(
+    id: string,
+    ruleset: string = 'civ2civ3',
+    nationSet?: string
+  ): Promise<ApiResponse<NationResponse>> {
+    const query = new URLSearchParams({ ruleset });
+    if (nationSet) query.set('nationSet', nationSet);
     return fetchApi<NationResponse>(
-      `/nations/${encodeURIComponent(id)}?ruleset=${encodeURIComponent(ruleset)}`
+      `/nations/${encodeURIComponent(id)}?${query.toString()}`
     );
   },
 
@@ -147,10 +159,13 @@ export const nationsApi = {
    */
   async getNationLeaders(
     id: string,
-    ruleset: string = 'civ2civ3'
+    ruleset: string = 'civ2civ3',
+    nationSet?: string
   ): Promise<ApiResponse<NationLeadersResponse>> {
+    const query = new URLSearchParams({ ruleset });
+    if (nationSet) query.set('nationSet', nationSet);
     return fetchApi<NationLeadersResponse>(
-      `/nations/${encodeURIComponent(id)}/leaders?ruleset=${encodeURIComponent(ruleset)}`
+      `/nations/${encodeURIComponent(id)}/leaders?${query.toString()}`
     );
   },
 };

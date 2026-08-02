@@ -1289,6 +1289,7 @@ export class GameClient {
     gameType?: 'single' | 'multiplayer';
     maxPlayers: number;
     mapSize: string;
+    nationSet?: string;
     selectedNation: string;
     aiLevel?: 'restricted' | 'novice' | 'easy' | 'normal' | 'hard' | 'cheating';
     barbarianRate?: number;
@@ -1332,6 +1333,7 @@ export class GameClient {
           mapWidth: dimensions.width,
           mapHeight: dimensions.height,
           ruleset: 'civ2civ3',
+          nationSet: gameData.nationSet,
           selectedNation: gameData.selectedNation,
           aiLevel: gameData.aiLevel,
           barbarianRate: gameData.barbarianRate,

@@ -709,6 +709,51 @@ export class RulesetLoader {
   }
 
   /**
+   * Resolve the active Freeciv nation-set value. An empty setting selects the
+   * first ruleset-declared set, matching nation_set_by_setting_value().
+   * @reference reference/freeciv/common/nation.c:881-905
+   */
+  resolveNationSet(rulesetName: string = 'classic', setting?: string): string | undefined {
+    const nationSets = Object.values(this.loadNationsRuleset(rulesetName).nation_sets)
+      .map(nationSet => nationSet.rule_name)
+      .filter((ruleName): ruleName is string => typeof ruleName === 'string');
+
+    if (nationSets.length === 0) {
+      if (setting?.trim()) {
+        throw new Error(`Ruleset '${rulesetName}' does not define nation set '${setting}'`);
+      }
+      return undefined;
+    }
+
+    const requested = setting?.trim();
+    if (!requested) return nationSets[0];
+    if (!nationSets.includes(requested)) {
+      throw new Error(`Nation set '${requested}' is not defined by ruleset '${rulesetName}'`);
+    }
+    return requested;
+  }
+
+  /**
+   * Return the nations legal in a Freeciv nation set. Rulesets converted
+   * before nation-set metadata existed retain their complete catalogue.
+   * @reference reference/freeciv/server/ruleset/ruleload.c:5187-5285
+   */
+  getNationsForSet(
+    rulesetName: string = 'classic',
+    setting?: string
+  ): Record<string, NationRuleset> {
+    const activeSet = this.resolveNationSet(rulesetName, setting);
+    const nations = this.getNations(rulesetName);
+    if (!activeSet) return nations;
+
+    return Object.fromEntries(
+      Object.entries(nations).filter(([, nation]) =>
+        nation.sets ? nation.sets.includes(activeSet) : true
+      )
+    );
+  }
+
+  /**
    * Get a specific nation from a ruleset
    */
   getNation(nationId: string, rulesetName: string = 'classic'): NationRuleset {

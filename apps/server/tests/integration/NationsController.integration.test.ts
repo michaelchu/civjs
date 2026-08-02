@@ -34,7 +34,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
   });
 
   describe('GET /api/nations', () => {
-    it('should return all nations for the configured default ruleset', async () => {
+    it('should return playable nations for the configured default ruleset', async () => {
       const response = await request(app).get('/api/nations').expect(200);
 
       expect(response.body.success).toBe(true);
@@ -53,6 +53,52 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
       expect(nation).toHaveProperty('adjective');
       expect(nation).toHaveProperty('leaders');
       expect(nation.leaders).toBeInstanceOf(Array);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/default/nationlist.ruleset:2-46
+     * @reference reference/freeciv/data/civ2civ3/nations.ruleset:64-69
+     * @reference reference/freeciv/server/ruleset/ruleload.c:5187-5285
+     * @reference reference/freeciv/common/nation.c:881-905
+     * @assertion The c2c3 lobby exposes Freeciv's Core playable roster by default and its complete Extended playable roster only when explicitly selected.
+     */
+    it('uses the Freeciv Core default and exposes Extended only on request', async () => {
+      const core = await request(app).get('/api/nations').expect(200);
+      const extended = await request(app)
+        .get('/api/nations')
+        .query({ nationSet: 'all' })
+        .expect(200);
+
+      expect(core.body.data.metadata).toMatchObject({
+        ruleset: 'civ2civ3',
+        nationSet: 'core',
+        count: 50,
+      });
+      expect(core.body.data.nations).toEqual(
+        expect.not.arrayContaining([
+          expect.objectContaining({ id: 'abkhaz' }),
+          expect.objectContaining({ id: 'barbarian' }),
+          expect.objectContaining({ id: 'pirate' }),
+          expect.objectContaining({ id: 'animals' }),
+        ])
+      );
+
+      expect(extended.body.data.metadata).toMatchObject({
+        ruleset: 'civ2civ3',
+        nationSet: 'all',
+        count: 569,
+      });
+      expect(extended.body.data.nations).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: 'abkhaz' })])
+      );
+      expect(extended.body.data.nations).toEqual(
+        expect.not.arrayContaining([
+          expect.objectContaining({ id: 'barbarian' }),
+          expect.objectContaining({ id: 'pirate' }),
+          expect.objectContaining({ id: 'animals' }),
+        ])
+      );
     });
 
     it('should return nations for specified ruleset', async () => {
@@ -83,6 +129,15 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
 
       expect(response.body.error).toBe('Invalid ruleset parameter');
       expect(response.body.message).toBe('Ruleset must be a string');
+    });
+
+    it('should reject a nation set not defined by the selected ruleset', async () => {
+      const response = await request(app)
+        .get('/api/nations')
+        .query({ nationSet: 'not-a-c2c3-set' })
+        .expect(400);
+
+      expect(response.body.error).toBe('Invalid nation set parameter');
     });
 
     it('should include nation traits and essential properties', async () => {
@@ -145,6 +200,17 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
         .expect(200);
 
       expect(response.body.data.nation.id).toBe('roman');
+    });
+
+    it('should limit individual nation lookup to the active nation set', async () => {
+      await request(app).get('/api/nations/abkhaz').expect(404);
+      const response = await request(app)
+        .get('/api/nations/abkhaz')
+        .query({ nationSet: 'all' })
+        .expect(200);
+
+      expect(response.body.data.nation.id).toBe('abkhaz');
+      await request(app).get('/api/nations/animals').query({ nationSet: 'all' }).expect(404);
     });
 
     it('should return 400 for invalid ruleset parameter', async () => {

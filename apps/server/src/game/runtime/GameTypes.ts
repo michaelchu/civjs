@@ -44,6 +44,7 @@ export interface GameConfig {
   mapHeight?: number;
   mapSeed?: string;
   ruleset?: string;
+  nationSet?: string;
   turnTimeLimit?: number;
   maxTurns?: number;
   victoryConditions?: string[];

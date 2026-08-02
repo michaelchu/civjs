@@ -82,45 +82,12 @@ describe('RulesetLoader validation', () => {
     expect(() => new RulesetLoader(baseDir).validateRuleset('classic')).not.toThrow();
   });
 
-  it('validates the shipped Civ2Civ3 ruleset and retains its worker settlers', () => {
+  it('validates the shipped Civ2Civ3 ruleset and retains its full nation catalogue', () => {
     const loader = new RulesetLoader(join(__dirname, '../../../../src/shared/data/rulesets'));
 
     expect(() => loader.validateRuleset('civ2civ3')).not.toThrow();
-    expect(Object.keys(loader.getNations('civ2civ3')).sort()).toEqual(
-      [
-        'american',
-        'aztec',
-        'babylonian',
-        'chinese',
-        'egyptian',
-        'english',
-        'french',
-        'german',
-        'greek',
-        'indian',
-        'iroquois',
-        'japanese',
-        'persian',
-        'roman',
-        'russian',
-        'zulu',
-        'arab',
-        'celtic',
-        'carthaginian',
-        'korean',
-        'mongol',
-        'ottoman',
-        'spanish',
-        'viking',
-        'byzantine',
-        'dutch',
-        'hittite',
-        'inca',
-        'mayan',
-        'portuguese',
-        'sumerian',
-      ].sort()
-    );
+    expect(Object.keys(loader.getNations('civ2civ3'))).toHaveLength(572);
+    expect(Object.keys(loader.getNationsForSet('civ2civ3'))).toHaveLength(53);
     expect(loader.getUnits('civ2civ3').settlers).toMatchObject({
       pop_cost: 2,
       flags: expect.arrayContaining(['Workers', 'Cities']),

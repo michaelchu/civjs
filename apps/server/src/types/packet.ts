@@ -588,6 +588,7 @@ export const GameCreateSchema = z.object({
   mapWidth: z.number().int().min(40).max(200).optional(),
   mapHeight: z.number().int().min(25).max(150).optional(),
   ruleset: z.string().optional(),
+  nationSet: z.string().trim().min(1).max(50).optional(),
   selectedNation: z.string().min(1).optional(),
   aiLevel: z.enum(['restricted', 'novice', 'easy', 'normal', 'hard', 'cheating']).optional(),
   turnTimeLimit: z.number().int().min(0).max(86_400).optional(),

@@ -16,7 +16,10 @@ export const GameCreationDialog: React.FC = () => {
   const [error, setError] = useState('');
 
   // Fetch nations using our hook
-  const { nations, loading: nationsLoading, error: nationsError } = useNationSelection('civ2civ3');
+  const { nations, loading: nationsLoading, error: nationsError } = useNationSelection(
+    'civ2civ3',
+    formData.nationSet
+  );
 
   const navigate = useNavigate();
 
@@ -46,6 +49,7 @@ export const GameCreationDialog: React.FC = () => {
     gameType,
     maxPlayers,
     mapSize,
+    nationSet,
     selectedNation,
     aiLevel = 'easy',
     scienceBox = 100,
@@ -76,6 +80,7 @@ export const GameCreationDialog: React.FC = () => {
       gameType,
       maxPlayers: gameType === 'single' ? 1 : maxPlayers,
       mapSize,
+      nationSet,
       selectedNation,
       aiLevel,
       scienceBox,
@@ -117,6 +122,11 @@ export const GameCreationDialog: React.FC = () => {
     { value: '100', label: 'Standard (100%)' },
     { value: '150', label: 'Slow (150%)' },
     { value: '200', label: 'Epic (200%)' },
+  ];
+
+  const nationSetOptions = [
+    { value: 'core', label: 'Core (default)' },
+    { value: 'all', label: 'Extended' },
   ];
 
   // Create nation options from the fetched nations
@@ -172,6 +182,26 @@ export const GameCreationDialog: React.FC = () => {
                     placeholder="Enter game name"
                     maxLength={50}
                   />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="nationSet"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
+                    Nation Set
+                  </label>
+                  <Combobox
+                    options={nationSetOptions}
+                    value={nationSet}
+                    onValueChange={value =>
+                      updateFormData({ nationSet: value, selectedNation: 'random' })
+                    }
+                    placeholder="Select nation set"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Core is the Freeciv c2c3 default; Extended enables its full playable roster.
+                  </p>
                 </div>
 
                 <div>

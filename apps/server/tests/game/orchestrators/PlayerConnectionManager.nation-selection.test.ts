@@ -34,6 +34,7 @@ const mockNationsRuleset = {
 // Mock the RulesetLoader
 const mockRulesetLoader = {
   loadNationsRuleset: jest.fn(),
+  getNationsForSet: jest.fn(),
 };
 
 jest.mock('@shared/data/rulesets/RulesetLoader', () => ({
@@ -67,6 +68,7 @@ describe('PlayerConnectionManager - Nation Selection', () => {
 
     // Reset the mock to return our mock data
     mockRulesetLoader.loadNationsRuleset.mockReturnValue(mockNationsRuleset);
+    mockRulesetLoader.getNationsForSet.mockReturnValue(mockNationsRuleset.nations);
 
     // Mock database operations
     mockDatabase = {
@@ -106,6 +108,29 @@ describe('PlayerConnectionManager - Nation Selection', () => {
 
       // Assert
       expect(result).toBe('american');
+    });
+
+    it('uses only the active nation set and rejects non-playable factions', async () => {
+      const extendedNations = {
+        ...mockNationsRuleset.nations,
+        abkhaz: { id: 'abkhaz', name: 'Abkhaz', leaders: [{ name: 'Ardzinba' }] },
+        animals: { id: 'animals', name: 'Animal Kingdom', is_playable: false },
+      };
+      mockRulesetLoader.getNationsForSet.mockImplementation((_ruleset: string, nationSet?: string) =>
+        nationSet === 'all' ? extendedNations : mockNationsRuleset.nations
+      );
+      const validateMethod = (playerManager as any).validateAndSelectNation.bind(playerManager);
+
+      await expect(validateMethod('abkhaz', [], 'civ2civ3', undefined, 'core')).rejects.toThrow(
+        'That nation is not available in the active nation set.'
+      );
+      await expect(validateMethod('animals', [], 'civ2civ3', undefined, 'all')).rejects.toThrow(
+        'That nation is not available in the active nation set.'
+      );
+      await expect(validateMethod('abkhaz', [], 'civ2civ3', undefined, 'all')).resolves.toBe(
+        'abkhaz'
+      );
+      expect(mockRulesetLoader.getNationsForSet).toHaveBeenCalledWith('civ2civ3', 'all');
     });
 
     it('should throw error when nation is already taken', async () => {
@@ -214,7 +239,7 @@ describe('PlayerConnectionManager - Nation Selection', () => {
       // Arrange
       // Use the mocked RulesetLoader
       (RulesetLoader.getInstance as jest.Mock).mockReturnValue({
-        loadNationsRuleset: jest.fn(() => {
+        getNationsForSet: jest.fn(() => {
           throw new Error('Failed to load ruleset');
         }),
       });
@@ -312,6 +337,26 @@ describe('PlayerConnectionManager - Nation Selection', () => {
         civilization: 'chinese',
         leaderName: 'Mao Zedong',
       });
+    });
+
+    it('uses the game\'s persisted nation set when a player joins', async () => {
+      mockDatabase.query.games.findFirst.mockResolvedValue({
+        id: mockGameId,
+        status: 'waiting',
+        maxPlayers: 4,
+        ruleset: 'civ2civ3',
+        gameState: { nationSet: 'all' },
+        players: [],
+      });
+      mockDatabase.insert.mockReturnValue({
+        values: jest.fn().mockReturnValue({
+          returning: jest.fn().mockResolvedValue([{ id: 'new-player-id' }]),
+        }),
+      });
+
+      await playerManager.joinGame(mockGameId, mockUserId, 'chinese');
+
+      expect(mockRulesetLoader.getNationsForSet).toHaveBeenCalledWith('civ2civ3', 'all');
     });
 
     it('should handle random nation assignment', async () => {

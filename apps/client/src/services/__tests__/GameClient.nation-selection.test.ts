@@ -316,6 +316,7 @@ describe('GameClient - Nation Selection', () => {
         gameType: 'single' as const,
         maxPlayers: 4,
         mapSize: 'standard',
+        nationSet: 'all',
         selectedNation: 'japanese',
         aiLevel: 'hard' as const,
         researchPacing: { scienceBox: 150 },
@@ -364,6 +365,7 @@ describe('GameClient - Nation Selection', () => {
           type: 200, // GAME_CREATE
           data: expect.objectContaining({
             selectedNation: 'japanese',
+            nationSet: 'all',
             aiLevel: 'hard',
             researchPacing: { scienceBox: 150 },
           }),

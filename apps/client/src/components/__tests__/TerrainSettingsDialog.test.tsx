@@ -22,6 +22,7 @@ describe('TerrainSettingsDialog', () => {
         gameType: 'single',
         maxPlayers: 4,
         mapSize: 'standard',
+        nationSet: 'core',
         selectedNation: 'random',
         aiLevel: 'normal',
         scienceBox: 150,

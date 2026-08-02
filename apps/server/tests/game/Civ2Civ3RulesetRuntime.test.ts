@@ -35,6 +35,32 @@ describe('Civ2Civ3 ruleset runtime routing', () => {
     }
   );
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/default/nationlist.ruleset:2-46
+   * @reference reference/freeciv/data/civ2civ3/nations.ruleset:64-69
+   * @reference reference/freeciv/server/ruleset/ruleload.c:5187-5285
+   * @reference reference/freeciv/common/nation.c:881-905
+   * @assertion The default Core nation set and explicit all set retain the complete Civ2Civ3 reference roster and set membership.
+   */
+  it('resolves Freeciv Civ2Civ3 nation sets without losing the extended roster', () => {
+    const core = rulesetLoader.getNationsForSet('civ2civ3');
+    const all = rulesetLoader.getNationsForSet('civ2civ3', 'all');
+
+    expect(rulesetLoader.resolveNationSet('civ2civ3')).toBe('core');
+    expect(rulesetLoader.resolveNationSet('civ2civ3', 'all')).toBe('all');
+    expect(() => rulesetLoader.resolveNationSet('civ2civ3', 'unknown')).toThrow(
+      "Nation set 'unknown' is not defined by ruleset 'civ2civ3'"
+    );
+
+    expect(Object.keys(core)).toHaveLength(53);
+    expect(Object.values(core).filter(nation => nation.is_playable !== false)).toHaveLength(50);
+    expect(Object.keys(all)).toHaveLength(572);
+    expect(Object.values(all).filter(nation => nation.is_playable !== false)).toHaveLength(569);
+    expect(Object.values(core).every(nation => nation.sets?.includes('core'))).toBe(true);
+    expect(Object.values(all).every(nation => nation.sets?.includes('all'))).toBe(true);
+  });
+
   it('keeps Civ2Civ3-only migrants and its production catalogue on the game instance', () => {
     const unitTypes = rulesetUnitsService.getUnitTypes('civ2civ3');
     const unitManager = new UnitManager(

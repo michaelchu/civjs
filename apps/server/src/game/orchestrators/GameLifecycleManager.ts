@@ -234,6 +234,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   private buildGameData(gameConfig: GameConfig, rulesetName: string) {
     const { randomSeed, randomState } = this.createInitialRandomState(gameConfig.randomSeed);
     const researchPacing = resolveResearchPacingSettings(rulesetName, gameConfig.researchPacing);
+    const nationSet = rulesetLoader.resolveNationSet(rulesetName, gameConfig.nationSet);
     return {
       name: gameConfig.name,
       hostId: gameConfig.hostId,
@@ -249,6 +250,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       victoryConditions: configuredVictoryConditions(gameConfig),
       gameState: {
         aiLevel: gameConfig.aiLevel || 'easy',
+        nationSet,
         researchPacing,
         randomSeed,
         randomState,

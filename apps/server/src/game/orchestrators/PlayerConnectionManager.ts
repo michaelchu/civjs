@@ -25,6 +25,12 @@ import {
 } from '@game/random/FreecivRandom';
 // PlayerState type is used in comments and method parameters but imported from GameManager
 
+function configuredNationSet(gameState: unknown): string | undefined {
+  if (!gameState || typeof gameState !== 'object') return undefined;
+  const nationSet = (gameState as { nationSet?: unknown }).nationSet;
+  return typeof nationSet === 'string' ? nationSet : undefined;
+}
+
 export interface PlayerConnectionService {
   joinGame(
     gameId: string,
@@ -117,7 +123,8 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       civilization,
       game.players,
       game.ruleset ?? DEFAULT_RULESET,
-      lobbyRandom
+      lobbyRandom,
+      configuredNationSet(game.gameState)
     );
 
     // Get next available color theme from predefined palette
@@ -303,7 +310,8 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     // Get available nations for AI players
     const availableNations = await this.getAvailableNations(
       game.players,
-      game.ruleset ?? DEFAULT_RULESET
+      game.ruleset ?? DEFAULT_RULESET,
+      configuredNationSet(game.gameState)
     );
 
     for (let i = 0; i < aiPlayersNeeded && i < availableNations.length; i++) {
@@ -422,13 +430,15 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     civilization: string | undefined,
     existingPlayers: any[],
     rulesetName: string,
-    random?: FreecivRandom
+    random?: FreecivRandom,
+    nationSet?: string
   ): Promise<string> {
     // Validate nation is not already taken (reference: freeciv/server/plrhand.c:2129)
     if (civilization && civilization !== 'random') {
-      const nations = RulesetLoader.getInstance().loadNationsRuleset(rulesetName).nations;
-      if (!nations[civilization] || civilization === 'barbarian' || civilization === 'pirate') {
-        throw new Error('That nation is not supported in the Civ III–V roster.');
+      const nations = RulesetLoader.getInstance().getNationsForSet(rulesetName, nationSet);
+      const nation = nations[civilization];
+      if (!nation || nation.is_playable === false) {
+        throw new Error('That nation is not available in the active nation set.');
       }
       const existingPlayerWithNation = existingPlayers.find(p => p.civilization === civilization);
       if (existingPlayerWithNation) {
@@ -438,17 +448,18 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     }
 
     return civilization === 'random'
-      ? this.selectRandomNation(existingPlayers, rulesetName, random)
+      ? this.selectRandomNation(existingPlayers, rulesetName, random, nationSet)
       : civilization || 'american';
   }
 
   private selectRandomNation(
     existingPlayers: any[],
     rulesetName: string,
-    random?: FreecivRandom
+    random?: FreecivRandom,
+    nationSet?: string
   ): string {
     try {
-      const nations = RulesetLoader.getInstance().loadNationsRuleset(rulesetName).nations;
+      const nations = RulesetLoader.getInstance().getNationsForSet(rulesetName, nationSet);
       const taken = new Set(existingPlayers.map(player => player.civilization));
       const available = Object.values(nations)
         .filter(nation => nation.is_playable !== false && !taken.has(nation.id))
@@ -496,20 +507,21 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
    */
   private async getAvailableNations(
     existingPlayers: any[],
-    rulesetName: string
+    rulesetName: string,
+    nationSet?: string
   ): Promise<string[]> {
     try {
       const loader = RulesetLoader.getInstance();
-      const nationsRuleset = loader.loadNationsRuleset(rulesetName);
+      const nations = loader.getNationsForSet(rulesetName, nationSet);
 
-      if (!nationsRuleset) {
+      if (!nations) {
         // Fallback nations if ruleset loading fails
         return ['american', 'roman', 'german', 'japanese', 'russian', 'english'];
       }
 
       // Get supported nations that are not already taken.
       const takenNations = new Set(existingPlayers.map(p => p.civilization));
-      const availableNations = Object.values(nationsRuleset.nations)
+      const availableNations = Object.values(nations)
         .filter(nation => nation.is_playable !== false)
         .filter(nation => !takenNations.has(nation.id))
         .map(nation => nation.id);

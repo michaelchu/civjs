@@ -1,6 +1,7 @@
 import { GameLifecycleManager } from '@game/orchestrators/GameLifecycleManager';
 import { GameStateManager } from '@game/orchestrators/GameStateManager';
 import { FreecivRandom } from '@game/random/FreecivRandom';
+import { buildStoredGameConfig } from '@game/runtime/GameInstanceFactory';
 
 // Minimal stubs for dependencies
 const stubIo = {} as any;
@@ -70,6 +71,35 @@ describe('GameLifecycleManager helper behavior', () => {
     );
 
     expect(data.gameState.researchPacing).toEqual({ scienceBox: 150, techPenalty: 100 });
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/default/nationlist.ruleset:2-46
+   * @reference reference/freeciv/common/nation.c:881-905
+   * @assertion A c2c3 game's active nation set is resolved at creation and survives reconstruction from persisted game state.
+   */
+  test('persists the resolved Civ2Civ3 nation set for future joins and recovery', () => {
+    const manager = createManager();
+    const core = (manager as any).buildGameData(
+      { name: 'core nations', hostId: 'host' },
+      'civ2civ3'
+    );
+    const extended = (manager as any).buildGameData(
+      { name: 'extended nations', hostId: 'host', nationSet: 'all' },
+      'civ2civ3'
+    );
+
+    expect(core.gameState.nationSet).toBe('core');
+    expect(extended.gameState.nationSet).toBe('all');
+    expect(
+      buildStoredGameConfig({
+        name: 'extended nations',
+        hostId: 'host',
+        ruleset: 'civ2civ3',
+        gameState: extended.gameState,
+      })
+    ).toMatchObject({ ruleset: 'civ2civ3', nationSet: 'all' });
   });
 
   test('uses a configured map seed when constructing a map manager for replayable games', () => {
