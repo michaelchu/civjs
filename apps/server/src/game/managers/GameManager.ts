@@ -25,7 +25,7 @@ import type { NuclearPresentationEvent } from '@app-types/presentation';
 import type { CityState } from '@game/cities/CityTypes';
 import { MapManager } from '@game/managers/MapManager';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
-import type { ResearchDiplomacyState } from '@game/managers/ResearchManager';
+import type { ResearchDiplomacyState, ResearchManager } from '@game/managers/ResearchManager';
 import type { Unit } from '@game/units/UnitTypes';
 import {
   DiplomacyManager,
@@ -66,6 +66,10 @@ import type {
 import { bindGameRuntimeEvents } from '@game/runtime/GameRuntimeEventBindings';
 import { randomInt } from '@game/random/FreecivRandom';
 import { getVeteranLevel } from '@game/units/UnitVeterancy';
+import {
+  getInitialRulesetSettings,
+  resolveStartingUnitTypeIds,
+} from '@game/services/RulesetInitialSetupService';
 
 export type {
   GameConfig,
@@ -430,18 +434,25 @@ export class GameManager {
   */
 
   /**
-   * Create starting units for all players at their starting positions
-   * @reference freeciv/server/plrhand.c:player_init() - create_start_unit()
-   * Each player starts with a settler (city founder) and a warrior (military unit)
+   * Create the ruleset-selected starting units at each player's starting
+   * position. C2C3 leaves `dispersion` at Freeciv's zero default, so every
+   * role unit begins on that same tile.
+   * @reference reference/freeciv/server/gamehand.c:112-190
+   * @reference reference/freeciv/server/gamehand.c:798-878
+   * @reference reference/freeciv/common/game.h:387-396
    */
   private async createStartingUnits(
     gameId: string,
     mapData: any,
     unitManager: any,
-    players: Map<string, PlayerState>
+    players: Map<string, PlayerState>,
+    rulesetName: string,
+    researchManager: Pick<ResearchManager, 'getResearchedTechs'>
   ): Promise<void> {
     try {
       logger.info('Creating starting units for all players', { gameId });
+      const unitTypes = rulesetUnitsService.getUnitTypes(rulesetName);
+      const { startUnits } = getInitialRulesetSettings(rulesetName);
 
       // Create starting units for each player
       for (const player of players.values()) {
@@ -455,29 +466,21 @@ export class GameManager {
         }
 
         try {
-          // Create settler first (city founder)
-          // @reference freeciv/server/plrhand.c - UTYF_CITYFOUNDATION flag
-          const settler = await unitManager.createUnit(
-            player.id,
-            'settlers',
-            startingPos.x,
-            startingPos.y
-          );
-
-          // Create military unit (warrior) at same position
-          // @reference freeciv/server/plrhand.c - initial military unit
-          const warrior = await unitManager.createUnit(
-            player.id,
-            'warriors',
-            startingPos.x,
-            startingPos.y
-          );
+          const unitTypeIds = resolveStartingUnitTypeIds(startUnits, unitTypes, {
+            playerTechs: new Set(researchManager.getResearchedTechs(player.id)),
+          });
+          const created = [];
+          for (const unitTypeId of unitTypeIds) {
+            created.push(
+              await unitManager.createUnit(player.id, unitTypeId, startingPos.x, startingPos.y)
+            );
+          }
 
           logger.info(`Created starting units for player ${player.id}`, {
             gameId,
             playerId: player.id,
             position: `${startingPos.x},${startingPos.y}`,
-            units: [settler.id, warrior.id],
+            units: created.map((unit: { id: string }) => unit.id),
           });
 
           // The player-scoped initial map sync emits these units after

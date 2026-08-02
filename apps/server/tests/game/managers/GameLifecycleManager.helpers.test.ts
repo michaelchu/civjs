@@ -3,6 +3,10 @@ import { GameStateManager } from '@game/orchestrators/GameStateManager';
 import { FreecivRandom } from '@game/random/FreecivRandom';
 import { buildStoredGameConfig } from '@game/runtime/GameInstanceFactory';
 import { TopologyFlag, WrapFlag } from '@game/map/MapTopology';
+import { EffectsManager } from '@game/managers/EffectsManager';
+import { loadRulesetTechnologies, ResearchManager } from '@game/managers/ResearchManager';
+import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { createMockDatabaseProvider } from '../../utils/mockDatabaseProvider';
 
 // Minimal stubs for dependencies
 const stubIo = {} as any;
@@ -76,6 +80,34 @@ describe('GameLifecycleManager helper behavior', () => {
       techPenalty: 100,
       techLeakPct: 100,
     });
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/server/srv_main.c:3397-3419
+   * @reference reference/freeciv/server/techtools.c:939-958
+   * @reference reference/freeciv/server/techtools.c:1188-1225
+   * @assertion The new-game lifecycle grants the C2C3 techlevel technology before selecting the player's initial research target.
+   * @c2c3-surface research-government
+   * @c2c3-surface-scenario normal
+   */
+  test('grants C2C3 initial technology before choosing the first research target', async () => {
+    const manager = createManager();
+    const researchManager = new ResearchManager(
+      'initial-tech-game',
+      createMockDatabaseProvider(),
+      loadRulesetTechnologies(rulesetLoader, 'civ2civ3'),
+      new EffectsManager('civ2civ3'),
+      'civ2civ3'
+    );
+    const players = new Map([['p1', { id: 'p1', nation: 'french' }]]);
+    const random = { next: (size: number) => (size === 1 ? 0 : size - 1) };
+
+    await (manager as any).initializePlayerResearch(researchManager, players, 'civ2civ3', random);
+
+    expect(researchManager.getResearchedTechs('p1')).toEqual(['alphabet']);
+    expect(researchManager.getPlayerResearch('p1')?.currentTech).toBeDefined();
+    expect(researchManager.getPlayerResearch('p1')?.currentTech).not.toBe('alphabet');
   });
 
   /**
@@ -391,6 +423,7 @@ describe('GameLifecycleManager helper behavior', () => {
     } as any;
     const unitManager = {} as any;
     const players = new Map<string, any>();
+    const researchManager = {} as any;
 
     await (manager as any).persistAndBroadcast(
       'g1',
@@ -398,11 +431,22 @@ describe('GameLifecycleManager helper behavior', () => {
       { generator: 'random' },
       unitManager,
       players,
-      'RANDOM'
+      'RANDOM',
+      undefined,
+      'civ2civ3',
+      researchManager
     );
 
     expect(onPersistMapData).toHaveBeenCalledTimes(1);
     expect(onCreateStartingUnits).toHaveBeenCalledTimes(1);
+    expect(onCreateStartingUnits).toHaveBeenCalledWith(
+      'g1',
+      expect.anything(),
+      unitManager,
+      players,
+      'civ2civ3',
+      researchManager
+    );
     expect(onBroadcast).toHaveBeenCalledTimes(1);
     const [gameId, event, data] = onBroadcast.mock.calls[0];
     expect(gameId).toBe('g1');

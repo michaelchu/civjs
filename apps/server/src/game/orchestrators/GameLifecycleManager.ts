@@ -90,6 +90,7 @@ import {
 } from '@game/services/ResearchPacing';
 import { resolveRulesetTerrainSettings } from '@game/services/RulesetTerrainDefaults';
 import { CivilWarService } from '@game/services/CivilWarService';
+import { resolveInitialTechnologyIds } from '@game/services/RulesetInitialSetupService';
 
 function configuredVictoryConditions(gameConfig: GameConfig): string[] {
   return gameConfig.victoryConditions?.length ? gameConfig.victoryConditions : ['conquest'];
@@ -121,7 +122,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     gameId: string,
     mapData: any,
     unitManager: any,
-    players: Map<string, PlayerState>
+    players: Map<string, PlayerState>,
+    rulesetName: string,
+    researchManager: ResearchManager
   ) => Promise<void>;
   private onFoundCity?: (
     gameId: string,
@@ -150,7 +153,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       gameId: string,
       mapData: any,
       unitManager: any,
-      players: Map<string, PlayerState>
+      players: Map<string, PlayerState>,
+      rulesetName: string,
+      researchManager: ResearchManager
     ) => Promise<void>,
     onFoundCity?: (
       gameId: string,
@@ -390,7 +395,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       effectsManager,
       researchPacingFromGameState(rulesetName, game.gameState)
     );
-    await this.initializePlayerResearch(researchManager, players);
+    await this.initializePlayerResearch(researchManager, players, rulesetName, random);
     const unitManager = this.createUnitManager(
       gameId,
       game,
@@ -703,7 +708,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       terrainSettings,
       unitManager,
       scenarioSetup,
-      game
+      game,
+      rulesetName,
+      researchManager
     );
 
     // Create game instance
@@ -787,15 +794,31 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   }
 
   /**
-   * Initialize a research record for every player before the first turn.
+   * Initialize every player, apply ruleset-owned initial technologies, then
+   * select each first research target before map placement.
    * @reference reference/freeciv/common/research.c:62-76 researches_init()
+   * @reference reference/freeciv/server/srv_main.c:3397-3419
+   * @reference reference/freeciv/server/techtools.c:1188-1225
    */
   private async initializePlayerResearch(
     researchManager: ResearchManager,
-    players: Map<string, PlayerState>
+    players: Map<string, PlayerState>,
+    rulesetName: string,
+    random: FreecivRandom
   ): Promise<void> {
     for (const playerId of players.keys()) {
-      await researchManager.initializePlayerResearch(playerId);
+      await researchManager.initializePlayerResearch(playerId, { selectInitialTarget: false });
+    }
+
+    for (const player of players.values()) {
+      const initialTechnologies = resolveInitialTechnologyIds(rulesetName, player.nation, random);
+      for (const technologyId of initialTechnologies) {
+        await researchManager.grantTechnology(player.id, technologyId);
+      }
+    }
+
+    for (const playerId of players.keys()) {
+      await researchManager.ensureCurrentResearch(playerId);
     }
   }
 
@@ -898,7 +921,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     terrainSettings?: TerrainSettings,
     unitManager?: UnitManager,
     scenarioSetup?: ScenarioSetup,
-    game?: any
+    game?: any,
+    rulesetName: string = DEFAULT_RULESET,
+    researchManager?: ResearchManager
   ): Promise<void> {
     // Generate the map with starting positions based on terrain settings
     const generator = terrainSettings?.generator || 'random';
@@ -928,7 +953,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       unitManager,
       players,
       generatorType,
-      scenarioSetup
+      scenarioSetup,
+      rulesetName,
+      researchManager
     );
   }
 
@@ -1036,7 +1063,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     unitManager: UnitManager | undefined,
     players: Map<string, PlayerState>,
     generatorType: MapGeneratorType,
-    scenarioSetup?: ScenarioSetup
+    scenarioSetup?: ScenarioSetup,
+    rulesetName: string = DEFAULT_RULESET,
+    researchManager?: ResearchManager
   ): Promise<void> {
     const mapData = mapManager.getMapData();
     if (!mapData) {
@@ -1054,8 +1083,15 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     await this.onPersistMapData?.(gameId, mapData, terrainSettings);
 
     // Create starting units for all players
-    if (unitManager && !hasCustomScenarioInitialState(scenarioSetup)) {
-      await this.onCreateStartingUnits?.(gameId, mapData, unitManager, players);
+    if (unitManager && researchManager && !hasCustomScenarioInitialState(scenarioSetup)) {
+      await this.onCreateStartingUnits?.(
+        gameId,
+        mapData,
+        unitManager,
+        players,
+        rulesetName,
+        researchManager
+      );
     }
 
     // Broadcast initial map data to all players

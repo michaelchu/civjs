@@ -32,6 +32,15 @@ export interface PlayerResearch {
   futureTechs: number;
 }
 
+export interface PlayerResearchInitializationOptions {
+  /**
+   * New-game setup grants ruleset initial technologies before Freeciv chooses
+   * the first research target. Callers restoring an ordinary player retain
+   * the historical eager selection by omitting this option.
+   */
+  selectInitialTarget?: boolean;
+}
+
 /**
  * The diplomacy facts that affect a player's research costs. Real embassies
  * are intentionally distinct from an effect-granted embassy such as Marco
@@ -282,7 +291,10 @@ export class ResearchManager {
     return Math.floor(upkeep);
   }
 
-  public async initializePlayerResearch(playerId: string): Promise<void> {
+  public async initializePlayerResearch(
+    playerId: string,
+    options: PlayerResearchInitializationOptions = {}
+  ): Promise<void> {
     if (this.playerResearch.has(playerId)) {
       return;
     }
@@ -297,7 +309,7 @@ export class ResearchManager {
 
     this.playerResearch.set(playerId, research);
 
-    await this.ensureCurrentResearch(playerId);
+    if (options.selectInitialTarget !== false) await this.ensureCurrentResearch(playerId);
   }
 
   /**

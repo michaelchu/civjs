@@ -613,6 +613,51 @@ export class RulesetLoader {
   }
 
   /**
+   * Resolve `options.global_init_techs` to canonical technology ids.
+   *
+   * Freeciv resolves the rule names while loading the ruleset, then grants
+   * these technologies before the random `techlevel` grants at game start.
+   * Keep an invalid name fatal instead of silently omitting a gameplay rule.
+   * @reference reference/freeciv/server/ruleset/ruleload.c:941-995 lookup_tech_list()
+   * @reference reference/freeciv/server/ruleset/ruleload.c:6805-6815
+   * @reference reference/freeciv/server/techtools.c:1188-1219
+   */
+  getGlobalInitTechnologies(rulesetName: string = 'classic'): string[] {
+    const configured = this.getGameOptions(rulesetName).global_init_techs;
+    const ruleNames = configured
+      .split(',')
+      .map(entry =>
+        entry
+          .trim()
+          .replace(/^"(.*)"$/, '$1')
+          .trim()
+      )
+      .filter(entry => entry.length > 0);
+
+    if (ruleNames.length === 0) return [];
+
+    const technologies = this.getTechs(rulesetName);
+    return ruleNames.map(ruleName => {
+      const normalized = this.normalizeRuleName(ruleName);
+      const match = Object.entries(technologies).find(
+        ([technologyId, technology]) =>
+          this.normalizeRuleName(technologyId) === normalized ||
+          this.normalizeRuleName(technology.id) === normalized ||
+          this.normalizeRuleName(technology.name) === normalized ||
+          this.normalizeRuleName(technology.internal_name ?? '') === normalized
+      );
+
+      if (!match) {
+        throw new Error(
+          `Ruleset '${rulesetName}' options.global_init_techs: couldn't match '${ruleName}'`
+        );
+      }
+
+      return match[1].id;
+    });
+  }
+
+  /**
    * Get capabilities from a ruleset
    */
   getCapabilities(rulesetName: string = 'classic'): string[] {
@@ -1129,6 +1174,12 @@ export class RulesetLoader {
 
     try {
       this.getGlobalInitBuildings(rulesetName);
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+
+    try {
+      this.getGlobalInitTechnologies(rulesetName);
     } catch (error) {
       errors.push(error instanceof Error ? error.message : String(error));
     }

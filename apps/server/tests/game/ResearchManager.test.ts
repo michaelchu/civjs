@@ -129,6 +129,17 @@ describe('ResearchManager', () => {
       // Database operations handled by MockDatabaseProvider
     });
 
+    it('can defer the initial target until new-game technology grants complete', async () => {
+      await researchManager.initializePlayerResearch('player-123', { selectInitialTarget: false });
+
+      expect(researchManager.getPlayerResearch('player-123')?.currentTech).toBeUndefined();
+
+      await researchManager.grantTechnology('player-123', 'alphabet');
+      await researchManager.ensureCurrentResearch('player-123');
+
+      expect(researchManager.getPlayerResearch('player-123')?.currentTech).not.toBe('alphabet');
+    });
+
     it('charges no technology upkeep under the classic None setting', async () => {
       await researchManager.initializePlayerResearch('player-123');
 
