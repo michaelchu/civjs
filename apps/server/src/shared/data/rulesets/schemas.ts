@@ -67,6 +67,13 @@ export const TerrainRulesetFileSchema = z
       name: z.string(),
       summary: z.string(),
     }),
+    terrain_control: z
+      .object({
+        move_fragments: z.number().int().positive().optional(),
+        igter_cost: z.number().int().nonnegative().optional(),
+      })
+      .passthrough()
+      .optional(),
     terrains: z.record(z.string(), TerrainRulesetSchema),
   })
   .passthrough();

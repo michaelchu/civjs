@@ -8,11 +8,7 @@ import { games } from '@database/schema/games';
 import { players } from '@database/schema/players';
 import { and, eq, sql } from 'drizzle-orm';
 import { logger } from '@utils/logger';
-import {
-  canUnitEnterTerrain,
-  getTerrainMovementCost,
-  SINGLE_MOVE,
-} from '@game/constants/MovementConstants';
+import { getRulesetMoveFragments } from '@game/constants/MovementConstants';
 import { type UnitType, rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import { ActionSystem } from '@game/systems/ActionSystem';
 import { ActionType, ActionResult } from '@app-types/shared/actions';
@@ -680,7 +676,7 @@ export class UnitManager {
     this.ensureSufficientMovement(unit);
     return {
       embarkTransport,
-      effectiveMovementCost: embarkTransport ? SINGLE_MOVE : movementCost,
+      effectiveMovementCost: embarkTransport ? this.getMoveFragments() : movementCost,
       previousX: unit.x,
       previousY: unit.y,
     };
@@ -1213,7 +1209,7 @@ export class UnitManager {
       throw new Error('Target out of range');
     }
     const targetTerrain = this.getTerrainAt(defender.x, defender.y);
-    const targetIsNonNative = !canUnitEnterTerrain(targetTerrain, attackerType.id);
+    const targetIsNonNative = !this.canUnitEnterTerrain(targetTerrain, attackerType.id);
     const onlyNativeAttack = attackerType.flags?.includes('Only_Native_Attack') ?? false;
     if (
       targetIsNonNative &&
@@ -1602,10 +1598,10 @@ export class UnitManager {
     const attackerTerrain = this.getTerrainAt(attacker.x, attacker.y);
     const defenderTerrain = this.getTerrainAt(defender.x, defender.y);
     const nonNativeTarget = defenderType.rulesetUnitClassFlags.includes('NonNatBombardTgt');
-    const cannotEnterTarget = !canUnitEnterTerrain(defenderTerrain, attackerType.id);
+    const cannotEnterTarget = !this.canUnitEnterTerrain(defenderTerrain, attackerType.id);
     const cannotEnterAttackerTerrain =
-      !canUnitEnterTerrain(attackerTerrain, defenderType.id) ||
-      !canUnitEnterTerrain(attackerTerrain, attackerType.id);
+      !this.canUnitEnterTerrain(attackerTerrain, defenderType.id) ||
+      !this.canUnitEnterTerrain(attackerTerrain, attackerType.id);
     if (nonNativeTarget && cannotEnterTarget && cannotEnterAttackerTerrain) {
       firepower.attacker = Math.min(firepower.attacker, rules.low_firepower_nonnat_bombard);
       firepower.defender = Math.min(firepower.defender, rules.low_firepower_nonnat_bombard);
@@ -2042,7 +2038,7 @@ export class UnitManager {
     for (let y = city.y - radius; y <= city.y + radius; y += 1) {
       for (let x = city.x - radius; x <= city.x + radius; x += 1) {
         if ((x === city.x && y === city.y) || !this.isValidPosition(x, y)) continue;
-        if (getTerrainMovementCost(this.getTerrainAt(x, y), partisanType.id) < 0) continue;
+        if (!this.canUnitEnterTerrain(this.getTerrainAt(x, y), partisanType.id)) continue;
         if (this.gameManagerCallback?.getCityAt?.(x, y)) continue;
         candidates.push({ x, y });
       }
@@ -2174,7 +2170,10 @@ export class UnitManager {
       unitTypeId: dbUnit.unitType,
       x: dbUnit.x,
       y: dbUnit.y,
-      movementLeft: Math.min(parseFloat(dbUnit.movementPoints) || 0, unitType.movement * 3),
+      movementLeft: Math.min(
+        parseFloat(dbUnit.movementPoints) || 0,
+        this.getUnitMovementPoints(dbUnit.playerId, unitType, dbUnit.veteranLevel, dbUnit.health)
+      ),
       fuel: this.getLoadedFuel(dbUnit.fuel, unitType),
       health: dbUnit.health,
       veteranLevel: dbUnit.veteranLevel,
@@ -2234,8 +2233,9 @@ export class UnitManager {
     const veteranLevel = getVeteranLevel(unitType, unit.veteranLevel);
     let strength = Math.floor((unitType.attack ?? unitType.combat) * veteranLevel.powerFactor);
     const combatRules = rulesetLoader.getCombatRules(this.getRulesetName());
-    if (combatRules.tired_attack && unit.movementLeft < SINGLE_MOVE) {
-      strength = Math.floor((strength * Math.max(0, unit.movementLeft)) / SINGLE_MOVE);
+    const moveFragments = this.getMoveFragments();
+    if (combatRules.tired_attack && unit.movementLeft < moveFragments) {
+      strength = Math.floor((strength * Math.max(0, unit.movementLeft)) / moveFragments);
     }
     return Math.max(0, strength);
   }
@@ -2645,6 +2645,15 @@ export class UnitManager {
     return this.movementCosts.calculateTerrainCost(unit, fromX, fromY, toX, toY);
   }
 
+  private canUnitEnterTerrain(terrain: TerrainType, unitTypeId: string): boolean {
+    return this.movementCosts.canEnterTerrain(terrain, unitTypeId);
+  }
+
+  /** @reference reference/freeciv/data/civ2civ3/terrain.ruleset:74-79 */
+  getMoveFragments(): number {
+    return getRulesetMoveFragments(this.getRulesetName());
+  }
+
   /**
    * Get unit type maximum movement points
    */
@@ -2659,7 +2668,7 @@ export class UnitManager {
 
   getUnitMaxMovement(unitTypeId: string): number {
     const unitType = this.unitTypes[unitTypeId];
-    return unitType ? unitType.movement : 1;
+    return (unitType?.movement ?? 1) * this.getMoveFragments();
   }
 
   getPathStepCost(
@@ -2701,7 +2710,9 @@ export class UnitManager {
 
     // Embarkation is a valid final path step. Continuing beyond it would
     // require modelling the transport's own route rather than the cargo's.
-    return isDestination && this.findAvailableTransportAt(unit, toX, toY) ? SINGLE_MOVE : -1;
+    return isDestination && this.findAvailableTransportAt(unit, toX, toY)
+      ? this.getMoveFragments()
+      : -1;
   }
 
   private hasHostileUnitAt(unit: Unit, x: number, y: number): boolean {
@@ -2908,7 +2919,7 @@ export class UnitManager {
     ];
     return positions.find(position => {
       if (!this.isValidPosition(position.x, position.y)) return false;
-      if (getTerrainMovementCost(this.getTerrainAt(position.x, position.y), cargo.unitTypeId) < 0) {
+      if (!this.canUnitEnterTerrain(this.getTerrainAt(position.x, position.y), cargo.unitTypeId)) {
         return false;
       }
       if (
@@ -3544,7 +3555,7 @@ export class UnitManager {
         attackStrength: to.attack ?? 0,
         defenseStrength: to.defense ?? 0,
         movementPoints: '0',
-        maxMovementPoints: String(to.movement * SINGLE_MOVE),
+        maxMovementPoints: String(to.movement * this.getMoveFragments()),
       })
       .where(eq(units.id, unit.id));
     return { success: true, message: `${from.name} upgraded to ${to.name} for ${goldCost} gold` };
@@ -3581,7 +3592,7 @@ export class UnitManager {
       targetY === undefined ||
       !this.isValidPosition(targetX, targetY) ||
       this.calculateDistance(unit.x, unit.y, targetX, targetY) > unitType.paratroopersRange ||
-      getTerrainMovementCost(this.getTerrainAt(targetX, targetY), unit.unitTypeId) < 0
+      !this.canUnitEnterTerrain(this.getTerrainAt(targetX, targetY), unit.unitTypeId)
     ) {
       return false;
     }
@@ -3592,9 +3603,9 @@ export class UnitManager {
     return Boolean(
       unitType.flags?.includes('Paratroopers') &&
       unitType.paratroopersRange > 0 &&
-      !unit.transportedBy &&
+      !this.unitHasCargo(unit.id) &&
       unit.lastActionTurn !== (this.currentTurnProvider?.() ?? 1) &&
-      unit.movementLeft >= SINGLE_MOVE
+      unit.movementLeft >= this.getMoveFragments()
     );
   }
 
@@ -5984,7 +5995,7 @@ export class UnitManager {
   private canUnloadAt(unit: Unit, transport: Unit, x: number, y: number): boolean {
     if (!this.isValidPosition(x, y)) return false;
     if (this.calculateDistance(transport.x, transport.y, x, y) > 1) return false;
-    if (getTerrainMovementCost(this.getTerrainAt(x, y), unit.unitTypeId) < 0) return false;
+    if (!this.canUnitEnterTerrain(this.getTerrainAt(x, y), unit.unitTypeId)) return false;
     if (this.getUnitsAt(x, y).some(candidate => candidate.playerId !== unit.playerId)) return false;
     const city = this.gameManagerCallback?.getCityAt?.(x, y);
     return Boolean(this.unitTypes[unit.unitTypeId] && (!city || city.playerId === unit.playerId));

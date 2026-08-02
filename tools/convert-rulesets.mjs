@@ -439,6 +439,11 @@ function convertTerrain() {
       name: `Freeciv ${rulesetName} Terrain Ruleset`,
       summary: asText(sections.datafile.description),
     },
+    // Freeciv's `[parameters]` section populates terrain_control at runtime
+    // and carries ruleset-wide movement units such as `move_fragments`.
+    // Keep the normalized control object with the terrain projection rather
+    // than duplicating per-ruleset constants in runtime code.
+    terrain_control: sections.parameters ?? {},
     terrains,
   };
 }

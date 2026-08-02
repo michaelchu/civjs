@@ -6,8 +6,18 @@
     "format_version": 50
   },
   "about": {
-    "name": "Freeciv Classic Terrain Ruleset",
+    "name": "Freeciv alien Terrain Ruleset",
     "summary": "Alien World tile_type data for Freeciv"
+  },
+  "terrain_control": {
+    "ocean_reclaim_requirement": 30,
+    "land_channel_requirement": 10,
+    "lake_max_size": 0,
+    "min_start_native_area": 15,
+    "move_fragments": 4,
+    "igter_cost": 2,
+    "pythagorean_diagonal": false,
+    "ocean_resources": true
   },
   "terrains": {
     "inaccessible": {

@@ -6,8 +6,20 @@
     "format_version": 50
   },
   "about": {
-    "name": "Freeciv Classic Terrain Ruleset",
+    "name": "Freeciv sandbox Terrain Ruleset",
     "summary": "Sandbox terrain data for Freeciv"
+  },
+  "terrain_control": {
+    "ocean_reclaim_requirement": 30,
+    "land_channel_requirement": 10,
+    "thaw_requirement": 0,
+    "freeze_requirement": 0,
+    "lake_max_size": 14,
+    "min_start_native_area": 0,
+    "move_fragments": 6,
+    "igter_cost": 2,
+    "pythagorean_diagonal": false,
+    "ocean_resources": false
   },
   "terrains": {
     "inaccessible": {

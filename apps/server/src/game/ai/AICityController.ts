@@ -4,6 +4,7 @@
  */
 import { ActionType } from '@app-types/shared/actions';
 import { OutputType } from '@game/constants/GameConstants';
+import { getRulesetMoveFragments } from '@game/constants/MovementConstants';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import { rankCityProduction, type AIChoice, type ProductionChoice } from '@game/ai/AIPlanner';
 import { createAIProfile, type AIProfile } from '@game/ai/AIProfile';
@@ -43,6 +44,9 @@ import { planCaravanTrade, type CaravanAssignment } from '@game/ai/AITradePlanne
 const unitTypesFor = (game: GameInstance) => game.unitManager.getUnitTypes?.() ?? UNIT_TYPES;
 const buildingTypesFor = (game: GameInstance) =>
   game.cityManager.getBuildingTypes?.() ?? BUILDING_TYPES;
+const moveFragmentsFor = (game: GameInstance) =>
+  game.unitManager.getMoveFragments?.() ??
+  getRulesetMoveFragments(game.config?.ruleset ?? 'classic');
 
 function mergeWant(wants: Map<string, number>, id: string, want: number): void {
   wants.set(id, Math.max(want, wants.get(id) ?? 0));
@@ -581,6 +585,7 @@ export class FreecivAICityController {
           );
         }),
       planesHandicap: profile.handicaps.has('no_planes'),
+      moveFragments: moveFragmentsFor(game),
     });
     for (const [unitTypeId, want] of airWants) {
       mergeWant(offensiveUnitWants, unitTypeId, want);

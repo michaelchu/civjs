@@ -1,6 +1,7 @@
 import {
   SINGLE_MOVE,
   MovementType,
+  getRulesetMoveFragments,
   getTerrainMovementCost,
   canUnitEnterTerrain,
   calculateMovementCost,
@@ -10,6 +11,27 @@ import {
 describe('MovementConstants', () => {
   it('keeps movement points represented by three fragments', () => {
     expect(SINGLE_MOVE).toBe(3);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:74-79
+   * @reference reference/freeciv/common/movement.h:26
+   * @assertion Civ2Civ3's terrain control defines six movement fragments for each whole movement point.
+   * @c2c3-surface movement-transport
+   * @c2c3-surface-scenario normal
+   */
+  it('loads Civ2Civ3 movement fragments from terrain control', () => {
+    const civ2civ3Lookup: MovementRulesetLookup = {
+      getTerrainMoveCost: terrain => (terrain === 'hills' ? 2 : 1),
+      getUnitMovementType: () => MovementType.LAND,
+      getMoveFragments: () => getRulesetMoveFragments('civ2civ3'),
+    };
+
+    expect(getRulesetMoveFragments('classic')).toBe(3);
+    expect(getRulesetMoveFragments('civ2civ3')).toBe(6);
+    expect(getTerrainMovementCost('grassland', 'warriors', civ2civ3Lookup)).toBe(6);
+    expect(getTerrainMovementCost('hills', 'warriors', civ2civ3Lookup)).toBe(12);
   });
 
   /**

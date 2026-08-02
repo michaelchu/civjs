@@ -6,12 +6,14 @@
  * @reference freeciv/common/movement.h - SINGLE_MOVE, MAX_MOVE_FRAGS definitions
  * @reference freeciv/data/classic/terrain.ruleset - Terrain movement costs
  * @reference freeciv/server/ruleset/ruleload.c - Terrain control loading
- * @compliance Movement fragments (3 per move point) match freeciv exactly
+ * @compliance The active ruleset supplies movement fragments per move point.
  */
 import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
-export const SINGLE_MOVE = 3; // 1 movement point = 3 movement fragments
+// Classic's default remains exported for legacy callers. Runtime gameplay
+// resolves this from the active terrain ruleset; Civ2Civ3 uses six.
+export const SINGLE_MOVE = 3;
 export const MAX_MOVE_FRAGS = 65535; // Maximum movement fragments - matches freeciv exactly
 
 /**
@@ -32,6 +34,7 @@ export enum MovementType {
 export interface MovementRulesetLookup {
   getTerrainMoveCost(terrain: string): number | undefined;
   getUnitMovementType(unitTypeId: string): MovementType | undefined;
+  getMoveFragments?(): number | undefined;
 }
 
 const defaultMovementRulesetLookup: MovementRulesetLookup = {
@@ -41,7 +44,31 @@ const defaultMovementRulesetLookup: MovementRulesetLookup = {
   getUnitMovementType(unitTypeId: string): MovementType | undefined {
     return rulesetUnitsService.getMovementType(unitTypeId) as MovementType | undefined;
   },
+  getMoveFragments(): number {
+    return SINGLE_MOVE;
+  },
 };
+
+/**
+ * Resolve the number of movement fragments in one whole move from the
+ * ruleset's terrain control parameters.
+ *
+ * @reference reference/freeciv/common/movement.h:26
+ * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:74-79
+ */
+export function getRulesetMoveFragments(rulesetName: string = 'classic'): number {
+  const fragments = rulesetLoader.loadTerrainRuleset(rulesetName).terrain_control?.move_fragments;
+  return typeof fragments === 'number' && Number.isInteger(fragments) && fragments > 0
+    ? fragments
+    : SINGLE_MOVE;
+}
+
+function moveFragments(lookup: MovementRulesetLookup): number {
+  const fragments = lookup.getMoveFragments?.();
+  return typeof fragments === 'number' && Number.isInteger(fragments) && fragments > 0
+    ? fragments
+    : SINGLE_MOVE;
+}
 
 /**
  * Get terrain movement cost for specific unit type
@@ -55,8 +82,9 @@ export function getTerrainMovementCost(
   unitTypeId?: string,
   lookup: MovementRulesetLookup = defaultMovementRulesetLookup
 ): number {
+  const fragments = moveFragments(lookup);
   const moveCost = lookup.getTerrainMoveCost(terrain);
-  const baseCost = moveCost === undefined ? SINGLE_MOVE : moveCost * SINGLE_MOVE;
+  const baseCost = moveCost === undefined ? fragments : moveCost * fragments;
 
   // If no unit type specified, return base cost
   if (!unitTypeId) {
@@ -91,7 +119,7 @@ export function getTerrainMovementCost(
     case MovementType.AIR:
       // Unit classes without TerrainSpeed use one movement point.
       // @reference reference/freeciv/common/map.c:924-926
-      return SINGLE_MOVE;
+      return fragments;
 
     default:
       return -1;

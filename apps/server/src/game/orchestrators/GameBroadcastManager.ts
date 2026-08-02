@@ -20,6 +20,7 @@ import { visibleResourceForPlayer } from '@game/services/ResourceVisibilityServi
 import { resolveNationGraphic } from '@game/services/NationPresentationService';
 import type { CombatPresentationEvent, NuclearPresentationEvent } from '@app-types/presentation';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
+import { getRulesetMoveFragments } from '@game/constants/MovementConstants';
 
 const LOBBY_EVENTS = new Set(['player-joined', 'player-connection-changed']);
 
@@ -962,7 +963,9 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       x: unit.x,
       y: unit.y,
       movesleft: unit.movementLeft,
-      maxmoves: unitManager.getUnitMaxMovement(unitTypeId) * 3,
+      maxmoves:
+        unitManager.getUnitMaxMovement(unitTypeId) ??
+        (unitType?.movement ?? 1) * getRulesetMoveFragments(rulesetName),
       fuel: this.unitValue(unit.fuel, 0),
       maxFuel: this.unitValue(unitType?.fuel, 0),
       transportCapacity: this.unitValue(unitType?.transport_capacity, 0),

@@ -6,8 +6,18 @@
     "format_version": 50
   },
   "about": {
-    "name": "Freeciv Classic Terrain Ruleset",
+    "name": "Freeciv granularity Terrain Ruleset",
     "summary": "Granularity tile_type data for Freeciv"
+  },
+  "terrain_control": {
+    "ocean_reclaim_requirement": 30,
+    "land_channel_requirement": 10,
+    "lake_max_size": 0,
+    "min_start_native_area": 0,
+    "move_fragments": 60,
+    "igter_cost": 40,
+    "pythagorean_diagonal": false,
+    "ocean_resources": false
   },
   "terrains": {
     "grassland": {

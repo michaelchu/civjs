@@ -57,6 +57,8 @@ interface AirPlanningContext {
   canAttack?: (attacker: Unit, defender: Unit) => boolean;
   hasOccupierSupport?: (city: CityState) => boolean;
   planesHandicap?: boolean;
+  /** Ruleset movement fragments per whole move. */
+  moveFragments?: number;
 }
 
 export interface VirtualAirProductionContext {
@@ -74,6 +76,7 @@ export interface VirtualAirProductionContext {
   canAttack?: AirPlanningContext['canAttack'];
   hasOccupierSupport?: AirPlanningContext['hasOccupierSupport'];
   planesHandicap?: boolean;
+  moveFragments?: number;
 }
 
 const SHIELD_AND_TRADE_SORTIE_COST = 53;
@@ -117,7 +120,8 @@ function reachableBases(
   unit: Unit,
   type: UnitType,
   bases: AirRefuelPoint[],
-  distance: AirPlanningContext['distance']
+  distance: AirPlanningContext['distance'],
+  moveFragments: number
 ): AirRefuelPoint[] {
   return bases
     .filter(
@@ -127,7 +131,7 @@ function reachableBases(
         ((base.remainingCapacity ?? 0) > 0 &&
           base.cargoClasses?.includes(type.rulesetUnitClass ?? '') === true)
     )
-    .filter(base => distance(unit.x, unit.y, base.x, base.y) * SINGLE_MOVE <= unit.movementLeft)
+    .filter(base => distance(unit.x, unit.y, base.x, base.y) * moveFragments <= unit.movementLeft)
     .sort(
       (left, right) =>
         distance(unit.x, unit.y, left.x, left.y) - distance(unit.x, unit.y, right.x, right.y) ||
@@ -159,7 +163,7 @@ function rankAirTargets(
   for (const stack of stacks.values()) {
     const distance = context.distance(fromX, fromY, stack[0]!.x, stack[0]!.y);
     // Freeciv keeps one movement fragment in hand for the attack action.
-    if (distance * SINGLE_MOVE >= unit.movementLeft) continue;
+    if (distance * (context.moveFragments ?? SINGLE_MOVE) >= unit.movementLeft) continue;
     const city = hostileCityAt.get(stackKey(stack[0]!));
     if (city && context.hasOccupierSupport && !context.hasOccupierSupport(city)) continue;
 
@@ -283,7 +287,7 @@ export function rankVirtualAirProduction(
         unitTypeId: type.id,
         x: context.city.x,
         y: context.city.y,
-        movementLeft: type.movement * SINGLE_MOVE,
+        movementLeft: type.movement * (context.moveFragments ?? SINGLE_MOVE),
         health: 100,
         fuel: type.fuel,
         veteranLevel: 0,
@@ -334,7 +338,13 @@ export function planAirMissions(context: AirPlanningContext): AirMission[] {
 
     if (type.unitClass !== 'air') continue;
     const atBase = currentRefuelPoint(unit, bases);
-    const reachable = reachableBases(unit, type, bases, context.distance);
+    const reachable = reachableBases(
+      unit,
+      type,
+      bases,
+      context.distance,
+      context.moveFragments ?? SINGLE_MOVE
+    );
     if (!atBase) {
       const base = reachable[0];
       if (base) {

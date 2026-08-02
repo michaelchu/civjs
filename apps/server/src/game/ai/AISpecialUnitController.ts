@@ -4,6 +4,7 @@
  */
 import { ActionType } from '@app-types/shared/actions';
 import { planAirMissions, type AirMission, type AirRefuelPoint } from '@game/ai/AIAirPlanner';
+import { getRulesetMoveFragments } from '@game/constants/MovementConstants';
 import { planDiplomatMissions, type DiplomatMission } from '@game/ai/AIDiplomatPlanner';
 import { planParadropMissions, type ParadropMission } from '@game/ai/AIParadropPlanner';
 import { createAIProfile } from '@game/ai/AIProfile';
@@ -21,6 +22,13 @@ import { calculateTreasuryReserve } from '@game/ai/AITreasuryPlanner';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { CityState } from '@game/cities/CityTypes';
 import type { MapTile } from '@game/map/MapTypes';
+
+function moveFragmentsFor(game: GameInstance): number {
+  return (
+    game.unitManager.getMoveFragments?.() ??
+    getRulesetMoveFragments(game.config?.ruleset ?? 'classic')
+  );
+}
 
 function buildAirRefuelPoints(options: {
   game: GameInstance;
@@ -162,6 +170,7 @@ export class FreecivAISpecialUnitController {
           );
         }),
       planesHandicap: profile.handicaps.has('no_planes'),
+      moveFragments: moveFragmentsFor(game),
     });
     const exploredTiles = game.visibilityManager.getExploredTiles?.(playerId) ?? new Set<string>();
     const visibleTiles = game.visibilityManager.getVisibleTiles?.(playerId) ?? new Set<string>();

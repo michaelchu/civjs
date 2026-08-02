@@ -6,8 +6,19 @@
     "format_version": 50
   },
   "about": {
-    "name": "Freeciv Classic Terrain Ruleset",
+    "name": "Freeciv civ2 Terrain Ruleset",
     "summary": "Civ2 tile_type data for Freeciv"
+  },
+  "terrain_control": {
+    "ocean_reclaim_requirement": 101,
+    "land_channel_requirement": 101,
+    "thaw_requirement": 0,
+    "freeze_requirement": 0,
+    "lake_max_size": 0,
+    "min_start_native_area": 0,
+    "move_fragments": 3,
+    "igter_cost": 1,
+    "pythagorean_diagonal": false
   },
   "terrains": {
     "ocean": {

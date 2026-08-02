@@ -13,7 +13,7 @@ import {
   ActionMovesActor,
 } from '@app-types/shared/actions';
 import type { Unit } from '@game/units/UnitTypes';
-import { SINGLE_MOVE } from '@game/constants/MovementConstants';
+import { getRulesetMoveFragments } from '@game/constants/MovementConstants';
 import { type UnitType, rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import type { MapManager } from '@game/managers/MapManager';
 import type { MapTile, TerrainType } from '@game/map/MapTypes';
@@ -500,6 +500,10 @@ export class ActionSystem {
     return rulesetLoader.getTerrain(terrainType, this.rulesetName);
   }
 
+  private getMoveFragments(): number {
+    return getRulesetMoveFragments(this.rulesetName);
+  }
+
   /**
    * Get action definition by type
    */
@@ -657,7 +661,8 @@ export class ActionSystem {
     const diagonal = dx === 1 && dy === 1;
     const adjacent = (dx === 0 && dy === 1) || (dx === 1 && dy === 0) || diagonal;
     if (!adjacent) return true;
-    const required = diagonal ? Math.floor(SINGLE_MOVE * 1.5) : SINGLE_MOVE;
+    const moveFragments = this.getMoveFragments();
+    const required = diagonal ? Math.floor(moveFragments * 1.5) : moveFragments;
     if (unit.movementLeft < required)
       logger.debug('Unit can move using minimum move rule', {
         unitId: unit.id,
@@ -1154,10 +1159,10 @@ export class ActionSystem {
       unitId: unit.id,
       unitType: unit.unitTypeId,
       currentMovement: unit.movementLeft,
-      expectedMaxMovement: unitType ? unitType.movement * 3 : 'unknown',
+      expectedMaxMovement: unitType ? unitType.movement * this.getMoveFragments() : 'unknown',
       pathLength: pathResult.path?.tiles?.length || 0,
-      singleMoveCost: SINGLE_MOVE,
-      diagonalMoveCost: Math.floor(SINGLE_MOVE * 1.5),
+      singleMoveCost: this.getMoveFragments(),
+      diagonalMoveCost: Math.floor(this.getMoveFragments() * 1.5),
       unitTypeFound: !!unitType,
     });
     return {

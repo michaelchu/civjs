@@ -1597,7 +1597,7 @@ describe('UnitManager', () => {
         20,
         mapManager,
         undefined,
-        undefined,
+        new EffectsManager('civ2civ3'),
         undefined,
         rulesetUnitsService.getUnitTypes('civ2civ3')
       );
@@ -1609,7 +1609,7 @@ describe('UnitManager', () => {
       expect(result).toMatchObject({
         success: true,
         fromTile: { x: 10, y: 10 },
-        movementPointsUsed: 3,
+        movementPointsUsed: 6,
       });
       expect(storm.x !== 10 || storm.y !== 10).toBe(true);
     });
@@ -1690,18 +1690,31 @@ describe('UnitManager', () => {
       );
     });
 
-    it('uses classic road and railroad fragment costs', async () => {
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:74-79
+     * @reference reference/freeciv/common/movement.c:117-128
+     * @assertion Civ2Civ3 units receive six movement fragments and its road and railroad costs are expressed in those fragments.
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario normal, boundary
+     */
+    it('uses Civ2Civ3 six-fragment road and railroad costs', async () => {
+      const openGroundUnit = await unitManager.createUnit('player-123', 'warriors', 5, 5);
+      expect(openGroundUnit.movementLeft).toBe(6);
+      await unitManager.moveUnit(openGroundUnit.id, 6, 5);
+      expect(openGroundUnit.movementLeft).toBe(0);
+
       roads.add('10,10');
       roads.add('11,10');
       const roadUnit = await unitManager.createUnit('player-123', 'warriors', 10, 10);
       await unitManager.moveUnit(roadUnit.id, 11, 10);
-      expect(roadUnit.movementLeft).toBe(2);
+      expect(roadUnit.movementLeft).toBe(5);
 
       railroads.add('20,20');
       railroads.add('21,20');
       const railUnit = await unitManager.createUnit('player-123', 'warriors', 20, 20);
       await unitManager.moveUnit(railUnit.id, 21, 20);
-      expect(railUnit.movementLeft).toBe(3);
+      expect(railUnit.movementLeft).toBe(6);
     });
 
     it('blocks a ground step between two enemy zones of control', async () => {
@@ -2291,7 +2304,7 @@ describe('UnitManager', () => {
      * @evidence parity
      * @reference reference/freeciv/data/civ2civ3/units.ruleset:70-88
      * @reference reference/freeciv/data/civ2civ3/units.ruleset:612-646
-     * @assertion A hardened c2c3 Engineer receives no movement fragments from veterancy; its source-defined move bonus remains zero.
+     * @assertion A hardened c2c3 Engineer receives no movement fragments from veterancy; its source-defined move bonus remains zero while its two whole moves use Civ2Civ3's six fragments each.
      */
     it('keeps c2c3 veteran movement source-derived instead of using a generic bonus', () => {
       const manager = new UnitManager(
@@ -2307,7 +2320,7 @@ describe('UnitManager', () => {
       );
       const engineerType = manager.getUnitType('engineers')!;
 
-      expect((manager as any).getUnitMovementPoints('player-123', engineerType, 2, 100)).toBe(6);
+      expect((manager as any).getUnitMovementPoints('player-123', engineerType, 2, 100)).toBe(12);
     });
 
     it('applies the classic pearl-harbor firepower rule in a city', async () => {

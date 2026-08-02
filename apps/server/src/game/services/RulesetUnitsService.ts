@@ -107,8 +107,8 @@ export class RulesetUnitsService {
    * Classify movement from the unit's loaded ruleset class.
    * Freeciv derives a class movement type from native terrain and extras, but
    * its movement enum is Land/Sea/Both; it has no distinct Air movement type.
-   * This is an intentional CivJS compatibility adapter from the six classic
-   * class IDs to the server's existing land/sea/air movement surface.
+   * This is an intentional CivJS compatibility adapter from Freeciv's
+   * ruleset-defined class IDs to the server's land/sea/air movement surface.
    * @reference reference/freeciv/common/unittype.h:131-139
    * @reference reference/freeciv/common/unittype.c:2953-2991
    * @reference reference/freeciv/data/classic/units.ruleset:143-188
@@ -260,6 +260,9 @@ export class RulesetUnitsService {
   private mapMovementType(unitClass: UnitClass): UnitMovementType | undefined {
     switch (unitClass) {
       case 'Land':
+      case 'Big Land':
+      case 'Small Land':
+      case 'Merchant':
         return 'land';
       case 'Sea':
       case 'Trireme':
