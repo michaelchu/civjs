@@ -1385,7 +1385,7 @@ export class GameManager {
     // player information. Run this after our diplomatic refresh so shared
     // vision recipients receive the same permanent map knowledge.
     // @reference reference/freeciv/server/srv_main.c:761-798
-    gameInstance.visibilityManager.applyRevealEffects?.(
+    gameInstance.visibilityManager?.applyRevealEffects?.(
       [...gameInstance.players]
         .filter(([, player]) => player.isAlive !== false)
         .map(([playerId]) => playerId)
