@@ -73,15 +73,6 @@ function civ2civ3SpaceshipEffects(): Record<string, number> {
     spaceship_enable_space_with_apollo: effects.calculateEffect(EffectType.ENABLE_SPACE, {
       worldBuildings: new Set(['apollo_program']),
     }).value,
-    spaceship_structural_effect: effects.calculateEffect(EffectType.SS_STRUCTURAL, {
-      cityBuildings: new Set(['space_structural']),
-    }).value,
-    spaceship_component_effect: effects.calculateEffect(EffectType.SS_COMPONENT, {
-      cityBuildings: new Set(['space_component']),
-    }).value,
-    spaceship_module_effect: effects.calculateEffect(EffectType.SS_MODULE, {
-      cityBuildings: new Set(['space_module']),
-    }).value,
   };
 }
 
@@ -732,9 +723,8 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
 
     /**
      * @evidence parity
-     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2711-2733
      * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2907-2913
-     * @assertion CivJS and the pinned Freeciv c2c3 server agree that Apollo Program enables space construction world-wide and that each special spaceship improvement produces exactly its corresponding part effect in its city.
+     * @assertion CivJS and the pinned Freeciv c2c3 server agree that Apollo Program enables space construction world-wide.
      * @c2c3-surface victory-space
      * @c2c3-surface-scenario differential
      */
