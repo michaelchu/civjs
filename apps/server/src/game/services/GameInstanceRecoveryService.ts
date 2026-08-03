@@ -782,6 +782,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
     return {
       unitId: unit.id,
       unitType: unit.unitTypeId,
+      unitTypeFlags: new Set(type?.flags ?? []),
       homeCity: city.id,
       currentLocation: this.supportLocation(cityManager, unit),
       upkeep: this.supportUpkeep(type),

@@ -48,6 +48,8 @@ export enum GoldUpkeepStyle {
 export interface UnitSupportData {
   unitId: string;
   unitType: string;
+  /** Ruleset flags of the authoritative unit type (for example, Fanatic). */
+  unitTypeFlags?: ReadonlySet<string>;
   homeCity: string;
   currentLocation: string;
   upkeep: UnitUpkeep;
@@ -215,34 +217,45 @@ export class UnitSupportManager {
     // Apply upkeep percentage modifiers (use defaults if no effects manager)
     if (this.effectsManager) {
       // Apply shield upkeep percentage modifier
-      const shieldUpkeepPct = this.effectsManager.calculateEffect(EffectType.UPKEEP_PCT, {
+      const shieldUpkeepPct = this.getUpkeepPercentage({
         ...context,
         outputType: OutputType.SHIELD,
       });
-      if (shieldUpkeepPct.value !== 100) {
-        modifiedCosts.shield = Math.floor((modifiedCosts.shield * shieldUpkeepPct.value) / 100);
+      if (shieldUpkeepPct !== 100) {
+        modifiedCosts.shield = Math.floor((modifiedCosts.shield * shieldUpkeepPct) / 100);
       }
 
       // Apply food upkeep percentage modifier
-      const foodUpkeepPct = this.effectsManager.calculateEffect(EffectType.UPKEEP_PCT, {
+      const foodUpkeepPct = this.getUpkeepPercentage({
         ...context,
         outputType: OutputType.FOOD,
       });
-      if (foodUpkeepPct.value !== 100) {
-        modifiedCosts.food = Math.floor((modifiedCosts.food * foodUpkeepPct.value) / 100);
+      if (foodUpkeepPct !== 100) {
+        modifiedCosts.food = Math.floor((modifiedCosts.food * foodUpkeepPct) / 100);
       }
 
       // Apply gold upkeep percentage modifier
-      const goldUpkeepPct = this.effectsManager.calculateEffect(EffectType.UPKEEP_PCT, {
+      const goldUpkeepPct = this.getUpkeepPercentage({
         ...context,
         outputType: OutputType.GOLD,
       });
-      if (goldUpkeepPct.value !== 100) {
-        modifiedCosts.gold = Math.floor((modifiedCosts.gold * goldUpkeepPct.value) / 100);
+      if (goldUpkeepPct !== 100) {
+        modifiedCosts.gold = Math.floor((modifiedCosts.gold * goldUpkeepPct) / 100);
       }
     }
 
     return modifiedCosts;
+  }
+
+  /**
+   * An absent percentage effect has Freeciv's neutral value, not a zero
+   * multiplier. C2C3 defines the food baseline explicitly but leaves shield
+   * and gold at that implicit 100 percent.
+   * @reference reference/freeciv/common/unittype.c:158-197 utype_upkeep_cost()
+   */
+  private getUpkeepPercentage(context: EffectContext): number {
+    const effect = this.effectsManager?.calculateEffect(EffectType.UPKEEP_PCT, context);
+    return effect === undefined || effect.effects.length === 0 ? 100 : effect.value;
   }
 
   /**
@@ -320,9 +333,10 @@ export class UnitSupportManager {
     let militaryUnhappiness = 0;
 
     for (const unit of effectiveUnits) {
-      if (unit.upkeep.shield > 0) shieldUnitsRequiringSupport++;
-      if (unit.upkeep.food > 0) foodUnitsRequiringSupport++;
-      if (unit.upkeep.gold > 0 && cityPaysGold) goldUnitsRequiringSupport++;
+      const hasNoUpkeep = this.hasFanaticNoUpkeep(unit, context);
+      if (!hasNoUpkeep && unit.upkeep.shield > 0) shieldUnitsRequiringSupport++;
+      if (!hasNoUpkeep && unit.upkeep.food > 0) foodUnitsRequiringSupport++;
+      if (!hasNoUpkeep && unit.upkeep.gold > 0 && cityPaysGold) goldUnitsRequiringSupport++;
       if (unit.isMilitaryUnit && (unit.isAwayFromHome || unit.isFieldUnit)) {
         militaryUnhappiness += this.calculateMilitaryUnhappiness(context, unit.unitType);
       }
@@ -337,6 +351,24 @@ export class UnitSupportManager {
       goldUnitsRequiringSupport,
       militaryUnhappiness,
     };
+  }
+
+  /**
+   * C2C3 gives units flagged Fanatic zero upkeep while the player has the
+   * Fanatics effect. The effect is player-scoped; the unit flag remains a
+   * distinct caller-side condition in Freeciv's utype_upkeep_cost().
+   * @reference reference/freeciv/common/unittype.c:152-156
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:1670-1676
+   */
+  private hasFanaticNoUpkeep(unit: UnitSupportData, context: EffectContext): boolean {
+    if (!unit.unitTypeFlags?.has('Fanatic')) return false;
+    return (
+      (this.effectsManager?.calculateEffect(EffectType.FANATICS, {
+        ...context,
+        unitType: unit.unitType,
+        unitTypeFlags: new Set(unit.unitTypeFlags),
+      }).value ?? 0) > 0
+    );
   }
 
   private applyFreeSupportCounts(
@@ -376,18 +408,20 @@ export class UnitSupportManager {
       this.goldUpkeepStyle === GoldUpkeepStyle.MIXED
     ) {
       for (const unit of allPlayerUnits) {
-        nationalCosts.gold += unit.upkeep.gold;
+        if (!this.hasFanaticNoUpkeep(unit, context)) {
+          nationalCosts.gold += unit.upkeep.gold;
+        }
       }
 
       // Apply national upkeep modifiers (if effects manager available)
       if (this.effectsManager) {
-        const goldUpkeepPct = this.effectsManager.calculateEffect(EffectType.UPKEEP_PCT, {
+        const goldUpkeepPct = this.getUpkeepPercentage({
           ...context,
           outputType: OutputType.GOLD,
         });
 
-        if (goldUpkeepPct.value !== 100) {
-          nationalCosts.gold = Math.floor((nationalCosts.gold * goldUpkeepPct.value) / 100);
+        if (goldUpkeepPct !== 100) {
+          nationalCosts.gold = Math.floor((nationalCosts.gold * goldUpkeepPct) / 100);
         }
       }
     }

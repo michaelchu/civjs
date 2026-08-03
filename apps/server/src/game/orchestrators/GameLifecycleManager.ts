@@ -781,6 +781,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     return {
       unitId: unit.id,
       unitType: unit.unitTypeId,
+      unitTypeFlags: new Set(unitType?.flags ?? []),
       homeCity: city.id,
       currentLocation: this.getSupportLocation(cityManager, unit),
       upkeep: this.getSupportUpkeep(unitType),

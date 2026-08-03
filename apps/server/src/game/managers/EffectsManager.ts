@@ -52,6 +52,7 @@ export enum EffectType {
   UPKEEP_PCT = 'Upkeep_Pct',
   UNHAPPY_FACTOR = 'Unhappy_Factor',
   SHIELD2GOLD_PCT = 'Shield2Gold_Pct',
+  FANATICS = 'Fanatics',
 
   // Building and specialist effects
   SPECIALIST_OUTPUT = 'Specialist_Output',
