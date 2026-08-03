@@ -266,14 +266,10 @@ for (const filePath of testFiles) {
       metadataErrors.push(`${location}: @c2c3-action requires @c2c3-scenario.`);
     }
     if (internalScenarios.length > 0 && internalActions.length === 0) {
-      metadataErrors.push(
-        `${location}: @c2c3-internal-scenario requires @c2c3-internal-action.`
-      );
+      metadataErrors.push(`${location}: @c2c3-internal-scenario requires @c2c3-internal-action.`);
     }
     if (internalActions.length > 0 && internalScenarios.length === 0) {
-      metadataErrors.push(
-        `${location}: @c2c3-internal-action requires @c2c3-internal-scenario.`
-      );
+      metadataErrors.push(`${location}: @c2c3-internal-action requires @c2c3-internal-scenario.`);
     }
     if (hasSurfaceMetadata && surfaces.length === 0) {
       metadataErrors.push(`${location}: @c2c3-surface-scenario requires @c2c3-surface.`);
