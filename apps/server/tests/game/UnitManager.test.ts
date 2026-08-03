@@ -3521,7 +3521,7 @@ describe('UnitManager', () => {
      * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3280-3286
      * @reference reference/freeciv/data/civ2civ3/game.ruleset:127-128
      * @assertion Leonardo's Workshop upgrades one otherwise eligible Civ2Civ3 unit for free outside a city before its new type receives movement for the next usable turn and the auto-upgrade veteran loss.
-     * @c2c3-surface cities, combat
+     * @c2c3-surface cities
      * @c2c3-surface-scenario turn
      */
     it("applies Leonardo's Workshop's free Civ2Civ3 upgrade when movement resets", async () => {
@@ -3672,16 +3672,33 @@ describe('UnitManager', () => {
       );
     });
 
-    it('should heal fortified units', async () => {
-      const unit = unitManager.getUnit(unitId)!;
-      unit.health = 80;
-      unit.fortified = true;
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/server/unittools.c:482-545
+     * @reference reference/freeciv/server/unittools.c:626-654
+     * @reference reference/freeciv/common/unit.c:2247-2282
+     * @reference reference/freeciv/server/unittools.c:4141-4148
+     * @assertion At the C2C3 turn boundary, a damaged unit that moved in its prior player phase does not receive coordinate HP regeneration, while a stationary fortified unit does and both clear their persisted movement state.
+     * @c2c3-surface combat
+     * @c2c3-surface-scenario turn
+     */
+    it('gates unit regeneration on persisted turn movement', async () => {
+      const movedUnit = unitManager.getUnit(unitId)!;
+      movedUnit.health = 80;
+      movedUnit.fortified = true;
+      const stationaryUnit = await unitManager.createUnit('player-123', 'warriors', 12, 10);
+      stationaryUnit.health = 80;
+      stationaryUnit.fortified = true;
 
       await unitManager.resetMovement('player-123');
 
       // C2C3 base regeneration (10%) stacks with fortified regeneration
-      // (10%), both sourced from effects.json.
-      expect(unit.health).toBe(100);
+      // (10%), both sourced from effects.json, but only while stationary.
+      expect(movedUnit).toMatchObject({ health: 80, movedThisTurn: false });
+      expect(stationaryUnit).toMatchObject({ health: 100, movedThisTurn: false });
+      expect((mockDbProvider.getDatabase() as any).set).toHaveBeenLastCalledWith(
+        expect.objectContaining({ movedThisTurn: false })
+      );
     });
 
     it('retires an isolated age-five Barbarian unit through Retire_Pct', async () => {

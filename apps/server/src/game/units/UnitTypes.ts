@@ -15,6 +15,11 @@ export interface Unit {
   x: number;
   y: number;
   movementLeft: number;
+  /**
+   * Freeciv's persisted `punit->moved` state. It gates stationary-only hit
+   * point regeneration until player_restore_units() clears it next turn.
+   */
+  movedThisTurn?: boolean;
   fuel?: number;
   health: number;
   veteranLevel: number;
