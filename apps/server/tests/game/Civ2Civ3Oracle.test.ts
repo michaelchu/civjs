@@ -64,6 +64,17 @@ function civ2civ3VisibilityEffects(): Record<string, number> {
   };
 }
 
+function civ2civ3MapTopology(): Record<string, number> {
+  const topology = new MapTopology(80, 50, {
+    topologyId: TopologyFlag.ISO | TopologyFlag.HEX,
+    wrapId: WrapFlag.X | WrapFlag.Y,
+  });
+
+  return {
+    map_topology_corner_neighbors: topology.getNeighbors(0, 0).length,
+  };
+}
+
 function civ2civ3SpaceshipEffects(): Record<string, number> {
   const effects = new EffectsManager('civ2civ3');
   return {
@@ -696,6 +707,20 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
 
     /**
      * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/game.ruleset:810-815
+     * @reference reference/freeciv/common/map.h:390-431
+     * @reference reference/freeciv/server/maphand.c:651-668
+     * @assertion CivJS and the pinned Freeciv C2C3 server give a wrapped ISO-hex map corner the same six first-ring neighbors.
+     * @c2c3-surface map-generation
+     * @c2c3-surface-scenario differential
+     */
+    it('matches the batched pinned Freeciv map-topology fixture', () => {
+      expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
+      expect(oracle.results).toMatchObject(civ2civ3MapTopology());
+    });
+
+    /**
+     * @evidence parity
      * @reference reference/freeciv/common/city.c:2849-2918 city_illness_calc()
      * @reference reference/freeciv/common/scriptcore/api_game_effects.c:65-78
      * @reference reference/freeciv/data/civ2civ3/effects.ruleset:474-481
@@ -912,6 +937,8 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
     });
   } else {
     it.skip('matches the batched pinned Freeciv city-tile effects fixture when an oracle bundle exists', () =>
+      undefined);
+    it.skip('matches the batched pinned Freeciv map-topology fixture when an oracle bundle exists', () =>
       undefined);
     it.skip('matches the batched pinned Freeciv AI-love effects fixture when an oracle bundle exists', () =>
       undefined);

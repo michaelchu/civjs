@@ -10,6 +10,14 @@ describe('ClimateManager', () => {
     expect(getClimateSettingsFromGameState(null)).toBeUndefined();
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/server/srv_main.c:1730-1745
+   * @reference reference/freeciv/server/maphand.c:128-229
+   * @assertion At the C2C3 turn boundary, accumulated pollution can trigger a deterministic climate upset that changes terrain, clears the consumed pollution, and persists the new environmental state.
+   * @c2c3-surface map-generation
+   * @c2c3-surface-scenario turn
+   */
   it('accumulates pollution, persists pressure, and applies a warming transformation', async () => {
     const databaseProvider = createMockDatabaseProvider();
     const tile = {

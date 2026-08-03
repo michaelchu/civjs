@@ -3498,6 +3498,15 @@ describe('UnitManager', () => {
       await unitManager.moveUnit(unitId, 11, 10);
     });
 
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/server/srv_main.c:1529-1548
+     * @reference reference/freeciv/server/unittools.c:482-545
+     * @reference reference/freeciv/server/unittools.c:662-669
+     * @assertion A C2C3 Warrior that consumed its movement during the prior player phase receives its full six movement fragments when Freeciv restores player units at the turn boundary.
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario turn
+     */
     it('should reset movement for player units', async () => {
       await unitManager.resetMovement('player-123');
 
@@ -3512,7 +3521,7 @@ describe('UnitManager', () => {
      * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3280-3286
      * @reference reference/freeciv/data/civ2civ3/game.ruleset:127-128
      * @assertion Leonardo's Workshop upgrades one otherwise eligible Civ2Civ3 unit for free outside a city before its new type receives movement for the next usable turn and the auto-upgrade veteran loss.
-     * @c2c3-surface cities
+     * @c2c3-surface cities, combat
      * @c2c3-surface-scenario turn
      */
     it("applies Leonardo's Workshop's free Civ2Civ3 upgrade when movement resets", async () => {
