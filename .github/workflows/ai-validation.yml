@@ -2,7 +2,7 @@ name: AI validation matrix
 
 on:
   schedule:
-    - cron: '17 4 * * 1'
+    - cron: '17 4 * * *'
   workflow_dispatch:
 
 jobs:
