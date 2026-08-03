@@ -47,6 +47,7 @@ describe('BorderManager C2C3 Tile_Claimable integration', () => {
    * @evidence parity
    * @reference reference/freeciv/server/maphand.c:2086-2104
    * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4626-4665
+   * @assertion C2C3 Tile_Claimable lets a city claim connected land, adjacent water, and a small enclosed lake while excluding distant open ocean.
    * @c2c3-surface terrain-visibility
    * @c2c3-surface-scenario normal,boundary
    */

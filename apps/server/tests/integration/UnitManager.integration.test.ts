@@ -516,15 +516,16 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       expect(Number(dbUnit.movementPoints)).toBe(SINGLE_MOVE);
     });
 
-    it('should heal fortified units and persist health', async () => {
+    it('does not heal a fortified unit moved earlier in the turn and persists health', async () => {
       const unit = unitManager.getUnit(unitId)!;
       unit.health = 80;
       unit.fortified = true;
 
       await unitManager.resetMovement(testData.player.id);
 
-      // C2C3 stacks 10 base regeneration with 10 fortified regeneration.
-      expect(unit.health).toBe(100);
+      // Freeciv only applies the C2C3 base and fortified regeneration effects
+      // after a stationary turn; the beforeEach move must be durable too.
+      expect(unit).toMatchObject({ health: 80, movedThisTurn: false });
 
       // Verify health was persisted
       const db = getTestDatabase();
@@ -532,7 +533,25 @@ describe('UnitManager - Integration Tests with Real Database', () => {
         where: (units, { eq }) => eq(units.id, unitId),
       });
 
-      expect(dbUnit.health).toBe(100);
+      expect(dbUnit).toMatchObject({ health: 80, movedThisTurn: false });
+    });
+
+    it('heals a stationary fortified unit and persists health', async () => {
+      const stationaryUnit = await unitManager.createUnit(testData.player.id, 'warriors', 12, 10);
+      stationaryUnit.health = 80;
+      stationaryUnit.fortified = true;
+
+      await unitManager.resetMovement(testData.player.id);
+
+      // C2C3 stacks 10 base regeneration with 10 fortified regeneration.
+      expect(stationaryUnit).toMatchObject({ health: 100, movedThisTurn: false });
+
+      const db = getTestDatabase();
+      const [dbUnit] = await db.query.units.findMany({
+        where: (units, { eq }) => eq(units.id, stationaryUnit.id),
+      });
+
+      expect(dbUnit).toMatchObject({ health: 100, movedThisTurn: false });
     });
   });
 
