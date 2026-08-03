@@ -751,6 +751,7 @@ describe('GameBroadcastManager visibility sync', () => {
       'sabotage_city_production',
       'poison_water',
       'sabotage_unit',
+      'spy_attack',
     ]);
   });
 
