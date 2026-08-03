@@ -667,6 +667,12 @@ export class GameManager {
     await this.diplomacyManager.establishContact(gameId, playerId, targetOwnerId);
     const relation = await this.getDiplomaticState(gameId, playerId, targetOwnerId);
     const theftCount = game.cityManager.getEspionageTheftCount?.(city.id, playerId) ?? 0;
+    const sourceAction = this.getDiplomatActionMoveCostSource(
+      actionType,
+      unitFlags,
+      requestedTechnologyId,
+      requestedBuildingId
+    );
 
     let result: ActionResult;
     let actorSurvives = unitFlags.includes('Spy');
@@ -680,10 +686,13 @@ export class GameManager {
           !candidate.transportedBy
         );
       });
-      const resolution =
-        theftCount > 0
-          ? game.unitManager.resolveDiplomatAction?.(unit.id, actionType, defender?.id, theftCount)
-          : game.unitManager.resolveDiplomatAction?.(unit.id, actionType, defender?.id);
+      const resolution = game.unitManager.resolveDiplomatAction?.(
+        unit.id,
+        actionType,
+        defender?.id,
+        theftCount,
+        sourceAction
+      );
       const resolved = resolution ?? {
         success: true,
         actorSurvives: unitFlags.includes('Spy'),
@@ -791,15 +800,35 @@ export class GameManager {
           message: `Sabotaged production of ${production} in ${city.name}`,
         };
       } else {
-        const building = await game.cityManager.sabotageCityBuilding(
-          city.id,
-          playerId,
-          requestedBuildingId
-        );
-        if (!building) return { success: false, message: 'No eligible improvement to sabotage' };
-        await game.cityManager.recordEspionageTheft?.(city.id, playerId);
-        this.gameBroadcastManager.broadcastCityData(gameId);
-        result = { success: true, message: `Sabotaged ${building} in ${city.name}` };
+        const sabotage = game.cityManager.resolveSabotageCityBuilding
+          ? await game.cityManager.resolveSabotageCityBuilding(
+              city.id,
+              playerId,
+              requestedBuildingId
+            )
+          : {
+              building: await game.cityManager.sabotageCityBuilding(
+                city.id,
+                playerId,
+                requestedBuildingId
+              ),
+              caught: false,
+            };
+        if (sabotage.caught) {
+          actorSurvives = false;
+          result = {
+            success: false,
+            message: `The ${unitType!.name} was caught sabotaging ${city.name}`,
+            unitDestroyed: true,
+          };
+        } else {
+          if (!sabotage.building) {
+            return { success: false, message: 'No eligible improvement to sabotage' };
+          }
+          await game.cityManager.recordEspionageTheft?.(city.id, playerId);
+          this.gameBroadcastManager.broadcastCityData(gameId);
+          result = { success: true, message: `Sabotaged ${sabotage.building} in ${city.name}` };
+        }
       }
     } else if (actionType === ActionType.POISON_WATER) {
       if (!unitFlags.includes('Spy')) {
@@ -876,6 +905,7 @@ export class GameManager {
     }
 
     if (
+      result.success &&
       [
         ActionType.STEAL_TECH,
         ActionType.SABOTAGE_CITY,
@@ -896,15 +926,7 @@ export class GameManager {
       result.unitDestroyed = true;
     } else {
       await game.unitManager.maybePromoteAfterDiplomaticAction(unit.id);
-      await game.unitManager.finishDiplomatMission(
-        unit.id,
-        this.getDiplomatActionMoveCostSource(
-          actionType,
-          unitFlags,
-          requestedTechnologyId,
-          requestedBuildingId
-        )
-      );
+      await game.unitManager.finishDiplomatMission(unit.id, sourceAction);
     }
     await this.refreshSharedVision(gameId);
     return result;

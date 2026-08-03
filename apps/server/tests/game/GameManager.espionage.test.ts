@@ -75,6 +75,7 @@ describe('GameManager classic espionage actions', () => {
       cityManager: {
         getCityAt: jest.fn(),
         getPlayerCities: jest.fn().mockReturnValue([]),
+        isPrimaryCapital: jest.fn().mockReturnValue(false),
         poisonCity: jest.fn(),
         sabotageCityBuilding: jest.fn(),
         transferCity: jest.fn(),
@@ -290,8 +291,51 @@ describe('GameManager classic espionage actions', () => {
     expect(game.unitManager.resolveDiplomatAction).toHaveBeenCalledWith(
       'actor',
       ActionType.POISON_WATER,
-      'super-spy'
+      'super-spy',
+      0,
+      'Poison City Escape'
     );
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2333-2340
+   * @reference reference/freeciv/server/diplomats.c:1462-1645
+   * @assertion A successful initial mission roll still leaves a C2C3 capital improvement protected by its final sabotage-resistance roll: the caught spy is removed and the target improvement remains intact.
+   * @c2c3-action Targeted Sabotage City Escape
+   * @c2c3-scenario boundary
+   * @c2c3-surface diplomacy-espionage
+   * @c2c3-surface-scenario boundary
+   */
+  it('removes a spy caught by c2c3 capital sabotage resistance', async () => {
+    const city = foreignCity({ buildings: ['granary'] });
+    const { game } = installGame('spy');
+    game.cityManager.getCityAt.mockReturnValue(city);
+    game.cityManager.resolveSabotageCityBuilding = jest
+      .fn()
+      .mockResolvedValue({ building: null, caught: true });
+
+    await expect(
+      manager.executeDiplomatAction(
+        gameId,
+        actorPlayerId,
+        'actor',
+        ActionType.SABOTAGE_CITY,
+        5,
+        5,
+        undefined,
+        'granary'
+      )
+    ).resolves.toMatchObject({ success: false, unitDestroyed: true });
+
+    expect(game.cityManager.resolveSabotageCityBuilding).toHaveBeenCalledWith(
+      city.id,
+      actorPlayerId,
+      'granary'
+    );
+    expect(game.cityManager.sabotageCityBuilding).not.toHaveBeenCalled();
+    expect(game.unitManager.removeUnit).toHaveBeenCalledWith('actor');
+    expect((manager as any).diplomacyManager.recordIncident).not.toHaveBeenCalled();
   });
 
   /**
@@ -719,6 +763,7 @@ describe('GameManager classic espionage actions', () => {
 
   it('rejects inciting a capital without charging gold', async () => {
     const { game, economicManager } = installGame('spy');
+    game.cityManager.isPrimaryCapital.mockReturnValue(true);
     game.cityManager.getCityAt.mockReturnValue({
       id: 'capital',
       name: 'Capital',
@@ -1235,6 +1280,10 @@ describe('GameManager classic espionage actions', () => {
     const { game } = installGame('spy');
     game.cityManager.getCityAt.mockReturnValue(city);
     game.cityManager.sabotageCityBuilding.mockResolvedValue('marketplace');
+    game.unitManager.resolveDiplomatAction = jest.fn().mockReturnValue({
+      success: true,
+      actorSurvives: true,
+    });
 
     await expect(
       manager.executeDiplomatAction(
@@ -1250,6 +1299,13 @@ describe('GameManager classic espionage actions', () => {
     ).resolves.toMatchObject({ success: true });
     expect(game.unitManager.finishDiplomatMission).toHaveBeenCalledWith(
       'actor',
+      'Targeted Sabotage City Escape'
+    );
+    expect(game.unitManager.resolveDiplomatAction).toHaveBeenCalledWith(
+      'actor',
+      ActionType.SABOTAGE_CITY,
+      undefined,
+      0,
       'Targeted Sabotage City Escape'
     );
   });

@@ -107,6 +107,8 @@ export enum EffectType {
   UPGRADE_PRICE_PCT = 'Upgrade_Price_Pct',
   UPGRADE_UNIT = 'Upgrade_Unit',
   ACTION_SUCCESS_ACTOR_MOVE_COST = 'Action_Success_Actor_Move_Cost',
+  ACTION_ODDS_PCT = 'Action_Odds_Pct',
+  BUILDING_SABOTEUR_RESISTANT = 'Building_Saboteur_Resistant',
   SPY_RESISTANT = 'Spy_Resistant',
   CIVIL_WAR_CHANCE = 'Civil_War_Chance',
   CIVIL_WAR_CITY_BONUS = 'Civil_War_City_Bonus',

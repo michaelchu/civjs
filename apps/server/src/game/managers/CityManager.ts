@@ -2388,28 +2388,56 @@ export class CityManager {
     }));
   }
 
+  /**
+   * Resolve the city-side target selection and final resistance roll for a
+   * sabotage mission. A capital's active Building_Saboteur_Resistant effect
+   * reduces the target improvement's vulnerability before the final roll.
+   *
+   * @reference reference/freeciv/server/diplomats.c:1462-1645
+   */
+  public async resolveSabotageCityBuilding(
+    cityId: string,
+    actingPlayerId: string,
+    requestedBuildingId?: string
+  ): Promise<{ building: string | null; caught: boolean }> {
+    const city = this.cities.get(cityId);
+    if (!city) throw new Error('Target city not found');
+    if (city.playerId === actingPlayerId) throw new Error('Cannot sabotage your own city');
+    const candidates = this.getSabotageableBuildings(cityId);
+    if (requestedBuildingId !== undefined && !candidates.includes(requestedBuildingId)) {
+      return { building: null, caught: false };
+    }
+    const target =
+      requestedBuildingId ?? candidates[randomInt(this.random, candidates.length)] ?? null;
+    if (!target) return { building: null, caught: false };
+
+    const baseVulnerability = this.buildingTypes[target]?.sabotage ?? 100;
+    const resistance = this.effectsManager.calculateEffect(
+      EffectType.BUILDING_SABOTEUR_RESISTANT,
+      this.getCityEffectContext(city)
+    ).value;
+    const vulnerability = Math.max(
+      0,
+      baseVulnerability - Math.trunc((baseVulnerability * resistance) / 100)
+    );
+    if (randomInt(this.random, 100) >= vulnerability) {
+      return { building: null, caught: true };
+    }
+
+    city.buildings = city.buildings.filter(building => building !== target);
+    this.calculateCityOutputs(city.id);
+    this.applyCityHappiness(city.id);
+    await this.saveCityToDatabase(city);
+    return { building: target, caught: false };
+  }
+
   public async sabotageCityBuilding(
     cityId: string,
     actingPlayerId: string,
     requestedBuildingId?: string
   ): Promise<string | null> {
-    const city = this.cities.get(cityId);
-    if (!city) throw new Error('Target city not found');
-    if (city.playerId === actingPlayerId) throw new Error('Cannot sabotage your own city');
-    const candidates = [...city.buildings].filter(
-      building => building !== 'palace' && (this.buildingTypes[building]?.sabotage ?? 100) > 0
-    );
-    if (requestedBuildingId !== undefined && !candidates.includes(requestedBuildingId)) {
-      return null;
-    }
-    const target =
-      requestedBuildingId ?? candidates[randomInt(this.random, candidates.length)] ?? null;
-    if (!target) return null;
-    city.buildings = city.buildings.filter(building => building !== target);
-    this.calculateCityOutputs(city.id);
-    this.applyCityHappiness(city.id);
-    await this.saveCityToDatabase(city);
-    return target;
+    return (await this.resolveSabotageCityBuilding(cityId, actingPlayerId, requestedBuildingId))
+      .building;
   }
 
   public getSabotageableBuildings(cityId: string): string[] {

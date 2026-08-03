@@ -3363,6 +3363,60 @@ describe('UnitManager', () => {
           .successChance
       ).toBe(0.55);
     });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/actions.ruleset:243-253
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4111-4125
+     * @reference reference/freeciv/common/actions.c:5612-5655
+     * @assertion C2C3 applies Action_Odds_Pct once to the configured 75 percent covert-action odds: its -50 percent modifier yields exactly 38 percent for targeted city sabotage and production sabotage, while ordinary sabotage remains 75 percent.
+     * @c2c3-action Targeted Sabotage City Escape
+     * @c2c3-scenario boundary
+     * @c2c3-surface diplomacy-espionage
+     * @c2c3-surface-scenario boundary
+     */
+    it('applies c2c3 action-odds effects to the exact source action variant', async () => {
+      const c2c3Manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        new EffectsManager('civ2civ3'),
+        Math.random,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      const spy = await c2c3Manager.createUnit('player-123', 'spy', 10, 10);
+
+      expect(
+        c2c3Manager.calculateDiplomatActionOdds(
+          spy,
+          ActionType.SABOTAGE_CITY,
+          undefined,
+          0,
+          'Targeted Sabotage City Escape'
+        ).successChance
+      ).toBe(0.38);
+      expect(
+        c2c3Manager.calculateDiplomatActionOdds(
+          spy,
+          ActionType.SABOTAGE_CITY_PRODUCTION,
+          undefined,
+          0,
+          'Sabotage City Production Escape'
+        ).successChance
+      ).toBe(0.38);
+      expect(
+        c2c3Manager.calculateDiplomatActionOdds(
+          spy,
+          ActionType.SABOTAGE_CITY,
+          undefined,
+          0,
+          'Sabotage City Escape'
+        ).successChance
+      ).toBe(0.75);
+    });
   });
 
   describe('city-targeted unit actions', () => {

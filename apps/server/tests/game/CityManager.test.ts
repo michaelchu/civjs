@@ -441,6 +441,33 @@ describe('CityManager', () => {
       expect(city.productionStock).toBe(0);
       expect(city.currentProduction).toBe('factory');
     });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2333-2340
+     * @reference reference/freeciv/server/diplomats.c:1462-1645
+     * @assertion A C2C3 Palace's 50 percent Building_Saboteur_Resistant effect reduces a normal improvement's vulnerability to 50, so a roll of 50 catches the saboteur while 49 destroys the selected Granary.
+     * @c2c3-action Targeted Sabotage City Escape
+     * @c2c3-scenario boundary
+     * @c2c3-surface diplomacy-espionage
+     * @c2c3-surface-scenario boundary
+     */
+    it('applies capital building-sabotage resistance as the final caught roll', async () => {
+      const city = await cityManager.foundCity(10, 10, 'Capital', 'player-456');
+      city.buildings.push('granary');
+
+      (cityManager as any).random = { next: jest.fn(() => 50) };
+      await expect(
+        cityManager.resolveSabotageCityBuilding(city.id, 'player-123', 'granary')
+      ).resolves.toEqual({ building: null, caught: true });
+      expect(city.buildings).toContain('granary');
+
+      (cityManager as any).random = { next: jest.fn(() => 49) };
+      await expect(
+        cityManager.resolveSabotageCityBuilding(city.id, 'player-123', 'granary')
+      ).resolves.toEqual({ building: 'granary', caught: false });
+      expect(city.buildings).not.toContain('granary');
+    });
   });
 
   describe('airport airlift usage', () => {

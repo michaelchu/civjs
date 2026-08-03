@@ -3369,7 +3369,8 @@ export class UnitManager {
     actorId: string,
     actionType: ActionType,
     defenderId?: string,
-    theftCount = 0
+    theftCount = 0,
+    sourceAction?: string
   ): DiplomatActionResolution {
     const actor = this.units.get(actorId);
     if (!actor) {
@@ -3377,7 +3378,13 @@ export class UnitManager {
     }
 
     const defender = defenderId ? this.units.get(defenderId) : undefined;
-    const odds = this.calculateDiplomatActionOdds(actor, actionType, defender, theftCount);
+    const odds = this.calculateDiplomatActionOdds(
+      actor,
+      actionType,
+      defender,
+      theftCount,
+      sourceAction
+    );
     const success = randomInt(this.random, 100) < odds.successChance * 100;
     const actorSurvives =
       success && odds.escapeChance > 0 && randomInt(this.random, 100) < odds.escapeChance * 100;
@@ -3398,7 +3405,8 @@ export class UnitManager {
     actor: Unit,
     actionType: ActionType,
     defender?: Unit,
-    theftCount = 0
+    theftCount = 0,
+    sourceAction?: string
   ): { successChance: number; escapeChance: number } {
     const actorType = this.unitTypes[actor.unitTypeId];
     const isSpy = actorType.flags?.includes('Spy') ?? false;
@@ -3429,6 +3437,17 @@ export class UnitManager {
     // useful while repeated thefts are not free attempts.
     successChance -= Math.max(0, theftCount) * 10;
     successChance = Math.max(5, Math.min(100, successChance));
+    if (sourceAction) {
+      const actionOddsPct =
+        this.effectsManager?.calculateEffect(EffectType.ACTION_ODDS_PCT, {
+          ...this.getUnitEffectContext(actor, actorType, sourceAction),
+        }).value ?? 0;
+      // Freeciv adjusts the action's initial odds in one integer calculation,
+      // rather than performing a second independent roll.
+      // @reference reference/freeciv/common/actions.c:5612-5655
+      successChance += Math.trunc((successChance * actionOddsPct) / 100);
+      successChance = Math.max(0, Math.min(100, successChance));
+    }
     if (defenderIsSuperSpy) successChance = 0;
     const escapeActions = new Set([
       ActionType.STEAL_TECH,
