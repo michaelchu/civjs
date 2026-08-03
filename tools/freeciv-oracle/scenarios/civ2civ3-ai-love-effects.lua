@@ -49,9 +49,3 @@ log.normal(
     effects.player_bonus(owner, "Gain_AI_Love")
   )
 )
-
--- The native-oracle runner batches fixtures in one server process. Remove
--- these temporary wonders so their player- and world-scoped effects do not
--- alter the preconditions of later fixtures.
-edit.remove_building(city, apollo)
-edit.remove_building(city, eiffel)

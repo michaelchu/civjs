@@ -54,17 +54,22 @@ function collectFiles(directory, relativeDirectory = '') {
   });
 }
 
-const bootstrapScenarioName = 'civ2civ3-bootstrap-tech-leakage';
+const prerequisiteScenarioFiles = [
+  'civ2civ3-bootstrap-tech-leakage.lua',
+  'civ2civ3-spaceship-effects.lua',
+];
+const scenarioPriorities = new Map(prerequisiteScenarioFiles.map((file, index) => [file, index]));
 
-// Technology Leakage has a fixed three-player denominator. Run its bootstrap
-// fixture before any scenario that creates extra players, while retaining a
-// deterministic lexical order for every other fixture.
+// Technology Leakage has a fixed three-player denominator, while Apollo's
+// world-scoped Enable_Space effect survives its source building. Run both
+// prerequisite-dependent fixtures before later scenarios mutate that state,
+// while retaining a deterministic lexical order for every other fixture.
 const scenarios = readdirSync(scenariosDir)
   .filter(file => file.endsWith('.lua'))
   .sort((left, right) => {
-    const leftIsBootstrap = left === `${bootstrapScenarioName}.lua`;
-    const rightIsBootstrap = right === `${bootstrapScenarioName}.lua`;
-    if (leftIsBootstrap !== rightIsBootstrap) return leftIsBootstrap ? -1 : 1;
+    const leftPriority = scenarioPriorities.get(left) ?? Number.MAX_SAFE_INTEGER;
+    const rightPriority = scenarioPriorities.get(right) ?? Number.MAX_SAFE_INTEGER;
+    if (leftPriority !== rightPriority) return leftPriority - rightPriority;
     return left.localeCompare(right);
   })
   .map(file => ({ name: basename(file, '.lua'), path: join(scenariosDir, file) }));
