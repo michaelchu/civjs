@@ -1198,12 +1198,20 @@ describe('AI authoritative manager boundaries', () => {
     city.workerTaskRequests = [
       { x: target.x, y: target.y, action: ActionType.BUILD_ROAD, want: 500 },
     ];
+    // This fixture exercises the ordinary Worker lifecycle. C2C3 Migrants
+    // require Pottery and may be chosen when a nation starts with it; remove
+    // that optional initial technology so the test does not conflate
+    // infrastructure automation with a population-consuming substitute.
+    // @reference reference/freeciv/data/civ2civ3/units.ruleset:526-567
+    // @reference reference/freeciv/data/civ2civ3/units.ruleset:573-601
+    await scenario.game.researchManager.revokeGrantedTechnology(guest!.playerId, 'pottery');
     const cityController = (gameManager as any).aiOrchestrator.playerController.city;
     await cityController.selectProduction(scenario.game, guest!.playerId, state);
 
     const workerType = scenario.game.unitManager.getUnitType(city.currentProduction!)!;
     expect(workerType.canBuildImprovements).toBe(true);
     expect(workerType.canFoundCity).toBe(false);
+    expect(workerType.id).toBe('worker');
     city.productionStock = workerType.cost;
     city.shieldStock = workerType.cost;
     await scenario.game.cityManager.processCityTurn(city.id, scenario.game.currentTurn);
@@ -1791,10 +1799,10 @@ describe('AI authoritative manager boundaries', () => {
     expect(persistedCity?.buildings).toContain('pyramids');
   });
 
-  it('carries a C2C3 future-government plan through research and starts the unlocked revolution', async () => {
+  it('carries a C2C3 Republic plan through research and starts the unlocked revolution', async () => {
     const scenario = await createActiveGame(2);
     const [, guest] = scenario.players;
-    const city = await foundPlayerCity(scenario, guest!.playerId, 'AI Democracy City');
+    const city = await foundPlayerCity(scenario, guest!.playerId, 'AI Republic City');
     city.population = 10;
     city.size = 10;
     city.foodPerTurn = 10;
@@ -1812,7 +1820,13 @@ describe('AI authoritative manager boundaries', () => {
     for (const technology of ['alphabet', 'writing', 'code_of_laws']) {
       await scenario.game.researchManager.grantTechnology(guest!.playerId, technology);
     }
-    await scenario.game.researchManager.setCurrentResearch(guest!.playerId, 'pottery');
+    // C2C3 may have assigned Pottery as a source-selected initial technology,
+    // so retain a currently legal unknown research target for this fixture.
+    const initialResearch = scenario.game.researchManager.getAvailableTechnologies(
+      guest!.playerId
+    )[0];
+    expect(initialResearch).toBeDefined();
+    await scenario.game.researchManager.setCurrentResearch(guest!.playerId, initialResearch!.id);
     await gameManager.setPlayerAIControl(
       scenario.gameId,
       scenario.hostUserId,
@@ -1832,25 +1846,25 @@ describe('AI authoritative manager boundaries', () => {
     const state = assertAIState(scenario.game.players.get(guest!.playerId)?.aiState);
     const domestic = (gameManager as any).aiOrchestrator.playerController.domestic;
     await domestic.manageGovernment(scenario.game, guest!.playerId, state);
-    // C2C3's effect-driven ranking values Democracy ahead of Republic for
-    // this productive peace-time city.
-    // @reference reference/freeciv/data/civ2civ3/governments.ruleset:222-245
-    expect(state.techWants.democracy).toBeGreaterThan(0);
-    state.techWants.democracy = 1_000_000;
+    // C2C3 Tribal explicitly identifies Republic as its better government;
+    // Republic then requires The Republic technology.
+    // @reference reference/freeciv/data/civ2civ3/governments.ruleset:108-118
+    // @reference reference/freeciv/data/civ2civ3/governments.ruleset:359-365
+    expect(state.techWants.the_republic).toBeGreaterThan(0);
+    state.techWants.the_republic = 1_000_000;
     await domestic.selectResearch(scenario.game, guest!.playerId, state);
-    expect(scenario.game.researchManager.getPlayerResearch(guest!.playerId)).toMatchObject({
-      techGoal: 'democracy',
-    });
+    expect(scenario.game.researchManager.getPlayerResearch(guest!.playerId)?.currentTech).toBe(
+      'literacy'
+    );
 
-    await scenario.game.researchManager.grantTechnology(guest!.playerId, 'banking');
-    await scenario.game.researchManager.grantTechnology(guest!.playerId, 'invention');
-    await scenario.game.researchManager.grantTechnology(guest!.playerId, 'democracy');
+    await scenario.game.researchManager.grantTechnology(guest!.playerId, 'literacy');
+    await scenario.game.researchManager.grantTechnology(guest!.playerId, 'the_republic');
     scenario.game.currentTurn += 1;
     await domestic.manageGovernment(scenario.game, guest!.playerId, state);
 
     expect(scenario.game.governmentManager?.getPlayerGovernment(guest!.playerId)).toMatchObject({
       currentGovernment: 'anarchy',
-      requestedGovernment: 'democracy',
+      requestedGovernment: 'republic',
     });
     const persistedPlayer = await getTestDatabase().query.players.findFirst({
       where: eq(schema.players.id, guest!.playerId),

@@ -248,7 +248,7 @@ describe('City Population Growth Integration', () => {
       expect(grownCity.size).toBe(2);
     });
 
-    it('grows naturally through the C2C3 city-turn pipeline on unimproved grassland', async () => {
+    it('continues C2C3 growth through the city-turn pipeline on unimproved grassland', async () => {
       const city = await cityManager.foundCity(25, 25, 'MultiTurnCity', 'player-123');
       let sawGrowth = false;
 
@@ -265,9 +265,13 @@ describe('City Population Growth Integration', () => {
 
       const finalCity = cityManager.getCity(city.id)!;
       expect(sawGrowth).toBe(true);
-      expect(finalCity.population).toBe(2);
+      // C2C3 retains half of the food box after each small-city growth, so
+      // ten turns at this city's sustained grassland surplus cross two growth
+      // thresholds rather than stopping at population two.
+      // @reference reference/freeciv/data/civ2civ3/effects.ruleset:2024-2037
+      expect(finalCity.population).toBe(3);
       expect(finalCity.workableTiles?.filter(tile => tile.isWorked && !tile.isCenter)).toHaveLength(
-        2
+        3
       );
     });
   });
