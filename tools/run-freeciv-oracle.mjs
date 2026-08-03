@@ -157,10 +157,17 @@ try {
   for (const scenario of selectedScenarios) {
     const scenarioTempDirectory = join(tempDirectory, scenario.name);
     mkdirSync(scenarioTempDirectory);
+    // Keep the spaceship fixture's baseline free of an unrelated filled AI
+    // player.
+    // Apollo is a world-ranged surviving wonder, so an automatically filled
+    // player can contaminate the "without Apollo" observation before the
+    // fixture creates its controlled player and city.
+    const hasIsolatedPlayerSetup = scenario.name === 'civ2civ3-spaceship-effects';
     const commands = [
-      'set aifill 1',
+      hasIsolatedPlayerSetup ? 'set aifill 0' : 'set aifill 1',
       'set minplayers 0',
       'set animals 0',
+      ...(hasIsolatedPlayerSetup ? ['create OracleBootstrap'] : []),
       'start',
       `lua unsafe-file ${scenario.path}`,
       'quit',
