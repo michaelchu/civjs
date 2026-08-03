@@ -452,14 +452,16 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         width,
         height
       );
-      const constrained = rendererRef.current.setMapviewOrigin(
-        centered.x,
-        centered.y,
-        width,
-        height
-      );
-      const target = { ...constrained, width, height };
       const state = useGameStore.getState();
+      // A centered origin is already valid on a wrapped map. It may be
+      // negative when centering on tile 0, and drag-release normalization can
+      // move that target into a different GUI period. Wrapped rendering
+      // supplies the periodic copy, so preserve the requested center.
+      const constrained =
+        (state.map.wrap_id ?? 0) !== 0
+          ? centered
+          : rendererRef.current.setMapviewOrigin(centered.x, centered.y, width, height);
+      const target = { ...constrained, width, height };
       const current = state.viewport;
       const dx = target.x - current.x;
       const dy = target.y - current.y;
@@ -658,7 +660,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const dragRenderFrame = useRef<number | null>(null);
   const dragStartTime = useRef<number>(0);
   const selectionDragMode = useRef<SelectionDragMode>(null);
-  const rightDragHandled = useRef(false);
+  const rightPointerHandled = useRef(false);
   const lastTouchTap = useRef<{ x: number; y: number; time: number } | null>(null);
   const DRAG_THRESHOLD = 5; // pixels
   const LONG_PRESS_MS = 500; // touch and hold duration to emulate right-click
@@ -983,15 +985,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
               setSelectedUnit(unit);
             }
           } else {
-            // Foreign units remain inspectable, but their action tray is
-            // read-only because SelectionTray gates actions by ownership.
-            const foreignUnit = unitsAtTile.find(unit => unit.playerId !== currentPlayerId);
-            if (foreignUnit) {
-              selectUnit(foreignUnit.id);
-              setSelectedUnit(foreignUnit);
-            } else {
-              clearMapSelection();
-            }
+            // A visible foreign stack is not an actionable selection. Keep
+            // the local focus clear so an opponent cannot be mistaken for the
+            // player's own unit when the tile is clicked.
+            clearMapSelection();
           }
           break;
         case 'focus':
@@ -1035,6 +1032,33 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     [cities, currentPlayerId, openUnitContextMenu, units]
   );
 
+  const handleRightClickAtCanvasPosition = useCallback(
+    (
+      canvasX: number,
+      canvasY: number,
+      position: { x: number; y: number },
+      interactionViewport: MapViewport
+    ) => {
+      // A right click cancels an active target interaction before it can open
+      // a unit menu, matching the reference client's pointer semantics.
+      if (gotoMode.active) {
+        deactivateGotoMode();
+        return;
+      }
+      if (targetActionMode) {
+        setTargetActionMode(null);
+        return;
+      }
+
+      const renderer = rendererRef.current;
+      if (!renderer) return;
+
+      const mapPos = renderer.canvasToMap(canvasX, canvasY, interactionViewport);
+      handleRightClickTile(Math.floor(mapPos.mapX), Math.floor(mapPos.mapY), position);
+    },
+    [deactivateGotoMode, gotoMode.active, handleRightClickTile, targetActionMode]
+  );
+
   const handleMouseDown = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
       const canvas = canvasRef.current;
@@ -1062,7 +1086,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
       // Close context menu if open
       setContextMenu(null);
-      rightDragHandled.current = false;
+      rightPointerHandled.current = false;
 
       selectionDragMode.current =
         event.button === 2 || (event.altKey && !event.shiftKey && !event.ctrlKey)
@@ -1173,7 +1197,20 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       if (areaMode) {
         if (areaWasDragged) {
           selectUnitsInCanvasRect(dragStart.current, { x: canvasX, y: canvasY });
-          rightDragHandled.current = areaMode === 'right';
+          rightPointerHandled.current = areaMode === 'right';
+        } else if (areaMode === 'right') {
+          // Resolve a normal right click on mouseup. Some browsers do not
+          // dispatch a usable native contextmenu event after mouseup has been
+          // prevented, so waiting for that event makes unit menus disappear.
+          // The handled flag suppresses the duplicate native event when it is
+          // dispatched.
+          handleRightClickAtCanvasPosition(
+            canvasX,
+            canvasY,
+            { x: event.clientX, y: event.clientY },
+            dragStartViewport.current
+          );
+          rightPointerHandled.current = true;
         }
         selectionDragMode.current = null;
         setSelectionRect(null);
@@ -1250,6 +1287,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       setViewport,
       handleMapTileClick,
       selectUnitsInCanvasRect,
+      handleRightClickAtCanvasPosition,
       viewport,
       gotoMode.active,
       executeGoto,
@@ -1508,19 +1546,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     (event: React.MouseEvent<HTMLCanvasElement>) => {
       event.preventDefault(); // Prevent browser context menu
 
-      if (rightDragHandled.current) {
-        rightDragHandled.current = false;
-        return;
-      }
-
-      // If in goto mode, right-click cancels it
-      if (gotoMode.active) {
-        console.log('Right-click - deactivating goto mode');
-        deactivateGotoMode();
-        return;
-      }
-      if (targetActionMode) {
-        setTargetActionMode(null);
+      if (rightPointerHandled.current) {
+        rightPointerHandled.current = false;
         return;
       }
 
@@ -1531,14 +1558,14 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       const canvasX = event.clientX - rect.left;
       const canvasY = event.clientY - rect.top;
 
-      // Convert canvas coordinates to map coordinates
-      const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, viewport);
-      const tileX = Math.floor(mapPos.mapX);
-      const tileY = Math.floor(mapPos.mapY);
-
-      handleRightClickTile(tileX, tileY, { x: event.clientX, y: event.clientY });
+      handleRightClickAtCanvasPosition(
+        canvasX,
+        canvasY,
+        { x: event.clientX, y: event.clientY },
+        viewport
+      );
     },
-    [viewport, gotoMode.active, deactivateGotoMode, targetActionMode, handleRightClickTile]
+    [handleRightClickAtCanvasPosition, viewport]
   );
 
   // Handle unit action selection
@@ -1758,7 +1785,15 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
         if (wasDragged) {
           selectUnitsInCanvasRect(dragStart.current, { x: canvasX, y: canvasY });
-          rightDragHandled.current = areaMode === 'right';
+          rightPointerHandled.current = areaMode === 'right';
+        } else if (areaMode === 'right') {
+          handleRightClickAtCanvasPosition(
+            canvasX,
+            canvasY,
+            { x: event.clientX, y: event.clientY },
+            dragStartViewport.current
+          );
+          rightPointerHandled.current = true;
         }
         selectionDragMode.current = null;
         setSelectionRect(null);
@@ -1800,7 +1835,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       document.addEventListener('mouseup', handleGlobalMouseUp);
       return () => document.removeEventListener('mouseup', handleGlobalMouseUp);
     }
-  }, [isDragging, selectUnitsInCanvasRect, setViewport]);
+  }, [handleRightClickAtCanvasPosition, isDragging, selectUnitsInCanvasRect, setViewport]);
 
   // Removed zoom functionality to match freeciv-web 2D canvas behavior
   // Freeciv-web's 2D renderer does not support zoom - only the WebGL renderer does

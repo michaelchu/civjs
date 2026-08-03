@@ -5,6 +5,7 @@ const requestPathResult = vi.hoisted(() => vi.fn());
 const executeUnitAction = vi.hoisted(() => vi.fn());
 const setDebugVisibility = vi.hoisted(() => vi.fn());
 const mapRendererConstructed = vi.hoisted(() => vi.fn());
+const setMapviewOrigin = vi.hoisted(() => vi.fn());
 const contextMenuProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
 const cityOverlayProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
 const tileInfoProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
@@ -66,7 +67,7 @@ vi.mock('../MapRenderer', () => ({
       return { x: 60, y: 40 };
     }
     setMapviewOrigin() {
-      return { x: 60, y: 40, width: 100, height: 100 };
+      return setMapviewOrigin();
     }
   },
 }));
@@ -122,6 +123,8 @@ describe('MapCanvas Go To feedback', () => {
     setDebugVisibility.mockReset();
     setDebugVisibility.mockResolvedValue(undefined);
     mapRendererConstructed.mockClear();
+    setMapviewOrigin.mockReset();
+    setMapviewOrigin.mockReturnValue({ x: 60, y: 40, width: 100, height: 100 });
     contextMenuProps.current = null;
     cityOverlayProps.current = null;
     tileInfoProps.current = null;
@@ -137,6 +140,7 @@ describe('MapCanvas Go To feedback', () => {
       delete (state.cities as Record<string, unknown>)[cityId];
     }
     state.diplomacy.nations.length = 0;
+    Object.assign(state.map, { wrap_id: 0 });
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
       {} as CanvasRenderingContext2D
     );
@@ -280,6 +284,58 @@ describe('MapCanvas Go To feedback', () => {
     expect(cityOverlayProps.current?.isOpen).toBe(true);
   });
 
+  it('selects the owned unit on a normal left click', async () => {
+    Object.assign(state.units['unit-1'], { x: 1, y: 1, playerId: 'player-1' });
+
+    render(<MapCanvas width={100} height={100} />);
+    const canvas = screen.getByLabelText('World map');
+    state.selectUnit.mockClear();
+    await act(async () => {
+      fireEvent.mouseDown(canvas, { clientX: 1, clientY: 1, button: 0 });
+      fireEvent.mouseUp(canvas, { clientX: 1, clientY: 1, button: 0 });
+      await Promise.resolve();
+    });
+
+    expect(state.selectUnit).toHaveBeenCalledWith('unit-1');
+  });
+
+  it('does not turn a foreign-only tile into the local selection', async () => {
+    Object.assign(state.units['unit-1'], { x: 1, y: 1, playerId: 'player-2' });
+
+    render(<MapCanvas width={100} height={100} />);
+    const canvas = screen.getByLabelText('World map');
+    state.selectUnit.mockClear();
+    await act(async () => {
+      fireEvent.mouseDown(canvas, { clientX: 1, clientY: 1, button: 0 });
+      fireEvent.mouseUp(canvas, { clientX: 1, clientY: 1, button: 0 });
+      await Promise.resolve();
+    });
+
+    expect(state.selectUnit).toHaveBeenCalledWith(null);
+  });
+
+  it('opens an owned unit menu through the normal right-click mouse lifecycle', async () => {
+    Object.assign(state.units['unit-1'], { x: 1, y: 1, playerId: 'player-1' });
+
+    render(<MapCanvas width={100} height={100} />);
+    const canvas = screen.getByLabelText('World map');
+    await act(async () => {
+      fireEvent.mouseDown(canvas, { clientX: 1, clientY: 1, button: 2 });
+      fireEvent.mouseUp(canvas, { clientX: 1, clientY: 1, button: 2 });
+      await Promise.resolve();
+    });
+
+    expect((contextMenuProps.current?.unit as { id?: string })?.id).toBe('unit-1');
+
+    // Browsers may follow mouseup with contextmenu; it must not close or
+    // replace the menu that was already opened by the pointer handler.
+    await act(async () => {
+      fireEvent.contextMenu(canvas, { clientX: 1, clientY: 1, button: 2 });
+      await Promise.resolve();
+    });
+    expect((contextMenuProps.current?.unit as { id?: string })?.id).toBe('unit-1');
+  });
+
   /**
    * @evidence parity
    * @reference reference/freeciv-web/javascript/2dcanvas/mapctrl.js:519-551
@@ -374,6 +430,43 @@ describe('MapCanvas Go To feedback', () => {
     await act(async () => {
       frames.shift()?.(1700);
     });
+    expect(state.setViewport).toHaveBeenCalledWith({
+      x: 60,
+      y: 40,
+      width: 100,
+      height: 100,
+    });
+  });
+
+  it('preserves the requested center period on a wrapped map', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    vi.spyOn(performance, 'now').mockReturnValue(1000);
+    Object.assign(state.map, { wrap_id: 3 });
+
+    render(<MapCanvas width={100} height={100} />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    state.setViewport.mockClear();
+    setMapviewOrigin.mockClear();
+    setMapviewOrigin.mockReturnValue({ x: -900, y: -800, width: 100, height: 100 });
+
+    await act(async () => {
+      document.dispatchEvent(new CustomEvent('center-map-on-tile', { detail: { x: 0, y: 0 } }));
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      frames.shift()?.(1700);
+    });
+
+    expect(setMapviewOrigin).not.toHaveBeenCalled();
     expect(state.setViewport).toHaveBeenCalledWith({
       x: 60,
       y: 40,
