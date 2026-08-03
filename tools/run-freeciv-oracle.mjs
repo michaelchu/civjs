@@ -8,7 +8,7 @@
  * checkout. The script refuses an unpinned checkout: a result from a different
  * Freeciv revision must not be mistaken for c2c3 parity evidence.
  */
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -54,24 +54,9 @@ function collectFiles(directory, relativeDirectory = '') {
   });
 }
 
-const prerequisiteScenarioFiles = [
-  'civ2civ3-bootstrap-tech-leakage.lua',
-  'civ2civ3-spaceship-effects.lua',
-];
-const scenarioPriorities = new Map(prerequisiteScenarioFiles.map((file, index) => [file, index]));
-
-// Technology Leakage has a fixed three-player denominator, while Apollo's
-// world-scoped Enable_Space effect survives its source building. Run both
-// prerequisite-dependent fixtures before later scenarios mutate that state,
-// while retaining a deterministic lexical order for every other fixture.
 const scenarios = readdirSync(scenariosDir)
   .filter(file => file.endsWith('.lua'))
-  .sort((left, right) => {
-    const leftPriority = scenarioPriorities.get(left) ?? Number.MAX_SAFE_INTEGER;
-    const rightPriority = scenarioPriorities.get(right) ?? Number.MAX_SAFE_INTEGER;
-    if (leftPriority !== rightPriority) return leftPriority - rightPriority;
-    return left.localeCompare(right);
-  })
+  .sort((left, right) => left.localeCompare(right))
   .map(file => ({ name: basename(file, '.lua'), path: join(scenariosDir, file) }));
 
 if (argumentsList.includes('--list')) {
@@ -164,50 +149,62 @@ if (version.status !== 0 || !versionOutput.includes(`Freeciv version ${pinnedVer
 const tempDirectory = mkdtempSync(join(tmpdir(), 'civjs-freeciv-oracle-'));
 
 try {
-  const commands = [
-    'set aifill 1',
-    'set minplayers 0',
-    'set animals 0',
-    'start',
-    ...selectedScenarios.map(scenario => `lua unsafe-file ${scenario.path}`),
-    'quit',
-  ].join('\n');
-  const run = spawnSync(
-    binaryPath,
-    [
-      '--ruleset',
-      'civ2civ3',
-      '--Announce',
-      'none',
-      '--port',
-      port,
-      '--saves',
-      join(tempDirectory, 'saves'),
-    ],
-    {
-      input: `${commands}\n`,
-      encoding: 'utf8',
-      env: { ...process.env, FREECIV_DATA_PATH: dataPath },
-      timeout: 60_000,
-    }
-  );
-  const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
-
-  if (run.error) fail(run.error.message);
-  if (run.status !== 0) {
-    fail(`reference server exited with status ${run.status}.\n${failureOutput(output)}`);
-  }
-  if (/\blua error:/i.test(output)) {
-    fail(`reference server reported a Lua fixture error.\n${failureOutput(output)}`);
-  }
-
   const results = {};
-  for (const line of output.split(/\r?\n/)) {
-    const match = line.match(/CIVJS_ORACLE_RESULT\s+([a-z0-9_]+)=(-?\d+(?:\.\d+)?)/i);
-    if (!match) continue;
-    const [, key, value] = match;
-    if (key in results) fail(`oracle emitted duplicate result '${key}'.`);
-    results[key] = Number(value);
+
+  // Some c2c3 effects retain world state after their source is destroyed.
+  // Start every fixture in a fresh server session so each observation sees its
+  // own controlled baseline, then merge their uniquely named results.
+  for (const scenario of selectedScenarios) {
+    const scenarioTempDirectory = join(tempDirectory, scenario.name);
+    mkdirSync(scenarioTempDirectory);
+    const commands = [
+      'set aifill 1',
+      'set minplayers 0',
+      'set animals 0',
+      'start',
+      `lua unsafe-file ${scenario.path}`,
+      'quit',
+    ].join('\n');
+    const run = spawnSync(
+      binaryPath,
+      [
+        '--ruleset',
+        'civ2civ3',
+        '--Announce',
+        'none',
+        '--port',
+        port,
+        '--saves',
+        join(scenarioTempDirectory, 'saves'),
+      ],
+      {
+        input: `${commands}\n`,
+        encoding: 'utf8',
+        env: { ...process.env, FREECIV_DATA_PATH: dataPath },
+        timeout: 60_000,
+      }
+    );
+    const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
+
+    if (run.error) fail(`${scenario.name}: ${run.error.message}`);
+    if (run.status !== 0) {
+      fail(
+        `${scenario.name}: reference server exited with status ${run.status}.\n${failureOutput(output)}`
+      );
+    }
+    if (/\blua error:/i.test(output)) {
+      fail(
+        `${scenario.name}: reference server reported a Lua fixture error.\n${failureOutput(output)}`
+      );
+    }
+
+    for (const line of output.split(/\r?\n/)) {
+      const match = line.match(/CIVJS_ORACLE_RESULT\s+([a-z0-9_]+)=(-?\d+(?:\.\d+)?)/i);
+      if (!match) continue;
+      const [, key, value] = match;
+      if (key in results) fail(`oracle emitted duplicate result '${key}'.`);
+      results[key] = Number(value);
+    }
   }
 
   if (Object.keys(results).length === 0) {

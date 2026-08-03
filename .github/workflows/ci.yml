@@ -189,17 +189,17 @@ jobs:
       - name: Install server dependencies
         run: cd apps/server && npm ci
 
-      - name: Generate batched Civ2Civ3 Freeciv oracle results
+      - name: Generate isolated Civ2Civ3 Freeciv oracle results
         env:
           FREECIV_ORACLE_BIN: ${{ runner.temp }}/freeciv-build/freeciv-server
           FREECIV_ORACLE_DATA: ${{ runner.temp }}/freeciv-source/data
           FREECIV_ORACLE_SOURCE: ${{ runner.temp }}/freeciv-source
           FREECIV_ORACLE_PORT: '0'
-        # One runner invocation starts Freeciv once and evaluates every
-        # deterministic fixture. Jest consumes this read-only result bundle.
+        # One runner invocation validates the pinned build, runs every fixture
+        # in a fresh Freeciv session, and writes a read-only result bundle.
         run: node tools/run-freeciv-oracle.mjs > "$RUNNER_TEMP/civ2civ3-oracle-results.json"
 
-      - name: Verify batched Civ2Civ3 differential oracle results
+      - name: Verify isolated Civ2Civ3 differential oracle results
         env:
           FREECIV_ORACLE_RESULTS: ${{ runner.temp }}/civ2civ3-oracle-results.json
         run: cd apps/server && npm run test:unit -- --runTestsByPath tests/game/Civ2Civ3Oracle.test.ts tests/game/UnitManager.test.ts

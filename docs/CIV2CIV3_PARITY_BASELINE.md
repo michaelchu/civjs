@@ -94,20 +94,22 @@ npm run check:civ2civ3-oracle
 The runner checks the bundled reference tree, every bundled gameplay source
 file, the upstream source commit, and the binary version before it runs. It
 keeps saves in an isolated temporary directory and emits structured results.
-CI invokes it once without a scenario filter, so every deterministic fixture
-runs in one Freeciv server session. Jest then reads the resulting JSON bundle;
-individual parity assertions never start their own native server process. The
-CI job caches the pinned source checkout and server build by Freeciv revision,
-runner platform, and build-profile version. A cold cache builds once; a warm
-cache skips the source fetch, build-tool installation, and native compilation
-while retaining the runner's source revision and binary-version validation.
+CI invokes it once without a scenario filter. The runner validates the pinned
+source and binary once, starts a fresh Freeciv server session for each
+deterministic fixture, and merges the results into one JSON bundle. This keeps
+world-scoped effects from leaking across fixtures while individual parity
+assertions never start their own native server process. The CI job caches the
+pinned source checkout and server build by Freeciv revision, runner platform,
+and build-profile version. A cold cache builds once; a warm cache skips the
+source fetch, build-tool installation, and native compilation while retaining
+the runner's source revision and binary-version validation.
 The current bundle contains 16 deterministic fixtures. It creates a controlled
 city and ground defender, then confirms
 that City Walls produce the reference `Defend_Bonus` of 150 (the normal city
 50 plus City Walls 100). It also fixes a three-player state, performs the
 c2c3 Diplomat `Establish Embassy Stay` action, confirms the resulting real
 embassy, and verifies the Technology Leakage research cost it enables. The
-same one-session bundle verifies c2c3's base and Electricity city-vision
+same bundle verifies c2c3's base and Electricity city-vision
 radius plus Apollo Program's `Reveal_Map` and Internet's `Reveal_Cities`
 effects. CivJS applies the two player knowledge effects at the source turn
 boundary, retaining fog of war and propagating knowledge through shared

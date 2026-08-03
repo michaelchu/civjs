@@ -1,8 +1,6 @@
 -- Deterministic c2c3 fixture for the world effect that enables spaceship
--- construction. It runs in the existing batched native-server
--- process, so no individual Jest test needs to start Freeciv. The runner
--- prioritizes it before fixtures that construct Apollo Program because its
--- world-scoped effect survives its source building.
+-- construction. The runner gives it an isolated native-server process, then
+-- merges its results into the batch so no individual Jest test starts Freeciv.
 --
 -- @reference reference/freeciv/data/civ2civ3/effects.ruleset:2907-2913
 
