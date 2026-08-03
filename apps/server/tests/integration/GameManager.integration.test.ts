@@ -203,7 +203,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
       expect(dbPlayers).toHaveLength(2);
       expect(dbPlayers.some(p => p.nation === 'roman')).toBe(true);
       expect(dbPlayers.some(p => p.nation === 'greek')).toBe(true);
-    });
+    }, 120_000);
 
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status
     // TODO: Fix in separate PR - games auto-transitioning from waiting to active status

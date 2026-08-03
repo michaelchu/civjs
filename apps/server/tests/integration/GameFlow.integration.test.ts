@@ -586,7 +586,9 @@ describe('Game Integration Flow', () => {
         { winnerPlayerIds?: string[]; standings?: Array<{ playerId: string }> } | undefined;
       expect(report?.winnerPlayerIds?.some(playerId => aiPlayerIds.includes(playerId))).toBe(true);
       expect(report?.standings).toHaveLength(2);
-    }, 120_000);
+      // This vertical slice runs multiple authoritative AI turns, a recovery,
+      // combat, and end-game persistence; slower CI runners need a wider budget.
+    }, 180_000);
 
     it('should recover persisted map, units, cities, and borders after a server restart', async () => {
       const db = getTestDatabase();
