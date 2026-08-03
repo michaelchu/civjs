@@ -1,9 +1,8 @@
 --
--- Deterministic c2c3 fixture for embassy-based Technology Leakage.
--- The runner prioritizes this bootstrap fixture before the other scenarios,
--- so it starts from one configured AI player. The runner disables animals and
--- this fixture adds a learner and peer, fixing the Freeciv leakage denominator
--- at three alive players.
+-- Deterministic c2c3 fixture for embassy-based Technology Leakage. Every
+-- runner session starts from one configured AI player; the runner disables
+-- animals and this fixture adds a learner and peer, fixing the Freeciv leakage
+-- denominator at three alive players.
 --
 -- @reference reference/freeciv/common/research.c:941-1038
 -- @reference reference/freeciv/common/player.c:205-255
@@ -22,15 +21,23 @@ for _ in players_iterate() do
 end
 assert(player_count == 3, "Technology Leakage fixture requires exactly three alive players")
 
+local grassland = find.terrain("Grassland")
+assert(grassland, "Could not resolve Grassland for Technology Leakage fixture")
 local origin = nil
 local target = nil
 for candidate in whole_map_iterate() do
   if not candidate:city() then
     for neighbor in candidate:circle_iterate(1) do
       if candidate:sq_distance(neighbor) == 1 and not neighbor:city() then
-        origin = candidate
-        target = neighbor
-        break
+        -- change_terrain returns false when a tile is already Grassland; both
+        -- paths leave the tile in the deterministic terrain required here.
+        edit.change_terrain(candidate, grassland)
+        edit.change_terrain(neighbor, grassland)
+        if edit.city_create(peer, neighbor, "Leak Peer City", nil) then
+          origin = candidate
+          target = neighbor
+          break
+        end
       end
     end
   end
@@ -39,14 +46,7 @@ for candidate in whole_map_iterate() do
   end
 end
 
-assert(origin and target, "Could not find adjacent Technology Leakage fixture tiles")
-local grassland = find.terrain("Grassland")
-assert(grassland, "Could not resolve Grassland for Technology Leakage fixture")
--- change_terrain returns false when a tile is already Grassland; both paths
--- leave the tile in the deterministic terrain required by the fixture.
-edit.change_terrain(origin, grassland)
-edit.change_terrain(target, grassland)
-assert(edit.city_create(peer, target, "Leak Peer City", nil))
+assert(origin and target, "Could not create adjacent Technology Leakage fixture city")
 
 local alphabet = find.tech_type("Alphabet")
 local diplomat_type = find.unit_type("Diplomat")
