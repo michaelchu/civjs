@@ -147,6 +147,53 @@ function civ2civ3HealthEffects(): Record<string, number> {
   };
 }
 
+function civ2civ3GainAiLoveEffects(): Record<string, number> {
+  const effects = new EffectsManager('civ2civ3');
+  const gain = (context: Parameters<EffectsManager['calculateEffect']>[1]) =>
+    effects.calculateEffect(EffectType.GAIN_AI_LOVE, context).value;
+
+  return {
+    gain_ai_love_without_wonder: gain({
+      playerIsAI: false,
+      playerBuildings: new Set(),
+      worldBuildings: new Set(),
+    }),
+    gain_ai_love_eiffel: gain({
+      playerIsAI: false,
+      playerBuildings: new Set(['eiffel_tower']),
+      worldBuildings: new Set(['eiffel_tower']),
+    }),
+    gain_ai_love_united_nations: gain({
+      playerIsAI: false,
+      playerBuildings: new Set(['united_nations']),
+      worldBuildings: new Set(['united_nations']),
+    }),
+    gain_ai_love_apollo: gain({
+      playerIsAI: false,
+      playerBuildings: new Set(['eiffel_tower']),
+      worldBuildings: new Set(['eiffel_tower', 'apollo_program']),
+    }),
+    gain_ai_love_cheating_ai: gain({
+      playerIsAI: true,
+      aiLevel: 'cheating',
+      playerBuildings: new Set(),
+      worldBuildings: new Set(),
+    }),
+  };
+}
+
+function civ2civ3GainAiLoveOracleEffects(): Pick<
+  ReturnType<typeof civ2civ3GainAiLoveEffects>,
+  'gain_ai_love_without_wonder' | 'gain_ai_love_eiffel' | 'gain_ai_love_apollo'
+> {
+  const effects = civ2civ3GainAiLoveEffects();
+  return {
+    gain_ai_love_without_wonder: effects.gain_ai_love_without_wonder,
+    gain_ai_love_eiffel: effects.gain_ai_love_eiffel,
+    gain_ai_love_apollo: effects.gain_ai_love_apollo,
+  };
+}
+
 function civ2civ3ResearchBaseCosts(): Record<string, number> {
   const technologies = loadRulesetTechnologies(rulesetLoader, 'civ2civ3');
   return {
@@ -576,6 +623,27 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
 
   /**
    * @evidence parity
+   * @reference reference/freeciv/ai/default/daidiplomacy.c:1129-1138
+   * @reference reference/freeciv/common/player.h:566
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:57-63
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3041-3048
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3674-3681
+   * @assertion CivJS evaluates the target player's C2C3 Gain_AI_Love effects: Eiffel Tower and United Nations grant ten each, Apollo Program suppresses those wonders, and a Cheating AI target grants forty.
+   * @c2c3-surface default-ai
+   * @c2c3-surface-scenario normal, boundary
+   */
+  it('applies the c2c3 AI-love effect fixture', () => {
+    expect(civ2civ3GainAiLoveEffects()).toEqual({
+      gain_ai_love_without_wonder: 0,
+      gain_ai_love_eiffel: 10,
+      gain_ai_love_united_nations: 10,
+      gain_ai_love_apollo: 0,
+      gain_ai_love_cheating_ai: 40,
+    });
+  });
+
+  /**
+   * @evidence parity
    * @reference reference/freeciv/common/tech.c:225-275
    * @reference reference/freeciv/common/tech.c:544-606
    * @reference reference/freeciv/data/civ2civ3/game.ruleset:308-339
@@ -641,6 +709,19 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
     it('matches the batched pinned Freeciv city-health effects fixture', () => {
       expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
       expect(oracle.results).toMatchObject(civ2civ3HealthEffects());
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/common/scriptcore/api_game_effects.c:65-78
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3041-3048
+     * @assertion CivJS and the pinned Freeciv c2c3 server expose the same player Gain_AI_Love values before and after Eiffel Tower and Apollo Program.
+     * @c2c3-surface default-ai
+     * @c2c3-surface-scenario differential
+     */
+    it('matches the batched pinned Freeciv AI-love effects fixture', () => {
+      expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
+      expect(oracle.results).toMatchObject(civ2civ3GainAiLoveOracleEffects());
     });
 
     /**
@@ -831,6 +912,8 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
     });
   } else {
     it.skip('matches the batched pinned Freeciv city-tile effects fixture when an oracle bundle exists', () =>
+      undefined);
+    it.skip('matches the batched pinned Freeciv AI-love effects fixture when an oracle bundle exists', () =>
       undefined);
     it.skip('matches the batched pinned Freeciv City Walls fixture when an oracle bundle exists', () =>
       undefined);

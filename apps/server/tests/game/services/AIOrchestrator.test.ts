@@ -2,7 +2,7 @@ import { FreecivAIOrchestrator } from '@game/services/AIOrchestrator';
 import { FreecivAITransportController } from '@game/ai/AITransportController';
 import { createAIState } from '@game/ai/AIStateStore';
 import { ActionType } from '@app-types/shared/actions';
-import { EffectType } from '@game/managers/EffectsManager';
+import { EffectType, EffectsManager } from '@game/managers/EffectsManager';
 
 type TestUnit = {
   id: string;
@@ -1126,6 +1126,74 @@ describe('FreecivAIOrchestrator', () => {
 
     expect((scenario.game.players.get('ai') as any).aiState.diplomacy.human).toBeDefined();
     expect(scenario.diplomacyManager.respondToTreaty).not.toHaveBeenCalled();
+    expect(scenario.diplomacyManager.proposeTreaty).not.toHaveBeenCalled();
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/ai/default/daidiplomacy.c:1129-1138
+   * @reference reference/freeciv/common/player.h:566
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3041-3048
+   * @assertion Each authoritative AI diplomacy phase adds a met rival's active Eiffel Tower Gain_AI_Love effect to persisted diplomacy memory, including while away-mode suppresses treaty negotiation.
+   * @c2c3-surface default-ai
+   * @c2c3-surface-scenario turn
+   */
+  it('applies a met rival’s AI-love effect during the diplomacy phase', async () => {
+    const scenario = createScenario();
+    scenario.game.players.set('ai', {
+      id: 'ai',
+      isAI: true,
+      aiLevel: 'away',
+      aiTraits: { expansionist: 50, trader: 50, aggressive: 50, builder: 50 },
+      aiState: createAIState(),
+    } as any);
+    const ownCity = {
+      id: 'ai-capital',
+      playerId: 'ai',
+      x: 2,
+      y: 2,
+      size: 3,
+      buildings: [],
+      workableTiles: [],
+    };
+    const rivalCity = {
+      id: 'rival-eiffel',
+      playerId: 'human',
+      x: 6,
+      y: 6,
+      size: 3,
+      buildings: ['eiffel_tower'],
+      workableTiles: [],
+    };
+    (scenario.game.cityManager as any).getPlayerCities = (playerId: string) =>
+      playerId === 'human' ? [rivalCity] : [ownCity];
+    (scenario.game.cityManager as any).getAllCities = () => [ownCity, rivalCity];
+    (scenario.game.cityManager as any).getEffectsManager = () => new EffectsManager('civ2civ3');
+    scenario.diplomacyManager.getSnapshot.mockResolvedValue({
+      nations: [
+        {
+          id: 'human',
+          known: true,
+          canMeet: true,
+          isAI: false,
+          relation: {
+            state: 'peace',
+            attitude: 0,
+            reputation: 500,
+            hasReasonToCancel: 0,
+          },
+        },
+      ],
+    });
+
+    await new FreecivAIOrchestrator(scenario.diplomacyManager as any).processTurn(
+      'game',
+      scenario.game as any
+    );
+
+    expect((scenario.game.players.get('ai') as any).aiState.diplomacy.human).toMatchObject({
+      love: 10,
+    });
     expect(scenario.diplomacyManager.proposeTreaty).not.toHaveBeenCalled();
   });
 

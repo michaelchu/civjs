@@ -104,6 +104,7 @@ export enum EffectType {
   TECH_LEAKAGE = 'Tech_Leakage',
   HAVE_CONTACTS = 'Have_Contacts',
   HAVE_EMBASSIES = 'Have_Embassies',
+  GAIN_AI_LOVE = 'Gain_AI_Love',
   BUILDING_BUY_COST_PCT = 'Building_Buy_Cost_Pct',
   AIRLIFT = 'Airlift',
   MOVE_BONUS = 'Move_Bonus',

@@ -9,6 +9,7 @@ import type {
   DiplomacySnapshot,
   TreatyClause,
 } from '@game/managers/DiplomacyManager';
+import { EffectType } from '@game/managers/EffectsManager';
 import type { GameInstance } from '@game/runtime/GameTypes';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import {
@@ -46,6 +47,40 @@ function calculateLove(
       )
     )
   );
+}
+
+function buildingsInCities(cities: readonly { buildings?: readonly string[] }[]): Set<string> {
+  return new Set(cities.flatMap(city => city.buildings ?? []));
+}
+
+/**
+ * The default Freeciv AI applies the target player's Gain_AI_Love bonus only
+ * after the two players have met.  In c2c3 this covers the Eiffel Tower,
+ * United Nations, and Cheating AI-level effects.
+ *
+ * @reference reference/freeciv/ai/default/daidiplomacy.c:1129-1138
+ * @reference reference/freeciv/common/player.h:566 MAX_AI_LOVE
+ */
+function gainAILove(
+  game: GameInstance,
+  nation: DiplomacySnapshot['nations'][number],
+  otherCities: readonly { buildings?: readonly string[] }[]
+): number {
+  if (!nation.known) return 0;
+
+  const target = game.players.get(nation.id);
+  // The authoritative CityManager always supplies the evaluator.  Preserve
+  // no-bonus behavior for recovery/micro-test game doubles that predate the
+  // accessor rather than allowing a diplomacy phase to abort.
+  const effects = game.cityManager.getEffectsManager?.();
+  if (!effects) return 0;
+  return effects.calculateEffect(EffectType.GAIN_AI_LOVE, {
+    playerId: nation.id,
+    playerIsAI: target?.isAI ?? nation.isAI === true,
+    aiLevel: target?.aiLevel,
+    playerBuildings: buildingsInCities(otherCities),
+    worldBuildings: buildingsInCities(game.cityManager.getAllCities()),
+  }).value;
 }
 
 /**
@@ -192,7 +227,10 @@ export class FreecivAIDiplomacyController {
         otherCities.map(other => game.mapManager.getDistance(own.x, own.y, other.x, other.y))
       )
     );
-    memory.love = calculateLove(memory, nation);
+    memory.love = Math.max(
+      -1000,
+      Math.min(1000, calculateLove(memory, nation) + gainAILove(game, nation, otherCities))
+    );
     const targetSpaceship = spaceshipByPlayer.get(nation.id);
     const pursuingSpaceVictory = this.isPursuingSpaceVictory(
       spaceRaceEnabled,
