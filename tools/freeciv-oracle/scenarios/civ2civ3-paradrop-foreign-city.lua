@@ -5,8 +5,10 @@
 -- @reference reference/freeciv/data/civ2civ3/actions.ruleset:932-1038
 -- @reference reference/freeciv/server/unittools.c:3172-3260
 
-local attacker = edit.create_player("Paradrop Attacker", find.nation_type("Americans"), nil)
-local defender = edit.create_player("Paradrop Defender", find.nation_type("Russians"), nil)
+-- The batch already contains a randomly selected AI player. Let Freeciv pick
+-- compatible nations for fixture players; no result below depends on nation.
+local attacker = edit.create_player("Paradrop Attacker", nil, nil)
+local defender = edit.create_player("Paradrop Defender", nil, nil)
 assert(attacker and defender, "Could not create c2c3 paradrop fixture players")
 
 local source = nil

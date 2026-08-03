@@ -4,7 +4,9 @@
 --
 -- @reference reference/freeciv/data/civ2civ3/effects.ruleset:2907-2913
 
-local owner = edit.create_player("Spaceship Oracle", find.nation_type("Romans"), nil)
+-- The batch already contains a randomly selected AI player. Let Freeciv pick
+-- a compatible nation; no result below depends on nation.
+local owner = edit.create_player("Spaceship Oracle", nil, nil)
 assert(owner, "Could not create c2c3 spaceship fixture player")
 
 local grassland = find.terrain("Grassland")

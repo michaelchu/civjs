@@ -6,7 +6,9 @@
 -- @reference reference/freeciv/data/civ2civ3/effects.ruleset:2899-2905
 -- @reference reference/freeciv/data/civ2civ3/effects.ruleset:3544-3550
 
-local owner = edit.create_player("Visibility Oracle", find.nation_type("Romans"), nil)
+-- The batch already contains a randomly selected AI player. Let Freeciv pick
+-- a compatible nation; no result below depends on nation.
+local owner = edit.create_player("Visibility Oracle", nil, nil)
 assert(owner, "Could not create c2c3 visibility fixture player")
 
 local tile = nil

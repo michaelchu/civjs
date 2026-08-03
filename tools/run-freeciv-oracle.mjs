@@ -27,6 +27,17 @@ function fail(message) {
   process.exit(1);
 }
 
+function failureOutput(output) {
+  const luaErrorIndex = output.search(/\blua error:/i);
+  if (luaErrorIndex !== -1) {
+    const contextStart = Math.max(0, luaErrorIndex - 1_000);
+    const contextEnd = Math.min(output.length, luaErrorIndex + 3_000);
+    return output.slice(contextStart, contextEnd);
+  }
+
+  return output.slice(-4_000);
+}
+
 function optionValue(name) {
   const inline = argumentsList.find(argument => argument.startsWith(`${name}=`));
   if (inline) return inline.slice(name.length + 1);
@@ -169,10 +180,10 @@ try {
 
   if (run.error) fail(run.error.message);
   if (run.status !== 0) {
-    fail(`reference server exited with status ${run.status}.\n${output.slice(-4000)}`);
+    fail(`reference server exited with status ${run.status}.\n${failureOutput(output)}`);
   }
   if (/\blua error:/i.test(output)) {
-    fail(`reference server reported a Lua fixture error.\n${output.slice(-4000)}`);
+    fail(`reference server reported a Lua fixture error.\n${failureOutput(output)}`);
   }
 
   const results = {};
@@ -185,7 +196,7 @@ try {
   }
 
   if (Object.keys(results).length === 0) {
-    fail(`reference server emitted no oracle result.\n${output.slice(-4000)}`);
+    fail(`reference server emitted no oracle result.\n${failureOutput(output)}`);
   }
 
   process.stdout.write(

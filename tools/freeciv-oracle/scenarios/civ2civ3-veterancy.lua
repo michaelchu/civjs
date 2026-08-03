@@ -5,7 +5,9 @@
 -- @reference reference/freeciv/data/civ2civ3/effects.ruleset:3372-3380
 -- @reference reference/freeciv/server/unittools.c:238-278
 
-local owner = edit.create_player("Veterancy Oracle", find.nation_type("Spanish"), nil)
+-- The batch already contains a randomly selected AI player. Let Freeciv pick
+-- a compatible nation; no result below depends on nation.
+local owner = edit.create_player("Veterancy Oracle", nil, nil)
 assert(owner, "Could not create c2c3 veterancy fixture player")
 
 local city_tile = nil

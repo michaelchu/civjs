@@ -9,8 +9,10 @@
 -- @reference reference/freeciv/data/civ2civ3/game.ruleset:340-352
 -- @reference reference/freeciv/data/civ2civ3/effects.ruleset:3794-3800
 
-local learner = edit.create_player("Leak Learner", find.nation_type("French"), nil)
-local peer = edit.create_player("Leak Peer", find.nation_type("Germans"), nil)
+-- The batch already contains a randomly selected AI player. Let Freeciv pick
+-- compatible nations for fixture players; no result below depends on nation.
+local learner = edit.create_player("Leak Learner", nil, nil)
+local peer = edit.create_player("Leak Peer", nil, nil)
 assert(learner and peer, "Could not create Technology Leakage fixture players")
 
 local player_count = 0

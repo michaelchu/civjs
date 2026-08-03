@@ -9,7 +9,9 @@
 -- @reference reference/freeciv/common/unittype.c:1757-1771
 -- @reference reference/freeciv/server/unittools.c:1558-1597
 
-local owner = edit.create_player("Upgrade Oracle", find.nation_type("Romans"), nil)
+-- The batch already contains a randomly selected AI player. Let Freeciv pick
+-- a compatible nation; no result below depends on nation.
+local owner = edit.create_player("Upgrade Oracle", nil, nil)
 assert(owner, "Could not create c2c3 upgrade fixture player")
 
 local tile = nil

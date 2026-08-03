@@ -9,7 +9,9 @@
 -- @reference reference/freeciv/data/civ2civ3/effects.ruleset:3803-3809
 -- @reference reference/freeciv/data/civ2civ3/effects.ruleset:3863-3974
 
-local owner = edit.create_player("City Tile Oracle", find.nation_type("Greeks"), nil)
+-- The batch already contains a randomly selected AI player. Let Freeciv pick
+-- a compatible nation; no result below depends on nation.
+local owner = edit.create_player("City Tile Oracle", nil, nil)
 assert(owner, "Could not create c2c3 city-tile fixture player")
 
 local grassland = find.terrain("Grassland")

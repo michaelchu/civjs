@@ -6,7 +6,9 @@
 --
 -- @reference reference/freeciv/data/civ2civ3/effects.ruleset:1861-1890
 
-local player = edit.create_player("CivJS Oracle", find.nation_type("English"), nil)
+-- The batch already contains a randomly selected AI player. Let Freeciv pick
+-- a compatible nation; no result below depends on nation.
+local player = edit.create_player("CivJS Oracle", nil, nil)
 local tile = nil
 local city = nil
 local grassland = find.terrain("Grassland")
