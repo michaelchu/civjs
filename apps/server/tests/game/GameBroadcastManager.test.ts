@@ -784,6 +784,67 @@ describe('GameBroadcastManager visibility sync', () => {
     ]);
   });
 
+  it('sends researched upgrade metadata only to the owning player', () => {
+    const unit = {
+      id: 'upgrade-unit',
+      playerId: playerOne,
+      unitTypeId: 'warriors',
+      x: 0,
+      y: 0,
+      movementLeft: 3,
+      health: 100,
+    };
+    const unitManager = {
+      getUnitMaxMovement: () => 3,
+      getUnitUpgradeInfo: () => ({ unitTypeId: 'musketeers', name: 'Musketeers', cost: 65 }),
+    };
+
+    expect((manager as any).formatUnitForClient(unit, unitManager, playerOne).capabilities).toEqual(
+      expect.objectContaining({
+        upgradeTarget: { unitTypeId: 'musketeers', name: 'Musketeers', cost: 65 },
+      })
+    );
+    expect(
+      (manager as any).formatUnitForClient(unit, unitManager, playerTwo).capabilities.upgradeTarget
+    ).toBeUndefined();
+  });
+
+  it('adds owner-scoped airlift endpoint capacity to city updates', () => {
+    const game = (manager as any).games.get(gameId);
+    game.cityManager.getAllCities = () => [
+      {
+        id: 'own-city',
+        name: 'Capital',
+        playerId: playerOne,
+        x: 0,
+        y: 0,
+        population: 1,
+        history: 0,
+        specialists: {},
+        happiness: { happy: 0, content: 1, unhappy: 0, angry: 0 },
+        buildings: ['airport'],
+        worklist: [],
+        tradeRoutes: [],
+      },
+    ];
+    game.cityManager.getAirliftAvailability = jest.fn(
+      (_cityId: string, _playerId: string, direction: 'from' | 'to') =>
+        direction === 'from'
+          ? { enabled: true, available: false }
+          : { enabled: true, available: true }
+    );
+
+    manager.broadcastCityDataToPlayer(gameId, playerOne);
+
+    const city = emitted.find(
+      emission => emission.room === `player:${userOne}` && emission.event === 'cities_updated'
+    )?.data.cities['own-city'];
+    expect(city.airlift).toEqual({
+      from: { enabled: true, available: false },
+      to: { enabled: true, available: true },
+    });
+  });
+
   it('sends worker automation state only to the owning player', () => {
     const unit = {
       id: 'worker-1',

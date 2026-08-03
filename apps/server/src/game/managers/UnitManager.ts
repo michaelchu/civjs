@@ -3333,6 +3333,26 @@ export class UnitManager {
   }
 
   /**
+   * Return the final researched upgrade target and authoritative upgrade cost
+   * for an owner-visible unit menu.
+   *
+   * @reference reference/freeciv-web/javascript/control.js:2096-2124
+   */
+  getUnitUpgradeInfo(
+    unitId: string
+  ): { unitTypeId: string; name: string; cost: number } | undefined {
+    const unit = this.units.get(unitId);
+    const upgrade = unit ? this.getUpgradeTarget(unit) : undefined;
+    if (!unit || !upgrade) return undefined;
+
+    return {
+      unitTypeId: upgrade.to.id,
+      name: upgrade.to.name,
+      cost: this.getUpgradeGoldCost(unit, upgrade.from, upgrade.to),
+    };
+  }
+
+  /**
    * Get unit type definition by ID
    */
   getUnitType(unitTypeId: string): UnitType | undefined {

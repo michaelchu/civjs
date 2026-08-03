@@ -59,6 +59,18 @@ export interface ClientCityData {
   culturePerTurn: number;
   continentId?: number;
 
+  /** Owner-scoped endpoint capability and remaining turn capacity. */
+  airlift?: {
+    from: {
+      enabled: boolean;
+      available: boolean;
+    };
+    to: {
+      enabled: boolean;
+      available: boolean;
+    };
+  };
+
   // Detailed production breakdown
   prod: {
     food: number;

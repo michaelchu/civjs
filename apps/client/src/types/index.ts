@@ -71,6 +71,11 @@ export interface Unit {
     diplomatActions?: string[];
     unitActions?: string[];
     availableWorkerActions?: string[];
+    upgradeTarget?: {
+      unitTypeId: string;
+      name: string;
+      cost: number;
+    };
   };
   /** Set only when the server is asking the player to choose a unit action. */
   actionDecisionWant?: boolean;
@@ -182,6 +187,16 @@ export interface City {
   health?: number;
   culturePerTurn?: number;
   continentId?: number;
+  airlift?: {
+    from: {
+      enabled: boolean;
+      available: boolean;
+    };
+    to: {
+      enabled: boolean;
+      available: boolean;
+    };
+  };
   // Production breakdown (total production before usage)
   prod: {
     food: number;

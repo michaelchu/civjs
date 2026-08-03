@@ -34,12 +34,17 @@ import {
   Building2,
   Info,
 } from 'lucide-react';
-import type { Unit } from '../../types';
+import type { City, Tile, Unit } from '../../types';
 import { ActionType } from '../../types/shared/actions';
+
+type UnitMenuCity = Pick<City, 'id' | 'playerId' | 'buildings' | 'airlift'>;
+type UnitMenuTile = Pick<Tile, 'improvements' | 'owner'>;
 
 interface UnitContextMenuProps {
   unit: Unit | null;
   position: { x: number; y: number } | null;
+  city?: UnitMenuCity;
+  tile?: UnitMenuTile;
   onClose: () => void;
   onActionSelect: (action: ActionType, targetX?: number, targetY?: number) => void;
   onShowCity?: () => void;
@@ -66,6 +71,8 @@ type UnitMenuItem = UnitActionInfo | UnitActionSeparator;
 export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
   unit,
   position,
+  city,
+  tile,
   onClose,
   onActionSelect,
   onShowCity,
@@ -129,8 +136,10 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
       );
     }
 
-    // Settler actions
-    if (unit.capabilities?.canFoundCity) {
+    // Settler actions. The reference only exposes Found City off a city tile;
+    // the unit-type capability alone is not enough.
+    // @reference reference/freeciv-web/javascript/control.js:1578-1589
+    if (unit.capabilities?.canFoundCity && !city) {
       actions.push(
         { separator: true },
         {
@@ -145,12 +154,12 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
     // Worker actions. Only units with the ruleset's Workers flag can perform
     // terrain activities; Settlers are dedicated city-founding units here.
     if (unit.capabilities?.canBuildImprovements) {
-      actions.push({ separator: true });
-
       // Build submenu for workers
-      const availableWorkerActions = unit.capabilities?.availableWorkerActions;
-      const actionIsAvailable = (action: ActionType): boolean =>
-        !availableWorkerActions || availableWorkerActions.includes(action);
+      // This list is the server's contextual projection of the reference's
+      // tile/tech checks. Do not fail open when it is absent, or a stale unit
+      // snapshot can expose tech-gated orders such as Railroad or Airbase.
+      const availableWorkerActions = new Set(unit.capabilities?.availableWorkerActions ?? []);
+      const actionIsAvailable = (action: ActionType): boolean => availableWorkerActions.has(action);
       const buildActions: UnitActionInfo[] = [
         ...(actionIsAvailable(ActionType.BUILD_ROAD)
           ? [
@@ -219,15 +228,25 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
           : []),
       ];
 
-      actions.push({
-        action: ActionType.BUILD_ROAD, // Placeholder for submenu
-        name: 'Build',
-        icon: Hammer,
-        submenu: buildActions,
-      });
+      if (buildActions.length > 0) {
+        actions.push({ separator: true });
+        actions.push({
+          action: ActionType.BUILD_ROAD, // Placeholder for submenu
+          name: 'Build',
+          icon: Hammer,
+          submenu: buildActions,
+        });
+      }
     }
 
-    if (unit.capabilities?.canPillage) {
+    // The reference asks the tile for a legal pillageable extra rather than
+    // showing Pillage for every unit type that has the coarse capability.
+    // The client tile model does not expose per-extra pillage rules yet, so a
+    // known improvement is the conservative presentation-level projection.
+    // @reference reference/freeciv-web/javascript/control.js:1838-1847
+    const canPillageTile =
+      (tile?.improvements?.length ?? 0) > 0 && (!city || city.playerId !== unit.playerId);
+    if (unit.capabilities?.canPillage && canPillageTile) {
       actions.push(
         { separator: true },
         {
@@ -288,28 +307,47 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
         icon: Hammer,
       });
     }
-    if (unitActions.has(ActionType.JOIN_CITY)) {
+    // @reference reference/freeciv-web/javascript/control.js:1578-1589
+    if (unitActions.has(ActionType.JOIN_CITY) && city) {
       specialActions.push({
         action: ActionType.JOIN_CITY,
         name: 'Join City',
         icon: Home,
       });
     }
-    if (unitActions.has(ActionType.CHANGE_HOME_CITY)) {
+    // @reference reference/freeciv-web/javascript/control.js:2078-2084
+    if (
+      unitActions.has(ActionType.CHANGE_HOME_CITY) &&
+      city?.playerId === unit.playerId &&
+      unit.homeCityId !== undefined &&
+      unit.homeCityId !== city.id
+    ) {
       specialActions.push({
         action: ActionType.CHANGE_HOME_CITY,
         name: 'Change Home City',
         icon: Home,
       });
     }
-    if (unitActions.has(ActionType.UPGRADE_UNIT)) {
+    // The server resolves the complete obsolete_by chain against the player's
+    // researched technologies and sends the final target/cost to the owner.
+    // @reference reference/freeciv-web/javascript/control.js:2096-2124
+    const upgradeTarget = unit.capabilities?.upgradeTarget;
+    if (
+      unitActions.has(ActionType.UPGRADE_UNIT) &&
+      city?.playerId === unit.playerId &&
+      upgradeTarget
+    ) {
       specialActions.push({
         action: ActionType.UPGRADE_UNIT,
-        name: 'Upgrade Unit',
+        name: `Upgrade to ${upgradeTarget.name} (${upgradeTarget.cost === 0 ? 'free' : `${upgradeTarget.cost} gold`})`,
         icon: Zap,
       });
     }
-    if (unitActions.has(ActionType.PARADROP)) {
+    // Paradrop is not directly tech-gated in the reference menu. The
+    // coarse Paratroopers capability is combined with the current movement
+    // check here.
+    // @reference reference/freeciv-web/javascript/control.js:2071-2076
+    if (unitActions.has(ActionType.PARADROP) && unit.movesLeft > 0) {
       specialActions.push({
         action: ActionType.PARADROP,
         name: 'Paradrop',
@@ -344,11 +382,19 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
         icon: Crosshair,
       });
     }
-    if (unitActions.has(ActionType.AIRLIFT)) {
+    // The server projects both the endpoint capability and this turn's
+    // remaining capacity, matching the reference's city airlift check.
+    // @reference reference/freeciv-web/javascript/control.js:2086-2094
+    const canAirliftFromCity =
+      unitActions.has(ActionType.AIRLIFT) &&
+      city?.playerId === unit.playerId &&
+      city.airlift?.from.enabled === true;
+    if (canAirliftFromCity && !unit.transportedBy && !(unit.cargoUnits?.length ?? 0)) {
       specialActions.push({
         action: ActionType.AIRLIFT,
         name: 'Airlift',
         icon: Plane,
+        disabled: unit.movesLeft <= 0 || city.airlift?.from.available !== true,
       });
     }
     if (specialActions.length) {

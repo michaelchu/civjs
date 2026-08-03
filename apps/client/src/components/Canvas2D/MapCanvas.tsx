@@ -1811,6 +1811,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const contextTileUnits = contextMenu
     ? getUnitsAtTile(units, contextMenu.unit.x, contextMenu.unit.y)
     : [];
+  const contextTile = contextMenu
+    ? map.tiles[`${contextMenu.unit.x},${contextMenu.unit.y}`]
+    : undefined;
   const contextOwnedUnits = contextTileUnits.filter(unit => unit.playerId === currentPlayerId);
   const tileInfoTile = tileInfoPosition
     ? (map.tiles[`${tileInfoPosition.x},${tileInfoPosition.y}`] ?? null)
@@ -1890,6 +1893,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         <UnitContextMenu
           unit={contextMenu.unit}
           position={contextMenu.position}
+          city={contextCity}
+          tile={contextTile}
           onClose={handleCloseContextMenu}
           onActionSelect={handleActionSelect}
           onShowCity={contextCity ? () => openCityInfo(contextCity) : undefined}

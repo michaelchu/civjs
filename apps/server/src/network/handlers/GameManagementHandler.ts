@@ -671,18 +671,50 @@ export class GameManagementHandler extends BaseSocketHandler {
       gameInstance.players,
       id => gameInstance.researchManager?.getResearchedTechs(id) ?? []
     );
+    const clientCities = CityDataService.transformCitiesForClient(
+      cities,
+      'classic',
+      undefined,
+      cityPresentations,
+      gameInstance.unitManager.getAllUnits?.().values() ?? [],
+      playerId
+    );
+    this.addAirliftAvailabilityToSnapshot(gameInstance, playerId, cities, clientCities);
+
     socket.emit('cities_updated', {
       gameId,
-      cities: CityDataService.transformCitiesForClient(
-        cities,
-        'classic',
-        undefined,
-        cityPresentations,
-        gameInstance.unitManager.getAllUnits?.().values() ?? [],
-        playerId
-      ),
+      cities: clientCities,
       timestamp: Date.now(),
     });
+  }
+
+  private addAirliftAvailabilityToSnapshot(
+    gameInstance: any,
+    playerId: string | undefined,
+    cities: any[],
+    clientCities: Record<string, any>
+  ): void {
+    if (!playerId || typeof gameInstance.cityManager.getAirliftAvailability !== 'function') {
+      return;
+    }
+
+    for (const city of cities) {
+      if (city.playerId !== playerId || !clientCities[city.id]) continue;
+      clientCities[city.id].airlift = {
+        from: gameInstance.cityManager.getAirliftAvailability(
+          city.id,
+          playerId,
+          'from',
+          gameInstance.currentTurn ?? 1
+        ),
+        to: gameInstance.cityManager.getAirliftAvailability(
+          city.id,
+          playerId,
+          'to',
+          gameInstance.currentTurn ?? 1
+        ),
+      };
+    }
   }
 
   private emitSnapshotBorders(
