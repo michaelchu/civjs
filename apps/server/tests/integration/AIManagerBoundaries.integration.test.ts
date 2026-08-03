@@ -254,6 +254,13 @@ describe('AI authoritative manager boundaries', () => {
   function prepareRoadableCityTile(game: GameInstance, cityId: string) {
     const city = game.cityManager.getCity(cityId);
     if (!city) throw new Error('Expected city');
+    const map = game.mapManager.getMapData();
+    if (!map) throw new Error('Expected generated map');
+    const mapWidth = map.tiles[0]?.length ?? 0;
+    const mapHeight = map.tiles.length;
+    const isInterior = (tile: { x: number; y: number }) =>
+      tile.x > 0 && tile.x < mapWidth - 1 && tile.y > 0 && tile.y < mapHeight - 1;
+    const isLand = (terrain: string) => !['ocean', 'coast', 'deep_ocean', 'lake'].includes(terrain);
     const candidates = (city.workableTiles ?? [])
       .map(workable => game.mapManager.getTile(workable.x, workable.y))
       .filter((tile): tile is NonNullable<typeof tile> =>
@@ -264,9 +271,10 @@ describe('AI authoritative manager boundaries', () => {
         )
       );
     const tile =
-      candidates.find(
-        candidate => !['ocean', 'coast', 'deep_ocean', 'lake'].includes(candidate.terrain)
-      ) ?? candidates[0];
+      candidates.find(candidate => isInterior(candidate) && isLand(candidate.terrain)) ??
+      candidates.find(isInterior) ??
+      candidates.find(candidate => isLand(candidate.terrain)) ??
+      candidates[0];
     if (!tile) throw new Error(`Expected a workable adjacent tile for city ${cityId}`);
 
     // The worker tests exercise activity execution rather than terrain
@@ -1174,7 +1182,10 @@ describe('AI authoritative manager boundaries', () => {
   });
 
   it('produces a terrain improver and completes a requested road through authoritative managers', async () => {
-    const scenario = await createActiveGame(2);
+    const scenario = await createActiveGame(2, {
+      mapSeed: 'ai-worker-lifecycle-01',
+      randomSeed: 0xc1f0_0201,
+    });
     const [host, guest] = scenario.players;
     // This scenario verifies the requested-work lifecycle, not threat
     // avoidance. Remove the opposing start stack so a nearby hostile cannot
@@ -1196,7 +1207,7 @@ describe('AI authoritative manager boundaries', () => {
       { aiLevel: 'normal' }
     );
 
-    const state = assertAIState(scenario.game.players.get(guest!.playerId)?.aiState);
+    let state = assertAIState(scenario.game.players.get(guest!.playerId)?.aiState);
     const target = prepareRoadableCityTile(scenario.game, city.id);
     city.currentProduction = null;
     city.productionType = null;
@@ -1257,6 +1268,7 @@ describe('AI authoritative manager boundaries', () => {
     city = scenario.game.cityManager.getCity(city.id)!;
     worker = scenario.game.unitManager.getUnit(worker!.id)!;
     unitController = (gameManager as any).aiOrchestrator.playerController.units;
+    state = assertAIState(scenario.game.players.get(guest!.playerId)?.aiState);
 
     // Improvement duration is ruleset/tile dependent. Drive the authoritative
     // order processor until it completes, instead of assuming every road has
@@ -1271,6 +1283,9 @@ describe('AI authoritative manager boundaries', () => {
     const completed = scenario.game.mapManager.getTile(target.x, target.y)!;
     expect(completed.hasRoad).toBe(true);
     expect(completed.improvements).toContain('road');
+    // The worksite's test-only ownership normalization is not a border claim,
+    // so reapply it after recovery before asking the planner to rank it.
+    scenario.game.mapManager.updateTileProperty(target.x, target.y, 'owner', guest!.playerId);
 
     // Freeciv's autoworker prioritizes hazardous extras above ordinary yield
     // work. Reuse the produced worker to verify the authoritative cleanup
