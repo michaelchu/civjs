@@ -8,6 +8,7 @@ import type { GameInstance } from '@game/runtime/GameTypes';
 import type { Unit, UnitOrder } from '@game/units/UnitTypes';
 import type { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
 import type { WorkerAutomationTask } from './WorkerAutomationTypes';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 export interface WorkerExecutionCallbacks {
   setTask: (unitId: string, task: WorkerAutomationTask) => Promise<void> | void;
@@ -105,7 +106,7 @@ export function planInfrastructureWork(
     getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
     distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
     researchedTechs: game.researchManager.getPlayerResearch(playerId)?.researchedTechs ?? new Set(),
-    rulesetName: game.config?.ruleset ?? 'classic',
+    rulesetName: game.config?.ruleset ?? DEFAULT_RULESET,
     excludedAssignments,
     canPerformAction: (worker, action, tile) =>
       typeof game.unitManager.canUnitPerformActionAt === 'function'

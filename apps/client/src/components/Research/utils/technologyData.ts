@@ -8,8 +8,8 @@ import { type TechnologyNodeData } from '../TechnologyNode';
 
 /**
  * Create the research graph from the authoritative ruleset catalogue sent by
- * the server. This keeps the client usable across the complete classic tree
- * and future rulesets without maintaining a second, partial technology list.
+ * the server. This keeps the client aligned with the complete Civ2Civ3 tree
+ * without maintaining a second, partial technology list.
  */
 export function createTechnologyGraph(technologies: Record<string, Technology>): {
   nodes: Node<TechnologyNodeData>[];

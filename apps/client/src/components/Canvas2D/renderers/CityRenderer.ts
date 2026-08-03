@@ -15,7 +15,7 @@ import { getContrastingTextColor } from '../../../utils/playerColors';
  * visual and behavioral compatibility with the reference implementation.
  *
  * City Sprite System Reference:
- * - freeciv/data/classic/styles.ruleset: Defines all city styles and their graphics
+ * - freeciv/data/civ2civ3/styles.ruleset: Defines all city styles and their graphics
  * - freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js: get_city_sprite() function
  * - freeciv/client/tilespec.c: get_city_sprite() and city sprite loading system
  *
@@ -214,7 +214,7 @@ export class CityRenderer extends BaseRenderer {
   /**
    * Get city sprites based on city properties
    * Reference: freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js get_city_sprite()
-   * Reference: freeciv/data/classic/styles.ruleset citystyle definitions
+   * Reference: freeciv/data/civ2civ3/styles.ruleset citystyle definitions
    */
   private getCitySprites(
     city: City,
@@ -265,7 +265,7 @@ export class CityRenderer extends BaseRenderer {
   /**
    * Get authentic Freeciv city style graphic based on player's nation and tech level
    * Uses ruleset data instead of hardcoded values
-   * Reference: freeciv/data/classic/styles.ruleset citystyle definitions
+   * Reference: freeciv/data/civ2civ3/styles.ruleset citystyle definitions
    * Reference: freeciv-web client/player.js city style logic
    */
   private getCityStyleGraphic(city: City, state: RenderState): string {

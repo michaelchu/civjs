@@ -230,13 +230,14 @@ export class VisibilityManager {
       if (!tile) continue;
 
       // Freeciv combines the unit's base sight with effects active at its
-      // current tile (for example, the classic mountain-vision effect).
+      // current tile (for example, the C2C3 mountain-vision effect).
       // @reference reference/freeciv/server/unittools.c:4983-5010
       const visionEffect = this.effectsManager.calculateEffect(EffectType.UNIT_VISION_RADIUS_SQ, {
         playerId: sourcePlayerId,
         unitId: unit.id,
         unitType: unit.unitTypeId,
         unitClass: unitType.rulesetUnitClass,
+        unitClassFlags: new Set(unitType.rulesetUnitClassFlags),
         unitTypeFlags: new Set(unitType.flags),
         unitActivity: unit.activity?.type,
         tileX: unit.x,
@@ -271,7 +272,7 @@ export class VisibilityManager {
   private addCityVision(sourcePlayerId: string, visibility: PlayerVisibility): void {
     for (const city of this.cityVisionProvider(sourcePlayerId)) {
       // Freeciv city_refresh_vision() uses a base main-vision radius of 2,
-      // represented as radius_sq 5 by the classic city-map geometry.
+      // represented as radius_sq 5 by the C2C3 city-map geometry.
       const cityVisibleTiles = this.calculateTileVisibility(
         city.x,
         city.y,
@@ -404,7 +405,7 @@ export class VisibilityManager {
   }
 
   /**
-   * Permanently reveal a circular area, as used by classic hut map scrolls.
+   * Permanently reveal a circular area, as used by C2C3 hut map scrolls.
    * @reference reference/freeciv/data/default/default.lua:133-143
    */
   public revealArea(

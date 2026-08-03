@@ -426,7 +426,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         visibleTiles,
         exploredTiles,
         rememberedTiles,
-        gameInstance.config.ruleset ?? 'classic',
+        gameInstance.config.ruleset ?? DEFAULT_RULESET,
         new Set(gameInstance.researchManager.getResearchedTechs(playerId))
       ),
       visibleTiles,
@@ -477,7 +477,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     );
     const history = this.playerValue(player.history, 0);
     const buildingTypes = rulesetBuildingsService.getBuildingTypes(
-      gameInstance.config?.ruleset ?? 'classic'
+      gameInstance.config?.ruleset ?? DEFAULT_RULESET
     );
     const greatWonders = cities.reduce(
       (total: number, city: any) =>
@@ -487,7 +487,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         ).length,
       0
     );
-    const rulesetName = gameInstance.config?.ruleset ?? 'classic';
+    const rulesetName = gameInstance.config?.ruleset ?? DEFAULT_RULESET;
     const nation = this.playerValue(player.nation, player.civilization);
     return {
       id: player.id,
@@ -657,7 +657,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       visibleTiles,
       exploredTiles,
       rememberedTiles,
-      gameInstance.config.ruleset ?? 'classic',
+      gameInstance.config.ruleset ?? DEFAULT_RULESET,
       new Set(gameInstance.researchManager.getResearchedTechs(playerId))
     );
     this.sendTileDataInBatches(gameInstance, playerId, tiles);
@@ -806,7 +806,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     isVisible: boolean,
     isExplored: boolean,
     rememberedTile?: any,
-    rulesetName: string = 'classic',
+    rulesetName: string = DEFAULT_RULESET,
     researchedTechs: ReadonlySet<string> = new Set()
   ): any | null {
     const index = x + y * mapData.width;
@@ -951,7 +951,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     unit: any,
     unitManager: any,
     recipientPlayerId?: string,
-    rulesetName = 'classic'
+    rulesetName = DEFAULT_RULESET
   ): any {
     const unitTypeId = this.getUnitTypeId(unit);
     const unitType =
@@ -1028,7 +1028,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   private getUnitCapabilities(
     unitType: any,
     availableWorkerActions?: string[],
-    rulesetName = 'classic',
+    rulesetName = DEFAULT_RULESET,
     upgradeTarget?: { unitTypeId: string; name: string; cost: number }
   ): any {
     const flags = unitType?.rulesetUnitClassFlags ?? [];

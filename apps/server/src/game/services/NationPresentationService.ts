@@ -3,6 +3,7 @@
  * Provides the server-side Nation Presentation Service service.
  */
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 /**
  * Resolve the sprite graphic suffix used by the active Amplio2 client.
@@ -14,7 +15,7 @@ import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
  */
 export function resolveNationGraphic(
   nationId: unknown,
-  rulesetName: string = 'classic'
+  rulesetName: string = DEFAULT_RULESET
 ): string | undefined {
   if (typeof nationId !== 'string' || nationId.length === 0) return undefined;
 

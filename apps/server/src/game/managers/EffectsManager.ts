@@ -17,6 +17,7 @@ import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/Ruleset
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 import { logger } from '@utils/logger';
 import type { Effect, Requirement } from '@shared/data/rulesets/schemas';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 // Core effect types from freeciv - directly ported from effects_enums.def
 export enum EffectType {
@@ -286,7 +287,7 @@ export class EffectsManager {
   > = {};
 
   constructor(
-    rulesetName: string = 'classic',
+    rulesetName: string = DEFAULT_RULESET,
     ruleset: Pick<RulesetLoader, 'getEffects'> = rulesetLoader
   ) {
     this.rulesetName = rulesetName;
@@ -745,7 +746,7 @@ export class EffectsManager {
       return this.requirementResult('Tech', req, this.setContains(techs, req.name));
     };
     // Government ruleset requirements use the lowercase spelling.
-    // @reference reference/freeciv/data/classic/governments.ruleset
+    // @reference reference/freeciv/data/civ2civ3/governments.ruleset
     this.requirementHandlers['tech'] = this.requirementHandlers['Tech'];
 
     this.requirementHandlers['Player'] = (req, context) =>
@@ -917,7 +918,7 @@ export class EffectsManager {
   }
 
   /**
-   * Saved cities use stable building IDs, while classic effects.ruleset names
+   * Saved cities use stable building IDs, while C2C3 effects.ruleset names
    * improvements by their display name (for example `walls` / `City Walls`).
    */
   private cityHasBuilding(

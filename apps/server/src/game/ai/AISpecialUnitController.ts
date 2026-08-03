@@ -22,11 +22,12 @@ import { calculateTreasuryReserve } from '@game/ai/AITreasuryPlanner';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { CityState } from '@game/cities/CityTypes';
 import type { MapTile } from '@game/map/MapTypes';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 function moveFragmentsFor(game: GameInstance): number {
   return (
     game.unitManager.getMoveFragments?.() ??
-    getRulesetMoveFragments(game.config?.ruleset ?? 'classic')
+    getRulesetMoveFragments(game.config?.ruleset ?? DEFAULT_RULESET)
   );
 }
 
@@ -204,7 +205,7 @@ export class FreecivAISpecialUnitController {
           return urgency + 1 + (distance <= Math.max(1, type.movement) ? 10 : 0);
         }, 0),
       terrainDefense: tile =>
-        rulesetLoader.getTerrain(tile.terrain, game.config?.ruleset ?? 'classic').defense,
+        rulesetLoader.getTerrain(tile.terrain, game.config?.ruleset ?? DEFAULT_RULESET).defense,
       isStackProtected: tile =>
         Boolean(
           game.cityManager.getCityAt(tile.x, tile.y) ||

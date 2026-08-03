@@ -160,7 +160,7 @@ function tacticalLandingScore(
 
 /**
  * Select reinforcement, capture, or tactical paradrop destinations in the
- * same priority order as Freeciv's classic/default AI.
+ * same priority order as Freeciv's default AI.
  *
  * @reference reference/freeciv/ai/default/daiparadrop.c:find_best_tile_to_paradrop_to
  */

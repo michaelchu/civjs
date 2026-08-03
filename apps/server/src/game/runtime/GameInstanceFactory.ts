@@ -15,7 +15,7 @@ import type { VisibilityManager } from '@game/managers/VisibilityManager';
 import type { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAllocator';
 import type { FreecivRandom } from '@game/random/FreecivRandom';
 import { researchPacingFromGameState } from '@game/services/ResearchPacing';
-import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
+import { DEFAULT_RULESET, requireSupportedRuleset } from '@shared/data/rulesets/defaultRuleset';
 import type {
   GameConfig,
   GameInstance,
@@ -44,7 +44,7 @@ export function buildStoredGameConfig(
   game: StoredGameRecord,
   options: { terrainSettings?: TerrainSettings; recovery?: boolean } = {}
 ): GameConfig {
-  const ruleset = game.ruleset ?? DEFAULT_RULESET;
+  const ruleset = requireSupportedRuleset(game.ruleset ?? DEFAULT_RULESET);
   const storedAILevel = game.gameState?.aiLevel;
   const victoryConditions = Array.isArray(game.victoryConditions)
     ? game.victoryConditions.filter(
@@ -61,7 +61,7 @@ export function buildStoredGameConfig(
     mapWidth: game.mapWidth ?? undefined,
     mapHeight: game.mapHeight ?? undefined,
     mapSeed: game.mapSeed ?? undefined,
-    ruleset: options.recovery ? ruleset : (game.ruleset ?? undefined),
+    ruleset: options.recovery || game.ruleset ? ruleset : undefined,
     nationSet: typeof game.gameState?.nationSet === 'string' ? game.gameState.nationSet : undefined,
     turnTimeLimit: game.turnTimeLimit ?? undefined,
     maxTurns: game.maxTurns ?? 0,

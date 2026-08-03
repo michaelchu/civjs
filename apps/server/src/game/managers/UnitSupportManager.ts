@@ -145,6 +145,7 @@ export class UnitSupportManager {
       playerId: effectivePlayerId,
       cityId,
       government: effectiveGovernment,
+      cityPopulation: effectivePopulation,
       cityBuildings: new Set(cityBuildings),
       playerBuildings: new Set(playerBuildings),
     };

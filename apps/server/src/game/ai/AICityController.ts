@@ -40,13 +40,14 @@ import { planSpaceship } from '@game/ai/AISpaceshipPlanner';
 import type { DiplomaticState } from '@game/managers/DiplomacyManager';
 import type { MapTile } from '@game/map/MapTypes';
 import { planCaravanTrade, type CaravanAssignment } from '@game/ai/AITradePlanner';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 const unitTypesFor = (game: GameInstance) => game.unitManager.getUnitTypes?.() ?? UNIT_TYPES;
 const buildingTypesFor = (game: GameInstance) =>
   game.cityManager.getBuildingTypes?.() ?? BUILDING_TYPES;
 const moveFragmentsFor = (game: GameInstance) =>
   game.unitManager.getMoveFragments?.() ??
-  getRulesetMoveFragments(game.config?.ruleset ?? 'classic');
+  getRulesetMoveFragments(game.config?.ruleset ?? DEFAULT_RULESET);
 
 function mergeWant(wants: Map<string, number>, id: string, want: number): void {
   wants.set(id, Math.max(want, wants.get(id) ?? 0));

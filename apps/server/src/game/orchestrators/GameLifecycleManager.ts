@@ -54,7 +54,7 @@ import {
 import { createRuntimeUnitManager } from '@game/runtime/UnitManagerFactory';
 import { bindCoreManagerProviders } from '@game/runtime/RuntimeManagerBindings';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
-import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
+import { DEFAULT_RULESET, requireSupportedRuleset } from '@shared/data/rulesets/defaultRuleset';
 import { assertAIState } from '@game/ai/AIStateStore';
 import { ScenarioUnavailableError } from '@game/map/ScenarioProvider';
 import { FreecivScenarioLoader } from '@game/map/FreecivScenarioLoader';
@@ -193,7 +193,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   async createGame(gameConfig: GameConfig): Promise<string> {
     this.logger.info('Creating new game', { name: gameConfig.name, hostId: gameConfig.hostId });
     this.assertScenarioGamesEnabled(gameConfig.terrainSettings, gameConfig.executionMode);
-    const rulesetName = gameConfig.ruleset || DEFAULT_RULESET;
+    const rulesetName = requireSupportedRuleset(gameConfig.ruleset);
 
     const gameData = this.buildGameData(gameConfig, rulesetName);
     /*

@@ -9,6 +9,7 @@ import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
 import type { GovernmentRuleset } from '@shared/data/rulesets/schemas';
 import { logger } from '@utils/logger';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { EffectsManager, EffectType, OutputType, type EffectContext } from './EffectsManager';
 
 export type Government = GovernmentRuleset;
@@ -65,17 +66,20 @@ export interface PlayerGovernment {
 }
 
 // Load governments from ruleset system
-export function getGovernments(rulesetName: string = 'classic'): Record<string, Government> {
+export function getGovernments(rulesetName: string = DEFAULT_RULESET): Record<string, Government> {
   return rulesetLoader.getGovernments(rulesetName);
 }
 
 // Get individual government
-export function getGovernment(governmentId: string, rulesetName: string = 'classic'): Government {
+export function getGovernment(
+  governmentId: string,
+  rulesetName: string = DEFAULT_RULESET
+): Government {
   return rulesetLoader.getGovernment(governmentId, rulesetName);
 }
 
 // Get revolution government type
-export function getRevolutionGovernment(rulesetName: string = 'classic'): string {
+export function getRevolutionGovernment(rulesetName: string = DEFAULT_RULESET): string {
   return rulesetLoader.getRevolutionGovernment(rulesetName);
 }
 
@@ -645,9 +649,11 @@ export class GovernmentManager {
   public calculateGovernmentEffect(
     governmentId: string,
     type: EffectType,
-    outputType?: OutputType
+    outputType?: OutputType,
+    context: Pick<EffectContext, 'tileTerrain' | 'tileTerrainClass' | 'tileIsCityCenter'> = {}
   ): number {
     return this.effectsManager.calculateEffect(type, {
+      ...context,
       government: governmentId,
       outputType,
     }).value;

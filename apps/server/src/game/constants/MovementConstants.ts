@@ -4,16 +4,16 @@
  * Implements freeciv's movement fragment system and terrain costs
  *
  * @reference freeciv/common/movement.h - SINGLE_MOVE, MAX_MOVE_FRAGS definitions
- * @reference freeciv/data/classic/terrain.ruleset - Terrain movement costs
+ * @reference freeciv/data/civ2civ3/terrain.ruleset - Terrain movement costs
  * @reference freeciv/server/ruleset/ruleload.c - Terrain control loading
  * @compliance The active ruleset supplies movement fragments per move point.
  */
 import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
-// Classic's default remains exported for legacy callers. Runtime gameplay
-// resolves this from the active terrain ruleset; Civ2Civ3 uses six.
-export const SINGLE_MOVE = 3;
+// Civ2Civ3 uses six movement fragments per whole move.
+export const SINGLE_MOVE = 6;
 export const MAX_MOVE_FRAGS = 65535; // Maximum movement fragments - matches freeciv exactly
 
 /**
@@ -56,7 +56,7 @@ const defaultMovementRulesetLookup: MovementRulesetLookup = {
  * @reference reference/freeciv/common/movement.h:26
  * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:74-79
  */
-export function getRulesetMoveFragments(rulesetName: string = 'classic'): number {
+export function getRulesetMoveFragments(rulesetName: string = DEFAULT_RULESET): number {
   const fragments = rulesetLoader.loadTerrainRuleset(rulesetName).terrain_control?.move_fragments;
   return typeof fragments === 'number' && Number.isInteger(fragments) && fragments > 0
     ? fragments
@@ -74,7 +74,7 @@ function moveFragments(lookup: MovementRulesetLookup): number {
  * Get terrain movement cost for specific unit type
  * terrain.json stores the whole movement points from terrain.ruleset; this
  * boundary converts them to movement fragments exactly once.
- * @reference reference/freeciv/data/classic/terrain.ruleset:106-108
+ * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:106-108
  * @reference reference/freeciv/common/movement.c:117-128
  */
 export function getTerrainMovementCost(
@@ -99,8 +99,14 @@ export function getTerrainMovementCost(
   // Check movement type compatibility
   switch (movementType) {
     case MovementType.LAND:
-      // Land units cannot move on water tiles (except coast which represents shallow water)
-      if (terrain === 'ocean' || terrain === 'deep_ocean' || terrain === 'lake') {
+      // Coast is shallow water, not land. Keep this aligned with the shared
+      // terrain classifier and city founding's native-terrain validation.
+      if (
+        terrain === 'ocean' ||
+        terrain === 'coast' ||
+        terrain === 'deep_ocean' ||
+        terrain === 'lake'
+      ) {
         return -1; // Impassable
       }
       return baseCost;
@@ -136,10 +142,10 @@ export function canUnitEnterTerrain(terrain: string, unitTypeId: string): boolea
 
 /**
  * Calculate movement cost between two tiles.
- * Classic sets pythagorean_diagonal = FALSE, so square-topology diagonal
+ * C2C3 sets pythagorean_diagonal = FALSE, so square-topology diagonal
  * steps have the same cost as orthogonal steps.
  * @reference freeciv/common/movement.c map_move_cost_unit()
- * @reference reference/freeciv/data/classic/terrain.ruleset:74-75
+ * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:74-75
  */
 export function calculateMovementCost(
   _fromX: number,

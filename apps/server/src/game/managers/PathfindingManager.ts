@@ -67,7 +67,7 @@ export interface PathfindingMovementPolicy {
 
 /**
  * A* Pathfinding Manager for unit movement
- * Based on freeciv's pathfinding system and classic A* algorithm
+ * Based on Freeciv's pathfinding system and A* algorithm
  *
  * @reference freeciv/common/aicore/path_finding.h - Core pathfinding definitions
  * @reference freeciv/common/aicore/path_finding.c - PF algorithm implementation
@@ -496,7 +496,7 @@ export class PathfindingManager {
    * Calculate heuristic cost (Manhattan distance)
    */
   private heuristic(x1: number, y1: number, x2: number, y2: number): number {
-    // Classic railroads can have zero-cost edges, so no positive geometric
+    // Ruleset railroads can have zero-cost edges, so no positive geometric
     // heuristic is admissible for every map. Dijkstra mode preserves optimal
     // paths across mixed terrain, roads, and railroad networks.
     void x1;

@@ -8,9 +8,9 @@
 export const BORDERS_DISABLED = 0;
 export const BORDERS_ENABLED = 1;
 
-// Classic game.ruleset [borders]. A city's population is added separately,
+// C2C3 game.ruleset [borders]. A city's population is added separately,
 // capped at CITY_MAP_MAX_RADIUS_SQ.
-export const BORDER_DEFAULT_CITY_RADIUS_SQ = 17;
+export const BORDER_DEFAULT_CITY_RADIUS_SQ = 5;
 export const BORDER_DEFAULT_SIZE_EFFECT = 1;
 export const BORDER_DEFAULT_STRENGTH_PCT = 100;
 

@@ -10,7 +10,7 @@ import { MapTile, ResourceType, TerrainType } from './MapTypes';
 import { createBaseTile, isLandTile, setTerrainGameProperties } from './TerrainUtils';
 import type { LoadedScenario, ScenarioProvider } from './ScenarioProvider';
 
-export const CLASSIC_SCENARIOS = [
+export const CIV2CIV3_SCENARIOS = [
   'british-isles',
   'earth-large',
   'earth-small',
@@ -23,7 +23,7 @@ export const CLASSIC_SCENARIOS = [
   'north_america',
 ] as const;
 
-export type ClassicScenarioId = (typeof CLASSIC_SCENARIOS)[number];
+export type Civ2Civ3ScenarioId = (typeof CIV2CIV3_SCENARIOS)[number];
 
 interface ScenarioStart {
   x: number;
@@ -84,13 +84,13 @@ export class FreecivScenarioLoader implements ScenarioProvider {
     private readonly scenarioDirectory = path.resolve(__dirname, '../../shared/data/scenarios')
   ) {}
 
-  listScenarios(): readonly ClassicScenarioId[] {
-    return CLASSIC_SCENARIOS;
+  listScenarios(): readonly Civ2Civ3ScenarioId[] {
+    return CIV2CIV3_SCENARIOS;
   }
 
   loadScenario(id: string, players: Map<string, PlayerState>): LoadedScenario {
-    if (!CLASSIC_SCENARIOS.includes(id as ClassicScenarioId)) {
-      throw new Error(`Unknown classic scenario '${id}'`);
+    if (!CIV2CIV3_SCENARIOS.includes(id as Civ2Civ3ScenarioId)) {
+      throw new Error(`Unknown Civ2Civ3 scenario '${id}'`);
     }
 
     const source = fs.readFileSync(path.join(this.scenarioDirectory, `${id}.sav`), 'utf8');
@@ -132,7 +132,7 @@ export class FreecivScenarioLoader implements ScenarioProvider {
         name: this.readTranslatedString(source, 'name') ?? id,
         authors: this.readTranslatedString(source, 'authors'),
         description: this.readTranslatedString(source, 'description'),
-        ruleset: this.readString(source, 'rulesetdir') ?? 'classic',
+        ruleset: this.readString(source, 'rulesetdir') ?? 'civ2civ3',
       },
       mapData: {
         width,

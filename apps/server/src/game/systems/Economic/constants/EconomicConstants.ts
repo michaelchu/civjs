@@ -3,7 +3,7 @@
  * Economic System Constants
  * Game balance constants for the economic system
  *
- * @reference freeciv/data/classic/game.ruleset - economic settings
+ * @reference reference/freeciv/data/civ2civ3/game.ruleset - economic settings
  * @reference freeciv-web/javascript/rates.js - tax rate constants
  */
 
@@ -18,7 +18,7 @@ export const DEFAULT_STARTING_GOLD = 50;
 
 /**
  * Default tax rate allocation for new players
- * Classic begins at 100% science, then Despotism's 60% maximum rate
+ * C2C3 begins at 100% science, then Despotism's 60% maximum rate
  * redistributes the excess to tax.
  */
 export const DEFAULT_TAX_RATES: TaxRates = {

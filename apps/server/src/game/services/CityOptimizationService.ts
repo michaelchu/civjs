@@ -24,6 +24,7 @@ import {
 } from '@game/systems/CitizenManagement/CitizenParameter';
 import { OutputType } from '@game/constants/GameConstants';
 import type { CityTileManagementService } from './CityTileManagementService';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 // Re-export shared types
 export interface CityState {
@@ -177,7 +178,7 @@ export class CityOptimizationService extends BaseGameService {
       science: number;
     } = () => ({ tax: 30, luxury: 20, science: 50 }),
     private readonly refreshAuthoritativeOutputs?: (cityId: string) => void,
-    private readonly rulesetName: string = 'classic'
+    private readonly rulesetName: string = DEFAULT_RULESET
   ) {
     super(logger);
     this.cities = cities;

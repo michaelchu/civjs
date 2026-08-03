@@ -7,6 +7,7 @@
 import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { RulesetRequirement, UnitClass, UnitTypeRuleset } from '@shared/data/rulesets/schemas';
 import type { VeteranLevel } from '@game/units/UnitTypes';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 export type UnitMovementType = 'land' | 'sea' | 'air';
 
@@ -32,7 +33,7 @@ export interface UnitType {
   canBuildImprovements: boolean;
   unitClass: 'military' | 'civilian' | 'naval' | 'air';
   rulesetUnitClass?: string;
-  /** @reference reference/freeciv/data/classic/units.ruleset:143-188 */
+  /** @reference reference/freeciv/data/civ2civ3/units.ruleset:70-88 */
   rulesetUnitClassFlags: string[];
   requiredTech?: string;
   transport_capacity?: number;
@@ -77,7 +78,7 @@ export class RulesetUnitsService {
   /**
    * Get all unit types for a ruleset, with backward compatibility mapping
    */
-  getUnitTypes(rulesetName: string = 'classic'): Record<string, UnitType> {
+  getUnitTypes(rulesetName: string = DEFAULT_RULESET): Record<string, UnitType> {
     if (this.cache.has(rulesetName)) {
       return this.cache.get(rulesetName)!;
     }
@@ -100,7 +101,7 @@ export class RulesetUnitsService {
   /**
    * Get a specific unit type
    */
-  getUnitType(unitId: string, rulesetName: string = 'classic'): UnitType | undefined {
+  getUnitType(unitId: string, rulesetName: string = DEFAULT_RULESET): UnitType | undefined {
     const units = this.getUnitTypes(rulesetName);
     return units[unitId];
   }
@@ -113,9 +114,12 @@ export class RulesetUnitsService {
    * ruleset-defined class IDs to the server's land/sea/air movement surface.
    * @reference reference/freeciv/common/unittype.h:131-139
    * @reference reference/freeciv/common/unittype.c:2953-2991
-   * @reference reference/freeciv/data/classic/units.ruleset:143-188
+   * @reference reference/freeciv/data/civ2civ3/units.ruleset:70-88
    */
-  getMovementType(unitId: string, rulesetName: string = 'classic'): UnitMovementType | undefined {
+  getMovementType(
+    unitId: string,
+    rulesetName: string = DEFAULT_RULESET
+  ): UnitMovementType | undefined {
     const unitClass = this.getUnitType(unitId, rulesetName)?.rulesetUnitClass;
     if (!unitClass) return undefined;
 
@@ -289,15 +293,15 @@ export class RulesetUnitsService {
     flags?: string[]
   ): 'military' | 'civilian' | 'naval' | 'air' {
     if (backwardClass) return backwardClass;
+    // A transport may be non-military while still being a sea unit. Preserve
+    // its native class so ferry planning and naval behavior remain available.
+    if (freecivClass === 'Sea' || freecivClass === 'Trireme') return 'naval';
+    if (freecivClass === 'Air' || freecivClass === 'Helicopter') return 'air';
     if (flags?.includes('NonMil')) return 'civilian';
     const mapped: Record<string, 'military' | 'naval' | 'air' | 'civilian'> = {
       Land: 'military',
       'Big Land': 'military',
       'Small Land': 'military',
-      Sea: 'naval',
-      Trireme: 'naval',
-      Air: 'air',
-      Helicopter: 'air',
     };
     return mapped[freecivClass] ?? 'civilian';
   }
@@ -315,16 +319,16 @@ export const rulesetUnitsService = RulesetUnitsService.getInstance();
 // Provide backward-compatible exports that use the dynamic service
 export const UNIT_TYPES = new Proxy({} as Record<string, UnitType>, {
   get(_, prop: string) {
-    return rulesetUnitsService.getUnitType(prop, 'classic');
+    return rulesetUnitsService.getUnitType(prop, DEFAULT_RULESET);
   },
   ownKeys(_) {
-    return Reflect.ownKeys(rulesetUnitsService.getUnitTypes('classic'));
+    return Reflect.ownKeys(rulesetUnitsService.getUnitTypes(DEFAULT_RULESET));
   },
   has(_, prop: string) {
-    return rulesetUnitsService.getUnitType(prop, 'classic') !== undefined;
+    return rulesetUnitsService.getUnitType(prop, DEFAULT_RULESET) !== undefined;
   },
   getOwnPropertyDescriptor(_, prop: string) {
-    const unit = rulesetUnitsService.getUnitType(prop, 'classic');
+    const unit = rulesetUnitsService.getUnitType(prop, DEFAULT_RULESET);
     if (unit) {
       return {
         enumerable: true,
@@ -337,7 +341,7 @@ export const UNIT_TYPES = new Proxy({} as Record<string, UnitType>, {
 });
 
 export function getUnitType(unitTypeId: string): UnitType | undefined {
-  return rulesetUnitsService.getUnitType(unitTypeId, 'classic');
+  return rulesetUnitsService.getUnitType(unitTypeId, DEFAULT_RULESET);
 }
 
 export { UnitType as UnitTypeInterface };

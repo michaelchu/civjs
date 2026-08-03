@@ -7,6 +7,7 @@ import type {
   BuildingCultureRequirement,
   BuildingTypeRuleset,
 } from '@shared/data/rulesets/schemas';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 export interface RulesetBuildingType {
   id: string;
@@ -39,15 +40,15 @@ export interface RulesetBuildingType {
 }
 
 /**
- * Adapts the classic building ruleset to the city services' legacy interface.
- * @reference reference/freeciv/data/classic/buildings.ruleset
+ * Adapts the Civ2Civ3 building ruleset to the city services' legacy interface.
+ * @reference reference/freeciv/data/civ2civ3/buildings.ruleset
  */
 export class RulesetBuildingsService {
   private cache = new Map<string, Record<string, RulesetBuildingType>>();
 
   constructor(private readonly loader: Pick<RulesetLoader, 'getBuildings'> = rulesetLoader) {}
 
-  getBuildingTypes(rulesetName: string = 'classic'): Record<string, RulesetBuildingType> {
+  getBuildingTypes(rulesetName: string = DEFAULT_RULESET): Record<string, RulesetBuildingType> {
     const cached = this.cache.get(rulesetName);
     if (cached) return cached;
 
@@ -85,7 +86,9 @@ export class RulesetBuildingsService {
     return buildings;
   }
 
-  getPlayableBuildingTypes(rulesetName: string = 'classic'): Record<string, RulesetBuildingType> {
+  getPlayableBuildingTypes(
+    rulesetName: string = DEFAULT_RULESET
+  ): Record<string, RulesetBuildingType> {
     return Object.fromEntries(
       Object.entries(this.getBuildingTypes(rulesetName)).filter(
         ([, building]) => building.playable || building.genus === 'GreatWonder'

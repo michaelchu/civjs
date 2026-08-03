@@ -2,15 +2,15 @@
  * @module server/game/constants/SpecialistDefinitions
  * Defines Specialist Definitions game constants.
  */
-import classicCities from '@shared/data/rulesets/classic/cities.json';
+import civ2civ3Cities from '@shared/data/rulesets/civ2civ3/cities.json';
 
 /**
  * Stable CivJS specialist ids and their Freeciv rule names.
  *
- * Only elvis, scientist, and taxman exist in the classic ruleset. The extended
+ * Only elvis, scientist, and taxman exist in the Civ2Civ3 ruleset. The extended
  * CivJS specialists remain addressable for saved-game compatibility, but have
  * no rule name and therefore produce no authoritative output.
- * @reference reference/freeciv/data/classic/cities.ruleset:47-91
+ * @reference reference/freeciv/data/civ2civ3/cities.ruleset:47-91
  */
 export enum SpecialistType {
   SCIENTIST = 0,
@@ -37,14 +37,14 @@ export interface SpecialistDefinition {
   outputAmount: number;
 }
 
-const classicSpecialists = classicCities.specialists;
+const civ2civ3Specialists = civ2civ3Cities.specialists;
 
 export const SPECIALIST_TYPES: Record<SpecialistType, SpecialistDefinition> = {
   [SpecialistType.SCIENTIST]: {
     id: SpecialistType.SCIENTIST,
     name: 'Scientist',
-    pluralName: classicSpecialists.scientist.name,
-    shortName: classicSpecialists.scientist.short_name,
+    pluralName: civ2civ3Specialists.scientist.name,
+    shortName: civ2civ3Specialists.scientist.short_name,
     outputType: 'science',
     ruleName: 'scientist',
     outputAmount: 3,
@@ -52,8 +52,8 @@ export const SPECIALIST_TYPES: Record<SpecialistType, SpecialistDefinition> = {
   [SpecialistType.TAX_COLLECTOR]: {
     id: SpecialistType.TAX_COLLECTOR,
     name: 'Tax Collector',
-    pluralName: classicSpecialists.taxman.name,
-    shortName: classicSpecialists.taxman.short_name,
+    pluralName: civ2civ3Specialists.taxman.name,
+    shortName: civ2civ3Specialists.taxman.short_name,
     outputType: 'gold',
     ruleName: 'taxman',
     outputAmount: 3,
@@ -61,8 +61,8 @@ export const SPECIALIST_TYPES: Record<SpecialistType, SpecialistDefinition> = {
   [SpecialistType.ENTERTAINER]: {
     id: SpecialistType.ENTERTAINER,
     name: 'Entertainer',
-    pluralName: classicSpecialists.elvis.name,
-    shortName: classicSpecialists.elvis.short_name,
+    pluralName: civ2civ3Specialists.elvis.name,
+    shortName: civ2civ3Specialists.elvis.short_name,
     outputType: 'luxury',
     ruleName: 'elvis',
     outputAmount: 2,

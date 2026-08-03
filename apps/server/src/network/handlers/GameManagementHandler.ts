@@ -19,6 +19,7 @@ import { CityDataService } from '@game/services/CityDataService';
 import { resolveCityPresentations } from '@game/services/CityPresentationService';
 import { resolvePlayerScore } from '@game/services/PlayerScoreService';
 import { resolveNationGraphic } from '@game/services/NationPresentationService';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 /**
  * Handles game management packets: creation, joining, starting, listing, deletion
@@ -673,7 +674,7 @@ export class GameManagementHandler extends BaseSocketHandler {
     );
     const clientCities = CityDataService.transformCitiesForClient(
       cities,
-      'classic',
+      gameInstance.config?.ruleset ?? DEFAULT_RULESET,
       undefined,
       cityPresentations,
       gameInstance.unitManager.getAllUnits?.().values() ?? [],
@@ -785,7 +786,7 @@ export class GameManagementHandler extends BaseSocketHandler {
   private formatSnapshotPlayer(player: any, gameInstance?: any): any {
     const value = (field: string, fallback: any) => player[field] ?? fallback;
     const nation = value('nation', player.civilization);
-    const rulesetName = gameInstance?.config?.ruleset ?? 'classic';
+    const rulesetName = gameInstance?.config?.ruleset ?? DEFAULT_RULESET;
     return {
       id: player.id,
       name: value('leaderName', player.civilization),

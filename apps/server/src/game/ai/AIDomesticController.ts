@@ -19,7 +19,11 @@ import {
   rankThreatTechnologyWants,
 } from '@game/ai/AITechnologyWantPlanner';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
-import { EffectType, OutputType as EffectOutputType } from '@game/managers/EffectsManager';
+import {
+  EffectType,
+  OutputType as EffectOutputType,
+  type EffectContext,
+} from '@game/managers/EffectsManager';
 import { OutputType as CityOutputType } from '@game/constants/GameConstants';
 import { CitizenParameterFactory } from '@game/systems/CitizenManagement/CitizenParameter';
 import type { Technology } from '@game/managers/ResearchManager';
@@ -206,8 +210,12 @@ export class FreecivAIDomesticController {
       cities: game.cityManager.getPlayerCities(playerId),
       units: game.unitManager.getPlayerUnits(playerId),
       atWar: hostileIds.size > 0,
-      effect: (governmentId: string, type: EffectType, outputType?: EffectOutputType) =>
-        manager.calculateGovernmentEffect(governmentId, type, outputType),
+      effect: (
+        governmentId: string,
+        type: EffectType,
+        outputType?: EffectOutputType,
+        effectContext?: Pick<EffectContext, 'tileTerrain' | 'tileTerrainClass' | 'tileIsCityCenter'>
+      ) => manager.calculateGovernmentEffect(governmentId, type, outputType, effectContext),
     };
     const governments = manager.getAllGovernments();
     const catalogue = game.researchManager.getTechnologyCatalogue?.(playerId) ?? [];

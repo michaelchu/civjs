@@ -84,8 +84,8 @@ export class CityTradeRouteService extends BaseGameService {
     partnerCity: CityState,
     relation: string = 'no_contact'
   ): TradeRouteCalculation {
-    // Classic revenue uses real (Chebyshev) distance, blended with distance
-    // normalized to a 40-tile-wide world by the ruleset setting.
+    // C2C3 revenue uses real (Chebyshev) distance, blended with distance
+    // normalized to a 40-tile-wide world by its ruleset setting.
     // @reference reference/freeciv/common/traderoutes.c:332-363
     const distance =
       this.mapContext.getRealDistance?.(sourceCity.x, sourceCity.y, partnerCity.x, partnerCity.y) ??

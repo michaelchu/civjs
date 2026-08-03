@@ -315,7 +315,7 @@ function virtualDiplomatTargetWant(
 }
 
 /**
- * Port of classic diplomat management: nearby bribery, threatened-city
+ * Port of C2C3 diplomat management: nearby bribery, threatened-city
  * defense, city mission selection, and idle defensive reassignment.
  *
  * @reference reference/freeciv/ai/default/daidiplomat.c

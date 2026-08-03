@@ -283,14 +283,15 @@ export class CityCalculationService extends BaseGameService {
         pollution: this.calculatePollution(city, shields),
       };
     } catch {
-      // Double fallback to hardcoded classic values
-      const convertedTrade = distributeTrade(1, taxRates ?? DEFAULT_TAX_RATES);
+      // C2C3 has no guaranteed center output. Keep the fallback aligned with
+      // its ruleset rather than reviving a removed compatibility catalogue.
+      const convertedTrade = distributeTrade(0, taxRates ?? DEFAULT_TAX_RATES);
       return {
-        food: 2 - city.population * 2,
-        shields: 1,
-        trade: 1,
+        food: -city.population * 2,
+        shields: 0,
+        trade: 0,
         ...convertedTrade,
-        pollution: this.calculatePollution(city, 1),
+        pollution: this.calculatePollution(city, 0),
       };
     }
   }
@@ -440,15 +441,14 @@ export class CityCalculationService extends BaseGameService {
       const granaryFoodIni = civstyle.granary_food_ini;
       const granaryFoodInc = civstyle.granary_food_inc;
 
-      // Freeciv permits a per-size initial-granary table as well as the
-      // classic scalar-plus-increment form.
+      // Freeciv permits a per-size initial-granary table as well as a
+      // scalar-plus-increment form.
       if (Array.isArray(granaryFoodIni)) {
         return granaryFoodIni[Math.min(Math.max(0, population - 1), granaryFoodIni.length - 1)]!;
       }
       return granaryFoodIni + (population - 1) * granaryFoodInc;
     } catch {
-      // Fallback to classic values if ruleset loading fails
-      return 20 + (population - 1) * 10;
+      return [20, 20, 20, 20, 20, 30, 30, 40][Math.min(Math.max(0, population - 1), 7)]!;
     }
   }
 

@@ -6,6 +6,7 @@ import { DatabaseProvider } from '@database';
 import { research as researchTable, playerTechs } from '@database/schema';
 import { eq, and } from 'drizzle-orm';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import {
   resolveResearchPacingSettings,
@@ -83,10 +84,8 @@ function technologyRequirementCount(
 }
 
 /**
- * Derive the precomputed ruleset technology cost used by Freeciv before
- * player-specific modifiers (Tech_Cost_Factor, leakage, AI science cost, and
- * sciencebox). Explicit cost fields only apply to Classic+ and Experimental+
- * rulesets; the other styles always use their source formula.
+ * Derive C2C3's precomputed technology cost before player-specific modifiers
+ * (Tech_Cost_Factor, leakage, AI science cost, and sciencebox).
  *
  * @reference reference/freeciv/common/tech.c:225-275
  * @reference reference/freeciv/data/civ2civ3/game.ruleset:308-339
@@ -99,42 +98,8 @@ export function calculateRulesetTechnologyCost(
   const technology = technologies[techId];
   if (!technology) return Math.max(1, Math.trunc(researchRules.min_tech_cost));
 
-  const style = researchRules.tech_cost_style.toLowerCase();
-  const explicitCost =
-    typeof technology.cost === 'number' && Number.isFinite(technology.cost)
-      ? technology.cost
-      : undefined;
-  const usesExplicitCost =
-    explicitCost !== undefined && (style === 'classic+' || style === 'experimental+');
-
-  if (usesExplicitCost) return Math.max(1, Math.trunc(explicitCost));
-
   const requirementCount = technologyRequirementCount(techId, technologies);
-  const baseCost = researchRules.base_tech_cost;
-  let calculatedCost: number;
-
-  switch (style) {
-    case 'civ i|ii':
-    case 'linear':
-      calculatedCost = baseCost * requirementCount;
-      break;
-    case 'experimental':
-    case 'experimental+':
-      calculatedCost =
-        baseCost * (requirementCount ** 2 / (1 + Math.sqrt(Math.sqrt(requirementCount + 1))) - 0.5);
-      break;
-    case 'classic':
-    case 'classic+':
-      calculatedCost = (baseCost * (1 + requirementCount) * Math.sqrt(1 + requirementCount)) / 2;
-      break;
-    default:
-      // Keep an injected or future ruleset readable while making an unknown
-      // cost style fail closed to its configured minimum rather than a legacy
-      // presentation value.
-      calculatedCost = explicitCost ?? researchRules.min_tech_cost;
-      break;
-  }
-
+  const calculatedCost = researchRules.base_tech_cost * requirementCount;
   return Math.max(1, Math.trunc(Math.max(researchRules.min_tech_cost, calculatedCost)));
 }
 
@@ -143,7 +108,7 @@ export function calculateRulesetTechnologyCost(
  */
 export function loadRulesetTechnologies(
   loader: RulesetTechnologyLoader = rulesetLoader,
-  rulesetName: string = 'classic'
+  rulesetName: string = DEFAULT_RULESET
 ): Record<string, Technology> {
   const rawTechnologies = loader.getTechs(rulesetName);
   const researchRules = (
@@ -200,7 +165,7 @@ export class ResearchManager {
     databaseProvider: DatabaseProvider,
     private readonly technologies: Record<string, Technology> = TECHNOLOGIES,
     private readonly effectsManager: EffectsManager = new EffectsManager(),
-    private readonly rulesetName: string = 'classic',
+    private readonly rulesetName: string = DEFAULT_RULESET,
     researchPacing: Partial<ResearchPacingSettings> = {}
   ) {
     this.gameId = gameId;
@@ -246,9 +211,7 @@ export class ResearchManager {
   }
 
   /**
-   * Calculate per-turn research upkeep. Classic explicitly selects "None",
-   * but keeping the full formula here makes Tech_Upkeep_Free executable if
-   * the ruleset setting is changed.
+   * Calculate C2C3's per-turn research upkeep.
    * @reference reference/freeciv/common/research.c:1062-1142
    */
   public calculateTechnologyUpkeep(
@@ -261,15 +224,12 @@ export class ResearchManager {
     const research = this.playerResearch.get(playerId);
     if (!research) return 0;
 
-    const dynamicCivCost = rules.tech_cost_style.toLowerCase() === 'civ i|ii';
     const researchedCount = research.researchedTechs.size + 1;
-    let totalCost = dynamicCivCost
-      ? (rules.base_tech_cost * researchedCount * (researchedCount + 1)) / 2
-      : [...research.researchedTechs].reduce(
-          (sum, techId) => sum + (this.technologies[techId]?.cost ?? 0),
-          0
-        );
-    if (!dynamicCivCost && research.futureTechs > 0) {
+    let totalCost = [...research.researchedTechs].reduce(
+      (sum, techId) => sum + (this.technologies[techId]?.cost ?? 0),
+      0
+    );
+    if (research.futureTechs > 0) {
       const future = research.futureTechs;
       totalCost +=
         (rules.base_tech_cost *
@@ -414,7 +374,7 @@ export class ResearchManager {
       throw new Error(`Technology ${techId} already researched`);
     }
     if (techId === FUTURE_TECH_ID && !this.canResearch(playerId, techId)) {
-      throw new Error('Future Tech is only available after completing the classic technology tree');
+      throw new Error('Future Tech is only available after completing the C2C3 technology tree');
     }
 
     playerResearch.techGoal = techId;
@@ -500,7 +460,7 @@ export class ResearchManager {
         researchedTurn: this.getCurrentTurn(),
       });
 
-    // Classic awards Philosophy's bonus only to its first discoverer and,
+    // C2C3 awards Philosophy's bonus only to its first discoverer and,
     // with free_tech_method = Goal, advances the selected goal path.
     // @reference reference/freeciv/server/techtools.c:359-405, 1388-1425
     await this.awardBonusTechnology(playerId, tech, playerResearch, isFutureTech, techId);
@@ -553,16 +513,7 @@ export class ResearchManager {
 
   private getEffectiveTechnologyCost(playerId: string, tech: Technology): number {
     const playerResearch = this.playerResearch.get(playerId);
-    const rules = rulesetLoader.loadGameRulesRuleset(this.rulesetName).research;
-    const dynamicCivCost = rules.tech_cost_style.toLowerCase() === 'civ i|ii';
-    const baseCost =
-      tech.id !== FUTURE_TECH_ID && dynamicCivCost && playerResearch
-        ? Math.max(
-            rules.min_tech_cost,
-            rules.base_tech_cost *
-              (playerResearch.researchedTechs.size + playerResearch.futureTechs + 1)
-          )
-        : tech.cost;
+    const baseCost = tech.cost;
     const rulesetFactor = this.getTechnologyCostFactor(playerId, playerResearch);
     const costAfterLeakage = this.applyTechnologyLeakage(
       playerId,
@@ -951,7 +902,7 @@ export class ResearchManager {
 
   /**
    * Great Library: learn a technology once at least two other players know it.
-   * @reference reference/freeciv/data/classic/effects.ruleset effect_great_library
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset effect_great_library
    */
   public async processTechParasite(
     playerId: string,
@@ -1092,7 +1043,7 @@ export class ResearchManager {
       cost: Math.max(rules.min_tech_cost, rules.base_tech_cost * researchedCount),
       requirements: Object.keys(this.technologies).filter(techId => !prerequisites.has(techId)),
       flags: [],
-      description: 'Continued scientific progress beyond the classic technology tree.',
+      description: 'Continued scientific progress beyond the C2C3 technology tree.',
     };
   }
 

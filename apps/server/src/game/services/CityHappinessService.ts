@@ -218,7 +218,7 @@ export class CityHappinessService extends BaseGameService {
     const angry = 0;
 
     // Calculate entertainer luxury through the loaded Specialist_Output effect.
-    // @reference reference/freeciv/data/classic/effects.ruleset:92-99
+    // @reference reference/freeciv/data/civ2civ3/effects.ruleset:92-99
     const luxurySpecialists = city.specialists[SpecialistType.ENTERTAINER] || 0;
     const luxuryEffect =
       luxurySpecialists *

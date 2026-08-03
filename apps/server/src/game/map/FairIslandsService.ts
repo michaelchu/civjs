@@ -526,7 +526,7 @@ export class FairIslandsService extends BaseMapGenerationService {
     // @reference freeciv/server/generator/mapgen.c:3492-3497
     // Calculate playermass using freeciv's exact formula
     const landPercent = this.generationOptions.landPercent;
-    // Classic temperature 50 produces approximately two percent polar tiles
+    // The configured C2C3 temperature produces approximately two percent polar tiles
     // on larger maps before fair-island player mass is allocated.
     const polarTiles = Math.round(mapNumTiles * 0.02);
     const playermass = Math.floor((mapNumTiles * landPercent - polarTiles) / (playerCount * 100));

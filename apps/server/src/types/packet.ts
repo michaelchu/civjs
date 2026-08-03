@@ -3,6 +3,7 @@
  * Declares packet server contracts.
  */
 import { z } from 'zod';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 export { PacketType, PACKET_NAMES, PROTOCOL_VERSION } from './shared/packetContract';
 import { PacketType } from './shared/packetContract';
 
@@ -331,7 +332,7 @@ export const NationSelectReplySchema = z.object({
 });
 
 export const NationListReqSchema = z.object({
-  ruleset: z.string().optional().default('civ2civ3'),
+  ruleset: z.literal(DEFAULT_RULESET).optional().default(DEFAULT_RULESET),
 });
 
 export const NationListReplySchema = z.object({
@@ -630,7 +631,7 @@ export const GameCreateSchema = z.object({
   maxPlayers: z.number().int().min(1).max(16).optional(),
   mapWidth: z.number().int().min(40).max(200).optional(),
   mapHeight: z.number().int().min(25).max(150).optional(),
-  ruleset: z.string().optional(),
+  ruleset: z.literal(DEFAULT_RULESET).optional(),
   nationSet: z.string().trim().min(1).max(50).optional(),
   selectedNation: z.string().min(1).optional(),
   aiLevel: z.enum(['restricted', 'novice', 'easy', 'normal', 'hard', 'cheating']).optional(),

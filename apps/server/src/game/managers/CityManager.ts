@@ -158,9 +158,9 @@ const CITY_WORKER_TASK_ACTIONS = new Set<ActionType>([
   ActionType.CLEAN_POLLUTION,
 ]);
 
-/** @reference reference/freeciv/data/classic/buildings.ruleset */
+/** @reference reference/freeciv/data/civ2civ3/buildings.ruleset */
 export const BUILDING_TYPES: Record<string, BuildingType> =
-  rulesetBuildingsService.getPlayableBuildingTypes('classic');
+  rulesetBuildingsService.getPlayableBuildingTypes(DEFAULT_RULESET);
 
 /**
  * CityManager - Core city management functionality
@@ -770,9 +770,9 @@ export class CityManager {
     this.cities.set(cityId, city);
     this.refreshCapitalStatus(playerId);
 
-    // Classic roads are automatically present on eligible city centers.
+    // C2C3 roads are automatically present on eligible city centers.
     // A river center requires Bridge Building, so leave that case untouched.
-    // @reference reference/freeciv/data/classic/terrain.ruleset extra_road
+    // @reference reference/freeciv/data/civ2civ3/terrain.ruleset extra_road
     const centerTile = this.mapManager?.getTile(x, y);
     const previousCenterRoad = centerTile
       ? {
@@ -1877,7 +1877,7 @@ export class CityManager {
       return { success: false, goldReceived: 0, reason: 'Building not present' };
     }
     city.didSellTurn = currentTurn;
-    // Classic uses shieldbox=100, so impr_sell_gold() returns build cost.
+    // C2C3 uses shieldbox=100, so impr_sell_gold() returns build cost.
     // @reference reference/freeciv/common/improvement.c:331-337
     const goldReceived = Math.max(building.cost, 1);
     if (!(await this.addPlayerGoldProvider(playerId, goldReceived))) {
@@ -2473,10 +2473,10 @@ export class CityManager {
   }
 
   /**
-   * A successful classic poison action removes exactly one citizen.
-   * Classic keeps the food stock (`poison_empties_food_stock = FALSE`).
+   * A successful C2C3 poison action removes exactly one citizen.
+   * C2C3 keeps the food stock (`poison_empties_food_stock = FALSE`).
    * @reference reference/freeciv/server/diplomats.c:97-212
-   * @reference reference/freeciv/data/classic/actions.ruleset:111-113
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:111-113
    */
   public async poisonCity(cityId: string, actingPlayerId: string): Promise<CityState> {
     const city = this.cities.get(cityId);
@@ -2494,7 +2494,7 @@ export class CityManager {
 
   /**
    * Apply Freeciv's ReducePopulation disaster effect. A city of size one is
-   * unaffected unless the ruleset uses ReducePopDestroy (classic does not).
+   * unaffected unless the ruleset uses ReducePopDestroy (C2C3 does not).
    */
   public async reducePopulationForDisaster(cityId: string): Promise<boolean> {
     const city = this.cities.get(cityId);
@@ -2686,7 +2686,7 @@ export class CityManager {
   }
 
   /**
-   * Sell caravan goods for the classic one-time distance/trade bonus.
+   * Sell caravan goods for the C2C3 one-time distance/trade bonus.
    * @reference reference/freeciv/common/traderoutes.c
    * get_caravan_enter_city_trade_bonus()
    */

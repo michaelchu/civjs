@@ -326,7 +326,7 @@ export class CityTileManagementService extends BaseGameService {
   /**
    * Base terrain yield comes from terrain.ruleset; resource modifiers remain
    * runtime map state and are applied by the individual output methods.
-   * @reference reference/freeciv/data/classic/terrain.ruleset
+   * @reference reference/freeciv/data/civ2civ3/terrain.ruleset
    */
   private getTerrainBaseOutputs(terrain: string): {
     food: number;

@@ -155,7 +155,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
     return () => document.removeEventListener('open-report', handleOpenReport);
   }, []);
 
-  // Keep the classic function-key navigation available while reports are
+  // Keep the traditional function-key navigation available while reports are
   // presented as dialogs rather than full-screen tabs.
   useEffect(() => {
     const closeReports = () => {

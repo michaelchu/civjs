@@ -101,7 +101,7 @@ export class TerrainGenerator {
     temperature: number
   ): TerrainParams {
     // Constants from freeciv
-    const ICE_BASE_LEVEL = 20; // Classic separate-poles default at temperature 50
+    const ICE_BASE_LEVEL = 20; // C2C3 separate-poles baseline
     const MAX_COLATITUDE = 1000; // From freeciv common/map.h
     const TROPICAL_LEVEL = Math.min(
       (MAX_COLATITUDE * 9) / 10,

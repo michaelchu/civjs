@@ -172,7 +172,7 @@ This implementation follows Freeciv mechanics closely:
 - Tax rates in 10% increments summing to 100%
 - Trade → Gold conversion at 1:1 ratio
 - Rush building cost calculation matches freeciv formulas
-- Building upkeep costs match classic ruleset values
+- Building upkeep costs match C2C3 ruleset values
 
 ## Error Handling
 

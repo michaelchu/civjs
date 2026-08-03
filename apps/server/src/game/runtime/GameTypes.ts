@@ -17,6 +17,7 @@ import type { FreecivRandom } from '@game/random/FreecivRandom';
 import type { ResearchPacingSettings } from '@game/services/ResearchPacing';
 import type { SpaceshipState } from '@game/services/SpaceshipService';
 import type { ScenarioSetup } from '@game/simulation/config/ScenarioSetup';
+import type { SupportedRuleset } from '@shared/data/rulesets/defaultRuleset';
 
 export type GameState = 'waiting' | 'starting' | 'active' | 'paused' | 'ended';
 export type TurnPhase = 'movement' | 'production' | 'research' | 'diplomacy';
@@ -43,7 +44,7 @@ export interface GameConfig {
   mapWidth?: number;
   mapHeight?: number;
   mapSeed?: string;
-  ruleset?: string;
+  ruleset?: SupportedRuleset;
   nationSet?: string;
   turnTimeLimit?: number;
   maxTurns?: number;

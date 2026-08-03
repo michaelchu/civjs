@@ -14,6 +14,7 @@ import { ActionSystem } from '@game/systems/ActionSystem';
 import { ActionType, ActionResult } from '@app-types/shared/actions';
 import { EffectsManager, EffectType, type EffectContext } from '@game/managers/EffectsManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import type { TerrainType } from '@game/map/MapTypes';
 import { MapTopology } from '@game/map/MapTopology';
 import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
@@ -266,7 +267,7 @@ export class UnitManager {
     effectsManager?: EffectsManager,
     private readonly random: RandomSource = Math.random,
     private readonly unitTypes: Record<string, UnitType> = rulesetUnitsService.getUnitTypes(
-      'classic'
+      DEFAULT_RULESET
     ),
     private readonly identities: FreecivIdentityAllocator = new FreecivIdentityAllocator()
   ) {
@@ -909,8 +910,8 @@ export class UnitManager {
   }
 
   /**
-   * Hut entry/frighten and extra conquest are movement consequences in
-   * classic, rather than separate player orders.
+   * Hut entry/frighten and extra conquest are C2C3 movement consequences,
+   * rather than separate player orders.
    * @reference reference/freeciv/server/unittools.c:3304-3380
    * @reference reference/freeciv/data/default/default.lua:19-185
    */
@@ -979,7 +980,7 @@ export class UnitManager {
   }
 
   /**
-   * Classic ground units may not move from one enemy-controlled tile directly
+   * C2C3 ground units may not move from one enemy-controlled tile directly
    * into another. Friendly stacks, cities, non-ZOC terrain, and IgZOC units
    * are exempt.
    * @reference reference/freeciv/common/movement.c:573-595
@@ -1672,7 +1673,7 @@ export class UnitManager {
   }
 
   /**
-   * Apply classic's situational firepower overrides before combat rounds.
+   * Apply C2C3's situational firepower overrides before combat rounds.
    * @reference reference/freeciv/common/combat.c:411-470 get_modified_firepower()
    */
   private calculateModifiedFirepower(
@@ -2447,17 +2448,21 @@ export class UnitManager {
   }
 
   private applyFortressStrength(strength: number, unit: Unit, unitType: UnitType): number {
-    if (!this.isFortressDefender(unit, unitType)) return strength;
-    const fortressDefense = Number(
-      rulesetLoader.getExtra('Fortress', this.effectsManager?.getRulesetName() ?? 'classic')
-        ?.defense_bonus ?? 0
-    );
-    return Math.floor((strength * (100 + fortressDefense)) / 100);
-  }
-
-  private isFortressDefender(unit: Unit, unitType: UnitType): boolean {
     const improvements = this.mapManager?.getTile?.(unit.x, unit.y)?.improvements ?? [];
-    return unitType.rulesetUnitClass === 'Land' && improvements.includes('fortress');
+    if (!this.effectsManager || improvements.length === 0) return strength;
+    const defenseBonus = this.effectsManager.calculateEffect(EffectType.DEFEND_BONUS, {
+      playerId: unit.playerId,
+      unitId: unit.id,
+      unitType: unit.unitTypeId,
+      unitClass: unitType.rulesetUnitClass,
+      unitClassFlags: new Set(unitType.rulesetUnitClassFlags),
+      unitTypeFlags: new Set(unitType.flags),
+      tileX: unit.x,
+      tileY: unit.y,
+      tileExtras: new Set(improvements),
+      tileIsCityCenter: false,
+    }).value;
+    return Math.floor((strength * (100 + defenseBonus)) / 100);
   }
 
   private applyDefensiveStrengthBonuses(
@@ -2474,8 +2479,8 @@ export class UnitManager {
   }
 
   /**
-   * Classic Fortify_Defense_Bonus for fortified units and city-center land defenders.
-   * @reference reference/freeciv/data/classic/effects.ruleset:157-173
+   * C2C3 Fortify_Defense_Bonus for fortified units and city-center land defenders.
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:157-173
    * @reference reference/freeciv/common/combat.c:697-708
    */
   private calculateFortifyDefenseBonus(unit: Unit, unitType: UnitType): number {
@@ -2587,7 +2592,7 @@ export class UnitManager {
   }
 
   /**
-   * Exact classic repeated-round combat win probability, using the same
+   * Exact C2C3 repeated-round combat win probability, using the same
    * authoritative powers and situational firepower as real combat.
    *
    * @reference reference/freeciv/common/combat.c:334-401 win_chance
@@ -3153,7 +3158,7 @@ export class UnitManager {
   }
 
   /**
-   * Classic sabotage removes half of the target's remaining hit points.
+   * C2C3 sabotage removes half of the target's remaining hit points.
    * @reference reference/freeciv/server/diplomats.c:549-635
    */
   async sabotageUnit(unitId: string): Promise<{ unit?: Unit; destroyed: boolean }> {
@@ -4368,8 +4373,7 @@ export class UnitManager {
   }
 
   /**
-   * Non-lethal generic bombard. Classic exposes no bombard-capable unit, but
-   * rulesets with bombard_rate use this authoritative result.
+   * Non-lethal C2C3 bombard uses the source unit's bombard rate.
    * @reference reference/freeciv/server/unithand.c:4626-4734 unit_bombard()
    */
   private async executeBombard(
@@ -5375,19 +5379,6 @@ export class UnitManager {
     const directCheck = this.getDirectUnitActionCheck(unit, actionType);
     if (directCheck) return directCheck(targetX, targetY);
 
-    if (this.getRulesetName() === 'classic' && actionType === ActionType.BUILD_FORTRESS) {
-      return (
-        this.playerTechsProvider(unit.playerId).has('construction') &&
-        this.actionSystem.canUnitPerformAction(unit, actionType, targetX, targetY)
-      );
-    }
-    if (this.getRulesetName() === 'classic' && actionType === ActionType.BUILD_AIRBASE) {
-      return (
-        this.playerTechsProvider(unit.playerId).has('radio') &&
-        this.actionSystem.canUnitPerformAction(unit, actionType, targetX, targetY)
-      );
-    }
-
     return this.actionSystem.canUnitPerformAction(unit, actionType, targetX, targetY);
   }
 
@@ -5428,10 +5419,6 @@ export class UnitManager {
     targetX?: number,
     targetY?: number
   ): boolean {
-    // The legacy classic ruleset does not expose the complete action/extra
-    // requirement vectors used by civ2civ3. Preserve its existing dedicated
-    // validators; apply the universal evaluator whenever the active ruleset
-    // supplies the reference vectors.
     return this.evaluateRulesetWorkerAction(unit, actionType, targetX, targetY).allowed;
   }
 
@@ -5441,7 +5428,6 @@ export class UnitManager {
     targetX?: number,
     targetY?: number
   ): RulesetWorkerActionEvaluation {
-    if (this.getRulesetName() === 'classic') return { allowed: true };
     const effectiveX = targetX ?? unit.x;
     const effectiveY = targetY ?? unit.y;
     const tile = this.mapManager?.getTile(effectiveX, effectiveY) as any;

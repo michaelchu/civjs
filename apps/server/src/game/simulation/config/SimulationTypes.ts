@@ -7,6 +7,7 @@ import { isSettableAILevel, type SettableAILevel } from '@game/ai/AIProfile';
 import type { TerrainSettings } from '@game/runtime/GameTypes';
 import { scenarioSetupSchema } from './ScenarioSetup';
 import { simulationExpectationSchema } from '../expectations/SimulationExpectations';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 export const SIMULATION_RUN_SCHEMA_VERSION = 1;
 export const SIMULATION_DIAGNOSTIC_SCHEMA_VERSION = 3;
@@ -57,7 +58,7 @@ export const headlessSimulationConfigSchema = z.object({
   aiPlayerCount: z.number().int().min(2).max(32),
   mapWidth: z.number().int().min(20).max(200).default(80),
   mapHeight: z.number().int().min(20).max(200).default(50),
-  ruleset: z.string().trim().min(1).default('civ2civ3'),
+  ruleset: z.literal(DEFAULT_RULESET).default(DEFAULT_RULESET),
   aiLevel: z
     .custom<SettableAILevel>(isSettableAILevel, { message: 'Invalid settable AI level' })
     .default('easy'),

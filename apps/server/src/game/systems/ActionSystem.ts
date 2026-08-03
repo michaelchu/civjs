@@ -16,15 +16,14 @@ import type { Unit } from '@game/units/UnitTypes';
 import { getRulesetMoveFragments } from '@game/constants/MovementConstants';
 import { type UnitType, rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import type { MapManager } from '@game/managers/MapManager';
-import type { MapTile, TerrainType } from '@game/map/MapTypes';
-import { hasClassicIrrigationSource } from '@game/rules/ClassicIrrigationRules';
+import type { TerrainType } from '@game/map/MapTypes';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { getUniqueCityName } from '@game/constants/CityNames';
 
 type PathResult = { success: boolean; path?: any; error?: string };
 
-// Action definitions based on freeciv classic ruleset
+// Action definitions based on Freeciv's Civ2Civ3 ruleset.
 // @reference freeciv/common/actions.c
 const ACTION_DEFINITIONS: Partial<Record<ActionType, ActionDefinition>> = {
   [ActionType.FORTIFY]: {
@@ -508,7 +507,7 @@ export class ActionSystem {
    * Get action definition by type
    */
   getActionDefinition(actionType: ActionType): ActionDefinition | null {
-    // @reference reference/freeciv/data/classic/actions.ruleset
+    // @reference reference/freeciv/data/civ2civ3/actions.ruleset
     // Do not expose generated placeholder actions. An action becomes available
     // only when its rules and authoritative execution have been ported.
     return ACTION_DEFINITIONS[actionType] || null;
@@ -762,30 +761,9 @@ export class ActionSystem {
 
     const tile = this.mapManager?.getTile(unit.x, unit.y);
     const terrain = tile && this.getTerrain(tile.terrain);
-    // Non-classic rulesets are validated by UnitManager's complete
-    // source-derived action enablers. In particular, civ2civ3 allows a
-    // Worker with Electricity to irrigate without an adjacent water source.
-    // Retain the legacy source check only for classic, whose dedicated
-    // validator remains the authority for that ruleset.
-    const hasRequiredWaterSource =
-      this.rulesetName !== 'classic' ||
-      hasClassicIrrigationSource(this.getCardinalNeighborTiles(unit));
     return Boolean(
-      tile &&
-      terrain &&
-      terrain.irrigationTime > 0 &&
-      !tile.improvements.includes('irrigation') &&
-      hasRequiredWaterSource
+      tile && terrain && terrain.irrigationTime > 0 && !tile.improvements.includes('irrigation')
     );
-  }
-
-  private getCardinalNeighborTiles(unit: Unit): MapTile[] {
-    const topology = this.mapManager?.getTopology?.();
-    if (!topology) return [];
-    return topology
-      .getCardinalNeighbors(unit.x, unit.y)
-      .map(({ x, y }: { x: number; y: number }) => this.mapManager?.getTile(x, y))
-      .filter((neighbor: MapTile | null | undefined): neighbor is MapTile => Boolean(neighbor));
   }
 
   /**
@@ -828,19 +806,8 @@ export class ActionSystem {
 
   private canBuildBase(unit: Unit, extraName: 'Fortress' | 'Airbase'): boolean {
     const tile = this.mapManager?.getTile(unit.x, unit.y);
-    const unitType = this.unitTypes[unit.unitTypeId];
-    if (!tile || !unitType) return false;
+    if (!tile || !this.unitTypes[unit.unitTypeId]) return false;
     if (!this.canBuildBaseOnTile(unit, tile, extraName)) return false;
-    // c2c3's source-defined Build Base extras decide whether a Worker can
-    // construct Airstrip/Airbase. The legacy Classic Airbase flag is only a
-    // Classic constraint and must not veto those ruleset requirements.
-    if (
-      this.rulesetName === 'classic' &&
-      extraName === 'Airbase' &&
-      !unitType.flags?.includes('Airbase')
-    ) {
-      return false;
-    }
     return true;
   }
 

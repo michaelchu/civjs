@@ -40,7 +40,7 @@ export type RulesetRequirementContext = Partial<
 
 /**
  * Fail-closed evaluator for the universal requirement kinds present in the
- * classic action, extra, and style files.
+ * C2C3 action, extra, and style files.
  *
  * @reference reference/freeciv/common/requirements.c:4803-4828
  * @reference reference/freeciv/common/requirements.c:6495-6535

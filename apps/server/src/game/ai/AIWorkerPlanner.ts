@@ -7,9 +7,9 @@ import type { WorkerAutomationTask } from '@game/automation/WorkerAutomationType
 import type { CityState } from '@game/cities/CityTypes';
 import type { MapTile } from '@game/managers/MapManager';
 import type { Unit } from '@game/units/UnitTypes';
-import { hasClassicIrrigationSource } from '@game/rules/ClassicIrrigationRules';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 export interface WorkerAssignment {
   unit: Unit;
@@ -104,6 +104,10 @@ function resourceOutputs(
   }
 }
 
+function roadTradeIncrement(terrain: Record<string, unknown>): number {
+  return Math.floor(Math.max(0, Number(terrain.road_trade_incr_pct ?? 0)) / 100);
+}
+
 function currentTileValue(tile: MapTile, rulesetName: string): number {
   const terrain = rulesetLoader.getTerrain(tile.terrain, rulesetName);
   const resource = resourceOutputs(tile, rulesetName);
@@ -116,12 +120,7 @@ function currentTileValue(tile: MapTile, rulesetName: string): number {
   if (tile.improvements.includes('mine')) {
     shields += terrain.miningShieldIncr;
   }
-  if (
-    (tile.hasRoad || tile.improvements.includes('road')) &&
-    ['grassland', 'plains'].includes(tile.terrain)
-  ) {
-    trade += 1;
-  }
+  if (tile.hasRoad || tile.improvements.includes('road')) trade += roadTradeIncrement(terrain);
   if (tile.riverMask !== 0) trade += 1;
   if (tile.hasRailroad || tile.improvements.includes('railroad')) {
     shields = Math.floor(shields * 1.5);
@@ -165,18 +164,10 @@ function cleanupChoices(context: WorkerPlanningContext, tile: MapTile): Improvem
   ];
 }
 
-function yieldChoices(
-  context: WorkerPlanningContext,
-  tile: MapTile,
-  rulesetName: string
-): ImprovementChoice[] {
+function yieldChoices(tile: MapTile, rulesetName: string): ImprovementChoice[] {
   const terrain = rulesetLoader.getTerrain(tile.terrain, rulesetName);
   const choices: ImprovementChoice[] = [];
-  if (
-    terrain.irrigationTime > 0 &&
-    !tile.improvements.includes('irrigation') &&
-    hasClassicIrrigationSource(context.getCardinalNeighbors(tile.x, tile.y))
-  ) {
+  if (terrain.irrigationTime > 0 && !tile.improvements.includes('irrigation')) {
     choices.push({
       action: ActionType.BUILD_IRRIGATION,
       benefit: terrain.irrigationFoodIncr * OUTPUT_WEIGHTS.food,
@@ -200,7 +191,7 @@ function basicRoadChoices(
 ): ImprovementChoice[] {
   const terrain = rulesetLoader.getTerrain(tile.terrain, rulesetName);
   if (terrain.roadTime <= 0 || tile.hasRoad || tile.improvements.includes('road')) return [];
-  const trade = ['grassland', 'plains'].includes(tile.terrain) ? OUTPUT_WEIGHTS.trade : 0;
+  const trade = roadTradeIncrement(terrain) * OUTPUT_WEIGHTS.trade;
   return [
     {
       action: ActionType.BUILD_ROAD,
@@ -225,7 +216,7 @@ function railroadChoices(
     Math.max(1, Math.floor(shields * 1.5) - shields) * OUTPUT_WEIGHTS.shields + 4;
   if (!hasRoad) {
     if (terrain.roadTime <= 0) return [];
-    const trade = ['grassland', 'plains'].includes(tile.terrain) ? OUTPUT_WEIGHTS.trade : 0;
+    const trade = roadTradeIncrement(terrain) * OUTPUT_WEIGHTS.trade;
     return [
       {
         action: ActionType.BUILD_ROAD,
@@ -259,18 +250,18 @@ function terrainChangeChoices(tile: MapTile, rulesetName: string): ImprovementCh
 }
 
 function improvementChoices(context: WorkerPlanningContext, tile: MapTile): ImprovementChoice[] {
-  const rulesetName = context.rulesetName ?? 'classic';
+  const rulesetName = context.rulesetName ?? DEFAULT_RULESET;
   return [
     ...cleanupChoices(context, tile),
-    ...yieldChoices(context, tile, rulesetName),
+    ...yieldChoices(tile, rulesetName),
     ...basicRoadChoices(context, tile, rulesetName),
     ...railroadChoices(context, tile, rulesetName),
     ...terrainChangeChoices(tile, rulesetName),
-  ].filter(choice => choice.benefit > 0);
+  ];
 }
 
 function candidateTiles(context: WorkerPlanningContext): CandidateTile[] {
-  const rulesetName = context.rulesetName ?? 'classic';
+  const rulesetName = context.rulesetName ?? DEFAULT_RULESET;
   const candidates = new Map<string, CandidateTile>();
   for (const city of context.cities) {
     for (const workable of city.workableTiles ?? []) {
@@ -422,6 +413,15 @@ export function planWorkerImprovements(context: WorkerPlanningContext): {
         )
         .flatMap(candidate =>
           improvementChoices(context, candidate.tile)
+            // A city advisor can explicitly request legal work whose local
+            // yield score is zero (for example, a forest road). Keep normal
+            // automation economic, but let the city's authoritative want
+            // promote its matching feasible action.
+            .filter(
+              choice =>
+                choice.benefit > 0 ||
+                candidate.requests.some(request => request.action === choice.action)
+            )
             .filter(
               choice => context.canPerformAction?.(worker, choice.action, candidate.tile) !== false
             )

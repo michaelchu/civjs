@@ -1,17 +1,18 @@
 #!/usr/bin/env node
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dataRoot = join(root, 'reference/freeciv/data');
+const supportedRuleset = 'civ2civ3';
 const argumentsList = process.argv.slice(2);
 const requestedRuleset =
   argumentsList.find(
     argument => argument === '--all' || argument === '--list' || !argument.startsWith('--')
-  ) ?? 'classic';
+  ) ?? supportedRuleset;
 const checkOnly = argumentsList.includes('--check');
 const writeMode = argumentsList.includes('--write');
 const showDiff = argumentsList.includes('--diff');
@@ -31,31 +32,23 @@ if (checkOnly && writeMode) {
 }
 
 if (requestedRuleset === '--all' || requestedRuleset === '--list') {
-  const rulesetNames = readdirSync(dataRoot, { withFileTypes: true })
-    .filter(entry => entry.isDirectory())
-    .map(entry => entry.name)
-    .filter(name => existsSync(join(dataRoot, name, 'game.ruleset')))
-    .sort();
-
   if (requestedRuleset === '--list') {
-    process.stdout.write(`${rulesetNames.join('\n')}\n`);
+    process.stdout.write(`${supportedRuleset}\n`);
     process.exit(0);
   }
 
-  for (const name of rulesetNames) {
-    execFileSync(
-      process.execPath,
-      [
-        fileURLToPath(import.meta.url),
-        name,
-        ...(checkOnly ? ['--check'] : []),
-        ...(writeMode ? ['--write'] : []),
-        ...(auditMode ? ['--audit'] : []),
-        ...(onlyArgument ? [onlyArgument] : []),
-      ],
-      { stdio: 'inherit' }
-    );
-  }
+  execFileSync(
+    process.execPath,
+    [
+      fileURLToPath(import.meta.url),
+      supportedRuleset,
+      ...(checkOnly ? ['--check'] : []),
+      ...(writeMode ? ['--write'] : []),
+      ...(auditMode ? ['--audit'] : []),
+      ...(onlyArgument ? [onlyArgument] : []),
+    ],
+    { stdio: 'inherit' }
+  );
   process.exit(0);
 }
 
@@ -65,6 +58,12 @@ const targetDir = join(root, 'apps/server/src/shared/data/rulesets', rulesetName
 
 if (!/^[a-z0-9][a-z0-9_-]*$/i.test(rulesetName)) {
   throw new Error(`Invalid ruleset name: ${rulesetName}`);
+}
+
+if (rulesetName !== supportedRuleset) {
+  throw new Error(
+    `Unsupported ruleset '${rulesetName}'. CivJS converts only '${supportedRuleset}'.`
+  );
 }
 
 if (!existsSync(sourceDir)) {

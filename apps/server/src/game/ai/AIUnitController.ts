@@ -33,6 +33,7 @@ import {
 } from '@game/ai/AIExplorerPlanner';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 import { planMilitaryRecovery } from '@game/ai/AIRecoveryPlanner';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import {
   buildMilitaryTravelTimes,
   militaryTravelKey,
@@ -335,7 +336,7 @@ export class FreecivAIUnitController {
         .flat()
         .filter(tile => game.cityManager.canFoundCityAt!(tile.x, tile.y, unit.playerId)),
       (x, y) => game.mapManager.getNeighbors(x, y),
-      terrain => rulesetLoader.getTerrain(terrain, game.config?.ruleset ?? 'classic'),
+      terrain => rulesetLoader.getTerrain(terrain, game.config?.ruleset ?? DEFAULT_RULESET),
       tile => game.mapManager.getDistance(unit.x, unit.y, tile.x, tile.y),
       tile =>
         cities.length === 0

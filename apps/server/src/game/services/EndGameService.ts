@@ -20,6 +20,7 @@ import {
   type SpaceshipState,
 } from '@game/services/SpaceshipService';
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import {
   calculatePlayerScoreBreakdown,
   calculatePlayerScore,
@@ -251,7 +252,7 @@ export class EndGameService {
     const population = cities.reduce((total, city) => total + city.size, 0);
     const technologies = context.researchManager.getResearchedTechs(playerId).length;
     const history = player?.history ?? 0;
-    const rulesetName = context.rulesetName ?? 'classic';
+    const rulesetName = context.rulesetName ?? DEFAULT_RULESET;
     const buildingTypes = rulesetBuildingsService.getBuildingTypes(rulesetName);
     const greatWonders = cities.reduce(
       (total, city) =>
@@ -410,7 +411,7 @@ export class EndGameService {
       survivors,
       context.diplomacyManager
     );
-    const required = rulesetLoader.loadGameRulesRuleset(context.rulesetName ?? 'classic')
+    const required = rulesetLoader.loadGameRulesRuleset(context.rulesetName ?? DEFAULT_RULESET)
       .world_peace.victory_turns;
     details.worldPeaceStart = peaceStart;
     details.worldPeaceRequired = required;
@@ -459,7 +460,7 @@ export class EndGameService {
   ) {
     if (!enabled.includes('culture') || !context.cultureManager || !survivors.length)
       return undefined;
-    const rules = rulesetLoader.getCultureRules(context.rulesetName ?? 'classic');
+    const rules = rulesetLoader.getCultureRules(context.rulesetName ?? DEFAULT_RULESET);
     const scores = await Promise.all(
       survivors.map(async standing => ({
         standing,
@@ -536,7 +537,7 @@ export class EndGameService {
       };
     };
 
-    const cultureRules = rulesetLoader.getCultureRules(context.rulesetName ?? 'classic');
+    const cultureRules = rulesetLoader.getCultureRules(context.rulesetName ?? DEFAULT_RULESET);
     const cultureScores = details.cultureScores ?? [];
     const survivingTeams = [
       ...new Set(survivors.map(standing => standing.teamId ?? `player:${standing.playerId}`)),

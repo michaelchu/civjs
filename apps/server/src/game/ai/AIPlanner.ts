@@ -76,6 +76,7 @@ interface ProductionMetrics {
   cityUnits: Unit[];
   expansionNeed: number;
   workerNeed: number;
+  workerTaskWant: number;
   defenseNeed: number;
   oceanTiles: number;
   aggressionWeight: number;
@@ -100,6 +101,12 @@ function calculateProductionMetrics(context: ProductionPlanningContext): Product
     const type = unitTypes[unit.unitTypeId];
     return type?.canBuildImprovements && !type.canFoundCity;
   }).length;
+  const workerTaskWant = Math.max(
+    0,
+    ...(city.workerTaskRequests ?? []).map(request =>
+      Number.isFinite(request.want) ? request.want : 0
+    )
+  );
   const expansionWeight =
     ((context.profile?.expansion ?? 100) / 100) *
     ((context.profile?.traits.expansionist ?? 50) / 50);
@@ -107,6 +114,7 @@ function calculateProductionMetrics(context: ProductionPlanningContext): Product
     cityUnits,
     expansionNeed: Math.max(0, cities.length + 1 - settlerCount * 2) * expansionWeight,
     workerNeed: Math.max(0, cities.length - workerCount),
+    workerTaskWant,
     defenseNeed:
       Math.max(0, 1 - defendersOnTile.length) * 90 +
       context.dangerAssessment.defenseDeficit +
@@ -133,6 +141,14 @@ function scoreUnitProduction(
   if (type.canBuildImprovements && !type.canFoundCity) {
     want += metrics.workerNeed * 35;
     reasons.push('infrastructure');
+    if (metrics.workerTaskWant > 0) {
+      // A city task is already an authoritative infrastructure decision. Keep
+      // its explicit want when choosing the dedicated worker that can execute
+      // it, instead of allowing an unrelated default defender score to starve
+      // the task indefinitely.
+      want += metrics.workerTaskWant;
+      reasons.push('requested terrain work');
+    }
   }
   const defense = unitDefense(type);
   const attack = unitAttack(type);

@@ -4,7 +4,13 @@
  */
 import type { CityState } from '@game/cities/CityTypes';
 import type { Unit } from '@game/units/UnitTypes';
-import { EffectType, OutputType } from '@game/managers/EffectsManager';
+import { EffectType, OutputType, type EffectContext } from '@game/managers/EffectsManager';
+import { isOceanTerrain } from '@game/map/TerrainUtils';
+
+type TileEffectContext = Pick<
+  EffectContext,
+  'tileTerrain' | 'tileTerrainClass' | 'tileIsCityCenter'
+>;
 
 export interface GovernmentChoice {
   governmentId: string;
@@ -20,7 +26,12 @@ interface GovernmentPlanningContext {
   cities: CityState[];
   units: Unit[];
   atWar: boolean;
-  effect: (governmentId: string, type: EffectType, outputType?: OutputType) => number;
+  effect: (
+    governmentId: string,
+    type: EffectType,
+    outputType?: OutputType,
+    context?: TileEffectContext
+  ) => number;
   expectedRevolutionTurns?: number;
   planningHorizon?: number;
   researchDistance?: (governmentId: string) => number;
@@ -37,6 +48,63 @@ function empireOutput(cities: CityState[]): number {
       Math.max(0, city.sciencePerTurn ?? 0) * 3,
     0
   );
+}
+
+const OUTPUT_VALUE_WEIGHTS: Record<OutputType, number> = {
+  [OutputType.FOOD]: 3,
+  [OutputType.SHIELD]: 4,
+  [OutputType.TRADE]: 2,
+  [OutputType.GOLD]: 2,
+  [OutputType.SCIENCE]: 3,
+  [OutputType.LUXURY]: 1,
+};
+
+/**
+ * Value government effects that apply to each worked tile using the actual
+ * terrain context. C2C3 Republic and Democracy add one trade to every worked
+ * non-oceanic tile, so evaluating the effect only once per empire misses the
+ * main benefit of those governments.
+ *
+ * @reference reference/freeciv/data/civ2civ3/effects.ruleset:1502-1520
+ */
+function workedTileGovernmentValue(
+  governmentId: string,
+  context: GovernmentPlanningContext
+): number {
+  let value = 0;
+  for (const city of context.cities) {
+    for (const tile of city.workableTiles ?? []) {
+      if (!tile.isWorked || !tile.terrain) continue;
+      const tileContext: TileEffectContext = {
+        tileTerrain: tile.terrain,
+        tileTerrainClass: isOceanTerrain(tile.terrain) ? 'Oceanic' : 'Land',
+        tileIsCityCenter: tile.isCenter,
+      };
+      for (const outputType of Object.values(OutputType)) {
+        value +=
+          context.effect(governmentId, EffectType.OUTPUT_INC_TILE, outputType, tileContext) *
+          marginalTileOutputValue(city, outputType);
+      }
+    }
+  }
+  return value;
+}
+
+/**
+ * A tile's trade is also distributed to gold, science, and luxury. Mirror the
+ * planner's existing empire-output valuation when a ruleset effect adds one
+ * unit of raw trade, rather than valuing it as trade alone.
+ */
+function marginalTileOutputValue(city: CityState, outputType: OutputType): number {
+  if (outputType !== OutputType.TRADE) return OUTPUT_VALUE_WEIGHTS[outputType];
+
+  const rawTrade = Math.max(1, city.tradePerTurn ?? 0);
+  const distributedTradeValue =
+    (Math.max(0, city.goldPerTurn ?? 0) * OUTPUT_VALUE_WEIGHTS[OutputType.GOLD] +
+      Math.max(0, city.sciencePerTurn ?? 0) * OUTPUT_VALUE_WEIGHTS[OutputType.SCIENCE] +
+      Math.max(0, city.luxuryPerTurn ?? 0) * OUTPUT_VALUE_WEIGHTS[OutputType.LUXURY]) /
+    rawTrade;
+  return OUTPUT_VALUE_WEIGHTS[OutputType.TRADE] + distributedTradeValue;
 }
 
 function governmentValue(
@@ -56,6 +124,7 @@ function governmentValue(
     value -=
       (baseOutput * context.effect(governmentId, EffectType.OUTPUT_WASTE_PCT, outputType)) / 100;
   }
+  value += workedTileGovernmentValue(governmentId, context);
   const freeSupport = context.effect(governmentId, EffectType.UNIT_UPKEEP_FREE_PER_CITY);
   value += Math.min(context.units.length, freeSupport * context.cities.length) * 5;
   const unrest = context.cities.reduce(

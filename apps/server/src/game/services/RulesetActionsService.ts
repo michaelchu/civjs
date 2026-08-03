@@ -7,6 +7,7 @@ import type { ActionEnabler } from '@shared/data/rulesets/schemas';
 import { RulesetRequirementEvaluator } from './RulesetRequirementEvaluator';
 import { ActionType } from '@app-types/shared/actions';
 import type { UnitType } from './RulesetUnitsService';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 const CLIENT_ACTIONS: ReadonlyArray<{ id: string; upstream: readonly string[] }> = [
   {
@@ -33,7 +34,7 @@ const CLIENT_ACTIONS: ReadonlyArray<{ id: string; upstream: readonly string[] }>
   { id: 'spy_attack', upstream: ['Spy Attack'] },
 ];
 
-const CLASSIC_UNIT_ACTIONS: ReadonlyArray<{
+const CIV2CIV3_UNIT_ACTIONS: ReadonlyArray<{
   id: ActionType;
   upstream: readonly string[];
 }> = [
@@ -62,7 +63,7 @@ const CLASSIC_UNIT_ACTIONS: ReadonlyArray<{
 ];
 
 /**
- * Resolves coarse unit capabilities from classic action enablers. Target,
+ * Resolves coarse unit capabilities from Civ2Civ3 action enablers. Target,
  * diplomatic, movement, and local-state requirements remain authoritative at
  * action execution time; this layer only answers whether a unit type can ever
  * satisfy an enabler.
@@ -70,7 +71,7 @@ const CLASSIC_UNIT_ACTIONS: ReadonlyArray<{
 export class RulesetActionsService {
   constructor(
     private readonly loader: Pick<RulesetLoader, 'getActionEnablersFor'> = rulesetLoader,
-    private readonly rulesetName: string = 'classic',
+    private readonly rulesetName: string = DEFAULT_RULESET,
     private readonly requirements = new RulesetRequirementEvaluator()
   ) {}
 
@@ -101,7 +102,7 @@ export class RulesetActionsService {
   getUnitActions(unitType: UnitType): ActionType[] {
     const flags = new Set(unitType.flags ?? []);
     const unitClass = unitType.rulesetUnitClass;
-    const actions = CLASSIC_UNIT_ACTIONS.filter(action => {
+    const actions = CIV2CIV3_UNIT_ACTIONS.filter(action => {
       if (action.id === ActionType.BUILD_AIRBASE && !flags.has('Airbase')) return false;
       if (action.id === ActionType.UPGRADE_UNIT && !unitType.obsolete_by) return false;
       return action.upstream.some(upstream =>
@@ -119,8 +120,8 @@ export class RulesetActionsService {
       );
     }).map(action => action.id);
 
-    // Classic has bombard range settings but no unit with bombard_rate. Keep
-    // the generic outcome available to rulesets that define a capable unit.
+    // C2C3 has bombard range settings but no unit with bombard_rate. Keep
+    // the generic outcome available should C2C3 add a capable unit.
     if (unitType.bombardRate > 0) actions.push(ActionType.BOMBARD);
     if (unitType.movement > 0) actions.push(ActionType.AUTO_EXPLORE);
     if (unitType.canBuildImprovements) actions.push(ActionType.AUTO_SETTLER);

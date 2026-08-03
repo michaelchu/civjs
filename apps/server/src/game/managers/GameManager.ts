@@ -1699,10 +1699,10 @@ export class GameManager {
   }
 
   /**
-   * Available CivJS state is applied to the classic incite formula: treasury,
+   * Available CivJS state is applied to the C2C3 incite formula: treasury,
    * local units, improvements, stability, city size, and capital distance.
    * @reference reference/freeciv/server/cityturn.c:3556-3630
-   * @reference reference/freeciv/data/classic/game.ruleset:208-216
+   * @reference reference/freeciv/data/civ2civ3/game.ruleset:208-216
    */
   private async calculateInciteCost(game: GameInstance, city: CityState): Promise<number> {
     return calculateDiplomatInciteCost(game, city);

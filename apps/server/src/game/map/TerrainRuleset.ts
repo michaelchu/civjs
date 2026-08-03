@@ -1,11 +1,11 @@
 /**
  * @module server/game/map/TerrainRuleset
  * Terrain ruleset configuration for CivJS
- * @reference freeciv/data/classic/terrain.ruleset
+ * @reference reference/freeciv/data/civ2civ3/terrain.ruleset
  * @reference freeciv/common/terrain.h:136-147
  *
  * This file provides direct access to JSON-based rulesets with synchronous API.
- * Terrain data is loaded from src/shared/data/rulesets/classic/terrain.json
+ * Terrain data is loaded from src/shared/data/rulesets/civ2civ3/terrain.json
  */
 
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';

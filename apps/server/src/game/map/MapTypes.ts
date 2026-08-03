@@ -104,7 +104,7 @@ export interface MapGenerationOptions {
   separatePoles?: boolean;
 }
 
-/** Ruleset-defined terrain identifier (not limited to the classic catalogue). */
+/** Ruleset-defined terrain identifier from the C2C3 catalogue. */
 export type TerrainType = string;
 
 export type ResourceType =

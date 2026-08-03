@@ -22,19 +22,19 @@ export interface NationColorTheme {
  * Predefined nation color themes - avoiding ocean-like blues
  * Each theme has primary, secondary, and tertiary colors
  */
-const classicColors = rulesetLoader.loadGameRulesRuleset().player_colors;
+const rulesetColors = rulesetLoader.loadGameRulesRuleset().player_colors;
 
-export const NATION_COLOR_THEMES: NationColorTheme[] = classicColors.colorlist.map(
+export const NATION_COLOR_THEMES: NationColorTheme[] = rulesetColors.colorlist.map(
   (primary, index) => ({
-    name: `Classic ${index + 1}`,
+    name: `C2C3 ${index + 1}`,
     primary,
     // CivJS keeps secondary/tertiary UI accents around Freeciv's authoritative
     // player color. The ruleset background is the stable contrasting fallback.
     secondary: { r: 255, g: 255, b: 255 },
     tertiary: {
-      r: classicColors['background.r'],
-      g: classicColors['background.g'],
-      b: classicColors['background.b'],
+      r: rulesetColors['background.r'],
+      g: rulesetColors['background.g'],
+      b: rulesetColors['background.b'],
     },
   })
 );

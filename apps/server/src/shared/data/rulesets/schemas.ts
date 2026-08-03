@@ -22,8 +22,7 @@ export const MapgenTerrainPropertySchema = z.enum([
 ]);
 
 // Terrain types enum schema
-// Terrain IDs are ruleset-defined: classic's familiar names are not a
-// universal Freeciv vocabulary (alien, civ1 and stub prove this directly).
+// Terrain IDs are ruleset-defined rather than a universal Freeciv vocabulary.
 export const TerrainTypeSchema = z.string().min(1);
 
 // Individual terrain ruleset schema
@@ -79,14 +78,14 @@ export const TerrainRulesetFileSchema = z
   .passthrough();
 
 // Unit schemas - Enhanced for full freeciv compatibility
-// Unit classes are ruleset-defined. Classic uses Land, Sea, Air, and related
-// classes; Civ2Civ3 also defines Merchant for trade units.
+// Unit classes are ruleset-defined. Civ2Civ3 defines Land, Sea, Air, and
+// Merchant classes for trade units.
 export const UnitClassSchema = z.string().min(1);
 
 /**
- * Unit-class catalogue fields loaded from the classic ruleset.
- * @reference reference/freeciv/data/classic/units.ruleset:97-112
- * @reference reference/freeciv/data/classic/units.ruleset:143-188
+ * Unit-class catalogue fields loaded from the Civ2Civ3 ruleset.
+ * @reference reference/freeciv/data/civ2civ3/units.ruleset:97-112
+ * @reference reference/freeciv/data/civ2civ3/units.ruleset:143-188
  */
 export const UnitClassRulesetSchema = z
   .object({
@@ -120,7 +119,7 @@ export const UnitRoleSchema = z.enum([
   'BarbarianStartUnit',
   'Diplomat',
   'Hunter',
-  // Additional freeciv classic roles
+  // Additional Freeciv roles represented by C2C3 data
   'AirCarrier',
   'AttackFast',
   'AttackOk',
@@ -175,7 +174,7 @@ export const UnitTypeFlagSchema = z.enum([
   'GainVeteran',
   'Capturable',
   'HasInitialVeteran',
-  // Additional freeciv classic flags
+  // Additional Freeciv flags represented by C2C3 data
   'AEGIS',
   'Airbase',
   'Cities',
@@ -363,7 +362,7 @@ export const TechnologyRulesetSchema = z
     freeciv_id: z.number().optional(),
     name: z.string(),
     internal_name: z.string().optional(),
-    // Freeciv only reads per-tech costs for the Classic+ and Experimental+
+    // Freeciv only reads per-tech costs for ruleset cost styles that opt in.
     // styles. Other styles derive them from the dependency graph at runtime.
     cost: z.number().positive().optional(),
     req1: z.string().optional(), // First requirement (freeciv dual system)
@@ -500,8 +499,8 @@ export const RequirementSchema = z.object({
   present: z.boolean().optional(),
 });
 
-// Requirement kinds currently represented by the ported classic effects data.
-// @reference reference/freeciv/data/classic/effects.ruleset:50-710
+// Requirement kinds currently represented by the ported C2C3 effects data.
+// @reference reference/freeciv/data/civ2civ3/effects.ruleset:50-710
 // @reference reference/freeciv/common/requirements.c:4803-4828
 export const EffectRequirementTypeSchema = z.enum([
   'AI',
@@ -549,7 +548,7 @@ export const EffectRequirementSchema = RequirementSchema.extend({
   type: EffectRequirementTypeSchema,
 });
 
-// Requirement rows retained from classic actions, extras, and styles. These
+// Requirement rows retained from C2C3 actions, extras, and styles. These
 // are the universal kinds present in the shipped source files, rather than a
 // hand-picked subset of the kinds already consumed by EffectsManager.
 // @reference reference/freeciv/common/requirements.c:4803-4828
@@ -849,7 +848,7 @@ export const GameRulesetFileSchema = z.object({
 
 // Effects system schemas
 // Runtime-supported CivJS effects plus the explicitly inert effect types
-// already present in the classic data. Freeciv resolves effect type names to
+// already present in the C2C3 data. Freeciv resolves effect type names to
 // its enum and rejects unknown names during ruleset loading.
 // @reference reference/freeciv/gen_headers/enums/effects_enums.def:5-167
 // @reference reference/freeciv/server/ruleset/ruleload.c:6342-6363

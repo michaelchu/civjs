@@ -14,6 +14,7 @@ import logger from './utils/logger';
 import { testConnection, closeConnection, productionDatabaseProvider } from './database';
 import { setupSocketHandlers } from './network/SocketCoordinator';
 import apiRouter from './routes/api';
+import { SUPPORTED_RULESETS } from './shared/data/rulesets/defaultRuleset';
 
 // Load environment variables
 dotenv.config();
@@ -112,7 +113,7 @@ app.get('/api/info', (_req: any, res: any) => {
     name: 'CivJS Game Server',
     version: '1.0.0',
     maxPlayers: config.game.maxPlayersPerGame,
-    supportedRulesets: ['classic', 'civ1', 'civ2'],
+    supportedRulesets: SUPPORTED_RULESETS,
   });
 });
 

@@ -237,5 +237,5 @@ const seedFixture = (): void => {
 
 export const BrowserParityFixture = () => {
   useState(seedFixture);
-  return <GameLayout rulesetName="classic" />;
+  return <GameLayout rulesetName="civ2civ3" />;
 };

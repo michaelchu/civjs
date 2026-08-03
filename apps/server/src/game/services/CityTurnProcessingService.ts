@@ -775,15 +775,14 @@ export class CityTurnProcessingService extends BaseGameService {
       const granaryFoodIni = civstyle.granary_food_ini;
       const granaryFoodInc = civstyle.granary_food_inc;
 
-      // Freeciv permits a per-size initial-granary table as well as the
-      // classic scalar-plus-increment form.
+      // Freeciv permits a per-size initial-granary table as well as a
+      // scalar-plus-increment form.
       if (Array.isArray(granaryFoodIni)) {
         return granaryFoodIni[Math.min(Math.max(0, population - 1), granaryFoodIni.length - 1)]!;
       }
       return granaryFoodIni + (population - 1) * granaryFoodInc;
     } catch {
-      // Fallback to classic values if ruleset loading fails
-      return 20 + (population - 1) * 10;
+      return [20, 20, 20, 20, 20, 30, 30, 40][Math.min(Math.max(0, population - 1), 7)]!;
     }
   }
 

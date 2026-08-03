@@ -113,14 +113,14 @@ export class CityCaptureService extends BaseGameService {
         };
       }
 
-      // Classic conquest reduces the transferred city by exactly one citizen.
+      // C2C3 conquest reduces the transferred city by exactly one citizen.
       // @reference reference/freeciv/server/citytools.c:2135-2142
       const populationLoss = 1;
       city.population -= populationLoss;
       city.size = city.population;
 
       // Small wonders are removed during transfer. Great wonders and special
-      // production targets survive; ordinary improvements use the classic
+      // production targets survive; ordinary improvements use the C2C3
       // default razechance of 20 percent.
       // @reference reference/freeciv/server/citytools.c:924-950
       // @reference reference/freeciv/common/game.h:574
