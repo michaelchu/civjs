@@ -80,6 +80,7 @@ export enum EffectType {
   POLLU_POP_PCT_2 = 'Pollu_Pop_Pct_2',
   POLLU_PROD_PCT = 'Pollu_Prod_Pct',
   GIVE_IMMEDIATE_TECH = 'Give_Imm_Tech',
+  CONQUEST_TECH_PCT = 'Conquest_Tech_Pct',
   TECH_PARASITE = 'Tech_Parasite',
   UNIT_VISION_RADIUS_SQ = 'Unit_Vision_Radius_Sq',
   CITY_VISION_RADIUS_SQ = 'City_Vision_Radius_Sq',

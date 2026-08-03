@@ -16,6 +16,7 @@ export interface CityCaptureResult {
   populationLoss: number;
   buildingsDestroyed: string[];
   cityDestroyed?: boolean;
+  conqueredTechnology?: string;
   reason?: string;
 }
 
@@ -44,7 +45,12 @@ export class CityCaptureService extends BaseGameService {
     private readonly reconcileCitizenAssignments?: (
       cityId: string,
       reason: string
-    ) => Promise<boolean>
+    ) => Promise<boolean>,
+    private readonly resolveConquestTechnology?: (
+      conquerorPlayerId: string,
+      victimPlayerId: string,
+      conquerorUnitId: string
+    ) => Promise<string | undefined>
   ) {
     super(logger);
   }
@@ -113,6 +119,16 @@ export class CityCaptureService extends BaseGameService {
         };
       }
 
+      // Freeciv resolves the conquest-tech chance while the victim still
+      // owns the city, before transfer changes the runtime context. A failed
+      // tech resolution is deliberately non-fatal to the conquest.
+      // @reference reference/freeciv/server/citytools.c:2126-2135
+      const conqueredTechnology = await this.resolveConquestTechnology?.(
+        conquerorPlayerId,
+        originalPlayerId,
+        conquerorUnitId
+      );
+
       // C2C3 conquest reduces the transferred city by exactly one citizen.
       // @reference reference/freeciv/server/citytools.c:2135-2142
       const populationLoss = 1;
@@ -156,6 +172,7 @@ export class CityCaptureService extends BaseGameService {
         populationLoss,
         buildingsDestroyed,
         cityDestroyed: false,
+        ...(conqueredTechnology === undefined ? {} : { conqueredTechnology }),
       };
     } catch (error) {
       city.playerId = originalPlayerId;

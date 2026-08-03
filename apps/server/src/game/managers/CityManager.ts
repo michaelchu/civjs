@@ -112,6 +112,13 @@ export const GAME_MAX_CITYMINDIST = 11;
 
 export type AirliftDirection = 'from' | 'to';
 
+/** Grants an eligible victim technology after a successful city conquest. */
+export type ConquestTechnologyProvider = (
+  conquerorPlayerId: string,
+  victimPlayerId: string,
+  pickCandidateIndex: (candidateCount: number) => number
+) => Promise<string | undefined>;
+
 export interface AirliftAvailability {
   enabled: boolean;
   available: boolean;
@@ -229,6 +236,7 @@ export class CityManager {
   private diplomaticStateProvider: (playerId: string, otherPlayerId: string) => Promise<string> =
     async () => 'no_contact';
   private unitSupportProvider: (city: CityState) => UnitSupportData[] = () => [];
+  private conquestTechnologyProvider?: ConquestTechnologyProvider;
   private mapChangedCallback?: (gameId: string, mapData: unknown) => void;
   private readonly unitSupportManager: UnitSupportManager;
   private readonly unitProductionValidation: UnitProductionValidationService;
@@ -338,6 +346,16 @@ export class CityManager {
 
   public setUnitSupportProvider(provider: (city: CityState) => UnitSupportData[]): void {
     this.unitSupportProvider = provider;
+  }
+
+  /** Set the game-owned research resolver for city-conquest technology theft. */
+  public setConquestTechnologyProvider(provider?: ConquestTechnologyProvider): void {
+    this.conquestTechnologyProvider = provider;
+  }
+
+  /** Exposes the game-owned effect evaluator to AI and runtime controllers. */
+  public getEffectsManager(): EffectsManager {
+    return this.effectsManager;
   }
 
   /** Provide authoritative unit state for city-founding occupancy validation. */
@@ -451,7 +469,8 @@ export class CityManager {
       undefined,
       this.random,
       this.buildingTypes,
-      this.reconcileCitizenAssignments.bind(this)
+      this.reconcileCitizenAssignments.bind(this),
+      this.resolveConquestTechnology.bind(this)
     );
 
     this.citizenManagementService = CitizenManagementService.getInstance();
@@ -2127,6 +2146,55 @@ export class CityManager {
       this.callbacks.onCityCaptured?.(city, oldPlayerId);
     }
     return result;
+  }
+
+  /**
+   * Applies C2C3's Conquest_Tech_Pct effect without allowing a research
+   * failure to roll the already-valid city conquest back.
+   * @reference reference/freeciv/server/citytools.c:2126-2129
+   * @reference reference/freeciv/server/techtools.c:1234-1340
+   */
+  private async resolveConquestTechnology(
+    conquerorPlayerId: string,
+    victimPlayerId: string,
+    conquerorUnitId: string
+  ): Promise<string | undefined> {
+    const unit = this.unitProvider().get(conquerorUnitId);
+    const unitType = unit === undefined ? undefined : this.unitTypes[unit.unitTypeId];
+    const ai = this.playerAIProvider(conquerorPlayerId);
+    const chance = this.effectsManager.calculateEffect(EffectType.CONQUEST_TECH_PCT, {
+      playerId: conquerorPlayerId,
+      playerIsAI: ai.isAI,
+      aiLevel: ai.aiLevel,
+      unitId: conquerorUnitId,
+      unitType: unit?.unitTypeId,
+      unitTypeFlags: new Set(unitType?.flags ?? []),
+      playerTechs: new Set(this.playerTechsProvider(conquerorPlayerId)),
+      playerBuildings: new Set(this.playerBuildingsProvider(conquerorPlayerId)),
+    }).value;
+
+    // Keep the chance draw in the same position as Freeciv's fc_rand(100),
+    // including when the configured chance is zero.
+    if (randomInt(this.random, 100) >= chance || !this.conquestTechnologyProvider) {
+      return undefined;
+    }
+
+    try {
+      return await this.conquestTechnologyProvider(
+        conquerorPlayerId,
+        victimPlayerId,
+        candidateCount => randomInt(this.random, candidateCount)
+      );
+    } catch (error) {
+      logger.warn('Conquest technology resolution failed; preserving city capture', {
+        gameId: this.gameId,
+        conquerorPlayerId,
+        victimPlayerId,
+        conquerorUnitId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return undefined;
+    }
   }
 
   async transferCity(
