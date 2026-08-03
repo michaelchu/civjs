@@ -179,19 +179,20 @@ describe('Minimap', () => {
     const layout = getMinimapLayout(32, 64, 12);
     expect(minimapPointToMapTile(128, 64, 32, 64, layout, 12, 3)).toEqual({
       x: 16,
-      y: 32,
+      y: 31,
     });
     expect(minimapPointToMapTile(2, 62, 32, 64, layout, 12, 3)).toEqual({
-      x: 31,
-      y: 63,
+      x: 0,
+      y: 62,
     });
   });
 
-  it('places native ISO tiles in centered transposed overview coordinates', () => {
-    expect(nativeToMinimapPosition(0, 0, 32, 64, 12, 3)).toEqual({ x: 0, y: 16 });
-    expect(nativeToMinimapPosition(0, 1, 32, 64, 12, 3)).toEqual({ x: 0, y: 17 });
-    expect(nativeToMinimapPosition(16, 32, 32, 64, 12, 3)).toEqual({ x: 32, y: 16 });
-    expect(nativeToMinimapPosition(31, 63, 32, 64, 12, 3)).toEqual({ x: 0, y: 15 });
+  it('places native ISO tiles in horizontally mirrored landscape coordinates', () => {
+    expect(nativeToMinimapPosition(0, 0, 32, 64, 12, 3)).toEqual({ x: 63, y: 16 });
+    expect(nativeToMinimapPosition(0, 1, 32, 64, 12, 3)).toEqual({ x: 63, y: 17 });
+    expect(nativeToMinimapPosition(0, 2, 32, 64, 12, 3)).toEqual({ x: 62, y: 17 });
+    expect(nativeToMinimapPosition(16, 32, 32, 64, 12, 3)).toEqual({ x: 31, y: 16 });
+    expect(nativeToMinimapPosition(31, 63, 32, 64, 12, 3)).toEqual({ x: 63, y: 15 });
   });
 
   it('maps every native ISO tile to exactly one displayed overview position', () => {
@@ -246,9 +247,9 @@ describe('Minimap', () => {
 
     expect(polygons[0]).toEqual([
       { x: 128, y: 24 },
-      { x: 88, y: 64 },
-      { x: 128, y: 104 },
       { x: 168, y: 64 },
+      { x: 128, y: 104 },
+      { x: 88, y: 64 },
     ]);
     expect(polygons).toHaveLength(9);
   });

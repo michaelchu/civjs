@@ -119,16 +119,32 @@ const getLogicalOverviewOrigin = (
 const overviewCellToDisplay = (
   overviewX: number,
   overviewY: number,
+  mapHeight: number,
   topologyId: number
 ): MinimapPoint =>
-  isIsometricTopology(topologyId) ? { x: overviewY, y: overviewX } : { x: overviewX, y: overviewY };
+  isIsometricTopology(topologyId)
+    ? { x: mapHeight - 1 - overviewY, y: overviewX }
+    : { x: overviewX, y: overviewY };
 
 const displayCellToOverview = (
   displayX: number,
   displayY: number,
+  mapHeight: number,
   topologyId: number
 ): MinimapPoint =>
-  isIsometricTopology(topologyId) ? { x: displayY, y: displayX } : { x: displayX, y: displayY };
+  isIsometricTopology(topologyId)
+    ? { x: displayY, y: mapHeight - 1 - displayX }
+    : { x: displayX, y: displayY };
+
+const overviewPointToDisplay = (
+  overviewX: number,
+  overviewY: number,
+  mapHeight: number,
+  topologyId: number
+): MinimapPoint =>
+  isIsometricTopology(topologyId)
+    ? { x: mapHeight - overviewY, y: overviewX }
+    : { x: overviewX, y: overviewY };
 
 /** Place one native tile in the centered, displayed overview orientation. */
 export const nativeToMinimapPosition = (
@@ -145,10 +161,10 @@ export const nativeToMinimapPosition = (
     const x = logical.x + translation.x - origin.x;
     const y = logical.y + translation.y - origin.y;
     if (x >= 0 && x < mapWidth && y >= 0 && y < mapHeight) {
-      return overviewCellToDisplay(x, y, topologyId);
+      return overviewCellToDisplay(x, y, mapHeight, topologyId);
     }
   }
-  return overviewCellToDisplay(logical.x - origin.x, logical.y - origin.y, topologyId);
+  return overviewCellToDisplay(logical.x - origin.x, logical.y - origin.y, mapHeight, topologyId);
 };
 
 /** Resolve a displayed overview position back to CivJS native tile storage. */
@@ -160,7 +176,12 @@ export const minimapPositionToNative = (
   topologyId: number,
   wrapId: number
 ): MinimapPoint => {
-  const overview = displayCellToOverview(Math.floor(overviewX), Math.floor(overviewY), topologyId);
+  const overview = displayCellToOverview(
+    Math.floor(overviewX),
+    Math.floor(overviewY),
+    mapHeight,
+    topologyId
+  );
   const origin = getLogicalOverviewOrigin(mapWidth, mapHeight, topologyId);
   const native = mapToNativePosition(
     overview.x + origin.x,
@@ -236,9 +257,10 @@ export const getMinimapViewportPolygons = (
 
   return getLogicalWrapTranslations(mapWidth, mapHeight, topologyId, wrapId).map(translation =>
     mapCorners.map(point => {
-      const display = overviewCellToDisplay(
+      const display = overviewPointToDisplay(
         point.x + translation.x - origin.x,
         point.y + translation.y - origin.y,
+        mapHeight,
         topologyId
       );
       return {
