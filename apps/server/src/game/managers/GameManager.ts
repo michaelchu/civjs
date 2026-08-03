@@ -70,6 +70,15 @@ import {
   getInitialRulesetSettings,
   resolveStartingUnitTypeIds,
 } from '@game/services/RulesetInitialSetupService';
+import {
+  autoPlaceSpaceship,
+  isSpaceshipOptimal,
+  launchSpaceship as launchSpaceshipState,
+  normalizeSpaceshipState,
+  placeSpaceshipPart as placeSpaceshipPartState,
+  type SpaceshipPlacement,
+  type SpaceshipTransitionResult,
+} from '@game/services/SpaceshipService';
 
 export type {
   GameConfig,
@@ -1662,9 +1671,10 @@ export class GameManager {
       },
       onCityCaptured: city => this.aiOrchestrator.onCityInvalidated(gameId, gameInstance, city.id),
     });
-    gameInstance.turnManager.setAIProcessor(() =>
-      this.aiOrchestrator.processTurn(gameId, gameInstance)
-    );
+    gameInstance.turnManager.setAIProcessor(async () => {
+      const actions = await this.aiOrchestrator.processTurn(gameId, gameInstance);
+      return actions + (await this.manageAISpaceships(gameInstance));
+    });
     gameInstance.turnManager.setWorkerAutomationProcessor(() =>
       processHumanWorkerAutomation(gameInstance, this.hostilityPolicy)
     );
@@ -1730,6 +1740,7 @@ export class GameManager {
     gameInstance.turnManager.setTurnAdvancedCallback(async turn => {
       gameInstance.currentTurn = turn;
       for (const player of gameInstance.players.values()) player.hasEndedTurn = false;
+      await this.autoPlaceSpaceshipParts(gameInstance);
       await this.gameBroadcastManager.broadcastPlayerInfo(gameId);
       if (startTurnTimer && gameInstance.state === 'active') {
         gameInstance.turnManager.startTurnTimer(gameInstance.config.turnTimeLimit ?? 300);
@@ -1745,6 +1756,87 @@ export class GameManager {
       gameInstance.turnDeadlineAt = null;
       gameInstance.pausedTimerSeconds = null;
     }
+  }
+
+  /**
+   * At the beginning of a new turn Freeciv places parts that a player left
+   * unplaced throughout the preceding turn. This deliberately applies to
+   * humans as well as AI players, but never launches a human ship.
+   *
+   * @reference reference/freeciv/server/srv_main.c:1549-1553
+   */
+  private async autoPlaceSpaceshipParts(game: GameInstance): Promise<number> {
+    let changed = 0;
+    for (const player of game.players.values()) {
+      if (player.isAlive === false) continue;
+      const current = normalizeSpaceshipState(player.spaceshipState);
+      if (current.status !== 'started') continue;
+      const next = autoPlaceSpaceship(current);
+      if (this.sameSpaceshipState(current, next)) continue;
+      player.spaceshipState = next;
+      await this.persistSpaceshipState(player.id, next);
+      changed += 1;
+    }
+    return changed;
+  }
+
+  /**
+   * The default Freeciv AI automatically places parts and only launches after
+   * it has built the maximum ship. This runs after the city's production phase
+   * so parts completed that turn can be considered immediately by the AI.
+   *
+   * @reference reference/freeciv/ai/default/daihand.c:98-110
+   */
+  private async manageAISpaceships(game: GameInstance): Promise<number> {
+    if (!this.isSpaceRaceVictoryEnabled(game.config.victoryConditions)) return 0;
+    let changed = 0;
+    for (const player of game.players.values()) {
+      if (!player.isAI || player.isAlive === false) continue;
+      const current = normalizeSpaceshipState(player.spaceshipState);
+      if (current.status !== 'started') continue;
+
+      let next = autoPlaceSpaceship(current);
+      if (isSpaceshipOptimal(next)) {
+        const launch = launchSpaceshipState(next, {
+          year: game.turnManager.getCurrentYear(),
+          turn: game.turnManager.getCurrentTurn(),
+          hasCapital: this.playerHasCapital(game, player.id),
+        });
+        if (launch.success) next = launch.state;
+      }
+      if (this.sameSpaceshipState(current, next)) continue;
+      player.spaceshipState = next;
+      await this.persistSpaceshipState(player.id, next);
+      changed += 1;
+    }
+    return changed;
+  }
+
+  private isSpaceRaceVictoryEnabled(victoryConditions: readonly string[] | undefined): boolean {
+    return Boolean(
+      victoryConditions?.some(condition => condition === 'science' || condition === 'spaceship')
+    );
+  }
+
+  private playerHasCapital(game: GameInstance, playerId: string): boolean {
+    return game.cityManager
+      .getCitiesByPlayer(playerId)
+      .some(city => city.buildings.includes('palace'));
+  }
+
+  private sameSpaceshipState(left: unknown, right: unknown): boolean {
+    return JSON.stringify(left) === JSON.stringify(right);
+  }
+
+  private async persistSpaceshipState(
+    playerId: string,
+    state: PlayerState['spaceshipState']
+  ): Promise<void> {
+    await this.databaseProvider
+      .getDatabase()
+      .update(players)
+      .set({ spaceshipState: state })
+      .where(eq(players.id, playerId));
   }
 
   private async processDiplomacyTurn(gameId: string, gameInstance: GameInstance): Promise<void> {
@@ -2394,6 +2486,57 @@ export class GameManager {
 
   public getCity(gameId: string, cityId: string) {
     return this.cityManagementService.getCity(gameId, cityId);
+  }
+
+  /**
+   * Apply one player-requested spaceship placement and publish the updated
+   * authoritative player state.
+   *
+   * @reference reference/freeciv/server/spacerace.c:204-415
+   */
+  public async placeSpaceshipPart(
+    gameId: string,
+    playerId: string,
+    placement: SpaceshipPlacement
+  ): Promise<SpaceshipTransitionResult> {
+    const game = this.games.get(gameId);
+    if (!game) throw new Error('Game instance not found');
+    const player = game.players.get(playerId);
+    if (!player) throw new Error('Player not found');
+
+    const result = placeSpaceshipPartState(player.spaceshipState, placement);
+    if (!result.success) return result;
+    player.spaceshipState = result.state;
+    await this.persistSpaceshipState(player.id, result.state);
+    await this.gameBroadcastManager.broadcastPlayerInfo(gameId);
+    return result;
+  }
+
+  /**
+   * Launch a player-requested spaceship after validating the primary capital
+   * and source-compatible ship readiness.
+   *
+   * @reference reference/freeciv/server/spacerace.c:167-201
+   */
+  public async launchSpaceship(
+    gameId: string,
+    playerId: string
+  ): Promise<SpaceshipTransitionResult> {
+    const game = this.games.get(gameId);
+    if (!game) throw new Error('Game instance not found');
+    const player = game.players.get(playerId);
+    if (!player) throw new Error('Player not found');
+
+    const result = launchSpaceshipState(player.spaceshipState, {
+      year: game.turnManager.getCurrentYear(),
+      turn: game.turnManager.getCurrentTurn(),
+      hasCapital: this.playerHasCapital(game, playerId),
+    });
+    if (!result.success) return result;
+    player.spaceshipState = result.state;
+    await this.persistSpaceshipState(player.id, result.state);
+    await this.gameBroadcastManager.broadcastPlayerInfo(gameId);
+    return result;
   }
 
   // Research management methods - delegates to ResearchManagementService

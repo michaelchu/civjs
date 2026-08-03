@@ -19,6 +19,7 @@ import {
   GovernmentHandler,
   EconomicHandler,
   DiplomacyHandler,
+  SpaceshipHandler,
 } from './handlers';
 import { PacketType, PROTOCOL_VERSION } from '../types/packet';
 import { db, type Database } from '@database';
@@ -66,6 +67,7 @@ export class SocketCoordinator {
       new GovernmentHandler(activeConnections, this.gameManager),
       new EconomicHandler(activeConnections, this.gameManager, this.database),
       new DiplomacyHandler(activeConnections, this.gameManager),
+      new SpaceshipHandler(activeConnections, this.gameManager),
     ];
 
     logger.info(`SocketCoordinator initialized with ${this.handlers.length} handlers`);

@@ -832,6 +832,7 @@ export class GameManagementHandler extends BaseSocketHandler {
       unitsKilled: player.unitsKilled ?? 0,
       spaceship: player.spaceshipState,
       currentTurn: gameInstance.turnManager?.getCurrentTurn?.() ?? gameInstance.currentTurn ?? 0,
+      currentYear: gameInstance.turnManager?.getCurrentYear?.(),
     };
   }
 

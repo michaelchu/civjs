@@ -108,6 +108,10 @@ export enum EffectType {
   ENABLE_NUKE = 'Enable_Nuke',
   NUKE_BLAST_RADIUS_1_SQ = 'Nuke_Blast_Radius_1_Sq',
   NUKE_PROOF = 'Nuke_Proof',
+  ENABLE_SPACE = 'Enable_Space',
+  SS_COMPONENT = 'SS_Component',
+  SS_MODULE = 'SS_Module',
+  SS_STRUCTURAL = 'SS_Structural',
 
   // Culture system effects (freeciv culture.c and effects_enums.def)
   PERFORMANCE = 'Performance', // EFT_PERFORMANCE (123) - Immediate culture boost

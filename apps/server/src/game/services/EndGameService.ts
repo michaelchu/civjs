@@ -14,9 +14,9 @@ import type { UnitManager } from '@game/managers/UnitManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { PacketType, PROTOCOL_VERSION } from '@app-types/packet';
 import {
-  isSpaceshipComplete,
-  isSpaceshipOptimal,
   normalizeSpaceshipState,
+  spaceshipArrival,
+  updateSpaceshipArrival,
   type SpaceshipState,
 } from '@game/services/SpaceshipService';
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
@@ -262,12 +262,7 @@ export class EndGameService {
       0
     );
     const alive = this.isPlayerAlive(player, cities.length, units.length);
-    const spaceship = this.getSpaceshipState(
-      player?.spaceshipState,
-      context.turn,
-      player?.isAI === true,
-      population
-    );
+    const spaceship = this.getSpaceshipState(player?.spaceshipState, context.year);
     const scoreInputs = {
       cities,
       researchedTechs: context.researchManager.getResearchedTechs(playerId),
@@ -277,6 +272,7 @@ export class EndGameService {
       unitsKilled: player?.unitsKilled ?? 0,
       spaceship,
       currentTurn: context.turn,
+      currentYear: context.year,
     };
     const scoreBreakdown = calculatePlayerScoreBreakdown(scoreInputs);
     const score = calculatePlayerScore(scoreInputs);
@@ -327,7 +323,7 @@ export class EndGameService {
     });
     candidates.push({
       condition: 'science',
-      result: this.findScienceWinner(enabled, context.turn, survivors),
+      result: this.findScienceWinner(enabled, context.year, context.turn, standings, survivors),
     });
     candidates.push({
       condition: 'world_peace',
@@ -363,16 +359,36 @@ export class EndGameService {
       : undefined;
   }
 
-  private findScienceWinner(enabled: string[], turn: number, survivors: EndGameStanding[]) {
+  private findScienceWinner(
+    enabled: string[],
+    year: number,
+    turn: number,
+    standings: EndGameStanding[],
+    survivors: EndGameStanding[]
+  ) {
     if (!this.isEnabled(enabled, 'science', 'spaceship')) return undefined;
-    const arrived = survivors.filter(
-      s => s.spaceship?.arrivalTurn !== undefined && s.spaceship.arrivalTurn <= turn
+    const arrived = survivors.filter(standing =>
+      this.hasSpaceshipArrived(standing.spaceship, year, turn)
     );
     if (!arrived.length) return undefined;
-    const earliest = Math.min(...arrived.map(s => s.spaceship!.arrivalTurn!));
+    const ranked = arrived
+      .map(standing => ({
+        standing,
+        arrival: this.getSpaceshipArrival(standing.spaceship, turn),
+      }))
+      .sort(
+        (left, right) =>
+          left.arrival - right.arrival ||
+          left.standing.playerId.localeCompare(right.standing.playerId)
+      );
+    const firstArrival = ranked[0]?.standing;
+    if (!firstArrival) return undefined;
+    const winners = firstArrival.teamId
+      ? standings.filter(standing => standing.teamId === firstArrival.teamId)
+      : [firstArrival];
     return {
       reason: 'science' as const,
-      winners: arrived.filter(s => s.spaceship!.arrivalTurn === earliest),
+      winners,
     };
   }
 
@@ -557,11 +573,12 @@ export class EndGameService {
         science: condition('science', ['science', 'spaceship'], 'no_arrived_spaceship', {
           players: standings.map(standing => ({
             playerId: standing.playerId,
+            status: standing.spaceship?.status,
+            launchYear: standing.spaceship?.launchYear,
+            arrivalYear: standing.spaceship?.arrivalYear,
             launchedTurn: standing.spaceship?.launchedTurn,
             arrivalTurn: standing.spaceship?.arrivalTurn,
-            arrived:
-              standing.spaceship?.arrivalTurn !== undefined &&
-              standing.spaceship.arrivalTurn <= context.turn,
+            arrived: this.hasSpaceshipArrived(standing.spaceship, context.year, context.turn),
           })),
         }),
         world_peace: condition(
@@ -609,23 +626,40 @@ export class EndGameService {
     };
   }
 
-  private getSpaceshipState(
-    persisted: unknown,
-    turn: number,
-    waitForOptimal: boolean,
-    population: number
-  ): SpaceshipState {
+  /**
+   * End-game evaluation observes an already-launched ship; it never launches
+   * one. Native Freeciv requires a player launch request, while its default AI
+   * launches a fully-built ship during AI management.
+   *
+   * @reference reference/freeciv/server/spacerace.c:167-201
+   * @reference reference/freeciv/ai/default/daihand.c:98-110
+   */
+  private getSpaceshipState(persisted: unknown, year: number): SpaceshipState {
     const state = normalizeSpaceshipState(persisted);
-    const launchReady = waitForOptimal ? isSpaceshipOptimal(state) : isSpaceshipComplete(state);
-    // Humans launch at the minimum viable ship in the current native flow;
-    // default AI follows Freeciv and waits for the best possible ship.
-    if (state.launchedTurn === undefined && launchReady) {
-      state.launchedTurn = turn;
-      state.arrivalTurn = turn + 10;
-      if (state.population === undefined) state.population = population;
-      if (state.successRate === undefined) state.successRate = 100;
-    }
-    return state;
+    // Saves created before the year-based model have only a turn arrival and
+    // their persisted derived values. Keep those intact while callers migrate
+    // them; new ships always use the source-aligned year fields.
+    if (state.arrivalYear === undefined && state.arrivalTurn !== undefined) return state;
+    return updateSpaceshipArrival(state, year);
+  }
+
+  private hasSpaceshipArrived(
+    spaceship: SpaceshipState | undefined,
+    year: number,
+    turn: number
+  ): boolean {
+    return (
+      spaceship?.status === 'arrived' ||
+      (spaceship?.arrivalYear !== undefined && spaceship.arrivalYear <= year) ||
+      (spaceship?.arrivalYear === undefined &&
+        spaceship?.arrivalTurn !== undefined &&
+        spaceship.arrivalTurn <= turn)
+    );
+  }
+
+  private getSpaceshipArrival(spaceship: SpaceshipState | undefined, turn: number): number {
+    if (!spaceship) return Number.POSITIVE_INFINITY;
+    return spaceshipArrival(spaceship) ?? spaceship.arrivalTurn ?? turn;
   }
 
   private async areAllSurvivorsAllied(

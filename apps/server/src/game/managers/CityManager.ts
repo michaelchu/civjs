@@ -94,9 +94,10 @@ import { CityHappinessService } from '@game/services/CityHappinessService';
 import { CityOptimizationService } from '@game/services/CityOptimizationService';
 import {
   countSpaceshipPartCommitments,
-  isSpaceshipPart,
+  isSpaceRaceEnabled,
   normalizeSpaceshipState,
   SPACESHIP_PART_LIMITS,
+  spaceshipPartFromEffects,
   type SpaceshipState,
 } from '@game/services/SpaceshipService';
 
@@ -1017,7 +1018,7 @@ export class CityManager {
 
   private canCityQueueItem(city: CityState, kind: 'unit' | 'building', value: string): boolean {
     if (kind === 'building') {
-      const spaceshipPart = isSpaceshipPart(value);
+      const spaceshipPart = this.getSpaceshipPartType(city, value);
       // Spaceship parts are repeatable national projects, not improvements
       // installed once in a city.
       if (!spaceshipPart && city.buildings.includes(value)) {
@@ -1030,11 +1031,7 @@ export class CityManager {
       if (building.requiredTech && !playerTechs.has(building.requiredTech)) return false;
       if (building.requires?.some(required => !city.buildings.includes(required))) return false;
       if (spaceshipPart) {
-        if (
-          ![...this.cities.values()].some(candidate =>
-            candidate.buildings.includes('apollo_program')
-          )
-        ) {
+        if (!isSpaceRaceEnabled(this.effectsManager, this.getSpaceshipEffectContext(city, value))) {
           return false;
         }
         const playerCities = [...this.cities.values()].filter(
@@ -1043,12 +1040,12 @@ export class CityManager {
         const commitments = countSpaceshipPartCommitments(
           this.playerSpaceshipProvider(city.playerId),
           playerCities,
-          value
+          spaceshipPart
         );
         const currentProject = city.currentProduction === value;
         if (
-          commitments > SPACESHIP_PART_LIMITS[value] ||
-          (!currentProject && commitments >= SPACESHIP_PART_LIMITS[value])
+          commitments > SPACESHIP_PART_LIMITS[spaceshipPart] ||
+          (!currentProject && commitments >= SPACESHIP_PART_LIMITS[spaceshipPart])
         ) {
           return false;
         }
@@ -1079,6 +1076,35 @@ export class CityManager {
     }
 
     return false;
+  }
+
+  /**
+   * Build the construction context used by Freeciv's spaceship effects. The
+   * just-completed or selected building is included locally because special
+   * spaceship improvements are consumed rather than installed in the city.
+   */
+  private getSpaceshipEffectContext(city: CityState, buildingId: string) {
+    const playerCities = this.getCitiesByPlayer(city.playerId);
+    const cityBuildings = new Set([...city.buildings, buildingId]);
+    return {
+      playerId: city.playerId,
+      cityId: city.id,
+      buildingId,
+      cityBuildings,
+      playerBuildings: new Set(playerCities.flatMap(candidate => candidate.buildings ?? [])),
+      worldBuildings: new Set(
+        [...this.cities.values()].flatMap(candidate => candidate.buildings ?? [])
+      ),
+      playerTechs: new Set(this.playerTechsProvider(city.playerId)),
+    };
+  }
+
+  /** @reference reference/freeciv/server/cityturn.c:2768-2779 */
+  private getSpaceshipPartType(city: CityState, buildingId: string) {
+    return spaceshipPartFromEffects(
+      this.effectsManager,
+      this.getSpaceshipEffectContext(city, buildingId)
+    );
   }
 
   /**
@@ -1169,7 +1195,7 @@ export class CityManager {
 
     // Validate production choice with specific error messages
     if (productionType === 'building') {
-      if (!isSpaceshipPart(productionId) && city.buildings.includes(productionId)) {
+      if (!this.getSpaceshipPartType(city, productionId) && city.buildings.includes(productionId)) {
         throw new Error(`Building already exists: ${productionId}`);
       }
       if (!this.buildingTypes[productionId]) {

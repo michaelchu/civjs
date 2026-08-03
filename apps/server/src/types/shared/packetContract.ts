@@ -113,6 +113,10 @@ export enum PacketType {
   DEBUG_VISIBILITY_REPLY = 258,
   DIPLOMACY_PACT_CANCEL = 259,
   DIPLOMACY_VISION_CANCEL = 260,
+  SPACESHIP_PLACE = 261,
+  SPACESHIP_PLACE_REPLY = 262,
+  SPACESHIP_LAUNCH = 263,
+  SPACESHIP_LAUNCH_REPLY = 264,
 }
 
 export const PACKET_NAMES: Record<number, string> = Object.fromEntries(
@@ -271,6 +275,24 @@ export const ACTIVE_PACKET_CONTRACT: readonly PacketContractEntry[] = [
   active(PacketType.CITY_INFO, 'cities', 'server_to_client', {
     clientConsumer: 'GameClient.handlePacket',
     upstream: 'PACKET_CITY_INFO',
+  }),
+  active(PacketType.SPACESHIP_PLACE, 'spaceship', 'client_to_server', {
+    schema: 'SpaceshipPlaceSchema',
+    serverHandler: 'SpaceshipHandler',
+    upstream: 'PACKET_SPACESHIP_PLACE',
+  }),
+  active(PacketType.SPACESHIP_PLACE_REPLY, 'spaceship', 'server_to_client', {
+    schema: 'SpaceshipPlaceReplySchema',
+    clientConsumer: 'GameClient.placeSpaceshipPart',
+  }),
+  active(PacketType.SPACESHIP_LAUNCH, 'spaceship', 'client_to_server', {
+    schema: 'SpaceshipLaunchSchema',
+    serverHandler: 'SpaceshipHandler',
+    upstream: 'PACKET_SPACESHIP_LAUNCH',
+  }),
+  active(PacketType.SPACESHIP_LAUNCH_REPLY, 'spaceship', 'server_to_client', {
+    schema: 'SpaceshipLaunchReplySchema',
+    clientConsumer: 'GameClient.launchSpaceship',
   }),
   active(PacketType.RESEARCH_SET, 'research', 'client_to_server', {
     serverHandler: 'ResearchHandler',

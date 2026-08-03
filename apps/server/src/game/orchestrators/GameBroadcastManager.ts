@@ -504,6 +504,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         unitsKilled: player.unitsKilled,
         spaceship: player.spaceshipState,
         currentTurn: gameInstance.currentTurn,
+        currentYear: gameInstance.turnManager?.getCurrentYear?.(),
       }),
       gold: this.playerValue(player.gold, 0),
       goldPerTurn: this.playerValue(player.goldPerTurn, 0),

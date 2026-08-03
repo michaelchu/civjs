@@ -6,7 +6,13 @@
 import type { Socket } from 'socket.io-client';
 import { SERVER_URL } from '../config';
 import { useGameStore } from '../store/gameStore';
-import { PacketType, PACKET_NAMES, PROTOCOL_VERSION, type Packet } from '../types/packets';
+import {
+  PacketType,
+  PACKET_NAMES,
+  PROTOCOL_VERSION,
+  type Packet,
+  type SpaceshipPlacement,
+} from '../types/packets';
 import { ActionType, type ActionResult } from '../types/shared/actions';
 import { pathfindingService } from './PathfindingService';
 import { playerColorToHex } from '../utils/playerColors';
@@ -1108,6 +1114,43 @@ export class GameClient {
       'Failed to set research goal'
     );
     useGameStore.getState().setResearchGoal(techId);
+  }
+
+  /**
+   * Requests one legal spaceship placement. Freeciv's stock client normally
+   * submits these automatically as construction completes, but retaining the
+   * request makes the authoritative protocol available to this client and to
+   * alternative UI flows.
+   */
+  async placeSpaceshipPart(
+    placement: SpaceshipPlacement
+  ): Promise<Record<string, unknown> | undefined> {
+    const data = await this.requestPacket(
+      PacketType.SPACESHIP_PLACE,
+      PacketType.SPACESHIP_PLACE_REPLY,
+      { placement },
+      reply => Boolean(reply.success),
+      'Failed to place spaceship part'
+    );
+    const spaceshipState = data.spaceshipState;
+    return spaceshipState && typeof spaceshipState === 'object' && !Array.isArray(spaceshipState)
+      ? (spaceshipState as Record<string, unknown>)
+      : undefined;
+  }
+
+  /** Requests an authoritative spaceship launch for the current player. */
+  async launchSpaceship(): Promise<Record<string, unknown> | undefined> {
+    const data = await this.requestPacket(
+      PacketType.SPACESHIP_LAUNCH,
+      PacketType.SPACESHIP_LAUNCH_REPLY,
+      {},
+      reply => Boolean(reply.success),
+      'Failed to launch spaceship'
+    );
+    const spaceshipState = data.spaceshipState;
+    return spaceshipState && typeof spaceshipState === 'object' && !Array.isArray(spaceshipState)
+      ? (spaceshipState as Record<string, unknown>)
+      : undefined;
   }
 
   refreshResearch(): void {

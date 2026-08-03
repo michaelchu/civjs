@@ -7,6 +7,7 @@ import { Socket } from 'socket.io';
 import type { RequirementsManager } from '@game/managers/RequirementsManager';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { EffectsManager } from '@game/managers/EffectsManager';
 import { rulesetUnitsService, type UnitType } from '@game/services/RulesetUnitsService';
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 import {
@@ -15,9 +16,11 @@ import {
 } from '@game/services/UnitProductionValidationService';
 import {
   countSpaceshipPartCommitments,
-  isSpaceshipPart,
+  isSpaceRaceEnabled,
   normalizeSpaceshipState,
   SPACESHIP_PART_LIMITS,
+  spaceshipPartFromEffects,
+  type SpaceshipPartId,
 } from '@game/services/SpaceshipService';
 // ProductionOption interface - shared between client and server
 interface ProductionOption {
@@ -44,6 +47,7 @@ export class CityProductionHandler {
   private readonly unitTypes: Record<string, UnitType>;
   private readonly buildingTypes: Record<string, any>;
   private readonly unitProductionValidation: UnitProductionValidationService;
+  private readonly effectsManager: EffectsManager;
 
   constructor(
     private cities: Map<string, any>,
@@ -65,6 +69,7 @@ export class CityProductionHandler {
     this.buildingTypes =
       buildingTypes ?? rulesetBuildingsService.getPlayableBuildingTypes(rulesetName);
     this.unitProductionValidation = new UnitProductionValidationService(this.unitTypes);
+    this.effectsManager = new EffectsManager(rulesetName);
   }
 
   /**
@@ -321,8 +326,9 @@ export class CityProductionHandler {
     player: any,
     buildingId: string
   ): boolean {
-    if (!isSpaceshipPart(buildingId) && city.buildings?.includes(buildingId)) return false;
-    if (isSpaceshipPart(buildingId) && !this.isSpaceshipPartAvailable(city, player, buildingId))
+    const spaceshipPart = this.getSpaceshipPartType(city, player, buildingId);
+    if (!spaceshipPart && city.buildings?.includes(buildingId)) return false;
+    if (spaceshipPart && !this.isSpaceshipPartAvailable(city, player, spaceshipPart, buildingId))
       return false;
     if (
       buildingType.genus === 'GreatWonder' &&
@@ -343,22 +349,60 @@ export class CityProductionHandler {
     return true;
   }
 
-  private isSpaceshipPartAvailable(city: any, player: any, buildingId: string): boolean {
+  private isSpaceshipPartAvailable(
+    city: any,
+    player: any,
+    spaceshipPart: SpaceshipPartId,
+    buildingId: string
+  ): boolean {
     if (
-      ![...this.cities.values()].some(candidate => candidate.buildings?.includes('apollo_program'))
-    )
+      !isSpaceRaceEnabled(
+        this.effectsManager,
+        this.getSpaceshipEffectContext(city, player, buildingId)
+      )
+    ) {
       return false;
+    }
     const playerCities = [...this.cities.values()].filter(
       candidate => candidate.playerId === player.id
     );
-    const spaceshipBuildingId = buildingId as keyof typeof SPACESHIP_PART_LIMITS;
     const commitments = countSpaceshipPartCommitments(
       normalizeSpaceshipState(player.spaceshipState),
       playerCities,
-      spaceshipBuildingId
+      spaceshipPart
     );
-    const limit = SPACESHIP_PART_LIMITS[spaceshipBuildingId];
+    const limit = SPACESHIP_PART_LIMITS[spaceshipPart];
     return commitments <= limit && (city.currentProduction === buildingId || commitments < limit);
+  }
+
+  /** @reference reference/freeciv/server/cityturn.c:2768-2779 */
+  private getSpaceshipPartType(
+    city: any,
+    player: any,
+    buildingId: string
+  ): SpaceshipPartId | undefined {
+    return spaceshipPartFromEffects(
+      this.effectsManager,
+      this.getSpaceshipEffectContext(city, player, buildingId)
+    );
+  }
+
+  private getSpaceshipEffectContext(city: any, player: any, buildingId: string) {
+    const playerCities = [...this.cities.values()].filter(
+      candidate => candidate.playerId === player.id
+    );
+    const researched = this.researchManager?.getResearchedTechs?.(player.id);
+    return {
+      playerId: player.id,
+      cityId: city.id,
+      buildingId,
+      cityBuildings: new Set([...(city.buildings ?? []), buildingId]),
+      playerBuildings: new Set(playerCities.flatMap(candidate => candidate.buildings ?? [])),
+      worldBuildings: new Set(
+        [...this.cities.values()].flatMap(candidate => candidate.buildings ?? [])
+      ),
+      playerTechs: new Set(Array.isArray(researched) ? researched : []),
+    };
   }
 
   private async meetsCultureRequirements(

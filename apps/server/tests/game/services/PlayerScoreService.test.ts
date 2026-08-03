@@ -29,9 +29,9 @@ describe('calculatePlayerScore', () => {
    * @assertion A spaceship contributes to civilization score only after arrival, as population times success rate divided by 100.
    */
   it('scores only an arrived spaceship and applies its success rate', () => {
-    const state = { arrivalTurn: 20, population: 100, successRate: 75 };
-    expect(calculatePlayerScore({ spaceship: state, currentTurn: 19 })).toBe(0);
-    expect(calculatePlayerScore({ spaceship: state, currentTurn: 20 })).toBe(75);
+    const state = { arrivalYear: 2000, population: 100, successRate: 75 };
+    expect(calculatePlayerScore({ spaceship: state, currentYear: 1999 })).toBe(0);
+    expect(calculatePlayerScore({ spaceship: state, currentYear: 2000 })).toBe(75);
   });
 
   /**
@@ -52,8 +52,7 @@ describe('calculatePlayerScore', () => {
       unitsBuilt: 19,
       unitsKilled: 8,
       history: 99,
-      spaceship: { arrivalTurn: 10, population: 20, successRate: 50 },
-      currentTurn: 10,
+      spaceship: { status: 'arrived', population: 20, successRate: 50 },
     });
 
     expect(breakdown).toEqual({

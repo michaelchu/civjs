@@ -1,5 +1,6 @@
 import { EndGameService } from '@game/services/EndGameService';
 import { PacketType, PROTOCOL_VERSION } from '@app-types/packet';
+import { autoPlaceSpaceship, launchSpaceship } from '@game/services/SpaceshipService';
 import { createMockDatabaseProvider } from '../../utils/mockDatabaseProvider';
 
 const citiesByPlayer: Record<string, Array<{ size: number }>> = {
@@ -10,6 +11,15 @@ const unitsByPlayer: Record<string, Array<{ id: string }>> = {
   winner: [{ id: 'unit-1' }],
   defeated: [],
 };
+
+function launchedSpaceship(year: number) {
+  const result = launchSpaceship(
+    autoPlaceSpaceship({ structurals: 8, components: 2, modules: 3 }),
+    { year, hasCapital: true }
+  );
+  if (!result.success) throw new Error(result.reason);
+  return result.state;
+}
 
 describe('EndGameService', () => {
   const emit = jest.fn();
@@ -268,7 +278,7 @@ describe('EndGameService', () => {
     unitsByPlayer.defeated = [];
   });
 
-  it('persists a launch-ready spaceship and awards science victory on arrival', async () => {
+  it('persists a manually launched spaceship and awards science victory on calendar-year arrival', async () => {
     const databaseProvider = createMockDatabaseProvider();
     const database = databaseProvider.getDatabase() as any;
     database.query.players.findMany.mockResolvedValue([
@@ -276,15 +286,7 @@ describe('EndGameService', () => {
         id: 'winner',
         civilization: 'Roman',
         isAlive: true,
-        spaceshipState: {
-          structurals: 16,
-          components: 8,
-          modules: 3,
-          launchedTurn: 20,
-          arrivalTurn: 30,
-          population: 8,
-          successRate: 100,
-        },
+        spaceshipState: launchedSpaceship(1875),
       },
       { id: 'defeated', civilization: 'Greek', isAlive: true },
     ]);
@@ -307,7 +309,7 @@ describe('EndGameService', () => {
     unitsByPlayer.defeated = [];
   });
 
-  it('automatically launches a newly completed national spaceship', async () => {
+  it('does not launch a newly completed spaceship during end-game evaluation', async () => {
     const databaseProvider = createMockDatabaseProvider();
     const database = databaseProvider.getDatabase() as any;
     database.query.players.findMany.mockResolvedValue([
@@ -339,30 +341,28 @@ describe('EndGameService', () => {
     expect(database.update).toHaveBeenCalled();
     expect(database.set).toHaveBeenCalledWith(
       expect.objectContaining({
-        spaceshipState: {
+        spaceshipState: expect.objectContaining({
           structurals: 16,
           components: 8,
           modules: 3,
-          launchedTurn: 20,
-          arrivalTurn: 30,
-          population: 8,
-          successRate: 100,
-        },
+          status: 'started',
+        }),
       })
     );
-    expect(spaceshipStateSink).toHaveBeenCalledWith('winner', {
-      structurals: 16,
-      components: 8,
-      modules: 3,
-      launchedTurn: 20,
-      arrivalTurn: 30,
-      population: 8,
-      successRate: 100,
-    });
+    expect(spaceshipStateSink).toHaveBeenCalledWith(
+      'winner',
+      expect.objectContaining({
+        structurals: 16,
+        components: 8,
+        modules: 3,
+        status: 'started',
+      })
+    );
+    expect(spaceshipStateSink.mock.calls[0][1]).not.toHaveProperty('launchYear');
     unitsByPlayer.defeated = [];
   });
 
-  it('waits for the best possible ship before launching for a default AI player', async () => {
+  it('does not launch an optimal AI spaceship during end-game evaluation', async () => {
     const databaseProvider = createMockDatabaseProvider();
     const database = databaseProvider.getDatabase() as any;
     const winner = {
@@ -391,7 +391,12 @@ describe('EndGameService', () => {
     });
     expect(database.set).toHaveBeenCalledWith(
       expect.objectContaining({
-        spaceshipState: { structurals: 16, components: 8, modules: 3 },
+        spaceshipState: expect.objectContaining({
+          structurals: 16,
+          components: 8,
+          modules: 3,
+          status: 'started',
+        }),
       })
     );
 
@@ -414,8 +419,10 @@ describe('EndGameService', () => {
     expect(database.set).toHaveBeenCalledWith(
       expect.objectContaining({
         spaceshipState: expect.objectContaining({
-          launchedTurn: 21,
-          arrivalTurn: 31,
+          structurals: 32,
+          components: 16,
+          modules: 12,
+          status: 'started',
         }),
       })
     );
@@ -681,39 +688,35 @@ describe('EndGameService', () => {
   });
 
   it('waits until spaceship arrival and awards only the earliest arrival', async () => {
+    const later = launchedSpaceship(1906);
+    const earlier = launchedSpaceship(1905);
     const { databaseProvider } = prepareDatabase([
       {
         id: 'winner',
         civilization: 'Roman',
         isAlive: true,
-        spaceshipState: {
-          structurals: 16,
-          components: 8,
-          modules: 3,
-          launchedTurn: 10,
-          arrivalTurn: 31,
-        },
+        spaceshipState: later,
       },
       {
         id: 'defeated',
         civilization: 'Greek',
         isAlive: true,
-        spaceshipState: {
-          structurals: 16,
-          components: 8,
-          modules: 3,
-          launchedTurn: 10,
-          arrivalTurn: 30,
-        },
+        spaceshipState: earlier,
       },
     ]);
     unitsByPlayer.defeated = [{ id: 'unit-2' }];
 
     await expect(
-      evaluate(databaseProvider, { victoryConditions: ['spaceship'], turn: 29 })
+      evaluate(databaseProvider, {
+        victoryConditions: ['spaceship'],
+        year: (earlier.arrivalYear ?? 0) - 1,
+      })
     ).resolves.toEqual({ ended: false });
 
-    const result = await evaluate(databaseProvider, { victoryConditions: ['science'] });
+    const result = await evaluate(databaseProvider, {
+      victoryConditions: ['science'],
+      year: earlier.arrivalYear,
+    });
     expect(result.report).toEqual(
       expect.objectContaining({ reason: 'science', winnerPlayerIds: ['defeated'] })
     );

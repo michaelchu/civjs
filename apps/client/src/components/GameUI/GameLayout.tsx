@@ -70,6 +70,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
   const mapHeight = useGameStore(state => state.map.height);
   const technologies = useGameStore(state => state.technologies);
   const turn = useGameStore(state => state.turn);
+  const year = useGameStore(state => state.year);
   const researchedTechs = useGameStore(state => state.research?.researchedTechs);
   const diplomacy = useGameStore(state => state.diplomacy);
   const rulesetName = rulesetOverride ?? 'civ2civ3';
@@ -266,7 +267,7 @@ export const GameLayout: React.FC<GameLayoutProps> = ({ rulesetName: rulesetOver
         onOpenChange={setSpaceRaceReportOpen}
         players={players}
         currentPlayerId={currentPlayerId}
-        currentTurn={turn}
+        currentYear={year}
       />
       <WarCalculator
         open={warCalculatorOpen}

@@ -92,6 +92,10 @@ describe('Civ2Civ3 ruleset runtime routing', () => {
     expect(effectCoverage.unsupportedTypes).not.toContain('City_Vision_Radius_Sq');
     expect(effectCoverage.unsupportedTypes).not.toContain('Reveal_Cities');
     expect(effectCoverage.unsupportedTypes).not.toContain('Reveal_Map');
+    expect(effectCoverage.unsupportedTypes).not.toContain('Enable_Space');
+    expect(effectCoverage.unsupportedTypes).not.toContain('SS_Component');
+    expect(effectCoverage.unsupportedTypes).not.toContain('SS_Module');
+    expect(effectCoverage.unsupportedTypes).not.toContain('SS_Structural');
     expect(
       new EffectsManager('civ2civ3').calculateEffect(EffectType.AIRLIFT, {
         cityBuildings: new Set(['airport']),
@@ -119,6 +123,16 @@ describe('Civ2Civ3 ruleset runtime routing', () => {
     expect(
       new EffectsManager('civ2civ3').calculateEffect(EffectType.HAVE_EMBASSIES, {
         playerBuildings: new Set(['marco_polos_embassy']),
+      }).value
+    ).toBe(1);
+    expect(
+      new EffectsManager('civ2civ3').calculateEffect(EffectType.SS_STRUCTURAL, {
+        cityBuildings: new Set(['space_structural']),
+      }).value
+    ).toBe(1);
+    expect(
+      new EffectsManager('civ2civ3').calculateEffect(EffectType.ENABLE_SPACE, {
+        worldBuildings: new Set(['apollo_program']),
       }).value
     ).toBe(1);
   });

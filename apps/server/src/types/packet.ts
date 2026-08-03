@@ -191,6 +191,49 @@ export const CityProductionChangeReplySchema = z.object({
   message: z.string().optional(),
 });
 
+// Spaceship packets mirror Freeciv's player placement and launch requests.
+export const SpaceshipPlacementSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('structural'), index: z.number().int().min(0).max(31) }),
+  z.object({ kind: z.literal('fuel'), number: z.number().int().min(1).max(8) }),
+  z.object({ kind: z.literal('propulsion'), number: z.number().int().min(1).max(8) }),
+  z.object({ kind: z.literal('habitation'), number: z.number().int().min(1).max(4) }),
+  z.object({ kind: z.literal('life_support'), number: z.number().int().min(1).max(4) }),
+  z.object({ kind: z.literal('solar_panel'), number: z.number().int().min(1).max(4) }),
+]);
+
+export const SpaceshipPlaceSchema = z.object({ placement: SpaceshipPlacementSchema });
+
+export const SpaceshipLaunchSchema = z.object({});
+
+const SpaceshipStateSchema = z.object({
+  structurals: z.number(),
+  components: z.number(),
+  modules: z.number(),
+  status: z.enum(['none', 'started', 'launched', 'arrived']).optional(),
+  placedStructurals: z.array(z.number()).optional(),
+  fuel: z.number().optional(),
+  propulsion: z.number().optional(),
+  habitation: z.number().optional(),
+  lifeSupport: z.number().optional(),
+  solarPanels: z.number().optional(),
+  launchYear: z.number().optional(),
+  arrivalYear: z.number().optional(),
+  population: z.number().optional(),
+  mass: z.number().optional(),
+  supportRate: z.number().optional(),
+  energyRate: z.number().optional(),
+  successRate: z.number().optional(),
+  travelTime: z.number().optional(),
+});
+
+export const SpaceshipPlaceReplySchema = z.object({
+  success: z.boolean(),
+  spaceshipState: SpaceshipStateSchema.optional(),
+  message: z.string().optional(),
+});
+
+export const SpaceshipLaunchReplySchema = SpaceshipPlaceReplySchema;
+
 // Research packets
 export const ResearchSetSchema = z.object({
   techId: z.string(),
@@ -744,6 +787,11 @@ export type CityInfo = z.infer<typeof CityInfoSchema>;
 export type CityProductionChange = z.infer<typeof CityProductionChangeSchema>;
 export type CityFoundReply = z.infer<typeof CityFoundReplySchema>;
 export type CityProductionChangeReply = z.infer<typeof CityProductionChangeReplySchema>;
+export type SpaceshipPlacement = z.infer<typeof SpaceshipPlacementSchema>;
+export type SpaceshipPlace = z.infer<typeof SpaceshipPlaceSchema>;
+export type SpaceshipLaunch = z.infer<typeof SpaceshipLaunchSchema>;
+export type SpaceshipPlaceReply = z.infer<typeof SpaceshipPlaceReplySchema>;
+export type SpaceshipLaunchReply = z.infer<typeof SpaceshipLaunchReplySchema>;
 export type ResearchSet = z.infer<typeof ResearchSetSchema>;
 export type ResearchSetReply = z.infer<typeof ResearchSetReplySchema>;
 export type ResearchGoalSet = z.infer<typeof ResearchGoalSetSchema>;

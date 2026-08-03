@@ -16,11 +16,14 @@ export interface PlayerScoreInputs {
   unitsBuilt?: number;
   unitsKilled?: number;
   spaceship?: {
+    status?: 'none' | 'started' | 'launched' | 'arrived';
+    arrivalYear?: number;
     arrivalTurn?: number;
     population?: number;
     successRate?: number;
   };
   currentTurn?: number;
+  currentYear?: number;
 }
 
 export interface PlayerScoreBreakdown {
@@ -48,6 +51,7 @@ export function calculatePlayerScoreBreakdown({
   unitsKilled = 0,
   spaceship,
   currentTurn = 0,
+  currentYear,
 }: PlayerScoreInputs): PlayerScoreBreakdown {
   const citizens = cities.reduce((total, city) => total + (city.population ?? city.size ?? 0), 0);
   const futureTechs = researchedTechs.filter(technology =>
@@ -55,10 +59,17 @@ export function calculatePlayerScoreBreakdown({
   ).length;
   const regularTechs = researchedTechs.length - futureTechs;
   const adjustedTechs = regularTechs + Math.floor((futureTechs * 5) / 2);
-  const spaceshipScore =
-    spaceship?.arrivalTurn !== undefined && spaceship.arrivalTurn <= currentTurn
-      ? Math.floor(((spaceship.population ?? 0) * (spaceship.successRate ?? 100)) / 100)
-      : 0;
+  const spaceshipArrived =
+    spaceship?.status === 'arrived' ||
+    (spaceship?.arrivalYear !== undefined &&
+      currentYear !== undefined &&
+      spaceship.arrivalYear <= currentYear) ||
+    (spaceship?.arrivalYear === undefined &&
+      spaceship?.arrivalTurn !== undefined &&
+      spaceship.arrivalTurn <= currentTurn);
+  const spaceshipScore = spaceshipArrived
+    ? Math.floor(((spaceship?.population ?? 0) * (spaceship?.successRate ?? 100)) / 100)
+    : 0;
 
   const breakdown = {
     population: citizens,

@@ -43,8 +43,8 @@ import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { assertAIState } from '@game/ai/AIStateStore';
 import {
   completeSpaceshipPart,
-  isSpaceshipPart,
   normalizeSpaceshipState,
+  spaceshipPartFromEffects,
 } from '@game/services/SpaceshipService';
 import {
   calculatePartisanCount,
@@ -425,10 +425,23 @@ export class GameInstanceRecoveryService extends BaseGameService {
           if (rallyPoint) await unitManager.applyRallyPoint(unit, rallyPoint);
           return;
         }
-        if (isSpaceshipPart(item.value)) {
+        const spaceshipPart = spaceshipPartFromEffects(effectsManager, {
+          playerId: city.playerId,
+          cityId: city.id,
+          buildingId: item.value,
+          cityBuildings: new Set([...city.buildings, item.value]),
+          playerBuildings: new Set(
+            cityManager.getCitiesByPlayer(city.playerId).flatMap(candidate => candidate.buildings)
+          ),
+          worldBuildings: new Set(
+            cityManager.getAllCities().flatMap(candidate => candidate.buildings)
+          ),
+          playerTechs: new Set(researchManager.getResearchedTechs(city.playerId)),
+        });
+        if (spaceshipPart) {
           const owner = players.get(city.playerId);
           if (!owner) throw new Error(`Spaceship owner not found: ${city.playerId}`);
-          owner.spaceshipState = completeSpaceshipPart(owner.spaceshipState, item.value);
+          owner.spaceshipState = completeSpaceshipPart(owner.spaceshipState, spaceshipPart);
           await this.databaseProvider
             .getDatabase()
             .update(playerRecords)

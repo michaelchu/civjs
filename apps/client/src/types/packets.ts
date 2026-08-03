@@ -16,6 +16,19 @@ export interface Packet<T = any> {
   data: T;
 }
 
+/**
+ * Freeciv-compatible spaceship placement request. The server remains the
+ * authority for whether a requested part is currently available and attached
+ * to the existing ship.
+ */
+export type SpaceshipPlacement =
+  | { kind: 'structural'; index: number }
+  | { kind: 'fuel'; number: number }
+  | { kind: 'propulsion'; number: number }
+  | { kind: 'habitation'; number: number }
+  | { kind: 'life_support'; number: number }
+  | { kind: 'solar_panel'; number: number };
+
 // Specific packet interfaces
 export interface GameStatePacket {
   type: PacketType.GAME_INFO;

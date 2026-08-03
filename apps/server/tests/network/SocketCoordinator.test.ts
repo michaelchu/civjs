@@ -67,7 +67,7 @@ describe('SocketCoordinator', () => {
     it('should initialize with all handlers', () => {
       const stats = coordinator.getHandlerStats();
 
-      expect(stats).toHaveLength(11);
+      expect(stats).toHaveLength(12);
       expect(stats.map(s => s.name)).toContain('ConnectionHandler');
       expect(stats.map(s => s.name)).toContain('GameManagementHandler');
       expect(stats.map(s => s.name)).toContain('UnitActionHandler');
@@ -79,6 +79,7 @@ describe('SocketCoordinator', () => {
       expect(stats.map(s => s.name)).toContain('MapVisibilityHandler');
       expect(stats.map(s => s.name)).toContain('ChatCommunicationHandler');
       expect(stats.map(s => s.name)).toContain('TurnManagementHandler');
+      expect(stats.map(s => s.name)).toContain('SpaceshipHandler');
     });
 
     it('should provide handler statistics with packet types', () => {

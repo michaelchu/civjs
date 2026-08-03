@@ -64,6 +64,27 @@ function civ2civ3VisibilityEffects(): Record<string, number> {
   };
 }
 
+function civ2civ3SpaceshipEffects(): Record<string, number> {
+  const effects = new EffectsManager('civ2civ3');
+  return {
+    spaceship_enable_space_without_apollo: effects.calculateEffect(EffectType.ENABLE_SPACE, {
+      worldBuildings: new Set<string>(),
+    }).value,
+    spaceship_enable_space_with_apollo: effects.calculateEffect(EffectType.ENABLE_SPACE, {
+      worldBuildings: new Set(['apollo_program']),
+    }).value,
+    spaceship_structural_effect: effects.calculateEffect(EffectType.SS_STRUCTURAL, {
+      cityBuildings: new Set(['space_structural']),
+    }).value,
+    spaceship_component_effect: effects.calculateEffect(EffectType.SS_COMPONENT, {
+      cityBuildings: new Set(['space_component']),
+    }).value,
+    spaceship_module_effect: effects.calculateEffect(EffectType.SS_MODULE, {
+      cityBuildings: new Set(['space_module']),
+    }).value,
+  };
+}
+
 function civ2civ3CityTileEffects(): Record<string, number> {
   const effects = new EffectsManager('civ2civ3');
   const grasslandCenter = {
@@ -711,6 +732,19 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
 
     /**
      * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2711-2733
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2907-2913
+     * @assertion CivJS and the pinned Freeciv c2c3 server agree that Apollo Program enables space construction world-wide and that each special spaceship improvement produces exactly its corresponding part effect in its city.
+     * @c2c3-surface victory-space
+     * @c2c3-surface-scenario differential
+     */
+    it('matches the batched pinned Freeciv spaceship-enablement fixture', () => {
+      expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
+      expect(oracle.results).toMatchObject(civ2civ3SpaceshipEffects());
+    });
+
+    /**
+     * @evidence parity
      * @reference reference/freeciv/common/tech.c:225-275
      * @reference reference/freeciv/common/tech.c:544-606
      * @reference reference/freeciv/data/civ2civ3/game.ruleset:308-339
@@ -770,6 +804,8 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
     it.skip('matches the batched pinned Freeciv Upgrade Unit fixture when an oracle bundle exists', () =>
       undefined);
     it.skip('matches the batched pinned Freeciv visibility-effects fixture when an oracle bundle exists', () =>
+      undefined);
+    it.skip('matches the batched pinned Freeciv spaceship-enablement fixture when an oracle bundle exists', () =>
       undefined);
     it.skip('matches the batched pinned Freeciv research-cost fixture when an oracle bundle exists', () =>
       undefined);
