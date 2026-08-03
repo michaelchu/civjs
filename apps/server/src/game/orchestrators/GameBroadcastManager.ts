@@ -984,7 +984,8 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       capabilities: this.getUnitCapabilities(
         unitType,
         unitManager.getAvailableWorkerActions?.(unit.id),
-        rulesetName
+        rulesetName,
+        recipientPlayerId === unit.playerId ? unitManager.getUnitUpgradeInfo?.(unit.id) : undefined
       ),
       actionDecisionWant: Boolean(unit.actionDecisionWant),
       nationality: this.unitValue(unit.nationality, unit.playerId),
@@ -1026,7 +1027,8 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   private getUnitCapabilities(
     unitType: any,
     availableWorkerActions?: string[],
-    rulesetName = 'classic'
+    rulesetName = 'classic',
+    upgradeTarget?: { unitTypeId: string; name: string; cost: number }
   ): any {
     const flags = unitType?.rulesetUnitClassFlags ?? [];
     return {
@@ -1038,6 +1040,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       diplomatActions: this.getDiplomatActions(unitType, rulesetName),
       unitActions: this.getUnitActions(unitType, rulesetName),
       availableWorkerActions,
+      upgradeTarget,
     };
   }
 
@@ -1132,6 +1135,30 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       gameInstance.unitManager.getAllUnits?.().values() ?? [],
       playerId
     );
+
+    // Airlift capacity is private city state. Expose it only for cities owned
+    // by the recipient, while preserving separate source/destination rules.
+    if (typeof gameInstance.cityManager.getAirliftAvailability === 'function') {
+      for (const city of visibleCities) {
+        if (city.playerId !== playerId) continue;
+        const clientCity = clientCityData[city.id];
+        if (!clientCity) continue;
+        clientCity.airlift = {
+          from: gameInstance.cityManager.getAirliftAvailability(
+            city.id,
+            playerId,
+            'from',
+            gameInstance.currentTurn
+          ),
+          to: gameInstance.cityManager.getAirliftAvailability(
+            city.id,
+            playerId,
+            'to',
+            gameInstance.currentTurn
+          ),
+        };
+      }
+    }
 
     const recipientId = gameInstance.players.get(playerId)?.userId || playerId;
     this.broadcastToPlayer(recipientId, 'cities_updated', {

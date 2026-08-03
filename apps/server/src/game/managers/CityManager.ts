@@ -109,6 +109,13 @@ export const GAME_DEFAULT_CITYMINDIST = 3;
 export const GAME_MIN_CITYMINDIST = 1;
 export const GAME_MAX_CITYMINDIST = 11;
 
+export type AirliftDirection = 'from' | 'to';
+
+export interface AirliftAvailability {
+  enabled: boolean;
+  available: boolean;
+}
+
 /**
  * Freeciv Value Universal Type codes used by production selections.
  * @reference freeciv-web/javascript/city.js production system
@@ -2633,6 +2640,48 @@ export class CityManager {
     return Array.from(this.cities.values());
   }
 
+  /**
+   * Project the current airlift state for a city without mutating it.
+   *
+   * The client needs both pieces of information to mirror freeciv-web: an
+   * endpoint can be airlift-capable but still have no capacity left this turn.
+   * @reference reference/freeciv-web/javascript/control.js:2086-2094
+   * @reference reference/freeciv/server/unittools.c:3088-3095
+   */
+  public getAirliftAvailability(
+    cityId: string,
+    playerId: string,
+    direction: AirliftDirection,
+    turn: number = this.currentTurnProvider?.() ?? 1
+  ): AirliftAvailability {
+    const city = this.cities.get(cityId);
+    if (!city) return { enabled: false, available: false };
+
+    const parameters = rulesetLoader.loadGameRulesRuleset(
+      this.effectsManager.getRulesetName()
+    ).game_parameters;
+    const alwaysEnabled =
+      direction === 'from'
+        ? parameters.airlift_from_always_enabled
+        : parameters.airlift_to_always_enabled;
+    const enabled = Boolean(alwaysEnabled || this.cityHasAirlift(city, playerId));
+
+    return {
+      enabled,
+      available: enabled && (Boolean(alwaysEnabled) || city.airliftUsedTurn !== turn),
+    };
+  }
+
+  private cityHasAirlift(city: CityState, playerId: string): boolean {
+    return (
+      this.effectsManager.calculateEffect(EffectType.AIRLIFT, {
+        playerId,
+        cityId: city.id,
+        cityBuildings: new Set(city.buildings),
+      }).value > 0 || city.buildings.includes('airport')
+    );
+  }
+
   public getCityCount(): number {
     return this.cities.size;
   }
@@ -2649,22 +2698,13 @@ export class CityManager {
   ): Promise<boolean> {
     const source = this.cities.get(sourceCityId);
     const destination = this.cities.get(destinationCityId);
-    const parameters = rulesetLoader.loadGameRulesRuleset(
-      this.effectsManager.getRulesetName()
-    ).game_parameters;
-    const sourceUnavailable =
-      !parameters.airlift_from_always_enabled &&
-      (!source?.buildings.includes('airport') || source?.airliftUsedTurn === turn);
-    const destinationUnavailable =
-      !parameters.airlift_to_always_enabled &&
-      (!destination?.buildings.includes('airport') || destination?.airliftUsedTurn === turn);
     if (
       !source ||
       !destination ||
       source.id === destination.id ||
       source.playerId !== playerId ||
-      sourceUnavailable ||
-      destinationUnavailable
+      !this.getAirliftAvailability(source.id, playerId, 'from', turn).available ||
+      !this.getAirliftAvailability(destination.id, playerId, 'to', turn).available
     ) {
       return false;
     }

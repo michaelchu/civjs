@@ -4610,6 +4610,20 @@ describe('UnitManager', () => {
       );
     });
 
+    it('projects the final researched upgrade target and cost for the unit menu', async () => {
+      const manager = createManager();
+      const worker = await manager.createUnit('player-123', 'worker', 10, 10);
+
+      expect(manager.getUnitUpgradeInfo(worker.id)).toEqual({
+        unitTypeId: 'engineers',
+        name: 'Engineers',
+        cost: 30,
+      });
+
+      manager.setPlayerTechsProvider(() => new Set());
+      expect(manager.getUnitUpgradeInfo(worker.id)).toBeUndefined();
+    });
+
     /**
      * @evidence parity
      * @reference reference/freeciv/data/civ2civ3/game.ruleset:121-128

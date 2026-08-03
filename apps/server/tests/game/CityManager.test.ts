@@ -410,6 +410,16 @@ describe('CityManager', () => {
       };
       (cityManager as any).cities.set(source.id, source);
       (cityManager as any).cities.set(destination.id, destination);
+      cityManager.setCurrentTurnProvider(() => 12);
+
+      expect(cityManager.getAirliftAvailability(source.id, 'player-123', 'from')).toEqual({
+        enabled: true,
+        available: true,
+      });
+      expect(cityManager.getAirliftAvailability(destination.id, 'player-123', 'to')).toEqual({
+        enabled: true,
+        available: true,
+      });
 
       await expect(
         cityManager.reserveAirlift(source.id, destination.id, 'player-123', 12)
@@ -420,6 +430,11 @@ describe('CityManager', () => {
       await expect(
         cityManager.reserveAirlift(source.id, destination.id, 'player-123', 13)
       ).resolves.toBe(true);
+
+      expect(cityManager.getAirliftAvailability(source.id, 'player-123', 'from', 13)).toEqual({
+        enabled: true,
+        available: false,
+      });
 
       expect(source).toMatchObject({ airliftUsedTurn: 13 });
       expect(destination).toMatchObject({ airliftUsedTurn: 13 });
