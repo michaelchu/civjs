@@ -97,7 +97,18 @@ jobs:
       - name: Run server unit tests
         run: cd apps/server && npm run test:unit -- --ci --coverage --maxWorkers=2
 
-      - name: Run PostgreSQL integration and recovery tests
+      - name: Run PostgreSQL integration smoke tests
+        env:
+          # Keep one short representative from each authoritative boundary in
+          # pull-request CI. The scheduled full-integration workflow runs every
+          # integration case, including the long AI/recovery matrices.
+          INTEGRATION_TEST_PATHS: >-
+            tests/integration/SocketGameFlow.integration.test.ts,
+            tests/integration/GameFlow.integration.test.ts,
+            tests/integration/GameManager.integration.test.ts,
+            tests/integration/AIManagerBoundaries.integration.test.ts
+          INTEGRATION_TEST_NAME_PATTERN: >-
+            connects, creates and joins a game, loads its map, advances a turn, and reconnects|should handle full game creation and player interaction flow|should apply defaults for minimal game config|does not execute or persist a completed AI phase twice for the same turn
         run: npm run test:integration
 
       - name: Upload coverage reports
