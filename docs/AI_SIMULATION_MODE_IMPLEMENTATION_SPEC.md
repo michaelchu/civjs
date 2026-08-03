@@ -337,7 +337,7 @@ be supplied there or by the command line, but both must be explicit:
   "aiPlayerCount": 2,
   "mapWidth": 20,
   "mapHeight": 20,
-  "ruleset": "classic",
+  "ruleset": "civ2civ3",
   "aiLevel": "easy",
   "maxTurns": 12,
   "victoryConditions": ["max_turns"],

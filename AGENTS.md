@@ -20,6 +20,18 @@ For compatibility or parity work, consult the relevant reference implementation 
 
 Preserve established behavior where practical. When porting behavior, record the reference source path and line range in the relevant documentation or pull request. Do not modify files under `reference/` as part of ordinary feature work.
 
+## Ruleset scope
+
+CivJS supports only Freeciv's `civ2civ3` ruleset at runtime. All non-C2C3
+Freeciv rulesets are outside the product scope: do not expose them as game
+options, preserve their compatibility logic, or retain ruleset-specific test
+fixtures. This is an intentional and permitted deviation from broad Freeciv
+ruleset parity.
+
+Use `reference/freeciv/data/civ2civ3/` as the gameplay-parity oracle. Other
+rulesets remain read-only reference material only; do not silently remap a
+saved non-C2C3 game to C2C3.
+
 ## Development commands
 
 Run commands from the repository root unless a command explicitly changes directory.

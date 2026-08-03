@@ -3,7 +3,7 @@
 ## Definition of port-complete
 
 CivJS targets a native port with functional parity for the agreed Freeciv
-classic scope, not a compatibility layer, literal rewrite of the C server, or
+C2C3 scope, not a compatibility layer, literal rewrite of the C server, or
 every upstream deployment feature. A feature is port-complete when:
 
 1. Server behavior is traced to `reference/freeciv/`.
@@ -79,7 +79,7 @@ evidence to claim full reference parity.
 ## Architecture rules
 
 - The server remains authoritative for game rules and persisted state.
-- Loaded ruleset data replaces duplicated classic constants.
+- Loaded C2C3 data replaces duplicated constants.
 - Missing requirement context fails closed.
 - Existing packet numbers are never renumbered in place; incompatible changes
   require a negotiated protocol version.

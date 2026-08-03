@@ -1,8 +1,8 @@
 # Civ2Civ3 Parity Baseline
 
-The gameplay-parity target is Freeciv's `civ2civ3` ruleset, not the Classic
-ruleset. This document pins the reference snapshot that source-backed tests
-and generated data must use.
+The gameplay-parity target is Freeciv's `civ2civ3` ruleset. This document
+pins the reference snapshot that source-backed tests and generated data must
+use.
 
 ## Pinned reference
 
@@ -22,7 +22,7 @@ against the upstream commit above found no differences in the bundled gameplay
 paths (`ai/`, `common/`, `server/`, and `data/civ2civ3/`). Upstream-only asset
 files are not part of the gameplay oracle. The pinned upstream commit can
 therefore be built to run source-mapped differential scenarios without
-silently switching to Classic rules.
+silently switching rulesets.
 
 ## Executable baseline checks
 

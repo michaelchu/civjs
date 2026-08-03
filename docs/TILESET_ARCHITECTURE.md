@@ -14,7 +14,7 @@ III provider is introduced.
 
 ## Context
 
-CivJS currently renders the classic ruleset with an Amplio2-derived sprite
+CivJS currently renders the C2C3 ruleset with an Amplio2-derived sprite
 atlas and legacy-compatible JavaScript sprite tables. Amplio2 is the only
 tileset that CivJS needs to support as a complete, built-in presentation set
 for now.

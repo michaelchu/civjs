@@ -1,99 +1,58 @@
-# CivJS Porting Inventory
+# CivJS C2C3 Implementation Inventory
 
-Technical evidence for the supported classic release. Use
-[`PORT_STATUS.md`](PORT_STATUS.md) for player-visible scope and follow-up work,
-and [`GAMEPLAY_GAPS.md`](GAMEPLAY_GAPS.md) for known behavioral defects.
+This inventory describes the only supported runtime ruleset: Freeciv
+`civ2civ3`. The source of truth is
+`reference/freeciv/data/civ2civ3/`; generated files under
+`apps/server/src/shared/data/rulesets/civ2civ3/` are the runtime projection.
 
-## Ruleset and data coverage
+## Ruleset boundary
 
-Classic JSON data is generated from the checked-in Freeciv secfiles, loaded by
-`RulesetLoader`, and validated with Zod and cross-file checks.
+`RulesetLoader` accepts C2C3 only. Game creation, recovery, API contracts,
+scenario loading, client routes, and test fixtures use the same boundary. A
+non-C2C3 saved game is rejected rather than translated.
 
-| Data                      | Classic coverage                                                                                                                      |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Buildings and wonders     | 68 definitions; costs, upkeep, production, effects, happiness, defense, healing, and requirements are consumed.                       |
-| Cities and specialists    | City parameters plus all 3 classic specialists.                                                                                       |
-| Effects and game settings | Classic effects, economy, research, combat, borders, culture, calendar, visibility, disasters, trade, treaties, and victory settings. |
-| Governments               | All 6 classic governments, including corruption, happiness, martial law, and support effects.                                         |
-| Nations                   | 571 nations, 2 nation sets, 11 nation groups, leaders, cities, flags, traits, conflicts, and initial items.                           |
-| Technologies              | All 87 technologies with prerequisites, costs, flags, goals, and Future Tech.                                                         |
-| Terrain and extras        | 14 terrains, 20 resources, 34 extras, 3 bases, and 3 roads, with movement, yields, transformations, and worker timing.                |
-| Units                     | 52 units and 6 classes with requirements, roles, flags, movement, vision, upkeep, combat, veteran, and graphics data.                 |
-| Actions and requirements  | 82 action enablers and shared range/negation-aware requirement evaluation.                                                            |
-| Styles                    | 6 nation styles, 10 city styles, and 11 music styles.                                                                                 |
+The generated C2C3 catalogue currently contains:
 
-`ClassicGameRuleInventory`, `ClassicActionInventory`, and the catalogue tests
-guard the converted inventory. `RulesetMutation.test.ts` verifies that runtime
-behavior responds to changes in loaded ruleset data rather than a process-wide
-singleton.
+| Data         | Source-derived inventory                                                     |
+| ------------ | ---------------------------------------------------------------------------- |
+| Terrain      | 14 terrain definitions                                                       |
+| Units        | 57 units                                                                     |
+| Buildings    | 73 buildings and wonders                                                     |
+| Technologies | 87 technologies                                                              |
+| Governments  | 9 governments                                                                |
+| Nations      | 572 nations                                                                  |
+| Extras       | 38 extras, including 5 bases and 4 roads                                     |
+| Actions      | 89 enabled action enablers                                                   |
+| Effects      | C2C3 effects and requirements evaluated by the authoritative effects manager |
 
-## Protocol coverage
+`Civ2Civ3ContentCatalogues.test.ts`, loader validation, mutation tests, and
+the converter check guard this projection. Runtime behavior must read the
+loaded catalogue rather than duplicate a value in a compatibility constant.
 
-The canonical `PacketType` contract covers active structured transport. Named
-Socket.IO events remain as compatibility or lifecycle adapters.
+## Gameplay and protocol surface
 
-| Family               | Representative traffic                                                             | Main handlers/consumers                                       |
-| -------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| Connection and lobby | join, create, list, observe, delete                                                | `ConnectionHandler`, `GameManagementHandler`, `GameClient`    |
-| Map and visibility   | map snapshots, visible tiles, borders                                              | `MapVisibilityHandler`, map snapshot reducers                 |
-| Units                | move, attack, fortify, create, actions, paths                                      | `UnitActionHandler`, `GameClient`, pathfinding service        |
-| Cities               | founding, production, worklists, governor, citizens, buying, rename, sale, disband | `CityManagementHandler`, `CityProductionHandler`, city panels |
-| Research and economy | research, goals, government, revolution, tax rates                                 | `ResearchHandler`, `GovernmentHandler`, `EconomicHandler`     |
-| Turns                | end turn, start turn, new year                                                     | `TurnManagementHandler`, turn reducers                        |
-| Chat                 | send and receive messages                                                          | `ChatCommunicationHandler`, notification/chat UI              |
-| Diplomacy            | proposals, responses, cancellation, war, updates                                   | `DiplomacyHandler`, `NationsPanel`                            |
-| Host controls        | pause, timers, game controls                                                       | `GameManagementHandler`, `GameOptionsPanel`                   |
+The authoritative server owns city, unit, map, research, diplomacy, economy,
+AI, turn, and end-game state. The client consumes the protocol-v1 snapshot and
+incremental packet contracts through Socket.IO.
 
-Every active transport should have a direction, handler, client consumer,
-validation, reply/error behavior, upstream mapping where applicable, and test
-coverage. Legacy or future enum values are not counted as implemented until
-those pieces exist.
+Representative evidence is organized by subsystem:
 
-### Protocol migration rule
+- Cities and economy: output pipeline, growth, corruption, specialists,
+  happiness, trade routes, support, and production lifecycle tests.
+- Units and map: unit manager, movement, combat, visibility, terrain,
+  pathfinding, borders, and action-system tests.
+- Diplomacy and victory: diplomacy, action handlers, end-game, culture, and
+  spaceship tests.
+- AI: the default-AI mapping in [AI Porting Inventory](AI_PORTING_INVENTORY.md).
+- Persistent flows: integration suites for game flow, recovery, and sockets.
 
-Do not renumber deployed packet IDs in place. Add new structured flows beside
-named compatibility events, migrate the client, retain the adapter during the
-compatibility period, and negotiate a new protocol version before changing
-numeric IDs.
+## Parity evidence
 
-## Action coverage
+A passing functional test proves a CivJS contract, not reference parity by
+itself. Parity cases carry a precise Freeciv source path, line range, and
+observable assertion. The evidence audit and differential oracle requirements
+are defined in [Test Evidence Audit](TEST_EVIDENCE_AUDIT.md) and
+[C2C3 Parity Baseline](CIV2CIV3_PARITY_BASELINE.md).
 
-The classic action inventory covers fortify, sentry, wait, goto, founding and
-joining cities, roads, railroads, irrigation, mines, cultivate, plant,
-fortress, airbase, pillage, cleanup, transformation, disbanding, home-city
-changes, upgrades, transport, trade, marketplace sales, Wonder help, airlift,
-paradrop, exploration, worker automation, bombardment, and supported diplomat
-and spy actions.
-
-`ClassicActionInventory.test.ts` accounts for all 82 enablers and 64 distinct
-classic action names. Actions that the classic ruleset does not enable remain
-unadvertised; fixed-lobby civil war is recorded as inapplicable.
-
-## Scoring and end-game coverage
-
-| Area                           | Freeciv target                                                                                                                                                        | Current status                                                                                                                                                 | Completion evidence                                                                                                                                          |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Victory evaluation and reports | Conquest/team, science arrival, culture, world peace, allied/scenario outcomes, durable final standings                                                               | Implemented for the supported CivJS condition set; reports persist and broadcast the winner, reason, turn, year, category breakdown, and standings             | `EndGameService.test.ts`, spaceship/culture/diplomacy fixtures, game-flow integration                                                                        |
-| Civilization score             | `server/score.c`: citizens, adjusted/future technologies, great wonders, arrived spaceship, cumulative units built/killed, and culture with reference integer scaling | Implemented for the current supported state. CivJS calculates the referenced categories with integer truncation and uses persisted lifecycle/spaceship inputs. | `PlayerScoreService.test.ts` source-maps category weights, future technologies, and spaceship score; handler and end-game tests cover snapshots and reports. |
-| End-turn/hard-cap ranking      | `rank_users(true)`: sum scores for living, non-surrendered members of each team                                                                                       | Implemented for the supported turn-limit condition; CivJS aggregates living members by team.                                                                   | `EndGameService.test.ts` source-maps team aggregation; standings and tie fixtures exercise the authoritative result.                                         |
-| Live score transport           | Current authoritative civilization total in player/score reporting                                                                                                    | Implemented; live player information uses the same score service as standings.                                                                                 | `GameManagementHandler.test.ts`, `GameBroadcastManager.test.ts`, and score/replay fixtures.                                                                  |
-
-Scoring is one of the source-mapped rule slices in
-[`TEST_EVIDENCE_AUDIT.md`](TEST_EVIDENCE_AUDIT.md). It does not by itself
-certify game-wide reference parity.
-
-## Integration evidence
-
-`GameFlow.integration.test.ts` covers the authoritative manager/database path.
-`SocketGameFlow.integration.test.ts` covers two real Socket.IO clients,
-creation, joining, map delivery, movement, combat, city founding, production,
-research, 20 turns, restart recovery, reconnect, and a continued turn.
-
-Both use an isolated PostgreSQL database. The disposable integration runner and
-CI use PostgreSQL 16 and execute the complete integration suite.
-
-## Maintenance
-
-Update this document when a ruleset, transport family, action contract, or
-verification boundary changes. Update `PORT_STATUS.md` only after a
-player-visible capability is verified end to end.
+Update this inventory whenever the C2C3 data projection, supported action
+surface, protocol contract, or evidence boundary changes.

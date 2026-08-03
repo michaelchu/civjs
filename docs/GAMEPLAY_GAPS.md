@@ -841,9 +841,8 @@ you declare war first.` Civilian/border-entry units may enter permitted
   execute. Railroad actions use Freeciv's `Build Road` enablers plus the
   Railroad extra requirements. The authoritative `availableWorkerActions`
   projection uses the same current-tile guard, and `UnitContextMenu` uses it to
-  hide currently illegal worker actions. The legacy `classic` compatibility
-  path retains its dedicated validators because that ruleset does not expose
-  the complete civ2civ3 vectors.
+  hide currently illegal worker actions. All gameplay paths now evaluate the
+  complete C2C3 requirement vectors.
 - **Reference behavior:** Freeciv combines action enablers, `TerrainAlter`
   capabilities, extra requirements, technologies, unit flags, and tile state.
   For example, special oil mining and advanced extras have technology gates.

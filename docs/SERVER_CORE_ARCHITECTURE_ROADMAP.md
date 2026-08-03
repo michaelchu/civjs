@@ -4,7 +4,7 @@
 
 This document records the server-core architecture improvements identified in
 the July 2026 review. It is a forward-looking maintenance roadmap, not a claim
-that the current classic-game implementation is incomplete or unreliable.
+that the current C2C3-game implementation is incomplete or unreliable.
 
 The server is a capable, server-authoritative modular monolith. It has broad
 test coverage and works well in its current single-process deployment model.
