@@ -1380,6 +1380,8 @@ export class UnitManager {
     );
     const attackerStartingHealth = setup.attacker.health;
     const defenderStartingHealth = setup.defender.health;
+    const attackerMovesUsed = this.getMovesUsedBeforeCombat(setup.attacker, setup.attackerType);
+    const defenderMovesUsed = this.getMovesUsedBeforeCombat(setup.defender, setup.defenderType);
     while (setup.attacker.health > 0 && setup.defender.health > 0) {
       if (
         randomInt(
@@ -1399,7 +1401,30 @@ export class UnitManager {
       setup.attackerType,
       'Attack'
     );
-    setup.attacker.movementLeft = Math.max(0, setup.attacker.movementLeft - moveCost);
+    // DamageSlows can lower a unit's move rate during combat. Preserve the
+    // moves already spent, then reconcile both survivors against their new
+    // health-dependent maximums before applying the action's movement cost.
+    // @reference reference/freeciv/server/unithand.c:5047-5105
+    setup.attacker.movementLeft = Math.max(
+      0,
+      this.getUnitMovementPoints(
+        setup.attacker.playerId,
+        setup.attackerType,
+        setup.attacker.veteranLevel,
+        setup.attacker.health
+      ) -
+        attackerMovesUsed -
+        moveCost
+    );
+    setup.defender.movementLeft = Math.max(
+      0,
+      this.getUnitMovementPoints(
+        setup.defender.playerId,
+        setup.defenderType,
+        setup.defender.veteranLevel,
+        setup.defender.health
+      ) - defenderMovesUsed
+    );
     setup.attacker.movedThisTurn = true;
     return {
       attackerDamage: attackerStartingHealth - setup.attacker.health,
@@ -1449,25 +1474,28 @@ export class UnitManager {
         )
       : false;
     if (outcome.attackerDestroyed) await this.destroyUnit(setup.attackerId);
-    else await this.persistCombatUnit(setup.attackerId, setup.attacker, true);
-    if (!outcome.defenderDestroyed)
-      await this.persistCombatUnit(setup.defenderId, setup.defender, false);
+    else await this.persistCombatUnit(setup.attackerId, setup.attacker);
+    if (!outcome.defenderDestroyed) await this.persistCombatUnit(setup.defenderId, setup.defender);
     return { attacker: attackerPromoted ? 1 : 0, defender: defenderPromoted ? 1 : 0 };
   }
 
-  private async persistCombatUnit(unitId: string, unit: Unit, attacker: boolean): Promise<void> {
+  private getMovesUsedBeforeCombat(unit: Unit, unitType: UnitType): number {
+    return Math.max(
+      0,
+      this.getUnitMovementPoints(unit.playerId, unitType, unit.veteranLevel, unit.health) -
+        unit.movementLeft
+    );
+  }
+
+  private async persistCombatUnit(unitId: string, unit: Unit): Promise<void> {
     await this.databaseProvider
       .getDatabase()
       .update(units)
-      .set(
-        attacker
-          ? {
-              health: unit.health,
-              movementPoints: String(unit.movementLeft),
-              movedThisTurn: unit.movedThisTurn ?? false,
-            }
-          : { health: unit.health }
-      )
+      .set({
+        health: unit.health,
+        movementPoints: String(unit.movementLeft),
+        movedThisTurn: unit.movedThisTurn ?? false,
+      })
       .where(eq(units.id, unitId));
   }
 

@@ -2671,6 +2671,42 @@ describe('UnitManager', () => {
       expect(deterministicManager.getUnit(defender.id)?.veteranLevel).toBe(1);
     });
 
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/common/movement.c:49-95
+     * @reference reference/freeciv/server/unithand.c:5047-5105
+     * @reference reference/freeciv/data/civ2civ3/units.ruleset:157-165
+     * @assertion A damaged C2C3 DamageSlows defender recalculates its remaining movement after combat from current HP and persists that value.
+     * @c2c3-action Attack
+     * @c2c3-scenario normal
+     * @c2c3-surface combat
+     * @c2c3-surface-scenario normal
+     */
+    it('reconciles and persists a damaged C2C3 defender movement rate after combat', async () => {
+      const rolls = [...Array(6).fill(0.99), ...Array(10).fill(0)];
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        new EffectsManager('civ2civ3'),
+        () => rolls.shift() ?? 0,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      const attacker = await manager.createUnit('player-123', 'warriors', 10, 10);
+      const defender = await manager.createUnit('player-456', 'warriors', 11, 10);
+
+      const result = await manager.attackUnit(attacker.id, defender.id);
+
+      expect(result).toMatchObject({ attackerDestroyed: true, defenderDestroyed: false });
+      expect(manager.getUnit(defender.id)).toMatchObject({ health: 40, movementLeft: 2 });
+      expect((mockDbProvider.getDatabase() as any).set).toHaveBeenLastCalledWith(
+        expect.objectContaining({ health: 40, movementPoints: '2', movedThisTurn: false })
+      );
+    });
+
     it('applies C2C3 tired attack from remaining movement fragments', async () => {
       const attacker = await unitManager.createUnit('player-123', 'warriors', 10, 10);
       attacker.movementLeft = 1;
