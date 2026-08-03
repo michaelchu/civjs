@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MapRenderer } from '../MapRenderer';
 import { UnitRenderer } from '../renderers/UnitRenderer';
 import type { RenderState } from '../renderers/BaseRenderer';
-import type { Unit } from '../../../types';
+import type { Tile, Unit } from '../../../types';
 
 function createContext() {
   return {
@@ -59,6 +59,76 @@ describe('MapRenderer live-state updates', () => {
       x: -1071,
       y: 411,
     });
+  });
+
+  it('does not snap an ordinary drag release into another wrapped GUI period', () => {
+    const renderer = new MapRenderer(createContext());
+    Object.assign(renderer as unknown as Record<string, unknown>, {
+      currentMap: { width: 80, height: 50, xsize: 80, ysize: 50, wrap_id: 3, tiles: {} },
+    });
+
+    const viewportOrigin = { x: 368, y: 1284 };
+    expect(renderer.setMapviewOrigin(viewportOrigin.x, viewportOrigin.y, 800, 600)).toEqual(
+      viewportOrigin
+    );
+  });
+
+  it('normalizes wrapped origins using the authoritative rectangular x/y coordinates', () => {
+    const renderer = new MapRenderer(createContext());
+    Object.assign(renderer as unknown as Record<string, unknown>, {
+      currentMap: { width: 80, height: 50, xsize: 80, ysize: 50, wrap_id: 3, tiles: {} },
+    });
+
+    const source = renderer.mapToGuiVector(-1, 23);
+    const normalizeGuiPos = (
+      renderer as unknown as {
+        normalizeGuiPos: (guiX: number, guiY: number) => { guiX: number; guiY: number };
+      }
+    ).normalizeGuiPos;
+    const normalized = normalizeGuiPos.call(renderer, source.guiDx + 32, source.guiDy + 12);
+    const wrapped = renderer.mapToGuiVector(79, 23);
+
+    expect(normalized).toEqual({
+      guiX: wrapped.guiDx + 32,
+      guiY: wrapped.guiDy + 12,
+    });
+  });
+
+  it('renders the neighboring finite-map copy when a wrapped viewport reaches a seam', () => {
+    const renderer = new MapRenderer(createContext());
+    const tiles: Tile[] = [
+      { x: 0, y: 25, terrain: 'plains', known: true, visible: true },
+      { x: 79, y: 25, terrain: 'desert', known: true, visible: true },
+    ];
+    Object.assign(renderer as unknown as Record<string, unknown>, {
+      currentMap: {
+        width: 80,
+        height: 50,
+        xsize: 80,
+        ysize: 50,
+        wrap_id: 3,
+        tiles: Object.fromEntries(tiles.map(tile => [`${tile.x},${tile.y}`, tile])),
+      },
+    });
+
+    const viewport = {
+      ...renderer.getViewportPositionForTile(0, 25, 800, 600),
+      width: 800,
+      height: 600,
+    };
+    const getWrappedRenderViews = (
+      renderer as unknown as {
+        getWrappedRenderViews: (
+          mapTiles: Tile[],
+          candidate: typeof viewport
+        ) => Array<{ viewport: typeof viewport; visibleTiles: Tile[] }>;
+      }
+    ).getWrappedRenderViews;
+    const views = getWrappedRenderViews.call(renderer, tiles, viewport);
+
+    expect(views.map(view => view.viewport)).toEqual(
+      expect.arrayContaining([viewport, { ...viewport, x: 2288, y: 2244 }])
+    );
   });
 
   it('coalesces throttled packet bursts and renders the latest state', () => {

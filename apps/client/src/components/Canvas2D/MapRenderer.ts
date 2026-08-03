@@ -223,7 +223,11 @@ export class MapRenderer {
      *   The original boundary detection and background filling logic that prevents
      *   diamond-shaped map edges by filling out-of-bounds areas with background color.
      */
-    const viewportExceedsMapBounds = this.checkViewportBounds(state.viewport);
+    // Wrapped maps have no finite edge. Their terrain and overlays are drawn
+    // from the periodic viewport copies below, so treating a seam as an
+    // out-of-bounds edge would incorrectly paint ocean/black padding there.
+    const viewportExceedsMapBounds =
+      !this.isWrappedMap() && this.checkViewportBounds(state.viewport);
 
     if (this.fogOfWarEnabled) {
       // Unknown space includes both unrevealed map tiles and any finite-map
@@ -243,43 +247,17 @@ export class MapRenderer {
       this.clearCanvas(true, '#4682B4');
     }
 
-    const visibleTiles = this.getVisibleTiles(mapTiles, state.viewport);
-
-    /*
-     * Freeciv draws terrain and specials before borders, cities, units, fog,
-     * and interaction overlays. Keep that order so each layer occludes only
-     * the information it is permitted to hide.
-     * @reference freeciv-web/javascript/2dcanvas/mapview.js:580-720
-     */
-    this.terrainRenderer.renderTerrain(state, visibleTiles);
-
-    this.borderRenderer.render(state);
-    this.terrainRenderer.renderSpecials(state, visibleTiles);
-
-    this.cityRenderer.renderCities(state);
-
-    /* During combat, preserve short-lived visual unit copies after server removal. */
-    const presentationUnitOverrides =
-      this.presentationEffectRenderer?.getUnitOverrides?.(state) ?? {};
-    const presentationState = Object.keys(presentationUnitOverrides).length
-      ? {
-          ...state,
-          units: { ...state.units, ...presentationUnitOverrides },
-        }
-      : state;
-    this.unitRenderer.renderUnits(presentationState);
-
-    const hasActivePresentationEffects = this.presentationEffectRenderer?.render(state) ?? false;
+    const renderViews = this.getWrappedRenderViews(mapTiles, state.viewport);
+    let hasActivePresentationEffects = false;
+    for (const renderView of renderViews) {
+      const renderState =
+        renderView.viewport === state.viewport
+          ? state
+          : { ...state, viewport: renderView.viewport };
+      hasActivePresentationEffects ||= this.renderMapLayers(renderState, renderView.visibleTiles);
+    }
     const hasActiveBorderAnimation =
       this.borderRenderer.hasActiveAnimation?.(state.reducedMotion) ?? false;
-
-    if (this.fogOfWarEnabled) {
-      this.fogRenderer.render(state);
-    }
-
-    this.pathRenderer.renderPaths(state);
-    this.unitRenderer.renderUnitSelection(presentationState);
-    this.unitRenderer.renderSelectedUnit?.(presentationState);
 
     if (
       (this.unitRenderer.hasActiveMovementAnimations() ||
@@ -330,6 +308,49 @@ export class MapRenderer {
       this.ctx.fillStyle = backgroundColor;
       this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
     }
+  }
+
+  /**
+   * Draw one map copy in the same layer order as the reference client.
+   * Wrapped maps call this once for every periodic copy that intersects the
+   * canvas. The renderers continue to consume the authoritative finite tile
+   * and entity coordinates; only the viewport origin is translated.
+   */
+  private renderMapLayers(state: RenderState, visibleTiles: Tile[]): boolean {
+    /*
+     * Freeciv draws terrain and specials before borders, cities, units, fog,
+     * and interaction overlays. Keep that order so each layer occludes only
+     * the information it is permitted to hide.
+     * @reference freeciv-web/javascript/2dcanvas/mapview.js:580-720
+     */
+    this.terrainRenderer.renderTerrain(state, visibleTiles);
+
+    this.borderRenderer.render(state);
+    this.terrainRenderer.renderSpecials(state, visibleTiles);
+
+    this.cityRenderer.renderCities(state);
+
+    /* During combat, preserve short-lived visual unit copies after server removal. */
+    const presentationUnitOverrides =
+      this.presentationEffectRenderer?.getUnitOverrides?.(state) ?? {};
+    const presentationState = Object.keys(presentationUnitOverrides).length
+      ? {
+          ...state,
+          units: { ...state.units, ...presentationUnitOverrides },
+        }
+      : state;
+    this.unitRenderer.renderUnits(presentationState);
+
+    const hasActivePresentationEffects = this.presentationEffectRenderer?.render(state) ?? false;
+    if (this.fogOfWarEnabled) {
+      this.fogRenderer.render(state);
+    }
+
+    this.pathRenderer.renderPaths(state);
+    this.unitRenderer.renderUnitSelection(presentationState);
+    this.unitRenderer.renderSelectedUnit?.(presentationState);
+
+    return hasActivePresentationEffects;
   }
 
   private renderEmptyMap() {
@@ -483,40 +504,22 @@ export class MapRenderer {
   }
 
   /**
-   * Convert map coordinates to native coordinates for wrapping calculations.
-   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:243-248
-   * @param mapX - Map X coordinate
-   * @param mapY - Map Y coordinate
-   * @returns Native coordinates object with natX and natY
+   * Return whether the current map has at least one periodic axis.
    */
-  private mapToNativePos(mapX: number, mapY: number): { natX: number; natY: number } {
-    const mapWidth = this.currentMap.xsize ?? this.currentMap.width;
-    const natY = Math.floor(mapX + mapY - mapWidth);
-    const natX = Math.floor((2 * mapX - natY - (natY & 1)) / 2);
-    return { natX, natY };
+  private isWrappedMap(): boolean {
+    return this.wrapHasFlag(MapRenderer.WRAP_X) || this.wrapHasFlag(MapRenderer.WRAP_Y);
   }
 
   /**
-   * Convert native coordinates back to map coordinates after wrapping.
-   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:233-238
-   * @param natX - Native X coordinate
-   * @param natY - Native Y coordinate
-   * @returns Map coordinates object with mapX and mapY
-   */
-  private nativeToMapPos(natX: number, natY: number): { mapX: number; mapY: number } {
-    const mapWidth = this.currentMap.xsize ?? this.currentMap.width;
-    const mapX = Math.floor((natY + (natY & 1)) / 2 + natX);
-    const mapY = Math.floor(natY - mapX + mapWidth);
-    return { mapX, mapY };
-  }
-
-  /**
-   * Normalize (wrap) the GUI position for map boundary handling.
-   * This is equivalent to map wrapping but in GUI coordinates to preserve pixel accuracy.
-   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:136-183
-   * @param guiX - GUI X coordinate to normalize
-   * @param guiY - GUI Y coordinate to normalize
-   * @returns Normalized GUI coordinates that respect map wrapping
+   * Normalize a mapview origin in CivJS's rectangular map-coordinate space.
+   *
+   * The server stores and wraps authoritative tiles directly by x/y. The
+   * previous client implementation converted the viewport through Freeciv's
+   * native isometric coordinates, which can select a different GUI period
+   * even when no seam was crossed. That was the source of the drag-release
+   * snapback once Civ2Civ3 began sending wrap_id.
+   *
+   * @reference apps/server/src/game/map/MapTopology.ts:4-10
    */
   private normalizeGuiPos(guiX: number, guiY: number): { guiX: number; guiY: number } {
     const mapWidth = this.currentMap.xsize ?? this.currentMap.width;
@@ -534,21 +537,13 @@ export class MapRenderer {
     const diffX = guiX - guiX0;
     const diffY = guiY - guiY0;
 
-    // Perform wrapping without any realness check. It's important that
-    // we wrap even if the map position is unreal, which normalize_map_pos doesn't necessarily do.
-    const nativePos = this.mapToNativePos(mapX, mapY);
-    let { natX, natY } = nativePos;
-
+    // Apply the same independent x/y wrapping used by the authoritative map.
     if (this.wrapHasFlag(MapRenderer.WRAP_X)) {
-      natX = this.fcWrap(natX, mapWidth);
+      mapX = this.fcWrap(mapX, mapWidth);
     }
     if (this.wrapHasFlag(MapRenderer.WRAP_Y)) {
-      natY = this.fcWrap(natY, mapHeight);
+      mapY = this.fcWrap(mapY, mapHeight);
     }
-
-    const wrappedMapPos = this.nativeToMapPos(natX, natY);
-    mapX = wrappedMapPos.mapX;
-    mapY = wrappedMapPos.mapY;
 
     // Now convert the wrapped map position back to a GUI position and add the offset back on
     const wrappedGuiPos = this.mapToGuiVector(mapX, mapY);
@@ -556,6 +551,74 @@ export class MapRenderer {
     const finalGuiY = wrappedGuiPos.guiDy + diffY;
 
     return { guiX: finalGuiX, guiY: finalGuiY };
+  }
+
+  /**
+   * Return the GUI translation for one complete map period on an axis.
+   * Wrapping is performed in map coordinates, so the period is the GUI vector
+   * for adding one map width/height to that coordinate.
+   */
+  private getGuiWrapPeriod(axis: 'x' | 'y'): { x: number; y: number } {
+    const mapWidth = this.currentMap.xsize ?? this.currentMap.width;
+    const mapHeight = this.currentMap.ysize ?? this.currentMap.height;
+    const period =
+      axis === 'x' ? this.mapToGuiVector(mapWidth, 0) : this.mapToGuiVector(0, mapHeight);
+    return { x: period.guiDx, y: period.guiDy };
+  }
+
+  private getWrapOffsets(period: { x: number; y: number }, viewport: MapViewport): number[] {
+    const periodSize = Math.max(Math.abs(period.x), Math.abs(period.y), 1);
+    const viewportSpan = Math.max(viewport.width, viewport.height) + this.tileWidth * 2;
+    const count = Math.max(1, Math.ceil(viewportSpan / periodSize));
+    return Array.from({ length: count * 2 + 1 }, (_, index) => index - count);
+  }
+
+  /**
+   * Build the finite-map copies needed to cover a wrapped viewport. A copy is
+   * represented by translating the viewport in the opposite direction of the
+   * map period; all renderers can then keep using authoritative x/y values.
+   */
+  private getWrappedRenderViews(
+    mapTiles: Tile[],
+    viewport: MapViewport
+  ): Array<{ viewport: MapViewport; visibleTiles: Tile[] }> {
+    if (!this.isWrappedMap()) {
+      return [{ viewport, visibleTiles: this.getVisibleTiles(mapTiles, viewport) }];
+    }
+
+    const xPeriod = this.getGuiWrapPeriod('x');
+    const yPeriod = this.getGuiWrapPeriod('y');
+    const xOffsets = this.wrapHasFlag(MapRenderer.WRAP_X)
+      ? this.getWrapOffsets(xPeriod, viewport)
+      : [0];
+    const yOffsets = this.wrapHasFlag(MapRenderer.WRAP_Y)
+      ? this.getWrapOffsets(yPeriod, viewport)
+      : [0];
+    const views: Array<{ viewport: MapViewport; visibleTiles: Tile[] }> = [];
+
+    for (const xOffset of xOffsets) {
+      for (const yOffset of yOffsets) {
+        const copyViewport = {
+          ...viewport,
+          x: viewport.x - xOffset * xPeriod.x - yOffset * yPeriod.x,
+          y: viewport.y - xOffset * xPeriod.y - yOffset * yPeriod.y,
+        };
+
+        // Include unknown tiles when deciding whether a copy is needed. Fog
+        // still has to cover a copy even when terrain itself is hidden.
+        const copyTiles = this.getVisibleTiles(mapTiles, copyViewport, true);
+        if (copyTiles.length === 0) continue;
+
+        views.push({
+          viewport: copyViewport,
+          visibleTiles: this.getVisibleTiles(mapTiles, copyViewport),
+        });
+      }
+    }
+
+    return views.length > 0
+      ? views
+      : [{ viewport, visibleTiles: this.getVisibleTiles(mapTiles, viewport) }];
   }
 
   /**
@@ -761,7 +824,7 @@ export class MapRenderer {
     this.isInitialized = false;
   }
 
-  private getVisibleTiles(mapTiles: Tile[], viewport: MapViewport): Tile[] {
+  private getVisibleTiles(mapTiles: Tile[], viewport: MapViewport, includeUnknown = false): Tile[] {
     const tiles: Tile[] = [];
     const canvasWidth = this.ctx.canvas?.width || viewport.width;
     const canvasHeight = this.ctx.canvas?.height || viewport.height;
@@ -781,7 +844,11 @@ export class MapRenderer {
         screenY + this.tileHeight >= -verticalMargin &&
         screenY <= canvasHeight + verticalMargin;
 
-      if (intersectsViewport && tile.terrain && (!this.fogOfWarEnabled || tile.known)) {
+      if (
+        intersectsViewport &&
+        tile.terrain &&
+        (includeUnknown || !this.fogOfWarEnabled || tile.known)
+      ) {
         tiles.push(
           this.fogOfWarEnabled
             ? tile

@@ -23,12 +23,16 @@ export class TerrainRenderer extends BaseRenderer {
   private tileMapBuilt = false;
   private sourceTiles: Record<string, Tile> = {};
   private lastTiles: Record<string, Tile> | null = null;
+  private mapWidth = 0;
+  private mapHeight = 0;
+  private wrapId = 0;
 
   /**
    * Render terrain for all visible tiles in the viewport.
    * Includes rivers and resources in LAYER_SPECIAL1 (freeciv-web layer order).
    */
   renderTerrain(state: RenderState, visibleTiles: Tile[]): void {
+    this.setMapTopology(state);
     this.invalidateTileCache(state.map.tiles);
 
     const entries = visibleTiles.map(tile => ({
@@ -62,6 +66,7 @@ export class TerrainRenderer extends BaseRenderer {
   }
 
   renderSpecials(state: RenderState, visibleTiles: Tile[]): void {
+    this.setMapTopology(state);
     this.invalidateTileCache(state.map.tiles);
     for (const tile of visibleTiles) {
       const screenPos = this.mapToScreen(tile.x, tile.y, state.viewport);
@@ -321,7 +326,7 @@ export class TerrainRenderer extends BaseRenderer {
     const addConnections = (property: 'hasRoad' | 'hasRailroad', prefix: string) => {
       if (!tile[property]) return;
       const connected = directions.filter(({ dx, dy }) =>
-        Boolean(this.tileMap.get(`${tile.x + dx},${tile.y + dy}`)?.[property])
+        Boolean(this.getNeighborTile(tile.x + dx, tile.y + dy)?.[property])
       );
       if (connected.length === 0) {
         sprites.push(`${prefix}_isolated`);
@@ -693,12 +698,8 @@ export class TerrainRenderer extends BaseRenderer {
     ];
 
     for (const dir of directions) {
-      const nx = tile.x + dir.dx;
-      const ny = tile.y + dir.dy;
-      const key = `${nx},${ny}`;
-
       // Fast O(1) lookup instead of O(n) search
-      const neighborTile = this.tileMap.get(key);
+      const neighborTile = this.getNeighborTile(tile.x + dir.dx, tile.y + dir.dy);
       let neighborTerrain = null;
 
       const neighborIsKnown =
@@ -721,6 +722,22 @@ export class TerrainRenderer extends BaseRenderer {
     }
 
     return neighbors;
+  }
+
+  private setMapTopology(state: RenderState): void {
+    this.mapWidth = state.map.xsize ?? state.map.width;
+    this.mapHeight = state.map.ysize ?? state.map.height;
+    this.wrapId = state.map.wrap_id ?? 0;
+  }
+
+  private getNeighborTile(x: number, y: number): Tile | undefined {
+    if (!this.mapWidth || !this.mapHeight) {
+      return this.tileMap.get(`${x},${y}`) as Tile | undefined;
+    }
+    if ((this.wrapId & 1) !== 0) x = ((x % this.mapWidth) + this.mapWidth) % this.mapWidth;
+    if ((this.wrapId & 2) !== 0) y = ((y % this.mapHeight) + this.mapHeight) % this.mapHeight;
+    if (x < 0 || x >= this.mapWidth || y < 0 || y >= this.mapHeight) return undefined;
+    return this.tileMap.get(`${x},${y}`) as Tile | undefined;
   }
 
   // Simplified wrapper that calls the original logic

@@ -33,10 +33,13 @@ interface FogTile {
  * @reference reference/freeciv-web/javascript/2dcanvas/tilespec.js:1881-1911
  */
 export class FogRenderer extends BaseRenderer {
+  private currentWrapId = 0;
+
   render(state: RenderState): void {
     const mapWidth = state.map.xsize ?? state.map.width;
     const mapHeight = state.map.ysize ?? state.map.height;
     if (!mapWidth || !mapHeight) return;
+    this.currentWrapId = state.map.wrap_id ?? 0;
 
     const knowledgeByCoordinate = new Map<string, Knowledge>();
     for (const rawTile of Object.values(state.map.tiles)) {
@@ -116,6 +119,9 @@ export class FogRenderer extends BaseRenderer {
     mapHeight: number,
     knowledgeByCoordinate: Map<string, Knowledge>
   ): Knowledge {
+    const wrapId = this.currentWrapId;
+    if ((wrapId & 1) !== 0) x = ((x % mapWidth) + mapWidth) % mapWidth;
+    if ((wrapId & 2) !== 0) y = ((y % mapHeight) + mapHeight) % mapHeight;
     if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight) return TILE_UNKNOWN;
     return knowledgeByCoordinate.get(this.coordinateKey(x, y)) ?? TILE_UNKNOWN;
   }
