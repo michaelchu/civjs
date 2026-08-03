@@ -195,10 +195,14 @@ export class BorderRenderer extends BaseRenderer {
         return null;
     }
 
-    // Handle map wrapping if needed
-    if (newX < 0 || newX >= map.width || newY < 0 || newY >= map.height) {
-      return null;
-    }
+    const mapWidth = map.xsize ?? map.width;
+    const mapHeight = map.ysize ?? map.height;
+    const wrapId = map.wrap_id ?? 0;
+
+    // CivJS wraps the authoritative rectangular map coordinates directly.
+    if ((wrapId & 1) !== 0) newX = ((newX % mapWidth) + mapWidth) % mapWidth;
+    if ((wrapId & 2) !== 0) newY = ((newY % mapHeight) + mapHeight) % mapHeight;
+    if (newX < 0 || newX >= mapWidth || newY < 0 || newY >= mapHeight) return null;
 
     return map.tiles[`${newX},${newY}`] || null;
   }
