@@ -21,8 +21,8 @@ function tile(terrain: MapTile['terrain']): MapTile {
   };
 }
 
-describe('ResourceGenerator classic resources', () => {
-  it('uses classic terrain resource lists, including coastal water', async () => {
+describe('ResourceGenerator C2C3 resources', () => {
+  it('uses C2C3 terrain resource lists, including coastal water', async () => {
     const tiles = [[tile('ocean')], [tile('grassland')], [tile('deep_ocean')]];
     const generator = new ResourceGenerator(3, 1, () => 0);
 
@@ -33,7 +33,7 @@ describe('ResourceGenerator classic resources', () => {
     expect(tiles[2][0].resource).toBeUndefined();
   });
 
-  it('uses the classic 250-per-thousand richness threshold', async () => {
+  it('uses the C2C3 250-per-thousand richness threshold', async () => {
     const generated = [[tile('plains')]];
     const omitted = [[tile('plains')]];
 

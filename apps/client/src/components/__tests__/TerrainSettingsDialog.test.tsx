@@ -49,7 +49,6 @@ describe('TerrainSettingsDialog', () => {
 
     fireEvent.click(screen.getAllByRole('combobox')[0]);
 
-    expect(screen.queryByText('Classic scenario')).not.toBeInTheDocument();
     expect(screen.getAllByText('Default Random')).not.toHaveLength(0);
     expect(screen.getByText('Fracture')).toBeInTheDocument();
   });

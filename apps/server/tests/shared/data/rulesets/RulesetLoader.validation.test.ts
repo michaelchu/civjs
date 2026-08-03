@@ -8,13 +8,13 @@ import {
 } from '@shared/data/rulesets/schemas';
 
 describe('RulesetLoader validation', () => {
-  const sourceDir = join(__dirname, '../../../../src/shared/data/rulesets/classic');
+  const sourceDir = join(__dirname, '../../../../src/shared/data/rulesets/civ2civ3');
   let baseDir: string;
   let rulesetDir: string;
 
   beforeEach(() => {
     baseDir = mkdtempSync(join(tmpdir(), 'civjs-ruleset-'));
-    rulesetDir = join(baseDir, 'classic');
+    rulesetDir = join(baseDir, 'civ2civ3');
     cpSync(sourceDir, rulesetDir, { recursive: true });
   });
 
@@ -48,7 +48,7 @@ describe('RulesetLoader validation', () => {
     expect(() => new RulesetLoader(baseDir)[loadMethod]()).toThrow(`Failed to load`);
   });
 
-  it('accepts all effect types shipped by the classic ruleset', () => {
+  it('accepts all effect types shipped by the Civ2Civ3 ruleset', () => {
     const effects = readRuleset<unknown>('effects.json');
 
     // @reference reference/freeciv/gen_headers/enums/effects_enums.def:5-120
@@ -76,10 +76,10 @@ describe('RulesetLoader validation', () => {
     expect(GovernmentsRulesetFileSchema.safeParse(governments).success).toBe(false);
   });
 
-  it('validates the shipped classic ruleset as one integrity unit', () => {
+  it('validates the shipped Civ2Civ3 ruleset as one integrity unit', () => {
     // Freeciv rejects unresolved rule references while loading a ruleset.
     // @reference reference/freeciv/server/ruleset/ruleload.c:6275-6282
-    expect(() => new RulesetLoader(baseDir).validateRuleset('classic')).not.toThrow();
+    expect(() => new RulesetLoader(baseDir).validateRuleset('civ2civ3')).not.toThrow();
   });
 
   it('validates the shipped Civ2Civ3 ruleset and retains its full nation catalogue', () => {
@@ -94,23 +94,23 @@ describe('RulesetLoader validation', () => {
     });
   });
 
-  it('retains the complete generated classic action, extra, style, nation, and specialist catalogues', () => {
+  it('retains the complete generated Civ2Civ3 action, extra, style, nation, and specialist catalogues', () => {
     const loader = new RulesetLoader(baseDir);
-    const actions = loader.loadActionsRuleset('classic');
-    const cities = loader.loadCitiesRuleset('classic');
-    const extras = loader.loadExtrasRuleset('classic');
-    const nations = loader.loadNationsRuleset('classic');
-    const styles = loader.loadStylesRuleset('classic');
+    const actions = loader.loadActionsRuleset('civ2civ3');
+    const cities = loader.loadCitiesRuleset('civ2civ3');
+    const extras = loader.loadExtrasRuleset('civ2civ3');
+    const nations = loader.loadNationsRuleset('civ2civ3');
+    const styles = loader.loadStylesRuleset('civ2civ3');
 
-    expect(actions.source).toBe('reference/freeciv/data/classic/actions.ruleset');
-    expect(actions.enablers).toHaveLength(82);
-    expect(Object.keys(extras.extras)).toHaveLength(34);
+    expect(actions.source).toBe('reference/freeciv/data/civ2civ3/actions.ruleset');
+    expect(actions.enablers).toHaveLength(89);
+    expect(Object.keys(extras.extras)).toHaveLength(38);
     expect(Object.keys(extras.resources)).toHaveLength(20);
     expect(Object.keys(styles.nation_styles)).toHaveLength(6);
     expect(Object.keys(styles.city_styles)).toHaveLength(10);
     expect(Object.keys(styles.music_styles)).toHaveLength(11);
-    expect(Object.keys(nations.nations).length).toBeGreaterThanOrEqual(25);
-    expect(Object.keys(nations.nation_sets).length).toBeGreaterThanOrEqual(1);
+    expect(Object.keys(nations.nations).length).toBeGreaterThanOrEqual(572);
+    expect(Object.keys(nations.nation_sets).length).toBeGreaterThanOrEqual(2);
     expect(Object.keys(nations.nation_groups).length).toBeGreaterThanOrEqual(11);
     expect(nations.nations.roman.leaders).toHaveLength(23);
     expect(Object.keys(cities.specialists)).toEqual(['elvis', 'scientist', 'taxman']);
@@ -123,7 +123,7 @@ describe('RulesetLoader validation', () => {
     units.units.warriors.required_tech = 'missing_technology';
     writeRuleset('units.json', units);
 
-    expect(() => new RulesetLoader(baseDir).validateRuleset('classic')).toThrow(
+    expect(() => new RulesetLoader(baseDir).validateRuleset('civ2civ3')).toThrow(
       "Unit 'warriors' required technology 'missing_technology' does not exist"
     );
   });
@@ -135,7 +135,7 @@ describe('RulesetLoader validation', () => {
     units.units.warriors.unit_class = 'Nuclear';
     writeRuleset('units.json', units);
 
-    expect(() => new RulesetLoader(baseDir).validateRuleset('classic')).toThrow(
+    expect(() => new RulesetLoader(baseDir).validateRuleset('civ2civ3')).toThrow(
       "Unit 'warriors' unit class 'Nuclear' does not exist"
     );
   });
@@ -147,7 +147,7 @@ describe('RulesetLoader validation', () => {
     buildings.buildings.cathedral.requires = ['missing_building'];
     writeRuleset('buildings.json', buildings);
 
-    expect(() => new RulesetLoader(baseDir).validateRuleset('classic')).toThrow(
+    expect(() => new RulesetLoader(baseDir).validateRuleset('civ2civ3')).toThrow(
       "Building 'cathedral' prerequisite 'missing_building' does not exist"
     );
   });
@@ -156,11 +156,11 @@ describe('RulesetLoader validation', () => {
     const effects = readRuleset<{
       effects: Record<string, { reqs?: Array<{ type: string; name: string }> }>;
     }>('effects.json');
-    effects.effects.temple_content.reqs![0].name = 'missing_building';
+    effects.effects.city_walls_0.reqs![0].name = 'missing_building';
     writeRuleset('effects.json', effects);
 
-    expect(() => new RulesetLoader(baseDir).validateRuleset('classic')).toThrow(
-      "Effect 'temple_content' Building requirement 'missing_building' does not exist"
+    expect(() => new RulesetLoader(baseDir).validateRuleset('civ2civ3')).toThrow(
+      "Effect 'city_walls_0' Building requirement 'missing_building' does not exist"
     );
   });
 
@@ -168,10 +168,10 @@ describe('RulesetLoader validation', () => {
     const effects = readRuleset<{
       effects: Record<string, { reqs?: Array<{ type: string; name: string }> }>;
     }>('effects.json');
-    effects.effects.city_walls_defense.reqs![0].name = 'city_walls';
+    effects.effects.city_walls_0.reqs![0].name = 'city_walls';
     writeRuleset('effects.json', effects);
 
-    expect(() => new RulesetLoader(baseDir).validateRuleset('classic')).not.toThrow();
+    expect(() => new RulesetLoader(baseDir).validateRuleset('civ2civ3')).not.toThrow();
   });
 
   it('rejects an unresolved action-enabler entity requirement', () => {
@@ -181,12 +181,12 @@ describe('RulesetLoader validation', () => {
         actor_reqs: Array<{ type: string; name: string }>;
       }>;
     }>('actions.json');
-    const railroad = actions.enablers.find(enabler => enabler.id === 'enabler_desert_oil')!;
-    railroad.actor_reqs.find(requirement => requirement.type === 'Tech')!.name = 'Missing Tech';
+    const transform = actions.enablers.find(enabler => enabler.id === 'enabler_transform_terrain')!;
+    transform.actor_reqs.find(requirement => requirement.type === 'Tech')!.name = 'Missing Tech';
     writeRuleset('actions.json', actions);
 
-    expect(() => new RulesetLoader(baseDir).validateRuleset('classic')).toThrow(
-      "Action enabler 'enabler_desert_oil' actor Tech requirement 'Missing Tech' does not exist"
+    expect(() => new RulesetLoader(baseDir).validateRuleset('civ2civ3')).toThrow(
+      "Action enabler 'enabler_transform_terrain' actor Tech requirement 'Missing Tech' does not exist"
     );
   });
 
@@ -197,7 +197,7 @@ describe('RulesetLoader validation', () => {
     styles.city_styles.citystyle_industrial.reqs[0].name = 'Missing Tech';
     writeRuleset('styles.json', styles);
 
-    expect(() => new RulesetLoader(baseDir).validateRuleset('classic')).toThrow(
+    expect(() => new RulesetLoader(baseDir).validateRuleset('civ2civ3')).toThrow(
       "City style 'citystyle_industrial' tech requirement 'Missing Tech' does not exist"
     );
   });

@@ -29,7 +29,7 @@ export function createGameManagerMocks() {
           maxPlayers: 4,
           mapWidth: 80,
           mapHeight: 50,
-          ruleset: 'classic',
+          ruleset: 'civ2civ3',
         },
       ])
     ),

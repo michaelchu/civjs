@@ -1,6 +1,6 @@
 /**
- * @reference reference/freeciv/data/classic/effects.ruleset:92-118
- * @reference reference/freeciv/data/classic/cities.ruleset:47-91
+ * @reference reference/freeciv/data/civ2civ3/effects.ruleset:92-118
+ * @reference reference/freeciv/data/civ2civ3/cities.ruleset:47-91
  */
 import {
   CityCalculationService,
@@ -63,7 +63,7 @@ function managerWith(effects: Record<string, Effect>): EffectsManager {
 }
 
 describe('specialist output from loaded effects', () => {
-  it('uses the classic rule names and values', () => {
+  it('uses C2C3 specialist rule names and values', () => {
     const cityState = city({
       [SpecialistType.SCIENTIST]: 1,
       [SpecialistType.TAX_COLLECTOR]: 1,
@@ -72,8 +72,8 @@ describe('specialist output from loaded effects', () => {
 
     const result = outputs(new EffectsManager(), cityState);
 
-    expect(result.science).toBe(3);
-    expect(result.gold).toBe(3);
+    expect(result.science).toBe(2);
+    expect(result.gold).toBe(2);
     expect(result.luxury).toBe(2);
   });
 

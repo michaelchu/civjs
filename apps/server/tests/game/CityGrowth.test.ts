@@ -78,7 +78,8 @@ describe('City Population Growth', () => {
       // AND foodSurplus (3) > 0
       expect(city.population).toBe(2);
       expect(city.size).toBe(2);
-      expect(city.foodStock).toBe(2); // 22 - 20 = 2 remaining after growth
+      // C2C3's base Growth_Food effect retains half of the full granary.
+      expect(city.foodStock).toBe(12); // 22 - 20 + (20 * 50%)
     });
 
     it('should not grow when city has zero food surplus', async () => {
@@ -123,7 +124,7 @@ describe('City Population Growth', () => {
       await cityManager['processFoodAndGrowth'](city, 3);
       expect(city.population).toBe(1);
       expect(city.size).toBe(1);
-      expect(city.foodStock).toBe(0); // Should be reset to 0 after starvation
+      expect(city.foodStock).toBe(10); // C2C3 retains half the new size-one granary.
     });
 
     it('should grow faster with more productive tiles', async () => {
@@ -144,7 +145,7 @@ describe('City Population Growth', () => {
           expect(city.foodStock).toBe(turn * 3); // Should accumulate 3 food per turn
         } else {
           expect(city.population).toBe(2);
-          expect(city.foodStock).toBe(1); // 21 - 20 = 1 remaining after growth
+          expect(city.foodStock).toBe(11); // 21 - 20 + (20 * 50%)
         }
       }
     });
@@ -180,7 +181,7 @@ describe('City Population Growth', () => {
 
       // Should grow because foodStock (20) >= granarySize (20) AND foodSurplus (1) > 0
       expect(city.population).toBe(2);
-      expect(city.foodStock).toBe(0);
+      expect(city.foodStock).toBe(10); // C2C3 retains half the full granary.
     });
 
     it('should not grow with zero food surplus even with full granary', async () => {
@@ -198,7 +199,7 @@ describe('City Population Growth', () => {
       expect(city.foodStock).toBe(20); // Should remain unchanged
     });
 
-    it('requires an Aqueduct and Sewer System at the classic size gates', async () => {
+    it('applies C2C3 Aqueduct Size_Adj and Sewer System Size_Unlimit effects', async () => {
       const city = await cityManager.foundCity(55, 45, 'GatedCity', 'player-123');
       city.population = 8;
       city.size = 8;
@@ -212,18 +213,18 @@ describe('City Population Growth', () => {
       await cityManager['processFoodAndGrowth'](city, 2);
       expect(city.population).toBe(9);
 
-      city.population = 12;
-      city.size = 12;
-      city.foodStock = cityManager.calculateGranarySize(12);
+      city.population = 16;
+      city.size = 16;
+      city.foodStock = cityManager.calculateGranarySize(16);
       await cityManager['processFoodAndGrowth'](city, 3);
-      expect(city.population).toBe(12);
+      expect(city.population).toBe(16);
 
       city.buildings.push('sewer_system');
       await cityManager['processFoodAndGrowth'](city, 4);
-      expect(city.population).toBe(13);
+      expect(city.population).toBe(17);
     });
 
-    it('grows a consecutively celebrating Republic city by rapture', async () => {
+    it('does not rapture-grow a celebrating Republic city without a C2C3 Rapture_Grow effect', async () => {
       cityManager.setPlayerGovernmentProvider(() => 'republic');
       const city = await cityManager.foundCity(60, 45, 'RaptureCity', 'player-123');
       city.population = 3;
@@ -235,7 +236,8 @@ describe('City Population Growth', () => {
 
       await cityManager['processFoodAndGrowth'](city, 1);
 
-      expect(city.population).toBe(4);
+      expect(city.population).toBe(3);
+      expect(city.foodStock).toBe(1);
     });
   });
 });

@@ -1,5 +1,6 @@
 import { UnitManager, type Unit } from '@game/managers/UnitManager';
 import { ActionType } from '@app-types/shared/actions';
+import { SINGLE_MOVE } from '@game/constants/MovementConstants';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 describe('Unit Movement Integration Tests', () => {
@@ -43,9 +44,9 @@ describe('Unit Movement Integration Tests', () => {
             path: {
               tiles: [
                 { x: unit.x, y: unit.y, moveCost: 0 },
-                { x: targetX, y: targetY, moveCost: 3 },
+                { x: targetX, y: targetY, moveCost: SINGLE_MOVE },
               ],
-              totalCost: 3,
+              totalCost: SINGLE_MOVE,
               estimatedTurns: 1,
             },
           });
@@ -64,13 +65,13 @@ describe('Unit Movement Integration Tests', () => {
           if (targetY > currentY) currentY++;
           else if (targetY < currentY) currentY--;
 
-          tiles.push({ x: currentX, y: currentY, moveCost: 3 });
+          tiles.push({ x: currentX, y: currentY, moveCost: SINGLE_MOVE });
 
           return Promise.resolve({
             success: true,
             path: {
               tiles,
-              totalCost: 3, // Single step cost
+              totalCost: SINGLE_MOVE, // One C2C3 movement fragment group
               estimatedTurns: Math.max(dx, dy), // Manhattan distance estimate
             },
           });
@@ -107,18 +108,21 @@ describe('Unit Movement Integration Tests', () => {
       expect(updatedUnit?.movementLeft).toBe(result.newMovementLeft);
     });
 
-    it('should handle diagonal movement with higher cost', async () => {
+    it('uses the same C2C3 fragment cost for diagonal movement', async () => {
       const initialMovement = testUnit.movementLeft;
 
       const result = await unitManager.executeUnitAction(testUnit.id, ActionType.GOTO, 11, 11);
 
       expect(result.success).toBe(true);
       expect(result.newPosition).toEqual({ x: 11, y: 11 });
-      expect(result.movementCost).toBe(3);
-      expect(result.newMovementLeft).toBe(initialMovement - 3);
+      expect(result.movementCost).toBe(SINGLE_MOVE);
+      expect(result.newMovementLeft).toBe(initialMovement - SINGLE_MOVE);
     });
 
     it('should allow multiple goto actions in the same turn', async () => {
+      // C2C3 Warriors have one whole move. Use a two-move C2C3 Horsemen
+      // unit to exercise two independent one-tile orders in one turn.
+      testUnit = await unitManager.createUnit('player-1', 'horsemen', 10, 10);
       // First move
       const result1 = await unitManager.executeUnitAction(testUnit.id, ActionType.GOTO, 11, 10);
       expect(result1.success).toBe(true);
@@ -127,12 +131,12 @@ describe('Unit Movement Integration Tests', () => {
       expect(movementAfterFirst).toBeGreaterThanOrEqual(0);
 
       // Second move (if enough movement points)
-      if (movementAfterFirst >= 3) {
+      if (movementAfterFirst >= SINGLE_MOVE) {
         const result2 = await unitManager.executeUnitAction(testUnit.id, ActionType.GOTO, 12, 10);
 
         expect(result2.success).toBe(true);
         expect(result2.newPosition).toEqual({ x: 12, y: 10 });
-        expect(result2.newMovementLeft).toBe(movementAfterFirst - 3);
+        expect(result2.newMovementLeft).toBe(movementAfterFirst - SINGLE_MOVE);
 
         // Verify no double deduction occurred
         const finalUnit = unitManager.getUnit(testUnit.id);
@@ -289,13 +293,13 @@ describe('Unit Movement Integration Tests', () => {
       const result = await unitManager.executeUnitAction(testUnit.id, ActionType.GOTO, 11, 10);
 
       expect(result.success).toBe(true);
-      expect(result.movementCost).toBe(3); // Should be exactly 3 for adjacent move
-      expect(result.newMovementLeft).toBe(initialMovement - 3);
+      expect(result.movementCost).toBe(SINGLE_MOVE);
+      expect(result.newMovementLeft).toBe(initialMovement - SINGLE_MOVE);
 
       // Verify unit's actual movement matches the result
       const updatedUnit = unitManager.getUnit(testUnit.id);
       expect(updatedUnit?.movementLeft).toBe(result.newMovementLeft);
-      expect(updatedUnit?.movementLeft).toBe(initialMovement - 3);
+      expect(updatedUnit?.movementLeft).toBe(initialMovement - SINGLE_MOVE);
     });
 
     it('should preserve movement correctly across multiple actions', async () => {
@@ -305,15 +309,15 @@ describe('Unit Movement Integration Tests', () => {
       const result1 = await unitManager.executeUnitAction(testUnit.id, ActionType.GOTO, 11, 10);
       expect(result1.success).toBe(true);
 
-      const expectedMovementAfterFirst = initialMovement - 3;
+      const expectedMovementAfterFirst = initialMovement - SINGLE_MOVE;
       expect(result1.newMovementLeft).toBe(expectedMovementAfterFirst);
 
       // Second movement (if possible)
-      if (result1.newMovementLeft! >= 3) {
+      if (result1.newMovementLeft! >= SINGLE_MOVE) {
         const result2 = await unitManager.executeUnitAction(testUnit.id, ActionType.GOTO, 12, 10);
         expect(result2.success).toBe(true);
 
-        const expectedMovementAfterSecond = expectedMovementAfterFirst - 3;
+        const expectedMovementAfterSecond = expectedMovementAfterFirst - SINGLE_MOVE;
         expect(result2.newMovementLeft).toBe(expectedMovementAfterSecond);
 
         // Verify final unit state

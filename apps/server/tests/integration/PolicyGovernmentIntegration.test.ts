@@ -71,7 +71,7 @@ describe('Policy and Government Manager Integration', () => {
       maxPlayers: 2,
       mapWidth: 20,
       mapHeight: 20,
-      ruleset: 'classic',
+      ruleset: 'civ2civ3',
     });
 
     // Create player

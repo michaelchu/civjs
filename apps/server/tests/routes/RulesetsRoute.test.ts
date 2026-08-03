@@ -2,7 +2,7 @@ import { buildRulesetPresentation } from '../../src/routes/rulesets';
 
 describe('ruleset presentation API', () => {
   it('serves one authoritative renderer catalogue', () => {
-    const presentation = buildRulesetPresentation('classic');
+    const presentation = buildRulesetPresentation('civ2civ3');
 
     expect(Object.keys(presentation.nation_styles)).toHaveLength(6);
     expect(Object.keys(presentation.city_styles)).toHaveLength(10);
@@ -26,7 +26,7 @@ describe('ruleset presentation API', () => {
 
   it('fails closed for unknown rulesets', () => {
     expect(() => buildRulesetPresentation('not-a-ruleset')).toThrow(
-      "Failed to load styles ruleset 'not-a-ruleset'"
+      "Unsupported ruleset 'not-a-ruleset'. CivJS supports only 'civ2civ3'."
     );
   });
 });

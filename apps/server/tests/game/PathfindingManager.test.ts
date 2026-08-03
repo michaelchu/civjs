@@ -91,9 +91,8 @@ describe('PathfindingManager', () => {
       const result = await pathfindingManager.findPath(mockUnit, 6, 6);
 
       expect(result.valid).toBe(true);
-      // Classic rules use pythagorean_diagonal = FALSE, so diagonal movement
-      // has the same fragment cost as orthogonal movement.
-      expect(result.totalCost).toBe(3);
+      // C2C3 uses the same fragment cost for diagonal and orthogonal movement.
+      expect(result.totalCost).toBe(6);
     });
 
     it('uses the shared topology to cross a wrapped edge', async () => {
@@ -145,8 +144,8 @@ describe('PathfindingManager', () => {
 
       expect(result.valid).toBe(true);
       expect(result.path).not.toContainEqual(expect.objectContaining({ x: 6, y: 5 }));
-      expect(result.totalCost).toBe(6);
-      expect(result.weightedCost).toBe(6);
+      expect(result.totalCost).toBe(12);
+      expect(result.weightedCost).toBe(12);
     });
 
     it('should calculate correct estimated turns', async () => {

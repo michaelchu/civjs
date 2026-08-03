@@ -89,8 +89,8 @@ async function createCityManager(effectsManager: EffectsManager): Promise<CityMa
 
 describe('ruleset global_init_buildings', () => {
   it('resolves configured display names to canonical building ids', () => {
-    // @reference reference/freeciv/data/classic/game.ruleset:60-62
-    expect(rulesetLoader.getGlobalInitBuildings('classic')).toEqual(['palace']);
+    // @reference reference/freeciv/data/civ2civ3/game.ruleset:60-62
+    expect(rulesetLoader.getGlobalInitBuildings('civ2civ3')).toEqual(['palace']);
   });
 
   it('normalizes quoted, comma separated and empty entries', () => {
@@ -100,7 +100,7 @@ describe('ruleset global_init_buildings', () => {
     });
 
     try {
-      expect(rulesetLoader.getGlobalInitBuildings('classic')).toEqual(['palace', 'courthouse']);
+      expect(rulesetLoader.getGlobalInitBuildings('civ2civ3')).toEqual(['palace', 'courthouse']);
     } finally {
       options.mockRestore();
     }
@@ -112,7 +112,7 @@ describe('ruleset global_init_buildings', () => {
       .mockReturnValue({ global_init_techs: '', global_init_buildings: '' });
 
     try {
-      expect(rulesetLoader.getGlobalInitBuildings('classic')).toEqual([]);
+      expect(rulesetLoader.getGlobalInitBuildings('civ2civ3')).toEqual([]);
     } finally {
       options.mockRestore();
     }
@@ -125,7 +125,7 @@ describe('ruleset global_init_buildings', () => {
       .mockReturnValue({ global_init_techs: '', global_init_buildings: 'Ministry of Silly Walks' });
 
     try {
-      expect(() => rulesetLoader.getGlobalInitBuildings('classic')).toThrow(
+      expect(() => rulesetLoader.getGlobalInitBuildings('civ2civ3')).toThrow(
         /Ministry of Silly Walks/
       );
     } finally {

@@ -5,7 +5,7 @@ test.beforeEach(async ({ page }) => {
   await installRulesetRoutes(page);
 });
 
-test('renders the authoritative classic presentation and supported game screens', async ({
+test('renders the authoritative Civ2Civ3 presentation and supported game screens', async ({
   page,
 }, testInfo) => {
   await page.goto('/test/browser-parity');
@@ -37,7 +37,7 @@ test('renders the authoritative classic presentation and supported game screens'
   await expect(page.locator('html')).toHaveClass(/reduce-motion/);
 
   await page.screenshot({
-    path: testInfo.outputPath('classic-parity.png'),
+    path: testInfo.outputPath('civ2civ3-parity.png'),
     animations: 'disabled',
     fullPage: true,
   });

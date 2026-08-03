@@ -157,6 +157,51 @@ describe('Freeciv AI want planner', () => {
     ]);
   });
 
+  it('prioritizes a dedicated worker for an authoritative terrain-work request', () => {
+    const choice = chooseCityProduction({
+      city: city({
+        workerTaskRequests: [{ want: 500 }],
+      }),
+      cities: [city()],
+      units: [],
+      unitTypes: {
+        worker: {
+          id: 'worker',
+          name: 'Worker',
+          cost: 10,
+          movement: 1,
+          combat: 0,
+          canFoundCity: false,
+          canBuildImprovements: true,
+        } as any,
+        defender: {
+          id: 'defender',
+          name: 'Defender',
+          cost: 10,
+          movement: 1,
+          combat: 1,
+          defense: 1,
+          canFoundCity: false,
+          canBuildImprovements: false,
+        } as any,
+      },
+      buildingTypes: {},
+      canBuild: () => true,
+      dangerAssessment: {
+        danger: 0,
+        urgency: 0,
+        graveDanger: 0,
+        defense: 0,
+        defenseDeficit: 90,
+      },
+    });
+
+    expect(choice).toMatchObject({
+      value: { kind: 'unit', id: 'worker' },
+      reason: expect.stringContaining('requested terrain work'),
+    });
+  });
+
   it('discounts delayed benefit using Freeciv MORT', () => {
     expect(amortize(100, 0)).toBe(100);
     expect(amortize(100, 10)).toBeLessThan(100);

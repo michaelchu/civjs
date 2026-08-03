@@ -44,7 +44,7 @@ describe('city output pipeline', () => {
     const effects = {
       calculateEffect,
       calculateCityCorruption: jest.fn().mockReturnValue({ corruption: 0 }),
-      getRulesetName: jest.fn().mockReturnValue('classic'),
+      getRulesetName: jest.fn().mockReturnValue('civ2civ3'),
     } as unknown as EffectsManager;
     const subject = city();
 
@@ -74,7 +74,7 @@ describe('city output pipeline', () => {
   });
 
   it('uses the owning player tax rates', () => {
-    const subject = city({ population: 1 });
+    const subject = city({ population: 1, buildings: ['palace'] });
     const result = new CityCalculationService(new EffectsManager()).calculateCityOutputs(
       subject,
       { food: 2, shields: 1, trade: 5 },
@@ -92,7 +92,7 @@ describe('city output pipeline', () => {
     const effects = new EffectsManager();
     const subject = city({
       population: 1,
-      buildings: ['Library'],
+      buildings: ['library'],
       specialists: { [SpecialistType.SCIENTIST]: 1 },
     });
 
@@ -103,7 +103,7 @@ describe('city output pipeline', () => {
       context(subject)
     );
 
-    expect(result.science).toBe(6);
+    expect(result.science).toBe(3);
   });
 
   it('combines Output_Bonus and Output_Bonus_2 multiplicatively', () => {

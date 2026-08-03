@@ -1,6 +1,6 @@
 /**
- * @reference reference/freeciv/data/classic/buildings.ruleset
- * @reference reference/freeciv/data/classic/terrain.ruleset
+ * @reference reference/freeciv/data/civ2civ3/buildings.ruleset
+ * @reference reference/freeciv/data/civ2civ3/terrain.ruleset
  * @reference reference/freeciv/common/city.c:3132-3134 city_support()
  */
 import { CityDataService } from '@game/services/CityDataService';
@@ -60,15 +60,8 @@ function mapFor(terrain: string, resource: string | null = null): MapManager {
 }
 
 describe('ruleset-backed city values', () => {
-  it('uses the active ruleset for city-center minimums', () => {
-    const classic = new CityTileManagementService(
-      new Map(),
-      mapFor('grassland'),
-      5,
-      rulesetLoader,
-      new EffectsManager('classic')
-    );
-    const civ2civ3 = new CityTileManagementService(
+  it('uses C2C3 city-center minimums', () => {
+    const service = new CityTileManagementService(
       new Map(),
       mapFor('grassland'),
       5,
@@ -76,12 +69,7 @@ describe('ruleset-backed city values', () => {
       new EffectsManager('civ2civ3')
     );
 
-    expect((classic as any).applyCityCenterMinimums({ food: 0, shields: 0, trade: 0 })).toEqual({
-      food: 1,
-      shields: 1,
-      trade: 0,
-    });
-    expect((civ2civ3 as any).applyCityCenterMinimums({ food: 0, shields: 0, trade: 0 })).toEqual({
+    expect((service as any).applyCityCenterMinimums({ food: 0, shields: 0, trade: 0 })).toEqual({
       food: 0,
       shields: 0,
       trade: 0,
@@ -111,7 +99,7 @@ describe('ruleset-backed city values', () => {
 
   it('uses civstyle.food_cost for serialized food surplus', () => {
     const baseCivstyle = rulesetLoader.getCivstyle();
-    const result = CityDataService.transformCityForClient(city({ foodPerTurn: -1 }), 'classic', {
+    const result = CityDataService.transformCityForClient(city({ foodPerTurn: -1 }), 'civ2civ3', {
       loader: { getCivstyle: () => ({ ...baseCivstyle, food_cost: 3 }) },
       buildings: rulesetBuildingsService,
     });
@@ -122,7 +110,7 @@ describe('ruleset-backed city values', () => {
   it('uses the Freeciv population curve and reports present and supported units', () => {
     const result = CityDataService.transformCityForClient(
       city({ population: 2 }),
-      'classic',
+      'civ2civ3',
       undefined,
       undefined,
       [
@@ -139,7 +127,7 @@ describe('ruleset-backed city values', () => {
 
     const foreignView = CityDataService.transformCityForClient(
       city({ population: 2 }),
-      'classic',
+      'civ2civ3',
       undefined,
       undefined,
       [{ id: 'supported', x: 8, y: 8, homeCityId: 'city-1' }],
@@ -178,10 +166,10 @@ describe('ruleset-backed city values', () => {
     service.initializeWorkableTiles(cityState);
     const center = cityState.workableTiles!.find(tile => tile.isCenter)!;
 
-    expect(center.outputs).toEqual({ food: 5, shields: 2, trade: 1 });
+    expect(center.outputs).toEqual({ food: 7, shields: 3, trade: 1 });
     expect(service.calculateCityOutputs(cityState.id)).toEqual({
-      food: 5,
-      shields: 2,
+      food: 7,
+      shields: 3,
       trade: 1,
     });
   });
@@ -191,7 +179,7 @@ describe('ruleset-backed city values', () => {
     const cities = new Map([[cityState.id, cityState]]);
     const map = mapFor('grassland');
     const effects = {
-      getRulesetName: () => 'classic',
+      getRulesetName: () => 'civ2civ3',
       calculateEffect: jest.fn(
         (
           type: EffectType,
@@ -254,8 +242,8 @@ describe('ruleset-backed city values', () => {
     service.initializeWorkableTiles(cityState);
 
     expect(service.calculateCityOutputs(cityState.id)).toEqual({
-      food: 1,
-      shields: 1,
+      food: 2,
+      shields: 2,
       trade: 2,
     });
   });
@@ -302,7 +290,7 @@ describe('ruleset-backed city values', () => {
     expect(service.calculateCityOutputs(cityState.id).trade).toBe(4);
   });
 
-  it('recalculates worked-tile output after an improvement changes the map', () => {
+  it('keeps the C2C3 city center irrigated when an Irrigation extra is added', () => {
     const cityState = city({ population: 1 });
     const cities = new Map([[cityState.id, cityState]]);
     const map = mapFor('grassland');
@@ -312,7 +300,7 @@ describe('ruleset-backed city values', () => {
     service.setPlayerGovernmentProvider(() => 'republic');
 
     service.initializeWorkableTiles(cityState);
-    expect(service.calculateCityOutputs(cityState.id).food).toBe(2);
+    expect(service.calculateCityOutputs(cityState.id).food).toBe(3);
 
     mapTile.improvements.push('irrigation');
     expect(service.calculateCityOutputs(cityState.id).food).toBe(3);
@@ -470,7 +458,7 @@ describe('ruleset-backed city values', () => {
     await expect(service.assignCitizenToTile(second.id, 6, 5)).resolves.toBe(false);
   });
 
-  it('applies classic Harbor and Offshore Platform ocean bonuses', () => {
+  it('applies C2C3 Harbor and Offshore Platform ocean bonuses', () => {
     const cityState = city({
       population: 1,
       buildings: ['harbor', 'offshore_platform'],
@@ -481,8 +469,8 @@ describe('ruleset-backed city values', () => {
     service.initializeWorkableTiles(cityState);
 
     expect(service.calculateCityOutputs(cityState.id)).toEqual({
-      food: 2,
-      shields: 1,
+      food: 1,
+      shields: 2,
       trade: 2,
     });
   });
@@ -502,7 +490,7 @@ describe('ruleset-backed city values', () => {
     expect(service.calculateCityOutputs(cityState.id).trade).toBe(2);
   });
 
-  it('applies celebration and wonder tile effects from the classic ruleset', () => {
+  it('applies C2C3 celebration and wonder tile effects', () => {
     const cityState = city({
       population: 3,
       wasHappy: true,
@@ -520,7 +508,7 @@ describe('ruleset-backed city values', () => {
     service.initializeWorkableTiles(cityState);
 
     expect(service.calculateCityOutputs(cityState.id)).toEqual({
-      food: 2,
+      food: 3,
       shields: 1,
       trade: 3,
     });

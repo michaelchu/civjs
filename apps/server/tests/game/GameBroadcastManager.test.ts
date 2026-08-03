@@ -699,7 +699,7 @@ describe('GameBroadcastManager visibility sync', () => {
     ).toEqual({});
   });
 
-  it('does not reveal classic small-wonder cities before their tile is explored', () => {
+  it('does not reveal C2C3 small-wonder cities before their tile is explored', () => {
     const game = (manager as any).games.get(gameId);
     game.cityManager.getAllCities = () => [
       {
@@ -727,7 +727,7 @@ describe('GameBroadcastManager visibility sync', () => {
     ).toEqual({});
   });
 
-  it('advertises the audited classic covert actions for spies', () => {
+  it('advertises the audited C2C3 covert actions for spies', () => {
     const formatted = (manager as any).formatUnitForClient(
       {
         id: 'spy-1',

@@ -104,11 +104,11 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
     it('should return nations for specified ruleset', async () => {
       const response = await request(app)
         .get('/api/nations')
-        .query({ ruleset: 'classic' })
+        .query({ ruleset: 'civ2civ3' })
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data.metadata.ruleset).toBe('classic');
+      expect(response.body.data.metadata.ruleset).toBe('civ2civ3');
     });
 
     it('should return 404 for non-existent ruleset', async () => {
@@ -196,7 +196,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
     it('should work with different rulesets via query parameter', async () => {
       const response = await request(app)
         .get('/api/nations/roman')
-        .query({ ruleset: 'classic' })
+        .query({ ruleset: 'civ2civ3' })
         .expect(200);
 
       expect(response.body.data.nation.id).toBe('roman');
@@ -230,7 +230,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
       expect(response.body.success).toBe(true);
       expect(response.body.data).toBeDefined();
       expect(response.body.data.rulesets).toBeInstanceOf(Array);
-      expect(response.body.data.rulesets).toContain('classic');
+      expect(response.body.data.rulesets).toContain('civ2civ3');
       expect(response.body.data.rulesets).toContain('civ2civ3');
       expect(response.body.data.default).toBe('civ2civ3');
     });
@@ -280,7 +280,7 @@ describe('NationsController - Integration Tests with Real Ruleset Data', () => {
     it('should work with ruleset parameter', async () => {
       const response = await request(app)
         .get('/api/nations/roman/leaders')
-        .query({ ruleset: 'classic' })
+        .query({ ruleset: 'civ2civ3' })
         .expect(200);
 
       expect(response.body.data.nation_id).toBe('roman');

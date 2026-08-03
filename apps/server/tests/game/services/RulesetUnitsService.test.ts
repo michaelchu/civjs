@@ -6,16 +6,18 @@ describe('RulesetUnitsService', () => {
 
   /**
    * @evidence parity
-   * @reference reference/freeciv/data/classic/units.ruleset:143-188
+   * @reference reference/freeciv/data/civ2civ3/units.ruleset:143-188
    * @assertion Representative unit types retain the exact class flags that drive native movement, combat, and lifecycle rules.
    */
-  it('maps every classic unit class flag catalogue entry onto its units', () => {
-    // @reference reference/freeciv/data/classic/units.ruleset:143-188
+  it('maps every Civ2Civ3 unit class flag catalogue entry onto its units', () => {
+    // @reference reference/freeciv/data/civ2civ3/units.ruleset:143-188
     expect(rulesetUnitsService.getUnitType('cruise_missile')?.rulesetUnitClassFlags).toEqual([
       'Missile',
       'Unreachable',
       'DoesntOccupyTile',
+      'Airliftable',
       'HutFrighten',
+      'Aerial',
     ]);
     expect(rulesetUnitsService.getUnitType('warriors')?.rulesetUnitClassFlags).toEqual([
       'TerrainSpeed',
@@ -27,8 +29,10 @@ describe('RulesetUnitsService', () => {
       'CanFortify',
       'CanPillage',
       'TerrainDefense',
-      'KillCitizen',
+      'Airliftable',
       'NonNatBombardTgt',
+      'Barracks',
+      'Ground',
     ]);
     expect(rulesetUnitsService.getUnitType('caravel')?.rulesetUnitClassFlags).toEqual([
       'DamageSlows',
@@ -36,17 +40,25 @@ describe('RulesetUnitsService', () => {
       'AttFromNonNative',
     ]);
     expect(rulesetUnitsService.getUnitType('trireme')?.rulesetUnitClassFlags).toEqual([
+      'ZOC',
       'DamageSlows',
       'AttFromNonNative',
     ]);
     expect(rulesetUnitsService.getUnitType('helicopter')?.rulesetUnitClassFlags).toEqual([
+      'Unreachable',
+      'DoesntOccupyTile',
       'CanOccupyCity',
       'CollectRansom',
+      'Airliftable',
+      'Aerial',
     ]);
     expect(rulesetUnitsService.getUnitType('fighter')?.rulesetUnitClassFlags).toEqual([
       'Unreachable',
       'DoesntOccupyTile',
+      'CanPillage',
+      'Airliftable',
       'HutFrighten',
+      'Aerial',
     ]);
   });
 
@@ -64,7 +76,7 @@ describe('RulesetUnitsService', () => {
     const service = new RulesetUnitsService({ loadUnitsRuleset: () => unitsRuleset });
 
     expect(() => service.getUnitType('warriors')).toThrow(
-      "Unit 'settlers' references missing unit class 'Land'"
+      "Unit 'warriors' references missing unit class 'Land'"
     );
   });
 
@@ -78,16 +90,12 @@ describe('RulesetUnitsService', () => {
     expect(rulesetUnitsService.getMovementType('unknown_unit')).toBeUndefined();
   });
 
-  it('preserves classic target classes and combat bonuses', () => {
+  it('uses Civ2Civ3 unit catalogue capability fields without legacy adapters', () => {
     const fighter = rulesetUnitsService.getUnitType('fighter')!;
     const aegis = rulesetUnitsService.getUnitType('aegis_cruiser')!;
 
-    expect(fighter.targetClasses).toEqual(['Air', 'Missile']);
-    expect(fighter.combatBonuses).toContainEqual({
-      flag: 'Bomber',
-      type: 'DefenseMultiplier',
-      value: 1,
-    });
+    expect(fighter.targetClasses).toEqual(['Air', 'Missile', 'Helicopter']);
+    expect(fighter.combatBonuses).toEqual([]);
     expect(aegis.combatBonuses).toEqual([
       { flag: 'AirAttacker', type: 'DefenseMultiplier', value: 4 },
     ]);
@@ -97,7 +105,7 @@ describe('RulesetUnitsService', () => {
     expect(rulesetUnitsService.getUnitType('worker')).toEqual(
       expect.objectContaining({
         id: 'worker',
-        cost: 10,
+        cost: 20,
         requiredTech: undefined,
       })
     );
@@ -112,6 +120,22 @@ describe('RulesetUnitsService', () => {
   it('preserves Civ2Civ3 free helicopter embark and disembark classes', () => {
     expect(rulesetUnitsService.getUnitType('paratroopers', 'civ2civ3')).toEqual(
       expect.objectContaining({ embarks: ['Helicopter'], disembarks: ['Helicopter'] })
+    );
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/units.ruleset:1764-1804
+   * @assertion C2C3's non-military Transport remains a naval carrier, so the
+   * AI can assign it to ferry land units across water.
+   */
+  it('classifies the non-military C2C3 Transport as naval', () => {
+    expect(rulesetUnitsService.getUnitType('transport')).toEqual(
+      expect.objectContaining({
+        unitClass: 'naval',
+        transport_capacity: 8,
+        cargoClasses: ['Land', 'Small Land', 'Big Land', 'Merchant'],
+      })
     );
   });
 

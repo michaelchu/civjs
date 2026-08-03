@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 
 const rulesetPath = (...parts: string[]) =>
-  join(process.cwd(), 'apps/server/src/shared/data/rulesets/classic', ...parts);
+  join(process.cwd(), 'apps/server/src/shared/data/rulesets/civ2civ3', ...parts);
 
 export const installRulesetRoutes = async (page: Page): Promise<void> => {
   const styles = JSON.parse(readFileSync(rulesetPath('styles.json'), 'utf8'));
@@ -15,7 +15,7 @@ export const installRulesetRoutes = async (page: Page): Promise<void> => {
   // Match the configured API origin rather than assuming the development
   // default. Local .env files may point VITE_SERVER_URL at another origin,
   // but these fixture tests should always provide their own ruleset data.
-  await page.route('**/api/rulesets/classic/presentation', route =>
+  await page.route('**/api/rulesets/civ2civ3/presentation', route =>
     route.fulfill({
       json: {
         nation_styles: styles.nation_styles,
@@ -46,7 +46,7 @@ export const installRulesetRoutes = async (page: Page): Promise<void> => {
       },
     })
   );
-  await page.route(/\/api\/nations\?ruleset=classic$/, route =>
+  await page.route(/\/api\/nations\?ruleset=civ2civ3$/, route =>
     route.fulfill({
       json: {
         success: true,

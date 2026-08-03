@@ -10,7 +10,7 @@ describe('FreecivAdvisorService', () => {
       size: 4,
       population: 4,
       goldPerTurn: 2,
-      foodPerTurn: 2,
+      foodPerTurn: 0,
       productionPerTurn: 5,
       tradePerTurn: 6,
       productionStock: 0,
@@ -58,7 +58,7 @@ describe('FreecivAdvisorService', () => {
     };
     const game = {
       id: 'game',
-      config: { ruleset: 'classic' },
+      config: { ruleset: 'civ2civ3' },
       currentTurn: 12,
       players: new Map([
         ['human', player],

@@ -1,4 +1,6 @@
 import { UnitManager } from '@game/managers/UnitManager';
+import { EffectsManager } from '@game/managers/EffectsManager';
+import { SINGLE_MOVE } from '@game/constants/MovementConstants';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import {
   getTestDatabase,
@@ -46,7 +48,8 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       mapWidth,
       mapHeight,
       mockMapManager,
-      mockGameManagerCallback
+      mockGameManagerCallback,
+      new EffectsManager('civ2civ3')
     );
   });
 
@@ -81,7 +84,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       expect(unit.x).toBe(10);
       expect(unit.y).toBe(10);
       expect(unit.health).toBe(100);
-      expect(unit.movementLeft).toBe(3);
+      expect(unit.movementLeft).toBe(SINGLE_MOVE);
       expect(unit.veteranLevel).toBe(0);
       expect(unit.fortified).toBe(false);
 
@@ -97,7 +100,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       expect(dbUnits[0].x).toBe(10);
       expect(dbUnits[0].y).toBe(10);
       expect(dbUnits[0].health).toBe(100);
-      expect(dbUnits[0].movementPoints).toBe('3.00');
+      expect(Number(dbUnits[0].movementPoints)).toBe(SINGLE_MOVE);
       expect(dbUnits[0].veteranLevel).toBe(0);
       expect(dbUnits[0].isFortified).toBe(false);
     });
@@ -147,8 +150,8 @@ describe('UnitManager - Integration Tests with Real Database', () => {
     });
   });
 
-  describe('Milestone 14 action persistence', () => {
-    it('charges and persists a ruleset unit upgrade in a friendly city', async () => {
+  describe('Civ2Civ3 unit actions', () => {
+    it('does not invent a legacy upgrade chain for Warriors', async () => {
       const db = getTestDatabase();
       const [city] = await db
         .insert(schema.cities)
@@ -189,15 +192,20 @@ describe('UnitManager - Integration Tests with Real Database', () => {
           undefined,
           testData.player.id
         )
-      ).resolves.toMatchObject({ success: true });
+      ).resolves.toMatchObject({
+        success: false,
+        message: 'Unit cannot be upgraded here',
+      });
 
       const [persisted] = await db.select().from(schema.units).where(eq(schema.units.id, unit.id));
       const [player] = await db
         .select()
         .from(schema.players)
         .where(eq(schema.players.id, testData.player.id));
-      expect(persisted.unitType).toBe('pikemen');
-      expect(player.gold).toBeLessThan(1000);
+      // @reference reference/freeciv/data/civ2civ3/units.ruleset:333-348
+      // C2C3 Warriors do not declare an obsoleted_by upgrade target.
+      expect(persisted.unitType).toBe('warriors');
+      expect(player.gold).toBe(1000);
     });
   });
 
@@ -460,7 +468,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
           broadcastUnitMoved: () => {},
           applyNuclearCityDamage: async () => [],
         },
-        undefined,
+        new EffectsManager('civ2civ3'),
         () => 0
       );
       const nuclear = await unitManager.createUnit(testData.player.id, 'nuclear', 10, 10);
@@ -470,7 +478,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
         unitManager.executeUnitAction(
           nuclear.id,
           ActionType.NUCLEAR_EXPLOSION,
-          11,
+          10,
           10,
           testData.player.id
         )
@@ -497,7 +505,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
       await unitManager.resetMovement(testData.player.id);
 
       const unit = unitManager.getUnit(unitId);
-      expect(unit!.movementLeft).toBe(3);
+      expect(unit!.movementLeft).toBe(SINGLE_MOVE);
 
       // Verify movement was persisted
       const db = getTestDatabase();
@@ -505,7 +513,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
         where: (units, { eq }) => eq(units.id, unitId),
       });
 
-      expect(dbUnit.movementPoints).toBe('3.00');
+      expect(Number(dbUnit.movementPoints)).toBe(SINGLE_MOVE);
     });
 
     it('should heal fortified units and persist health', async () => {
@@ -515,7 +523,7 @@ describe('UnitManager - Integration Tests with Real Database', () => {
 
       await unitManager.resetMovement(testData.player.id);
 
-      // Classic stacks 10 base regeneration with 10 fortified regeneration.
+      // C2C3 stacks 10 base regeneration with 10 fortified regeneration.
       expect(unit.health).toBe(100);
 
       // Verify health was persisted

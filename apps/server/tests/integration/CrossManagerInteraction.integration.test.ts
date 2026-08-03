@@ -7,7 +7,7 @@ import {
   findPassableUnitSites,
   findValidCitySites,
 } from '../utils/gameTestUtils';
-import { getTerrainMovementCost } from '@game/constants/MovementConstants';
+import { getTerrainMovementCost, SINGLE_MOVE } from '@game/constants/MovementConstants';
 
 function findPassableStep(game: NonNullable<ReturnType<GameManager['getGameInstance']>>): {
   start: { x: number; y: number };
@@ -177,13 +177,19 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
     });
 
     it('should prevent movement into enemy city and maintain city integrity', async () => {
-      // Create enemy city
-      const enemyCityId = await gameManager.foundCity(gameId, enemyPlayerId, 'EnemyCity', 10, 7);
-
       const game = gameManager.getGameInstance(gameId)!;
+      const [enemySite] = findValidCitySites(game, enemyPlayerId, 1);
+      expect(enemySite).toBeDefined();
+      const enemyCityId = await gameManager.foundCity(
+        gameId,
+        enemyPlayerId,
+        'EnemyCity',
+        enemySite!.x,
+        enemySite!.y
+      );
 
       // Try to move unit into enemy city (should fail)
-      await expect(game.unitManager.moveUnit(unitId, 10, 7)).rejects.toThrow();
+      await expect(game.unitManager.moveUnit(unitId, enemySite!.x, enemySite!.y)).rejects.toThrow();
 
       // Verify unit didn't move
       const unit = game.unitManager.getUnit(unitId);
@@ -193,8 +199,8 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       // Verify enemy city is intact
       const enemyCity = game.cityManager.getCity(enemyCityId);
       expect(enemyCity).toBeDefined();
-      expect(enemyCity!.x).toBe(10);
-      expect(enemyCity!.y).toBe(7);
+      expect(enemyCity!.x).toBe(enemySite!.x);
+      expect(enemyCity!.y).toBe(enemySite!.y);
 
       // Verify database reflects no movement
       const db = getTestDatabase();
@@ -207,8 +213,8 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
 
       expect(dbUnit.x).toBe(unitStart.x);
       expect(dbUnit.y).toBe(unitStart.y);
-      expect(dbCity.x).toBe(10);
-      expect(dbCity.y).toBe(7);
+      expect(dbCity.x).toBe(enemySite!.x);
+      expect(dbCity.y).toBe(enemySite!.y);
     });
   });
 
@@ -334,7 +340,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       expect(city.productionStock).toBeGreaterThanOrEqual(0);
 
       const unit = game.unitManager.getUnit(unitId)!;
-      expect(unit.movementLeft).toBe(3);
+      expect(unit.movementLeft).toBe(SINGLE_MOVE);
 
       const research = gameManager.getPlayerResearch(gameId, playerId1);
       expect(research).toBeDefined();
@@ -354,7 +360,7 @@ describe('Cross-Manager Integration Tests - Real Database Interactions', () => {
       expect(dbGame.currentTurn).toBe(initialTurn + 1);
       expect(dbCity.food).toBe(city.foodStock);
       expect(dbCity.production).toBe(city.productionStock);
-      expect(dbUnit.movementPoints).toBe('3.00');
+      expect(Number(dbUnit.movementPoints)).toBe(SINGLE_MOVE);
     });
 
     it('should handle concurrent turn ending safely', async () => {

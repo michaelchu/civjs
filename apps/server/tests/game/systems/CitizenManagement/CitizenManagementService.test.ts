@@ -178,7 +178,7 @@ describe('CitizenManagementService', () => {
 
       const result = citizenService.queryResult(city, parameters);
 
-      // Classic citizens consume two food each. This fixture cannot feed four
+      // C2C3 citizens consume two food each. This fixture cannot feed four
       // citizens, so a non-starving assignment must be rejected.
       expect(result.found_valid).toBe(false);
     });

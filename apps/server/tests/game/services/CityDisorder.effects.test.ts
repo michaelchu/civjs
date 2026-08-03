@@ -1,7 +1,7 @@
 import { EffectsManager } from '@game/managers/EffectsManager';
 import { CityTurnProcessingService } from '@game/services/CityTurnProcessingService';
 
-describe('classic civil disorder effects', () => {
+describe('C2C3 civil disorder effects', () => {
   it('overthrows Democracy after more than two consecutive disorder turns', async () => {
     const forceGovernmentRevolution = jest.fn().mockResolvedValue(undefined);
     const service = new CityTurnProcessingService({

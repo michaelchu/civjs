@@ -9,7 +9,7 @@ const config: HeadlessSimulationConfig = {
   mapHeight: 20,
   mapSeed: 'map-seed',
   randomSeed: 1,
-  ruleset: 'classic',
+  ruleset: 'civ2civ3',
   turnTimeLimit: 300,
   maxTurns: 10,
   victoryConditions: ['max_turns'],

@@ -262,12 +262,15 @@ describe('Nation Selection Flow - Integration', () => {
       await joinHandler(joinData, mockCallback);
 
       // Assert
-      expect(mockCallback).toHaveBeenCalledWith({
-        success: true,
-        playerId: expect.any(String),
-        assignedNation: 'chinese',
-        assignedColor: expect.any(Object),
-      });
+      expect(mockCallback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          playerId: expect.any(String),
+          assignedNation: 'chinese',
+          assignedColor: expect.any(Object),
+          leaderName: expect.any(String),
+        })
+      );
     });
 
     it('should handle random nation selection for second player', async () => {

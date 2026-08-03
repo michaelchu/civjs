@@ -1,5 +1,5 @@
 import { chooseGovernment, rankGovernments } from '@game/ai/AIGovernmentPlanner';
-import { EffectType, OutputType } from '@game/managers/EffectsManager';
+import { EffectType, EffectsManager, OutputType } from '@game/managers/EffectsManager';
 
 const city = {
   id: 'capital',
@@ -100,5 +100,44 @@ describe('Freeciv AI government planner', () => {
         researchDistance: government => (government === 'republic' ? 4 : 0),
       })
     ).toBeUndefined();
+  });
+
+  it('values C2C3 Democracy land-tile trade when considering a revolution', () => {
+    const effects = new EffectsManager('civ2civ3');
+    const productiveCity = {
+      ...city,
+      population: 10,
+      size: 10,
+      foodPerTurn: 10,
+      productionPerTurn: 10,
+      tradePerTurn: 10,
+      goldPerTurn: 4,
+      sciencePerTurn: 5,
+      workableTiles: Array.from({ length: 10 }, (_, index) => ({
+        x: index,
+        y: 0,
+        terrain: 'grassland',
+        isWorked: true,
+        outputs: { food: 2, shields: 1, trade: 1 },
+      })),
+    } as any;
+
+    const choice = chooseGovernment({
+      currentGovernmentId: 'tribal',
+      availableGovernmentIds: ['tribal', 'democracy'],
+      cities: [productiveCity],
+      units: [],
+      atWar: false,
+      effect: (government, type, output, effectContext) =>
+        effects.calculateEffect(type, {
+          government,
+          outputType: output,
+          ...effectContext,
+        }).value,
+    });
+    // Democracy's one extra trade on every worked land tile is source-backed
+    // by C2C3's effect_gov_tile_bonus_democracy.
+    // @reference reference/freeciv/data/civ2civ3/effects.ruleset:1512-1520
+    expect(choice?.governmentId).toBe('democracy');
   });
 });

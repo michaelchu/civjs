@@ -19,27 +19,30 @@ describe('ResearchManager', () => {
     jest.clearAllMocks();
   });
 
+  const requiredResearchCost = (playerId: string) =>
+    researchManager.getResearchProgress(playerId)!.required;
+
   describe('technology definitions', () => {
     it('should have valid technology definitions', () => {
-      const classicTechs = rulesetLoader.getTechs();
-      const classicResearch = rulesetLoader.loadGameRulesRuleset().research;
+      const civ2civ3Techs = rulesetLoader.getTechs();
+      const civ2civ3Research = rulesetLoader.loadGameRulesRuleset().research;
 
       expect(TECHNOLOGIES.alphabet).toBeDefined();
       expect(TECHNOLOGIES.alphabet.name).toBe('Alphabet');
       expect(TECHNOLOGIES.alphabet.cost).toBe(
-        calculateRulesetTechnologyCost('alphabet', classicTechs, classicResearch)
+        calculateRulesetTechnologyCost('alphabet', civ2civ3Techs, civ2civ3Research)
       );
       expect(TECHNOLOGIES.alphabet.requirements).toEqual([]);
 
       expect(TECHNOLOGIES.mathematics).toBeDefined();
-      expect(TECHNOLOGIES.mathematics.requirements).toEqual(classicTechs.mathematics.requirements);
+      expect(TECHNOLOGIES.mathematics.requirements).toEqual(civ2civ3Techs.mathematics.requirements);
       expect(TECHNOLOGIES.mathematics.cost).toBe(
-        calculateRulesetTechnologyCost('mathematics', classicTechs, classicResearch)
+        calculateRulesetTechnologyCost('mathematics', civ2civ3Techs, civ2civ3Research)
       );
 
       expect(TECHNOLOGIES.philosophy).toBeDefined();
       expect(TECHNOLOGIES.philosophy.flags).toContain('Bonus_Tech');
-      expect(TECHNOLOGIES.philosophy.requirements).toEqual(classicTechs.philosophy.requirements);
+      expect(TECHNOLOGIES.philosophy.requirements).toEqual(civ2civ3Techs.philosophy.requirements);
     });
 
     it('should have properly structured tech tree', () => {
@@ -140,7 +143,7 @@ describe('ResearchManager', () => {
       expect(researchManager.getPlayerResearch('player-123')?.currentTech).not.toBe('alphabet');
     });
 
-    it('charges no technology upkeep under the classic None setting', async () => {
+    it('charges no technology upkeep before C2C3 technologies are researched', async () => {
       await researchManager.initializePlayerResearch('player-123');
 
       expect(researchManager.calculateTechnologyUpkeep('player-123', 4)).toBe(0);
@@ -221,7 +224,7 @@ describe('ResearchManager', () => {
      * @reference reference/freeciv/server/techtools.c:1048-1064
      * @assertion Switching a research target applies the configured penalty to accumulated non-free bulbs before selecting the new target.
      */
-    it('applies the classic 100 percent penalty when switching targets', async () => {
+    it('applies the C2C3 100 percent penalty when switching targets', async () => {
       await researchManager.setCurrentResearch('player-123', 'pottery');
       await researchManager.addResearchPoints('player-123', 5);
 
@@ -239,7 +242,7 @@ describe('ResearchManager', () => {
         createMockDatabaseProvider(),
         TECHNOLOGIES,
         new EffectsManager(),
-        'classic',
+        'civ2civ3',
         { techPenalty: 25 }
       );
       await manager.initializePlayerResearch('player');
@@ -305,7 +308,7 @@ describe('ResearchManager', () => {
     });
 
     it('should add research points correctly', async () => {
-      const bulbs = TECHNOLOGIES.pottery.cost - 1;
+      const bulbs = requiredResearchCost('player-123') - 1;
       const completedTech = await researchManager.addResearchPoints('player-123', bulbs);
 
       const research = researchManager.getPlayerResearch('player-123');
@@ -317,7 +320,7 @@ describe('ResearchManager', () => {
     it('should complete technology when enough points accumulated', async () => {
       const completedTech = await researchManager.addResearchPoints(
         'player-123',
-        TECHNOLOGIES.pottery.cost
+        requiredResearchCost('player-123')
       );
 
       expect(completedTech).toBe('pottery');
@@ -333,7 +336,7 @@ describe('ResearchManager', () => {
       researchManager.setTechnologyCompletionObserver(observer);
 
       await expect(
-        researchManager.addResearchPoints('player-123', TECHNOLOGIES.pottery.cost)
+        researchManager.addResearchPoints('player-123', requiredResearchCost('player-123'))
       ).resolves.toBe('pottery');
 
       expect(observer).toHaveBeenCalledWith('player-123', 'pottery', 'research');
@@ -342,18 +345,19 @@ describe('ResearchManager', () => {
     it('should save excess bulbs when completing technology', async () => {
       const completedTech = await researchManager.addResearchPoints(
         'player-123',
-        TECHNOLOGIES.pottery.cost + 5
+        requiredResearchCost('player-123') + 5
       );
 
       expect(completedTech).toBe('pottery');
 
       const research = researchManager.getPlayerResearch('player-123');
-      expect(research!.bulbsAccumulated).toBe(5); // 15 - 10 = 5 excess
+      expect(research!.bulbsAccumulated).toBe(5); // Preserve the five excess bulbs.
     });
 
     it('applies the AI difficulty science-cost multiplier to cost and overflow', async () => {
+      const baseRequired = requiredResearchCost('player-123');
       researchManager.setScienceCostProvider(playerId => (playerId === 'player-123' ? 250 : 100));
-      const required = Math.ceil(TECHNOLOGIES.pottery.cost * 2.5);
+      const required = Math.ceil(baseRequired * 2.5);
 
       expect(researchManager.getResearchProgress('player-123')).toEqual({
         current: 0,
@@ -495,28 +499,11 @@ describe('ResearchManager', () => {
       await expect(manager.addResearchPoints('player', 1)).resolves.toBe('alphabet');
     });
 
-    it('uses Civ I/II dynamic costs together with the ruleset sciencebox', async () => {
-      const manager = new ResearchManager(
-        gameId,
-        createMockDatabaseProvider(),
-        loadRulesetTechnologies(rulesetLoader, 'civ2'),
-        new EffectsManager('civ2'),
-        'civ2'
-      );
-      await manager.initializePlayerResearch('player');
-
-      expect(manager.getResearchProgress('player')?.required).toBe(10);
-      await manager.grantTechnology('player', 'alphabet');
-      await manager.setCurrentResearch('player', 'pottery');
-
-      expect(manager.getResearchProgress('player')?.required).toBe(20);
-    });
-
     it('routes the next research through a goal prerequisite chain', async () => {
       await researchManager.setResearchGoal('player-123', 'mathematics');
 
       // Complete pottery
-      await researchManager.addResearchPoints('player-123', TECHNOLOGIES.pottery.cost);
+      await researchManager.addResearchPoints('player-123', requiredResearchCost('player-123'));
 
       const research = researchManager.getPlayerResearch('player-123');
       expect(research!.currentTech).toBe('masonry');
@@ -567,8 +554,8 @@ describe('ResearchManager', () => {
 
       expect(progress).toEqual({
         current: 7,
-        required: TECHNOLOGIES.pottery.cost,
-        turnsRemaining: Math.ceil((TECHNOLOGIES.pottery.cost - 7) / 3),
+        required: requiredResearchCost('player-123'),
+        turnsRemaining: Math.ceil((requiredResearchCost('player-123') - 7) / 3),
       });
     });
 
@@ -578,7 +565,7 @@ describe('ResearchManager', () => {
       const progress = researchManager.getResearchProgress('player-456');
       expect(progress).toEqual({
         current: 0,
-        required: TECHNOLOGIES.alphabet.cost,
+        required: requiredResearchCost('player-456'),
         turnsRemaining: -1,
       });
     });
@@ -632,7 +619,7 @@ describe('ResearchManager', () => {
       await researchManager.setCurrentResearch('player-123', 'philosophy');
       const completedTech = await researchManager.addResearchPoints(
         'player-123',
-        TECHNOLOGIES.philosophy.cost
+        requiredResearchCost('player-123')
       );
 
       expect(completedTech).toBe('philosophy');
@@ -650,7 +637,7 @@ describe('ResearchManager', () => {
         research.researchedTechs.add('mysticism');
         research.researchedTechs.add('literacy');
         await researchManager.setCurrentResearch(playerId, 'philosophy');
-        await researchManager.addResearchPoints(playerId, TECHNOLOGIES.philosophy.cost);
+        await researchManager.addResearchPoints(playerId, requiredResearchCost(playerId));
       }
 
       expect(researchManager.getPlayerResearch('player-456')!.researchedTechs.size).toBe(3);
@@ -658,7 +645,7 @@ describe('ResearchManager', () => {
   });
 
   describe('complete age progression', () => {
-    it('can traverse every classic technology and continue into Future Tech', async () => {
+    it('can traverse every C2C3 technology and continue into Future Tech', async () => {
       await researchManager.initializePlayerResearch('player-123');
 
       const granted = await researchManager.grantAvailableTechnologies(
@@ -717,7 +704,7 @@ describe('ResearchManager', () => {
 
       const completedTech = await researchManager.addResearchPoints(
         'player-123',
-        TECHNOLOGIES[initialTarget!].cost
+        requiredResearchCost('player-123')
       );
       expect(initialTarget).toBeDefined();
       expect(completedTech).toBe(initialTarget);

@@ -11,7 +11,7 @@ test('game creation is responsive and reports ruleset loading failures', async (
 });
 
 test('game creation exposes an actionable validation error when nations fail', async ({ page }) => {
-  await page.route('http://localhost:3001/api/nations?ruleset=classic', route =>
+  await page.route('http://localhost:3001/api/nations?ruleset=civ2civ3', route =>
     route.fulfill({ status: 503, json: { error: 'Unavailable' } })
   );
   await page.goto('/create-game');

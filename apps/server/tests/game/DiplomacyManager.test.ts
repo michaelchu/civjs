@@ -225,7 +225,7 @@ describe('DiplomacyManager', () => {
     });
   });
 
-  it('executes classic material clauses when the recipient accepts', async () => {
+  it('executes C2C3 material clauses when the recipient accepts', async () => {
     await manager.establishContact('game-1', 'p1', 'p2');
     const executeTransfers = jest.fn().mockResolvedValue(undefined);
     manager.setTransferExecutor(executeTransfers);
@@ -273,8 +273,8 @@ describe('DiplomacyManager', () => {
     );
   });
 
-  it('lets the classic senate block an unprovoked treaty break', async () => {
-    rows[0].government = 'republic';
+  it('lets the C2C3 Democracy senate block an unprovoked treaty break', async () => {
+    rows[0].government = 'democracy';
     await manager.establishContact('game-1', 'p1', 'p2');
     const proposal = await manager.proposeTreaty(
       'game-1',
@@ -288,7 +288,7 @@ describe('DiplomacyManager', () => {
     await expect(manager.declareWar('game-1', 'p1', 'p2')).rejects.toThrow('senate refuses');
   });
 
-  it('prohibits treaties and embassies with the classic Barbarian nation group', async () => {
+  it('prohibits treaties and embassies with the C2C3 Barbarian nation group', async () => {
     rows[1].nation = 'barbarian';
     rows[1].civilization = 'barbarian';
 

@@ -19,22 +19,22 @@ function makeUnit(overrides?: Partial<UnitSupportData>): UnitSupportData {
 }
 
 describe('UnitSupportManager.calculateCityUnitSupport', () => {
-  test('despotism: classic free support applies to shields only', () => {
+  test('C2C3 Despotism applies food support before citizen consumption', () => {
     const mgr = new UnitSupportManager('g1');
     const units: UnitSupportData[] = [makeUnit(), makeUnit(), makeUnit()];
 
     const res = mgr.calculateCityUnitSupport('city-1', 'p1', 'despotism', 1, units) as any;
 
-    expect(res.upkeepCosts.shield).toBe(0); // 3 shield units are free
-    expect(res.upkeepCosts.food).toBe(5); // 3 unit food + population(1)*2
-    expect(res.upkeepCosts.gold).toBe(0); // no gold upkeep
+    expect(res.upkeepCosts.shield).toBe(0); // Despotism's C2C3 shield upkeep is zero.
+    expect(res.upkeepCosts.food).toBe(2); // Four C2C3 free food slots cover all three units.
+    expect(res.upkeepCosts.gold).toBe(0); // Mixed C2C3 gold upkeep is national.
     // freeUnitsSupported uses min across resources (shield=2, food=2, gold=0) => 0
     expect(res.freeUnitsSupported).toBe(0);
     expect(res.unitsRequiringUpkeep).toBe(3);
     expect(res.happinessEffect).toBe(0);
   });
 
-  test('monarchy: gold upkeep charged to city; population 2 increases food by 4', () => {
+  test('C2C3 Monarchy applies its food support and mixed gold upkeep', () => {
     const mgr = new UnitSupportManager('g1');
     const units: UnitSupportData[] = [
       makeUnit({ upkeep: { food: 1, shield: 1, gold: 1 } }),
@@ -43,12 +43,24 @@ describe('UnitSupportManager.calculateCityUnitSupport', () => {
 
     const res = mgr.calculateCityUnitSupport('city-2', 'p1', 'monarchy', 2, units) as any;
 
-    // Shield: 2 units, free shield 3 (monarchy) => 0
+    // C2C3 Monarchy has zero shield upkeep for these units.
     expect(res.upkeepCosts.shield).toBe(0);
-    // Classic monarchy has no free food upkeep.
-    expect(res.upkeepCosts.food).toBe(6);
-    // Classic Warriors have no gold upkeep.
+    // The base four free food slots cover both units, leaving population consumption only.
+    expect(res.upkeepCosts.food).toBe(4);
+    // Mixed C2C3 gold upkeep is paid nationally.
     expect(res.upkeepCosts.gold).toBe(0);
+  });
+
+  test('C2C3 adds a free food support slot at city size five', () => {
+    const mgr = new UnitSupportManager('g1');
+    const units = Array.from({ length: 5 }, (_, index) =>
+      makeUnit({ unitId: `u-${index}`, upkeep: { food: 1, shield: 0, gold: 0 } })
+    );
+
+    const res = mgr.calculateCityUnitSupport('city-5', 'p1', 'despotism', 5, units) as any;
+
+    // C2C3 supplies four base food-support slots and one more at size five.
+    expect(res.upkeepCosts.food).toBe(10);
   });
 
   test('republic: the first military unhappiness point is made content', () => {

@@ -31,7 +31,7 @@ describe('CultureManager - Core Calculations', () => {
 
   beforeEach(() => {
     mockDatabase = createMockDatabaseProvider();
-    cultureManager = new CultureManager(mockDatabase, 'classic');
+    cultureManager = new CultureManager(mockDatabase, 'civ2civ3');
   });
 
   describe('calculateCityCulture', () => {

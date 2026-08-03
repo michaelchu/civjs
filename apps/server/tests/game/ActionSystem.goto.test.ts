@@ -14,7 +14,7 @@ describe('ActionSystem - Goto Actions', () => {
     x: 10,
     y: 10,
     health: 100,
-    movementLeft: 9, // 3 movement points in fragments
+    movementLeft: 18, // 3 movement points in C2C3 fragments
     fortified: false,
     veteranLevel: 0,
     experience: 0,
@@ -68,9 +68,9 @@ describe('ActionSystem - Goto Actions', () => {
             path: {
               tiles: [
                 { x: unitX, y: unitY, moveCost: 0 },
-                { x: targetX, y: targetY, moveCost: 3 },
+                { x: targetX, y: targetY, moveCost: 6 },
               ],
-              totalCost: 3,
+              totalCost: 6,
               estimatedTurns: 1,
             },
           };
@@ -88,7 +88,7 @@ describe('ActionSystem - Goto Actions', () => {
     // Reset mockUnit state before each test to avoid contamination
     mockUnit.x = 10;
     mockUnit.y = 10;
-    mockUnit.movementLeft = 9;
+    mockUnit.movementLeft = 18;
     mockUnit.fortified = false;
 
     actionSystem = new ActionSystem(gameId, mockGameManagerCallback);
@@ -129,16 +129,16 @@ describe('ActionSystem - Goto Actions', () => {
 
       expect(result.success).toBe(true);
       expect(result.newPosition).toEqual({ x: 11, y: 10 });
-      expect(result.movementCost).toBe(3); // SINGLE_MOVE
+      expect(result.movementCost).toBe(6); // C2C3 SINGLE_MOVE
       expect(result.message).toContain('moved to (11, 10)');
     });
 
-    it('should use the authoritative classic cost for diagonal movement', async () => {
+    it('should use the authoritative C2C3 cost for diagonal movement', async () => {
       const result = await actionSystem.executeAction(mockUnit, ActionType.GOTO, 11, 11);
 
       expect(result.success).toBe(true);
       expect(result.newPosition).toEqual({ x: 11, y: 11 });
-      expect(result.movementCost).toBe(3);
+      expect(result.movementCost).toBe(6);
     });
 
     it('should reject invalid coordinates', async () => {
@@ -206,7 +206,7 @@ describe('ActionSystem - Goto Actions', () => {
       });
 
       const result = await authoritativeSystem.executeAction(
-        { ...mockUnit, movementLeft: 9 },
+        { ...mockUnit, movementLeft: 18 },
         ActionType.GOTO,
         12,
         10
@@ -215,7 +215,7 @@ describe('ActionSystem - Goto Actions', () => {
       expect(result.success).toBe(true);
       expect(result.newPosition).toEqual({ x: 12, y: 10 });
       expect(result.movementCost).toBe(6);
-      expect(result.newMovementLeft).toBe(3);
+      expect(result.newMovementLeft).toBe(12);
     });
 
     it('should reject movement when unit has no movement left', async () => {
@@ -242,7 +242,7 @@ describe('ActionSystem - Goto Actions', () => {
 
       for (const [x, y] of adjacentPositions) {
         // Create a fresh unit for each test to avoid state contamination
-        const testUnit = { ...mockUnit, x: 10, y: 10, movementLeft: 9 };
+        const testUnit = { ...mockUnit, x: 10, y: 10, movementLeft: 18 };
         const result = await actionSystem.executeAction(testUnit, ActionType.GOTO, x, y);
         expect(result.success).toBe(true);
         expect(result.newPosition).toEqual({ x, y });
@@ -267,9 +267,9 @@ describe('ActionSystem - Goto Actions', () => {
 
     it('should handle edge positions correctly', async () => {
       // Units at map edge - use unique IDs so the mock can identify them
-      const edgeUnit1 = { ...mockUnit, id: 'edge-unit-1', x: 0, y: 0, movementLeft: 9 };
-      const edgeUnit2 = { ...mockUnit, id: 'edge-unit-2', x: 0, y: 0, movementLeft: 9 };
-      const edgeUnit3 = { ...mockUnit, id: 'edge-unit-3', x: 0, y: 0, movementLeft: 9 };
+      const edgeUnit1 = { ...mockUnit, id: 'edge-unit-1', x: 0, y: 0, movementLeft: 18 };
+      const edgeUnit2 = { ...mockUnit, id: 'edge-unit-2', x: 0, y: 0, movementLeft: 18 };
+      const edgeUnit3 = { ...mockUnit, id: 'edge-unit-3', x: 0, y: 0, movementLeft: 18 };
 
       // Valid moves from edge
       const result1 = await actionSystem.executeAction(edgeUnit1, ActionType.GOTO, 1, 0);
@@ -283,19 +283,19 @@ describe('ActionSystem - Goto Actions', () => {
 
     it('should calculate movement cost correctly for different directions', async () => {
       // Straight movement costs - each gets a fresh unit at (10, 10)
-      const northUnit = { ...mockUnit, x: 10, y: 10, movementLeft: 9 };
-      const eastUnit = { ...mockUnit, x: 10, y: 10, movementLeft: 9 };
-      const diagonalUnit = { ...mockUnit, x: 10, y: 10, movementLeft: 9 };
+      const northUnit = { ...mockUnit, x: 10, y: 10, movementLeft: 18 };
+      const eastUnit = { ...mockUnit, x: 10, y: 10, movementLeft: 18 };
+      const diagonalUnit = { ...mockUnit, x: 10, y: 10, movementLeft: 18 };
 
       const northResult = await actionSystem.executeAction(northUnit, ActionType.GOTO, 10, 9);
       const eastResult = await actionSystem.executeAction(eastUnit, ActionType.GOTO, 11, 10);
 
-      expect(northResult.movementCost).toBe(3);
-      expect(eastResult.movementCost).toBe(3);
+      expect(northResult.movementCost).toBe(6);
+      expect(eastResult.movementCost).toBe(6);
 
-      // Classic diagonal movement uses the same cost.
+      // C2C3 diagonal movement uses the same cost.
       const diagonalResult = await actionSystem.executeAction(diagonalUnit, ActionType.GOTO, 11, 9);
-      expect(diagonalResult.movementCost).toBe(3);
+      expect(diagonalResult.movementCost).toBe(6);
     });
   });
 

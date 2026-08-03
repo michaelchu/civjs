@@ -178,7 +178,7 @@ export function createTestGameConfig(overrides: Partial<any> = {}) {
     maxPlayers: 2,
     mapWidth: 20,
     mapHeight: 20,
-    ruleset: 'classic',
+    ruleset: 'civ2civ3',
     ...overrides,
   };
 }

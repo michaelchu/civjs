@@ -29,27 +29,7 @@ describe('BorderManager ruleset-driven extra sources', () => {
     };
   };
 
-  it('uses the classic Fortress base border_sq value', () => {
-    const { manager, mapManager } = createManager();
-    mapManager.updateTileProperty(4, 4, 'improvements', ['fortress']);
-
-    manager.synchronizeTileExtras(4, 4, 'player-1', ['fortress'], []);
-
-    expect(manager.isBorderSource(4, 4)).toBe(true);
-    expect(manager.getAllBorderSources()).toEqual([
-      expect.objectContaining({
-        x: 4,
-        y: 4,
-        playerId: 'player-1',
-        extraType: 'fortress',
-        radius: 5,
-      }),
-    ]);
-    expect(manager.getTileOwner(6, 4)).toBe('player-1');
-    expect(manager.getTileOwner(7, 4)).toBeNull();
-  });
-
-  it('does not turn bases without border_sq into territory sources', () => {
+  it('does not turn C2C3 bases without border_sq into territory sources', () => {
     const { manager, mapManager } = createManager();
     mapManager.updateTileProperty(4, 4, 'improvements', ['airbase']);
 
@@ -57,18 +37,5 @@ describe('BorderManager ruleset-driven extra sources', () => {
 
     expect(manager.isBorderSource(4, 4)).toBe(false);
     expect(manager.getAllBorderSources()).toHaveLength(0);
-  });
-
-  it('removes and recalculates territory when a claiming extra is pillaged', () => {
-    const { manager, mapManager } = createManager();
-    mapManager.updateTileProperty(4, 4, 'improvements', ['fortress']);
-    manager.synchronizeTileExtras(4, 4, 'player-1', ['fortress'], []);
-    mapManager.updateTileProperty(4, 4, 'improvements', []);
-
-    manager.synchronizeTileExtras(4, 4, 'player-1', [], ['fortress']);
-
-    expect(manager.getAllBorderSources()).toHaveLength(0);
-    expect(manager.getTileOwner(4, 4)).toBeNull();
-    expect(mapManager.getTile(4, 4)?.owner).toBeUndefined();
   });
 });

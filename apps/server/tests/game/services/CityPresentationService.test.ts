@@ -27,7 +27,7 @@ describe('CityPresentationService', () => {
       } as CityState,
       player,
       new Set(['alphabet', 'railroad']),
-      'classic',
+      'civ2civ3',
       loader as never
     );
 
@@ -44,7 +44,7 @@ describe('CityPresentationService', () => {
       { buildings: ['coastal_defense'] } as CityState,
       player,
       new Set(['alphabet']),
-      'classic',
+      'civ2civ3',
       loader as never
     );
 

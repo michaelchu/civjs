@@ -113,6 +113,18 @@ describe('Freeciv AI worker planner', () => {
     });
   });
 
+  it('uses the C2C3 terrain road-trade setting outside a fixed terrain list', () => {
+    const desert = tile(1, 1, 'desert');
+    const plan = planWorkerImprovements(
+      context([desert], [worker('worker', 1, 1)], {
+        rulesetName: 'civ2civ3',
+        canPerformAction: (_worker: any, action: ActionType) => action === ActionType.BUILD_ROAD,
+      })
+    );
+
+    expect(plan.assignments[0]).toMatchObject({ action: ActionType.BUILD_ROAD, tile: desert });
+  });
+
   it('prioritizes cleanup but rejects a tile an enemy can immediately threaten', () => {
     const polluted = tile(2, 2, 'grassland', { improvements: ['pollution'] });
     const enemy = { ...worker('enemy', 3, 2), playerId: 'enemy', unitTypeId: 'warriors' };
@@ -142,7 +154,7 @@ describe('Freeciv AI worker planner', () => {
     expect(new Set(plan.assignments.map(item => `${item.tile.x},${item.tile.y}`)).size).toBe(2);
   });
 
-  it('orders railroad after its road dependency and preserves an unchanged assignment', () => {
+  it('orders the C2C3 railroad after its road dependency and preserves an unchanged assignment', () => {
     const roaded = tile(1, 1, 'plains', { hasRoad: true, improvements: ['road'] });
     const existing = {
       worker: {
@@ -157,6 +169,8 @@ describe('Freeciv AI worker planner', () => {
       context([roaded], [worker('worker', 1, 1)], {
         existingTasks: existing,
         researchedTechs: new Set(['railroad']),
+        canPerformAction: (_worker: any, action: ActionType) =>
+          action === ActionType.BUILD_ROAD || action === ActionType.BUILD_RAILROAD,
       })
     );
 
@@ -167,6 +181,8 @@ describe('Freeciv AI worker planner', () => {
     const withoutDependency = planWorkerImprovements(
       context([unroaded], [worker('worker', 1, 1)], {
         researchedTechs: new Set(['railroad']),
+        canPerformAction: (_worker: any, action: ActionType) =>
+          action === ActionType.BUILD_ROAD || action === ActionType.BUILD_RAILROAD,
       })
     );
     expect(withoutDependency.assignments[0]).toMatchObject({
@@ -175,20 +191,13 @@ describe('Freeciv AI worker planner', () => {
     });
   });
 
-  it('extends irrigation only from a cardinal classic water source', () => {
+  it('plans C2C3 irrigation without the removed water-source heuristic', () => {
     const target = tile(1, 1, 'grassland');
-    const diagonalWater = tile(2, 2, 'ocean');
-    const cardinalWater = tile(1, 2, 'ocean');
-
-    const withoutSource = planWorkerImprovements(
-      context([target, diagonalWater], [worker('worker', 1, 1)])
+    const plan = planWorkerImprovements(
+      context([target], [worker('worker', 1, 1)], { rulesetName: 'civ2civ3' })
     );
-    expect(withoutSource.assignments[0]?.action).not.toBe(ActionType.BUILD_IRRIGATION);
 
-    const withSource = planWorkerImprovements(
-      context([target, diagonalWater, cardinalWater], [worker('worker', 1, 1)])
-    );
-    expect(withSource.assignments[0]).toMatchObject({
+    expect(plan.assignments[0]).toMatchObject({
       action: ActionType.BUILD_IRRIGATION,
       tile: target,
     });
@@ -209,6 +218,25 @@ describe('Freeciv AI worker planner', () => {
 
     expect(planWorkerImprovements(requestedContext).assignments[0]).toMatchObject({
       tile: requested,
+      action: ActionType.BUILD_ROAD,
+      requestCityId: 'city',
+    });
+  });
+
+  it('honors a feasible city request even when the local improvement has no yield score', () => {
+    const forest = tile(2, 1, 'forest');
+    const requestedContext = context([forest], [worker('worker', 0, 1)]);
+    requestedContext.cities[0].workerTaskRequests = [
+      {
+        x: forest.x,
+        y: forest.y,
+        action: ActionType.BUILD_ROAD,
+        want: 500,
+      },
+    ];
+
+    expect(planWorkerImprovements(requestedContext).assignments[0]).toMatchObject({
+      tile: forest,
       action: ActionType.BUILD_ROAD,
       requestCityId: 'city',
     });
@@ -289,10 +317,14 @@ describe('Freeciv AI worker planner', () => {
   });
 
   it('can improve owned empire tiles outside a city radius', () => {
-    const cityTile = tile(1, 1, 'grassland', { hasRoad: true, improvements: ['road'] });
+    const cityTile = tile(1, 1, 'grassland', {
+      hasRoad: true,
+      improvements: ['road', 'irrigation'],
+    });
     const borderTile = tile(4, 1, 'hills');
     const planningContext = context([cityTile], [worker('worker', 1, 1)], {
       ownedTiles: [cityTile, borderTile],
+      canPerformAction: (_worker: any, action: ActionType) => action === ActionType.BUILD_MINE,
     });
 
     expect(planWorkerImprovements(planningContext).assignments[0]).toMatchObject({

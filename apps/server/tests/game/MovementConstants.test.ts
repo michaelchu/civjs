@@ -9,8 +9,8 @@ import {
 } from '@game/constants/MovementConstants';
 
 describe('MovementConstants', () => {
-  it('keeps movement points represented by three fragments', () => {
-    expect(SINGLE_MOVE).toBe(3);
+  it('keeps movement points represented by six fragments', () => {
+    expect(SINGLE_MOVE).toBe(6);
   });
 
   /**
@@ -28,7 +28,6 @@ describe('MovementConstants', () => {
       getMoveFragments: () => getRulesetMoveFragments('civ2civ3'),
     };
 
-    expect(getRulesetMoveFragments('classic')).toBe(3);
     expect(getRulesetMoveFragments('civ2civ3')).toBe(6);
     expect(getTerrainMovementCost('grassland', 'warriors', civ2civ3Lookup)).toBe(6);
     expect(getTerrainMovementCost('hills', 'warriors', civ2civ3Lookup)).toBe(12);
@@ -36,16 +35,16 @@ describe('MovementConstants', () => {
 
   /**
    * @evidence parity
-   * @reference reference/freeciv/data/classic/terrain.ruleset:107-108
+   * @reference reference/freeciv/data/civ2civ3/terrain.ruleset:107-108
    * @reference reference/freeciv/common/movement.c:117-128
    * @assertion Loaded whole-point terrain movement costs are converted once into Freeciv movement fragments.
    */
   it('scales loaded whole-point terrain costs exactly once', () => {
-    // @reference reference/freeciv/data/classic/terrain.ruleset:107-108
+    // @reference reference/freeciv/data/civ2civ3/terrain.ruleset:107-108
     // @reference reference/freeciv/common/movement.c:117-128
-    expect(getTerrainMovementCost('grassland')).toBe(3);
-    expect(getTerrainMovementCost('hills')).toBe(6);
-    expect(getTerrainMovementCost('mountains')).toBe(9);
+    expect(getTerrainMovementCost('grassland')).toBe(6);
+    expect(getTerrainMovementCost('hills')).toBe(12);
+    expect(getTerrainMovementCost('mountains')).toBe(18);
   });
 
   it('changes the fragment cost when an injected ruleset move cost changes', () => {
@@ -54,14 +53,16 @@ describe('MovementConstants', () => {
       getUnitMovementType: () => MovementType.LAND,
     });
 
-    expect(getTerrainMovementCost('hills', 'warriors', lookup(4))).toBe(12);
-    expect(getTerrainMovementCost('hills', 'warriors', lookup(7))).toBe(21);
+    expect(getTerrainMovementCost('hills', 'warriors', lookup(4))).toBe(24);
+    expect(getTerrainMovementCost('hills', 'warriors', lookup(7))).toBe(42);
   });
 
   it('uses loaded unit classes for representative land, sea, and air movement', () => {
-    expect(getTerrainMovementCost('hills', 'warriors')).toBe(6);
+    expect(getTerrainMovementCost('hills', 'warriors')).toBe(12);
     expect(getTerrainMovementCost('ocean', 'warriors')).toBe(-1);
-    expect(getTerrainMovementCost('ocean', 'trireme')).toBe(3);
+    expect(getTerrainMovementCost('coast', 'warriors')).toBe(-1);
+    expect(getTerrainMovementCost('ocean', 'trireme')).toBe(6);
+    expect(getTerrainMovementCost('coast', 'trireme')).toBe(6);
     expect(getTerrainMovementCost('grassland', 'trireme')).toBe(-1);
     expect(getTerrainMovementCost('mountains', 'fighter')).toBe(SINGLE_MOVE);
   });
@@ -75,8 +76,8 @@ describe('MovementConstants', () => {
     expect(canUnitEnterTerrain('hills', 'warriors')).toBe(true);
     expect(canUnitEnterTerrain('deep_ocean', 'warriors')).toBe(false);
     expect(canUnitEnterTerrain('lake', 'trireme')).toBe(true);
-    expect(calculateMovementCost(0, 0, 1, 0, 'hills', 'warriors')).toBe(6);
-    expect(calculateMovementCost(0, 0, 1, 1, 'hills', 'warriors')).toBe(6);
+    expect(calculateMovementCost(0, 0, 1, 0, 'hills', 'warriors')).toBe(12);
+    expect(calculateMovementCost(0, 0, 1, 1, 'hills', 'warriors')).toBe(12);
     expect(calculateMovementCost(0, 0, 1, 0, 'ocean', 'warriors')).toBe(-1);
   });
 });

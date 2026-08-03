@@ -41,41 +41,10 @@ describe('CityTradeRouteService', () => {
   /**
    * @evidence parity
    * @reference reference/freeciv/common/traderoutes.c:332-363
-   * @assertion Trade-route value applies the reference distance calculation and doubles an international route.
+   * @reference reference/freeciv/data/civ2civ3/game.ruleset:trade
+   * @assertion C2C3 uses its configured world-relative distance and international multiplier.
    */
-  it('uses classic weighted distance and international multipliers', () => {
-    const sameContinent = new CityTradeRouteService(
-      new Map([
-        [source.id, source],
-        [partner.id, partner],
-      ]),
-      3,
-      {
-        width: 80,
-        height: 50,
-        getContinentId: () => 1,
-        getCurrentTurn: () => 7,
-      }
-    );
-    const intercontinental = new CityTradeRouteService(
-      new Map([
-        [source.id, source],
-        [partner.id, partner],
-      ]),
-      3,
-      {
-        width: 80,
-        height: 50,
-        getContinentId: x => (x === 0 ? 1 : 2),
-        getCurrentTurn: () => 7,
-      }
-    );
-
-    expect(sameContinent.calculateTradeRouteValue(source, partner).totalValue).toBe(4);
-    expect(intercontinental.calculateTradeRouteValue(source, partner).totalValue).toBe(8);
-  });
-
-  it('uses the active ruleset world-distance setting', () => {
+  it('uses the C2C3 world-distance setting', () => {
     const sameContinent = new CityTradeRouteService(
       new Map([
         [source.id, source],
@@ -109,7 +78,7 @@ describe('CityTradeRouteService', () => {
     expect(intercontinental.calculateTradeRouteValue(source, partner).totalValue).toBe(3);
   });
 
-  it('creates reciprocal routes with the authoritative turn', async () => {
+  it('creates reciprocal C2C3 routes with the authoritative turn', async () => {
     const service = new CityTradeRouteService(
       new Map([
         [source.id, source],
@@ -126,14 +95,14 @@ describe('CityTradeRouteService', () => {
 
     await expect(service.establishTradeRoute(source.id, partner.id, 'p1')).resolves.toBe(true);
     expect(source.tradeRoutes).toEqual([
-      expect.objectContaining({ partnerCity: partner.id, value: 4, establishedTurn: 7 }),
+      expect.objectContaining({ partnerCity: partner.id, value: 1, establishedTurn: 7 }),
     ]);
     expect(partner.tradeRoutes).toEqual([
-      expect.objectContaining({ partnerCity: source.id, value: 4, establishedTurn: 7 }),
+      expect.objectContaining({ partnerCity: source.id, value: 1, establishedTurn: 7 }),
     ]);
   });
 
-  it('selects classic relationship types, goods, and both one-time bonuses', async () => {
+  it('selects C2C3 relationship types, goods, and gold bonuses', async () => {
     source.tradePerTurn = 8;
     partner.tradePerTurn = 4;
     const service = new CityTradeRouteService(
@@ -152,8 +121,8 @@ describe('CityTradeRouteService', () => {
 
     expect(service.calculateTradeSettlement(source, partner, 'alliance')).toEqual({
       routeType: 'Ally',
-      bonusType: 'Both',
-      bonus: 13,
+      bonusType: 'Gold',
+      bonus: 16,
       goods: 'good',
     });
     await service.establishTradeRoute(source.id, partner.id, 'p1', 'alliance');
@@ -162,7 +131,7 @@ describe('CityTradeRouteService', () => {
     );
   });
 
-  it('cancels classic routes when diplomacy changes their relationship type', async () => {
+  it('cancels C2C3 routes when diplomacy changes their relationship type', async () => {
     const service = new CityTradeRouteService(
       new Map([
         [source.id, source],
@@ -177,7 +146,7 @@ describe('CityTradeRouteService', () => {
     expect(partner.tradeRoutes).toEqual([]);
   });
 
-  it('enforces the classic minimum distance only for domestic routes', async () => {
+  it('enforces the C2C3 minimum distance only for domestic routes', async () => {
     const nearby = city('nearby', 'p1', 3, 3, 4);
     const foreign = city('foreign', 'p2', 3, 3, 4);
     const cities = new Map([
@@ -191,7 +160,7 @@ describe('CityTradeRouteService', () => {
     await expect(service.establishTradeRoute(source.id, foreign.id, 'p1')).resolves.toBe(true);
   });
 
-  it('cancels reciprocal routes when ownership changes their classic type', async () => {
+  it('cancels reciprocal C2C3 routes when ownership changes their type', async () => {
     const service = new CityTradeRouteService(
       new Map([
         [source.id, source],
@@ -199,7 +168,7 @@ describe('CityTradeRouteService', () => {
       ])
     );
     await service.establishTradeRoute(source.id, partner.id, 'p1');
-    expect(source.tradeRoutes[0].value).toBe(4);
+    expect(source.tradeRoutes[0].value).toBe(1);
 
     partner.playerId = 'p1';
     await service.updateRoutesOnPlayerChange(partner.id, async () => 'no_contact');
@@ -222,7 +191,7 @@ describe('CityTradeRouteService', () => {
     expect(source.tradeRoutes).toEqual([]);
   });
 
-  it('uses two base routes and adds capacity from classic technologies', async () => {
+  it('keeps the C2C3 two-route capacity while replacing the weaker route', async () => {
     const partners = [
       city('p2-city', 'p2', 20, 0, 4),
       city('p3-city', 'p3', 30, 0, 4),
@@ -235,20 +204,18 @@ describe('CityTradeRouteService', () => {
         ...partners.map(candidate => [candidate.id, candidate] as const),
       ])
     );
-    const techs = new Set<string>();
-    service.setPlayerTechsProvider(() => techs);
-
     for (const candidate of partners.slice(0, 2)) {
       await service.establishTradeRoute(source.id, candidate.id, source.playerId);
     }
     expect(source.tradeRoutes).toHaveLength(2);
 
-    techs.add('magnetism');
     await service.establishTradeRoute(source.id, partners[2].id, source.playerId);
-    expect(source.tradeRoutes).toHaveLength(3);
+    expect(source.tradeRoutes).toHaveLength(2);
+    expect(source.tradeRoutes.map(route => route.partnerCity)).toEqual(['p3-city', 'p4-city']);
 
-    techs.add('the_corporation');
-    await service.establishTradeRoute(source.id, partners[3].id, source.playerId);
-    expect(source.tradeRoutes).toHaveLength(4);
+    await expect(
+      service.establishTradeRoute(source.id, partners[3].id, source.playerId)
+    ).resolves.toBe(false);
+    expect(source.tradeRoutes).toHaveLength(2);
   });
 });

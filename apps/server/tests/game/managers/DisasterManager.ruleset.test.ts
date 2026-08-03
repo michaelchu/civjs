@@ -1,14 +1,14 @@
 import { DisasterManager } from '@game/managers/DisasterManager';
 import { createMockDatabaseProvider } from '../../utils/mockDatabaseProvider';
 
-describe('DisasterManager classic ruleset execution', () => {
-  it('loads all six classic disaster definitions verbatim', () => {
-    const config = DisasterManager.createRulesetConfig('classic');
+describe('DisasterManager C2C3 ruleset execution', () => {
+  it('loads all six C2C3 disaster definitions verbatim', () => {
+    const config = DisasterManager.createRulesetConfig('civ2civ3');
 
     expect(config.frequency).toBe(10);
     expect(config.definitions.map(definition => definition.id)).toEqual([
       'earthquake',
-      'pestilence',
+      'flood',
       'fire',
       'industrial_accident',
       'nuclear_accident',
@@ -39,10 +39,10 @@ describe('DisasterManager classic ruleset execution', () => {
       placeDisasterExtra: jest.fn().mockResolvedValue(true),
     } as any;
     const databaseProvider = createMockDatabaseProvider();
-    const classic = DisasterManager.createRulesetConfig('classic');
+    const civ2civ3 = DisasterManager.createRulesetConfig('civ2civ3');
     const config = {
-      ...classic,
-      definitions: classic.definitions.filter(
+      ...civ2civ3,
+      definitions: civ2civ3.definitions.filter(
         definition => definition.id === 'industrial_accident'
       ),
     };
@@ -77,7 +77,7 @@ describe('DisasterManager classic ruleset execution', () => {
     );
   });
 
-  it('implements classic robbery as five times city trade, capped by treasury', async () => {
+  it('implements C2C3 robbery as five times city trade, capped by treasury', async () => {
     const city = {
       id: 'city-1',
       name: 'Rome',

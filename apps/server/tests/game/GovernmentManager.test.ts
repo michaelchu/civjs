@@ -3,8 +3,8 @@ import { EffectsManager } from '@game/managers/EffectsManager';
 import { TECHNOLOGIES } from '@game/managers/ResearchManager';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
-describe('GovernmentManager classic progression', () => {
-  it('unlocks every selectable classic government through the technology tree', () => {
+describe('GovernmentManager C2C3 progression', () => {
+  it('unlocks every selectable C2C3 government through the technology tree', () => {
     const manager = new GovernmentManager('game-1', createMockDatabaseProvider());
     const allTechnologies = new Set(Object.keys(TECHNOLOGIES));
 
@@ -87,10 +87,10 @@ describe('GovernmentManager classic progression', () => {
     ).resolves.toMatchObject({ success: true });
 
     technologies = new Set();
-    await expect(manager.reconcileAfterTechnologyLoss('player-1')).resolves.toBe('despotism');
+    await expect(manager.reconcileAfterTechnologyLoss('player-1')).resolves.toBe('tribal');
     expect(manager.getPlayerGovernment('player-1')).toMatchObject({
       currentGovernment: 'anarchy',
-      requestedGovernment: 'despotism',
+      requestedGovernment: 'tribal',
     });
   });
 });

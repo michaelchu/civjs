@@ -94,7 +94,7 @@ describe('CityProductionHandler', () => {
       });
     });
 
-    it('exposes unclaimed classic Great Wonders through normal building production', async () => {
+    it('exposes unclaimed C2C3 Great Wonders through normal building production', async () => {
       await handler.getAvailableProductions(mockSocket, {
         cityId: 'city-1',
         playerId: 'player-1',

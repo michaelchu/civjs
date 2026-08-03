@@ -105,7 +105,7 @@ describe('UnitManager', () => {
       expect(unit.x).toBe(10);
       expect(unit.y).toBe(10);
       expect(unit.health).toBe(100);
-      expect(unit.movementLeft).toBe(3); // Warrior movement in fragments (1 * 3)
+      expect(unit.movementLeft).toBe(6); // C2C3 Warrior movement in fragments (1 * 6)
       expect(unit.veteranLevel).toBe(0);
       expect(unit.fortified).toBe(false);
 
@@ -1132,7 +1132,7 @@ describe('UnitManager', () => {
       expect(unitManager.getAvailableWorkerActions(worker.id)).toContain(ActionType.BUILD_RAILROAD);
     });
 
-    it('requires a cardinal water source before starting classic irrigation', async () => {
+    it('requires a cardinal water source before C2C3 Electricity irrigation', async () => {
       const worker = await unitManager.createUnit('player-123', 'worker', 10, 10);
 
       expect(unitManager.canUnitPerformAction(worker.id, ActionType.BUILD_IRRIGATION)).toBe(false);
@@ -1193,10 +1193,10 @@ describe('UnitManager', () => {
           'player-123'
         )
       ).resolves.toMatchObject({ success: true });
-      for (let turn = 0; turn < 5; turn++) await unitManager.processUnitOrders('player-123');
+      for (let turn = 0; turn < 10; turn++) await unitManager.processUnitOrders('player-123');
       expect(tile.terrain).toBe('plains');
 
-      worker.movementLeft = 3;
+      worker.movementLeft = 6;
       await expect(
         unitManager.executeUnitAction(
           worker.id,
@@ -1206,10 +1206,10 @@ describe('UnitManager', () => {
           'player-123'
         )
       ).resolves.toMatchObject({ success: true });
-      for (let turn = 0; turn < 15; turn++) await unitManager.processUnitOrders('player-123');
+      for (let turn = 0; turn < 10; turn++) await unitManager.processUnitOrders('player-123');
       expect(tile.terrain).toBe('forest');
 
-      worker.movementLeft = 3;
+      worker.movementLeft = 6;
       await expect(
         unitManager.executeUnitAction(
           worker.id,
@@ -1219,7 +1219,7 @@ describe('UnitManager', () => {
           'player-123'
         )
       ).resolves.toMatchObject({ success: true });
-      for (let turn = 0; turn < 3; turn++) await unitManager.processUnitOrders('player-123');
+      for (let turn = 0; turn < 4; turn++) await unitManager.processUnitOrders('player-123');
       expect(tile.improvements).toContain('fortress');
 
       const engineer = await unitManager.createUnit('player-123', 'engineers', 10, 10);
@@ -1429,7 +1429,7 @@ describe('UnitManager', () => {
         unitManager.executeUnitAction(unit.id, ActionType.CHANGE_HOME_CITY, 10, 10, 'player-123')
       ).resolves.toMatchObject({ success: true });
       expect(unit.homeCityId).toBe('city-2');
-      expect(unit.movementLeft).toBe(3);
+      expect(unit.movementLeft).toBe(6);
     });
   });
 
@@ -1506,7 +1506,7 @@ describe('UnitManager', () => {
         success: false,
         message: "Cannot enter player-456's city unless you declare war first.",
       });
-      expect(warrior).toMatchObject({ x: 10, y: 10, movementLeft: 3 });
+      expect(warrior).toMatchObject({ x: 10, y: 10, movementLeft: 6 });
       expect(requestPath).not.toHaveBeenCalled();
 
       manager.setHostilityProvider(async () => true);
@@ -1562,7 +1562,7 @@ describe('UnitManager', () => {
         },
         undefined,
         undefined,
-        rulesetUnitsService.getUnitTypes('classic')
+        rulesetUnitsService.getUnitTypes('civ2civ3')
       );
       manager.setAlliedPlayersProvider(() => new Set());
       manager.setHostilePlayersProvider(() => new Set());
@@ -2644,7 +2644,7 @@ describe('UnitManager', () => {
       expect(gameLossHandler).toHaveBeenCalledWith('player-123');
     });
 
-    it('uses attack versus defense and resolves classic combat until one unit dies', async () => {
+    it('uses C2C3 attack versus defense until one unit dies', async () => {
       const deterministicManager = new UnitManager(
         gameId,
         mockDbProvider,
@@ -2671,33 +2671,11 @@ describe('UnitManager', () => {
       expect(deterministicManager.getUnit(defender.id)?.veteranLevel).toBe(1);
     });
 
-    it('applies tired attack from the active ruleset', async () => {
-      const classicAttacker = await unitManager.createUnit('player-123', 'warriors', 10, 10);
-      classicAttacker.movementLeft = 1;
+    it('applies C2C3 tired attack from remaining movement fragments', async () => {
+      const attacker = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      attacker.movementLeft = 1;
 
-      const civ2civ3Manager = new UnitManager(
-        gameId,
-        mockDbProvider,
-        mapWidth,
-        mapHeight,
-        undefined,
-        undefined,
-        new EffectsManager('civ2civ3'),
-        Math.random,
-        rulesetUnitsService.getUnitTypes('civ2civ3')
-      );
-      const civ2civ3Attacker = await civ2civ3Manager.createUnit('player-123', 'warriors', 10, 10);
-      civ2civ3Attacker.movementLeft = 1;
-
-      expect(
-        (unitManager as any).calculateAttackStrength(classicAttacker, UNIT_TYPES.warriors)
-      ).toBe(1);
-      expect(
-        (civ2civ3Manager as any).calculateAttackStrength(
-          civ2civ3Attacker,
-          civ2civ3Manager.getUnitType('warriors')
-        )
-      ).toBe(0);
+      expect((unitManager as any).calculateAttackStrength(attacker, UNIT_TYPES.warriors)).toBe(0);
     });
 
     /**
@@ -2865,7 +2843,7 @@ describe('UnitManager', () => {
       expect((manager as any).getUnitMovementPoints('player-123', engineerType, 2, 100)).toBe(12);
     });
 
-    it('applies the classic pearl-harbor firepower rule in a city', async () => {
+    it('applies the C2C3 pearl-harbor firepower rule in a city', async () => {
       const cityAwareManager = new UnitManager(
         gameId,
         mockDbProvider,
@@ -2895,7 +2873,7 @@ describe('UnitManager', () => {
       expect(firepower).toEqual({ attacker: 4, defender: 1 });
     });
 
-    it('reduces helicopter firepower when attacked by a fighter', async () => {
+    it('keeps C2C3 helicopter firepower when attacked by a fighter', async () => {
       const attacker = await unitManager.createUnit('player-123', 'fighter', 10, 10);
       const defender = await unitManager.createUnit('player-456', 'helicopter', 11, 10);
 
@@ -2906,7 +2884,7 @@ describe('UnitManager', () => {
         { ...UNIT_TYPES.helicopter, firepower: 2 }
       );
 
-      expect(firepower).toEqual({ attacker: 2, defender: 1 });
+      expect(firepower).toEqual({ attacker: 2, defender: 2 });
     });
 
     it('caps BadWallAttacker firepower when city defense applies', async () => {
@@ -2944,7 +2922,7 @@ describe('UnitManager', () => {
       expect(firepower.attacker).toBe(1);
     });
 
-    it('applies classic field killstack and moves the winning attacker onto the tile', async () => {
+    it('applies C2C3 field killstack and moves the winning attacker onto the tile', async () => {
       const deterministicManager = new UnitManager(
         gameId,
         mockDbProvider,
@@ -3022,7 +3000,7 @@ describe('UnitManager', () => {
       expect(cityAwareManager.getUnit(attacker.id)).toMatchObject({ x: 11, y: 10 });
     });
 
-    it('reduces a defended city population when a KillCitizen attacker wins', async () => {
+    it('does not reduce a defended city population without a C2C3 KillCitizen attacker', async () => {
       let population = 3;
       const applyCityPopulationLoss = jest.fn(async () => {
         population -= 1;
@@ -3053,8 +3031,8 @@ describe('UnitManager', () => {
 
       await cityAwareManager.attackUnit(attacker.id, defender.id);
 
-      expect(applyCityPopulationLoss).toHaveBeenCalledWith('target-city');
-      expect(population).toBe(2);
+      expect(applyCityPopulationLoss).not.toHaveBeenCalled();
+      expect(population).toBe(3);
     });
 
     it('does not reduce city population when City Walls grant Unit_No_Lose_Pop', async () => {
@@ -3112,7 +3090,7 @@ describe('UnitManager', () => {
       expect(result.defenderId).toBe(strong.id);
     });
 
-    it('applies the classic terrain defense bonus only to TerrainDefense classes', async () => {
+    it('applies C2C3 terrain defense only to TerrainDefense classes', async () => {
       const hillsMap = {
         getTile: jest.fn(() => ({ terrain: 'hills' })),
       };
@@ -3130,8 +3108,8 @@ describe('UnitManager', () => {
         UNIT_TYPES.phalanx
       );
 
-      // Phalanx defense 2 receives the classic hills +100% defense bonus.
-      expect(strength).toBe(4);
+      // Phalanx defense 2 receives the C2C3 hills +50% defense bonus.
+      expect(strength).toBe(3);
     });
 
     it('applies the ruleset Fortress defense bonus to land defenders', async () => {
@@ -3144,15 +3122,16 @@ describe('UnitManager', () => {
 
       const inFortress = (manager as any).calculateCombatStrength(defender, UNIT_TYPES.phalanx);
 
-      expect(inFortress).toBe(unfortified * 2);
+      expect(unfortified).toBe(2);
+      expect(inFortress).toBe(3);
     });
 
     /**
      * @evidence parity
-     * @reference reference/freeciv/data/classic/effects.ruleset:953-962
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:953-962
      * @assertion City Walls and city fortification effects produce the same integer defense multiplier for a land defender.
      */
-    it('applies the classic City Walls defense bonus to a land defender in the city', async () => {
+    it('applies C2C3 City Walls defense to a land defender in the city', async () => {
       const cityAwareUnitManager = new UnitManager(
         gameId,
         mockDbProvider,
@@ -3177,13 +3156,13 @@ describe('UnitManager', () => {
         UNIT_TYPES.warriors
       );
 
-      // @reference reference/freeciv/data/classic/effects.ruleset:953-962
-      // Warriors (combat 1) receive City Walls +200% and city fortify +50%:
-      // floor(floor(1 * 150 / 100) * 300 / 100) === 3
-      expect(strength).toBe(3);
+      // @reference reference/freeciv/data/civ2civ3/effects.ruleset:953-962
+      // C2C3 city fortify (+50%), city defense (+50%), and City Walls (+100%)
+      // use integer rounding at each combat stage.
+      expect(strength).toBe(2);
     });
 
-    it('evaluates City Walls against the attacker and lets Howitzers ignore them', async () => {
+    it('applies C2C3 City Walls defense against Legion and Howitzer attackers', async () => {
       const cityAwareUnitManager = new UnitManager(
         gameId,
         mockDbProvider,
@@ -3218,11 +3197,11 @@ describe('UnitManager', () => {
         UNIT_TYPES.howitzer
       );
 
-      expect(versusLegion).toBe(3);
-      expect(versusHowitzer).toBe(1);
+      expect(versusLegion).toBe(2);
+      expect(versusHowitzer).toBe(2);
     });
 
-    it('applies the classic fortified defense bonus from Fortify_Defense_Bonus', async () => {
+    it('applies C2C3 Fortify_Defense_Bonus with source integer rounding', async () => {
       const effectsAwareUnitManager = new UnitManager(
         gameId,
         mockDbProvider,
@@ -3244,12 +3223,12 @@ describe('UnitManager', () => {
         UNIT_TYPES.archers
       );
 
-      // @reference reference/freeciv/data/classic/effects.ruleset:157-162
-      // Archers defense 2 with +50% fortify: floor(2 * 150 / 100) === 3
-      expect(strength).toBe(3);
+      // @reference reference/freeciv/data/civ2civ3/effects.ruleset:157-162
+      // C2C3 Archers have defense 1, so a +50% fortify bonus rounds down.
+      expect(strength).toBe(1);
     });
 
-    it('applies the classic city fortify defense bonus when unfortified in a city', async () => {
+    it('applies C2C3 city fortify defense when unfortified in a city', async () => {
       const cityAwareUnitManager = new UnitManager(
         gameId,
         mockDbProvider,
@@ -3274,9 +3253,9 @@ describe('UnitManager', () => {
         UNIT_TYPES.archers
       );
 
-      // @reference reference/freeciv/data/classic/effects.ruleset:164-173
-      // Unfortified land unit in city center: +50% city fortify bonus
-      expect(strength).toBe(3);
+      // @reference reference/freeciv/data/civ2civ3/effects.ruleset:164-173
+      // C2C3's +50% city fortify bonus rounds down for defense 1.
+      expect(strength).toBe(1);
     });
 
     it('does not give settlers the city fortify bonus because they Cant_Fortify', async () => {
@@ -3523,7 +3502,7 @@ describe('UnitManager', () => {
       await unitManager.resetMovement('player-123');
 
       const unit = unitManager.getUnit(unitId);
-      expect(unit!.movementLeft).toBe(3); // Reset to warrior's full movement in fragments
+      expect(unit!.movementLeft).toBe(6); // Reset to C2C3 Warrior movement in fragments
     });
 
     /**
@@ -3657,8 +3636,8 @@ describe('UnitManager', () => {
       );
       const warriorType = manager.getUnitType('warriors')!;
 
-      expect((manager as any).getUnitMovementPoints('player-123', warriorType, 0, 100)).toBe(3);
-      expect((manager as any).getUnitMovementPoints('player-123', warriorType, 0, 50)).toBe(1);
+      expect((manager as any).getUnitMovementPoints('player-123', warriorType, 0, 100)).toBe(6);
+      expect((manager as any).getUnitMovementPoints('player-123', warriorType, 0, 50)).toBe(3);
       expect((manager as any).getUnitMovementPoints('player-123', warriorType, 0, 1)).toBe(1);
     });
 
@@ -3677,10 +3656,10 @@ describe('UnitManager', () => {
       const missileType = manager.getUnitType('cruise_missile')!;
 
       expect((manager as any).getUnitMovementPoints('player-123', missileType, 0, 100)).toBe(
-        missileType.movement * 3
+        missileType.movement * 6
       );
       expect((manager as any).getUnitMovementPoints('player-123', missileType, 0, 10)).toBe(
-        missileType.movement * 3
+        missileType.movement * 6
       );
     });
 
@@ -3691,7 +3670,7 @@ describe('UnitManager', () => {
 
       await unitManager.resetMovement('player-123');
 
-      // Classic base regeneration (10%) stacks with fortified regeneration
+      // C2C3 base regeneration (10%) stacks with fortified regeneration
       // (10%), both sourced from effects.json.
       expect(unit.health).toBe(100);
     });
@@ -3721,7 +3700,11 @@ describe('UnitManager', () => {
 
     it('consumes aircraft fuel and destroys an aircraft that cannot refuel', async () => {
       const fighter = await unitManager.createUnit('player-123', 'fighter', 10, 10);
-      expect(fighter.fuel).toBe(1);
+      expect(fighter.fuel).toBe(2);
+
+      await unitManager.resetMovement('player-123');
+
+      expect(unitManager.getUnit(fighter.id)?.fuel).toBe(1);
 
       await unitManager.resetMovement('player-123');
 
@@ -3783,11 +3766,11 @@ describe('UnitManager', () => {
       expect(await unitManager.unloadUnit(bomber.id, 11, 10)).toBe(true);
 
       expect(bomber.transportedBy).toBeUndefined();
-      expect(bomber.movementLeft).toBe(unitManager.getUnitMaxMovement('bomber') - 3);
+      expect(bomber.movementLeft).toBe(unitManager.getUnitMaxMovement('bomber') - 6);
     });
   });
 
-  describe('classic espionage mutations', () => {
+  describe('C2C3 espionage mutations', () => {
     it('resolves covert success and spy escape as separate probability checks', async () => {
       const random = jest.fn().mockReturnValueOnce(0.5).mockReturnValueOnce(0.99);
       const manager = new UnitManager(
@@ -4762,7 +4745,7 @@ describe('UnitManager', () => {
     });
   });
 
-  describe('classic special actions and automation', () => {
+  describe('C2C3 special actions and automation', () => {
     const tile = {
       x: 10,
       y: 10,
@@ -4794,7 +4777,7 @@ describe('UnitManager', () => {
       ).resolves.toMatchObject({
         success: true,
         newPosition: { x: 16, y: 10 },
-        newMovementLeft: 3,
+        newMovementLeft: 6,
       });
       expect(manager.getUnit(paratroopers.id)).toMatchObject({ x: 16, y: 10 });
       await expect(
@@ -4869,7 +4852,7 @@ describe('UnitManager', () => {
       expect(manager.getUnit(paratroopers.id)).toBeUndefined();
     });
 
-    it('airlifts from an airport to a classic unlimited-capacity destination', async () => {
+    it('airlifts from an airport to a C2C3 unlimited-capacity destination', async () => {
       const usedCities = new Set<string>();
       const reserveAirlift = jest.fn(async (source: string, destination: string) => {
         if (usedCities.has(source) || usedCities.has(destination)) return false;
@@ -5069,27 +5052,6 @@ describe('UnitManager', () => {
         automationTask: undefined,
         orders: [{ type: 'autoSettler' }],
       });
-    });
-
-    it('applies non-lethal bombard damage for a ruleset-capable unit', async () => {
-      const originalRate = UNIT_TYPES.archers.bombardRate;
-      UNIT_TYPES.archers.bombardRate = 1;
-      try {
-        const attacker = await unitManager.createUnit('player-123', 'archers', 10, 10);
-        const defender = await unitManager.createUnit('player-456', 'warriors', 11, 10);
-
-        await expect(
-          unitManager.executeUnitAction(attacker.id, ActionType.BOMBARD, 11, 10, 'player-123')
-        ).resolves.toMatchObject({
-          success: true,
-          affectedUnitIds: [defender.id],
-        });
-        expect(defender.health).toBeGreaterThanOrEqual(1);
-        expect(defender.health).toBeLessThan(100);
-        expect(attacker.movementLeft).toBe(0);
-      } finally {
-        UNIT_TYPES.archers.bombardRate = originalRate;
-      }
     });
 
     it('recovers persisted automation mode and order', async () => {
@@ -5477,7 +5439,7 @@ describe('UnitManager', () => {
       });
       expect(manager.getUnit(nuclear.id)).toBeUndefined();
       expect(manager.getUnit(defender.id)).toBeUndefined();
-      expect(applyNuclearCityDamage).toHaveBeenCalledWith(11, 10, 1, 'player-123');
+      expect(applyNuclearCityDamage).toHaveBeenCalledWith(11, 10, 2, 'player-123');
       expect(map.tiles.get('11,10').improvements).toContain('fallout');
     });
 

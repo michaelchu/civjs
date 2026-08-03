@@ -2,8 +2,8 @@ import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import { CalendarService } from '@game/services/CalendarService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 
-describe('classic ruleset calendar', () => {
-  const effects = new EffectsManager();
+describe('Civ2Civ3 ruleset calendar', () => {
+  const effects = new EffectsManager('civ2civ3');
 
   it.each([
     [-4000, 50],
@@ -22,7 +22,7 @@ describe('classic ruleset calendar', () => {
     ).toBe(expectedYears);
   });
 
-  it('accumulates the three classic world-technology slowdown effects', () => {
+  it('accumulates the three world-technology slowdown effects', () => {
     expect(
       effects.calculateEffect(EffectType.SLOW_DOWN_TIMELINE, {
         currentYear: 1900,
@@ -31,9 +31,9 @@ describe('classic ruleset calendar', () => {
     ).toBe(3);
   });
 
-  it('constructs labels and starting year from game.ruleset', () => {
+  it('constructs labels and starting year from the C2C3 game rules', () => {
     const calendar = new CalendarService(
-      CalendarService.createRulesetConfig(rulesetLoader.getCalendarRules())
+      CalendarService.createRulesetConfig(rulesetLoader.getCalendarRules('civ2civ3'))
     );
 
     expect(calendar.getState().year).toBe(-4000);

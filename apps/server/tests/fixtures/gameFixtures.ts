@@ -125,7 +125,7 @@ export async function createBasicGameScenario(): Promise<TestGameScenario> {
       maxPlayers: 2,
       mapWidth: 20,
       mapHeight: 20,
-      ruleset: 'classic',
+      ruleset: 'civ2civ3',
       currentTurn: 1,
       turnTimeLimit: 300,
       mapData: mapData,

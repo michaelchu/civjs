@@ -196,7 +196,7 @@ describe('EndGameService', () => {
     unitsByPlayer.defeated = [];
   });
 
-  it('uses the classic minimum and lead thresholds for cultural domination', async () => {
+  it('uses the C2C3 minimum and lead thresholds for cultural domination', async () => {
     const databaseProvider = createMockDatabaseProvider();
     const database = databaseProvider.getDatabase() as any;
     database.query.players.findMany.mockResolvedValue([
@@ -206,7 +206,7 @@ describe('EndGameService', () => {
     unitsByPlayer.defeated = [{ id: 'unit-2' }];
     const cultureManager = {
       getPlayerCultureInfo: jest.fn(async (playerId: string) => ({
-        totalCulture: playerId === 'winner' ? 1201 : 400,
+        totalCulture: playerId === 'winner' ? 20_001 : 400,
       })),
     } as any;
 

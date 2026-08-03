@@ -37,7 +37,7 @@ describe('EffectsManager - Base Culture Effects', () => {
   };
 
   beforeEach(() => {
-    effectsManager = new EffectsManager('classic');
+    effectsManager = new EffectsManager('civ2civ3');
   });
 
   describe('Base Culture Effect Values', () => {

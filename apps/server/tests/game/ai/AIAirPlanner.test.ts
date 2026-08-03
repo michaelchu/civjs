@@ -176,7 +176,7 @@ describe('Freeciv AI air planner', () => {
 
   it('rebases toward a profitable target that cannot be reached from the current base', () => {
     const missions = planAirMissions({
-      friendlyUnits: [unit('plane', 'bomber', 0, 0, 2)],
+      friendlyUnits: [{ ...unit('plane', 'bomber', 0, 0, 2), movementLeft: 36 }],
       hostileUnits: [unit('enemy-tank', 'tank', 10, 0)],
       friendlyCities: [],
       hostileCities: [],

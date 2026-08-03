@@ -340,7 +340,7 @@ describe('CityManager', () => {
   });
 
   describe('Milestone 15 nuclear consequences', () => {
-    it('applies the classic rounded 49 percent population loss in the blast radius', async () => {
+    it('applies the C2C3 rounded 49 percent population loss in the blast radius', async () => {
       const city = await cityManager.foundCity(10, 10, 'Target', 'player-456');
       city.population = 10;
       city.size = 10;
@@ -471,7 +471,7 @@ describe('CityManager', () => {
   });
 
   describe('airport airlift usage', () => {
-    it('requires source capacity while allowing unlimited classic destinations', async () => {
+    it('requires source capacity while allowing unlimited C2C3 destinations', async () => {
       const source = {
         id: 'source-city',
         playerId: 'player-123',
@@ -653,7 +653,7 @@ describe('CityManager', () => {
       expect(destroyed).toHaveBeenCalledWith(city);
     });
 
-    it('sells improvements for the classic shield cost and credits the treasury', async () => {
+    it('sells improvements for the C2C3 shield cost and credits the treasury', async () => {
       const city = await cityManager.foundCity(10, 10, 'Capital', 'player-123');
       city.buildings.push('granary');
       const addGold = jest.fn().mockResolvedValue(true);
@@ -1130,7 +1130,7 @@ describe('CityManager', () => {
     });
   });
 
-  describe('classic espionage mutations', () => {
+  describe('C2C3 espionage mutations', () => {
     it('poisoning removes one citizen while retaining food stock', async () => {
       const city = await cityManager.foundCity(10, 10, 'Target', 'player-456');
       city.size = 3;

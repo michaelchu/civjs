@@ -49,7 +49,7 @@ function gameFor(unit: Unit, target = { x: 2, y: 2 }): GameInstance {
   return {
     id: 'game-1',
     currentTurn: 7,
-    config: { name: 'test', hostId: 'human-1', ruleset: 'classic' },
+    config: { name: 'test', hostId: 'human-1', ruleset: 'civ2civ3' },
     players: new Map([['human-1', { id: 'human-1', isAI: false } as any]]),
     unitManager: {
       getPlayerUnits: () => [unit],

@@ -56,7 +56,7 @@ describe('GameLifecycleManager helper behavior', () => {
         hostId: 'host',
         randomSeed: 1234,
       },
-      'classic'
+      'civ2civ3'
     );
 
     expect(data.gameState.randomSeed).toBe(1234);

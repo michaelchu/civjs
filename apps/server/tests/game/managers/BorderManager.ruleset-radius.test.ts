@@ -1,7 +1,7 @@
 import { BorderManager } from '@game/managers/BorderManager';
 
-describe('BorderManager classic population-driven territory', () => {
-  it('uses the classic base radius plus the capped city-size effect', () => {
+describe('BorderManager C2C3 population-driven territory', () => {
+  it('uses the configured C2C3 base radius plus the capped city-size effect', () => {
     const tiles = new Map<string, any>();
     for (let x = 0; x < 9; x++) {
       for (let y = 0; y < 9; y++) {

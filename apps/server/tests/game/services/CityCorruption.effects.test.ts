@@ -84,7 +84,7 @@ describe('city corruption from loaded effects', () => {
    * @reference reference/freeciv/common/city.c:2287-2314
    * @assertion An active government center is the zero-distance origin for corruption and its effect reduces waste.
    */
-  it('treats a Gov_Center city as distance zero', () => {
+  it('treats a C2C3 Gov_Center city as distance zero', () => {
     // @reference reference/freeciv/common/city.c:2294-2299
     const capital = createCity({ id: 'capital', x: 0, y: 0, buildings: ['palace'] });
     const context = createPlayerContext('republic', [capital]);
@@ -102,8 +102,9 @@ describe('city corruption from loaded effects', () => {
     );
 
     expect(distance).toBe(0);
-    // Republic base waste is 3; Palace removes floor(3 * 50 / 100) = 1.
-    expect(tradeFor(effectsManager, capital, context)).toBe(18);
+    // C2C3 Republic base waste is 25%; the Palace's 50% reduction leaves
+    // three waste from 20 trade.
+    expect(tradeFor(effectsManager, capital, context)).toBe(17);
   });
 
   it('measures distance from zero coordinates instead of treating them as missing', () => {
@@ -153,13 +154,14 @@ describe('city corruption from loaded effects', () => {
     expect(distance).toBe(6);
   });
 
-  it('applies distance corruption to a distant Republic city', () => {
+  it('applies C2C3 distance corruption to a distant Republic city', () => {
     const capital = createCity({ id: 'capital', x: 0, y: 0, buildings: ['palace'] });
     const colony = createCity({ id: 'colony', x: 5, y: 0 });
     const context = createPlayerContext('republic', [capital, colony]);
 
-    // Republic: base 15% of 20 = 3, plus 200 * 5 / 100 = 10% of 20 = 2.
-    expect(tradeFor(effectsManager, colony, context)).toBe(15);
+    // C2C3 Republic: base 25% of 20 = 5, plus two distance effects adds
+    // two more waste at this distance.
+    expect(tradeFor(effectsManager, colony, context)).toBe(13);
   });
 
   it('reduces corruption when the city has a Courthouse', () => {
@@ -184,8 +186,9 @@ describe('city corruption from loaded effects', () => {
     );
 
     expect(courthouseTrade).toBeGreaterThan(plainTrade);
-    // Courthouse removes floor(5 * 50 / 100) = 2 from the 5 point waste.
-    expect(courthouseTrade).toBe(17);
+    // C2C3 Courthouse halves the seven-point base-plus-distance waste,
+    // leaving four waste after Freeciv rounding.
+    expect(courthouseTrade).toBe(16);
   });
 
   it('wastes all trade when distance waste is active without a government center', () => {

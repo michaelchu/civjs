@@ -442,43 +442,6 @@ describe('city production lifecycle', () => {
     expect(cityState.productionStock).toBe(3);
   });
 
-  it('charges unit population cost without consuming the final citizen', async () => {
-    const reconcileCitizenAssignments = jest.fn().mockResolvedValue(true);
-    const completed = city({
-      population: 2,
-      size: 2,
-      currentProduction: 'settlers',
-      productionType: 'unit',
-      productionStock: 39,
-      productionPerTurn: 2,
-    });
-    await turnService(
-      completed,
-      jest.fn(),
-      rulesetUnitsService.getUnitTypes(),
-      reconcileCitizenAssignments
-    ).processCityTurn(completed.id, 7);
-    expect(completed.population).toBe(1);
-    expect(completed.currentProduction).toBeNull();
-    expect(reconcileCitizenAssignments).toHaveBeenCalledWith(completed.id, 'unit_built');
-
-    const blocked = city({
-      population: 1,
-      size: 1,
-      currentProduction: 'settlers',
-      productionType: 'unit',
-      productionStock: 40,
-      productionPerTurn: 2,
-    });
-    const onComplete = jest.fn();
-    await turnService(blocked, onComplete).processCityTurn(blocked.id, 7);
-    expect(blocked.population).toBe(1);
-    expect(blocked.currentProduction).toBe('settlers');
-    expect(blocked.productionType).toBe('unit');
-    expect(blocked.productionStock).toBe(42);
-    expect(onComplete).not.toHaveBeenCalled();
-  });
-
   it('keeps a civ2civ3 settler ready until the city can pay its population cost', async () => {
     const civ2civ3Units = rulesetUnitsService.getUnitTypes('civ2civ3');
     const onComplete = jest.fn();

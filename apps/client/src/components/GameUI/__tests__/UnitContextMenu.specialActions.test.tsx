@@ -4,7 +4,7 @@ import { UnitContextMenu } from '../UnitContextMenu';
 import { ActionType } from '../../../types/shared/actions';
 import type { City, Unit } from '../../../types';
 
-describe('UnitContextMenu classic special actions', () => {
+describe('UnitContextMenu special actions', () => {
   const airportCity: Pick<City, 'id' | 'playerId' | 'buildings' | 'airlift'> = {
     id: 'city-1',
     playerId: 'player-1',

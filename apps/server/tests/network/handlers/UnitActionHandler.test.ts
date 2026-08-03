@@ -554,7 +554,7 @@ describe('UnitActionHandler', () => {
     });
 
     it.each(['bribe_unit', 'incite_city', 'poison_water', 'sabotage_unit'])(
-      'routes the classic %s operation through the diplomacy API',
+      'routes the C2C3 %s operation through the diplomacy API',
       async actionType => {
         const unit = { id: mockUnitId, playerId: mockPlayerId, x: 4, y: 5 };
         mockGameManager.getGameInstance.mockReturnValue({

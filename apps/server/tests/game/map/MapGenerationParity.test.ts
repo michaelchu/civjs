@@ -133,7 +133,7 @@ describe('map generation parity contracts', () => {
       {},
       'earth-small',
       {},
-      'classic'
+      'civ2civ3'
     );
 
     await manager.generateMap(players, 'RANDOM');

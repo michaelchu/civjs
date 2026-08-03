@@ -4,7 +4,7 @@ import { MapTopology, TopologyFlag } from '@game/map/MapTopology';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 import { GoldSpendingType } from '@game/systems/Economic/types/EconomicTypes';
 
-describe('GameManager classic espionage actions', () => {
+describe('GameManager C2C3 espionage actions', () => {
   const gameId = 'game-1';
   const actorPlayerId = 'player-1';
   const targetPlayerId = 'player-2';

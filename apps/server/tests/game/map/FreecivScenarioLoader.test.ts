@@ -26,13 +26,13 @@ function players(...civilizations: string[]): Map<string, PlayerState> {
 }
 
 describe('FreecivScenarioLoader', () => {
-  it('loads a packaged classic scenario with topology, terrain, extras, and starts', () => {
+  it('loads a packaged Civ2Civ3 scenario with topology, terrain, extras, and starts', () => {
     const result = new FreecivScenarioLoader().loadScenario(
       'earth-small',
       players('American', 'Roman')
     );
 
-    expect(result.metadata.name).toBe('Earth (classic/small)');
+    expect(result.metadata.name).toBe('Earth (civ2civ3/small)');
     expect(result.mapData.width).toBe(80);
     expect(result.mapData.height).toBe(50);
     expect(result.mapData.wrapId).toBe(WrapFlag.X);
@@ -49,7 +49,7 @@ describe('FreecivScenarioLoader', () => {
 
   it('rejects unknown scenario IDs before accessing the filesystem', () => {
     expect(() => new FreecivScenarioLoader().loadScenario('../secret', players())).toThrow(
-      "Unknown classic scenario '../secret'"
+      "Unknown Civ2Civ3 scenario '../secret'"
     );
   });
 

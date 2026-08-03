@@ -1,5 +1,5 @@
 import { CityManager, BUILDING_TYPES } from '@game/managers/CityManager';
-import { EffectsManager } from '@game/managers/EffectsManager';
+import { EffectsManager, EffectType, OutputType } from '@game/managers/EffectsManager';
 import { UNIT_TYPES } from '@game/constants/UnitConstants';
 import {
   getTestDatabase,
@@ -56,18 +56,40 @@ describe('CityManager - Integration Tests with Real Database', () => {
   });
 
   describe('building types', () => {
-    it('should have valid building type definitions', () => {
+    it('loads C2C3 building catalogues and their authoritative effects', () => {
       expect(BUILDING_TYPES.palace).toBeDefined();
       expect(BUILDING_TYPES.palace.name).toBe('Palace');
       expect(BUILDING_TYPES.palace.cost).toBe(70);
-      expect(BUILDING_TYPES.palace.effects.defenseBonus).toBe(100);
 
       expect(BUILDING_TYPES.library).toBeDefined();
       expect(BUILDING_TYPES.library.name).toBe('Library');
-      expect(BUILDING_TYPES.library.effects.scienceBonus).toBe(50);
 
       expect(BUILDING_TYPES.granary).toBeDefined();
-      expect(BUILDING_TYPES.granary.effects.foodBonus).toBe(1);
+      expect(BUILDING_TYPES.granary.cost).toBe(40);
+
+      // @reference reference/freeciv/data/civ2civ3/effects.ruleset:1026-1046
+      expect(
+        effectsManager.calculateEffect(EffectType.OUTPUT_WASTE_PCT, {
+          cityBuildings: new Set(['palace']),
+          outputType: OutputType.TRADE,
+        }).value
+      ).toBe(50);
+      // @reference reference/freeciv/data/civ2civ3/effects.ruleset:1188-1201
+      expect(
+        effectsManager.calculateEffect(EffectType.OUTPUT_BONUS, {
+          cityBuildings: new Set(['library']),
+          outputType: OutputType.SCIENCE,
+        }).value
+      ).toBe(50);
+      // The universal 50% food-waste reduction and Granary's 25% reduction
+      // are additive under get_city_output_bonus().
+      // @reference reference/freeciv/data/civ2civ3/effects.ruleset:492-500,2014-2022
+      expect(
+        effectsManager.calculateEffect(EffectType.OUTPUT_WASTE_PCT, {
+          cityBuildings: new Set(['granary']),
+          outputType: OutputType.FOOD,
+        }).value
+      ).toBe(75);
     });
   });
 

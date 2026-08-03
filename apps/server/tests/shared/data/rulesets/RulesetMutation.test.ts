@@ -1,12 +1,12 @@
 /**
  * Isolated mutation evidence for Milestone 2 ruleset authority.
  *
- * @reference reference/freeciv/data/classic/effects.ruleset
- * @reference reference/freeciv/data/classic/units.ruleset
- * @reference reference/freeciv/data/classic/buildings.ruleset
- * @reference reference/freeciv/data/classic/techs.ruleset
- * @reference reference/freeciv/data/classic/terrain.ruleset
- * @reference reference/freeciv/data/classic/game.ruleset
+ * @reference reference/freeciv/data/civ2civ3/effects.ruleset
+ * @reference reference/freeciv/data/civ2civ3/units.ruleset
+ * @reference reference/freeciv/data/civ2civ3/buildings.ruleset
+ * @reference reference/freeciv/data/civ2civ3/techs.ruleset
+ * @reference reference/freeciv/data/civ2civ3/terrain.ruleset
+ * @reference reference/freeciv/data/civ2civ3/game.ruleset
  */
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -24,10 +24,10 @@ import { RulesetActionsService } from '@game/services/RulesetActionsService';
 type JsonObject = Record<string, unknown>;
 
 let fixtureRoot: string;
-let classicRoot: string;
+let civ2civ3Root: string;
 
 function mutate(fileName: string, update: (document: JsonObject) => void): void {
-  const path = join(classicRoot, fileName);
+  const path = join(civ2civ3Root, fileName);
   const document = JSON.parse(readFileSync(path, 'utf8')) as JsonObject;
   update(document);
   writeFileSync(path, `${JSON.stringify(document, null, 2)}\n`);
@@ -66,8 +66,8 @@ function city(overrides: Partial<CityState> = {}): CityState {
 
 beforeEach(() => {
   fixtureRoot = mkdtempSync(join(tmpdir(), 'civjs-ruleset-mutation-'));
-  classicRoot = join(fixtureRoot, 'classic');
-  cpSync(join(process.cwd(), 'src/shared/data/rulesets/classic'), classicRoot, {
+  civ2civ3Root = join(fixtureRoot, 'civ2civ3');
+  cpSync(join(process.cwd(), 'src/shared/data/rulesets/civ2civ3'), civ2civ3Root, {
     recursive: true,
   });
 });
@@ -80,9 +80,9 @@ describe('isolated ruleset mutations', () => {
   it('changes specialist output through the injected effects calculation', () => {
     mutate('effects.json', document => {
       const effects = document.effects as Record<string, { value: number }>;
-      effects.scientist_research.value = 7;
+      effects.scientist.value = 7;
     });
-    const effects = new EffectsManager('classic', new RulesetLoader(fixtureRoot));
+    const effects = new EffectsManager('civ2civ3', new RulesetLoader(fixtureRoot));
 
     expect(
       effects.calculateEffect(EffectType.SPECIALIST_OUTPUT, {
@@ -119,8 +119,8 @@ describe('isolated ruleset mutations', () => {
       document.research = research;
     });
 
-    // Classic's formula for a root technology is base * sqrt(2).
-    expect(loadRulesetTechnologies(new RulesetLoader(fixtureRoot)).pottery.cost).toBe(52);
+    // C2C3 uses the configured linear cost for a root technology.
+    expect(loadRulesetTechnologies(new RulesetLoader(fixtureRoot)).pottery.cost).toBe(37);
   });
 
   it('changes terrain movement through the loaded terrain definition', () => {
@@ -137,7 +137,7 @@ describe('isolated ruleset mutations', () => {
           (loader.getTerrains() as Record<string, { moveCost: number }>)[terrain]?.moveCost,
         getUnitMovementType: unitId => units.getMovementType(unitId) as MovementType | undefined,
       })
-    ).toBe(12);
+    ).toBe(24);
   });
 
   it('changes advertised diplomat capabilities through action enablers', () => {
@@ -180,7 +180,7 @@ describe('isolated ruleset mutations', () => {
     const loader = new RulesetLoader(fixtureRoot);
     const buildings = new RulesetBuildingsService(loader);
 
-    const result = CityDataService.transformCityForClient(city({ foodPerTurn: 0 }), 'classic', {
+    const result = CityDataService.transformCityForClient(city({ foodPerTurn: 0 }), 'civ2civ3', {
       loader,
       buildings,
     });

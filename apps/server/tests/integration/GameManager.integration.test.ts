@@ -1,4 +1,5 @@
 import { GameManager, GameConfig } from '@game/managers/GameManager';
+import { getTerrainMovementCost } from '@game/constants/MovementConstants';
 import {
   getTestDatabase,
   getTestDatabaseProvider,
@@ -12,7 +13,6 @@ import {
   findPassableUnitSites,
   findValidCitySites,
 } from '../utils/gameTestUtils';
-import { getTerrainMovementCost } from '@game/constants/MovementConstants';
 import * as schema from '@database/schema';
 
 describe('GameManager - Integration Tests with Real Database', () => {
@@ -62,7 +62,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
         maxPlayers: 4,
         mapWidth: 80,
         mapHeight: 50,
-        ruleset: 'classic',
+        ruleset: 'civ2civ3',
         victoryConditions: ['conquest', 'science'],
       };
     });
@@ -117,7 +117,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
       expect(dbGames[0].maxPlayers).toBe(4);
       expect(dbGames[0].mapWidth).toBe(80);
       expect(dbGames[0].mapHeight).toBe(50);
-      expect(dbGames[0].ruleset).toBe('classic');
+      expect(dbGames[0].ruleset).toBe('civ2civ3');
     });
 
     it('should apply defaults for minimal game config', async () => {
@@ -401,26 +401,17 @@ describe('GameManager - Integration Tests with Real Database', () => {
 
     it('founds a city on a tile explored through the recovered game visibility state', async () => {
       const game = gameManager.getGameInstance(gameId)!;
-      const candidate: { x: number; y: number } | undefined = (() => {
-        for (let x = 0; x < (game.config.mapWidth ?? 20); x += 1) {
-          for (let y = 0; y < (game.config.mapHeight ?? 20); y += 1) {
-            const tile = game.mapManager.getTile(x, y);
-            if (
-              tile &&
-              getTerrainMovementCost(tile.terrain, 'settlers') >= 0 &&
-              !tile.cityId &&
-              tile.unitIds.length === 0 &&
-              game.cityManager.canFoundCityAt(x, y, playerId)
-            ) {
-              return { x, y };
-            }
-          }
-        }
-        return undefined;
-      })();
-
+      const candidate = game.mapManager
+        .getMapData()!
+        .tiles.flat()
+        .find(
+          tile =>
+            game.cityManager.canFoundCityAt(tile.x, tile.y, playerId) &&
+            game.unitManager.getUnitsAt(tile.x, tile.y).length === 0 &&
+            getTerrainMovementCost(tile.terrain, 'settlers') >= 0
+        );
       expect(candidate).toBeDefined();
-      const unitId = await gameManager.createUnit(
+      const foundingUnitId = await gameManager.createUnit(
         gameId,
         playerId,
         'settlers',
@@ -441,7 +432,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
         'Recovered Visibility City',
         candidate!.x,
         candidate!.y,
-        unitId
+        foundingUnitId
       );
 
       expect(game.cityManager.getCity(cityId)?.name).toBe('Recovered Visibility City');

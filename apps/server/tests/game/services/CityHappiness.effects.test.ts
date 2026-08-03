@@ -46,16 +46,16 @@ describe('city happiness from loaded effects', () => {
    * @evidence parity
    * @reference reference/freeciv/common/city.c:2160-2182
    * @reference reference/freeciv/common/city.c:2507-2536
-   * @assertion Government-specific City_Unhappy_Size effects change the base content and unhappy citizen split.
+   * @assertion C2C3's global City_Unhappy_Size effect sets the base content and unhappy citizen split.
    */
-  it('uses government-scoped City_Unhappy_Size effects', () => {
+  it('uses the C2C3 global City_Unhappy_Size effect', () => {
     const republic = serviceFor('republic').calculateDetailedHappiness(city());
     const despotism = serviceFor('despotism').calculateDetailedHappiness(city());
 
     expect(republic.content).toBe(4);
     expect(republic.unhappy).toBe(4);
-    expect(despotism.content).toBe(6);
-    expect(despotism.unhappy).toBe(2);
+    expect(despotism.content).toBe(4);
+    expect(despotism.unhappy).toBe(4);
   });
 
   it('activates the Mysticism-gated Temple contentment bonus', () => {

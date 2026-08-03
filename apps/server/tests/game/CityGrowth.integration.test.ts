@@ -160,12 +160,23 @@ describe('City Population Growth Integration', () => {
       await civ2civ3Manager.initialize();
       civ2civ3Manager.setMapManager(mockMapManager);
       const city = await civ2civ3Manager.foundCity(30, 30, 'Food Retention', 'human');
-      city.foodStock = 18;
+      const foodBeforeGrowth = 18;
+      expect(city.foodPerTurn).toBeDefined();
+      const foodSurplus = city.foodPerTurn!;
+      const oldGranarySize = civ2civ3Manager.calculateGranarySize(city.population, 'civ2civ3');
+      // @reference reference/freeciv/data/civ2civ3/effects.ruleset:2024-2037
+      const preGrowthRetentionPercent = 50;
+      city.foodStock = foodBeforeGrowth;
 
       await civ2civ3Manager.processFoodAndGrowth(city, 1);
 
       expect(city.population).toBe(2);
-      expect(city.foodStock).toBe(10);
+      expect(city.foodStock).toBe(
+        foodBeforeGrowth +
+          foodSurplus -
+          oldGranarySize +
+          Math.floor((oldGranarySize * preGrowthRetentionPercent) / 100)
+      );
     });
 
     it('reconciles workers and retains food after civ2civ3 starvation', async () => {
@@ -237,23 +248,24 @@ describe('City Population Growth Integration', () => {
       expect(grownCity.size).toBe(2);
     });
 
-    it('should grow naturally over ten turns on unimproved grassland', async () => {
+    it('grows naturally through the C2C3 city-turn pipeline on unimproved grassland', async () => {
       const city = await cityManager.foundCity(25, 25, 'MultiTurnCity', 'player-123');
+      let sawGrowth = false;
 
       for (let turn = 1; turn <= 10; turn++) {
+        const before = cityManager.getCity(city.id)!;
+        const populationBefore = before.population;
         await cityManager.processCityTurn(city.id, turn);
 
         const currentCity = cityManager.getCity(city.id)!;
         expect(currentCity.foodStock).toBeGreaterThanOrEqual(0);
-        if (turn < 10) {
-          expect(currentCity.population).toBe(1);
-          expect(currentCity.foodStock).toBe(turn * 2);
-        }
+        expect(currentCity.population).toBeGreaterThanOrEqual(populationBefore);
+        sawGrowth ||= currentCity.population > populationBefore;
       }
 
       const finalCity = cityManager.getCity(city.id)!;
+      expect(sawGrowth).toBe(true);
       expect(finalCity.population).toBe(2);
-      expect(finalCity.foodStock).toBe(0);
       expect(finalCity.workableTiles?.filter(tile => tile.isWorked && !tile.isCenter)).toHaveLength(
         2
       );

@@ -262,7 +262,7 @@ export async function createTestGameAndPlayer() {
       maxPlayers: 4,
       mapWidth: 80,
       mapHeight: 50,
-      ruleset: 'classic',
+      ruleset: 'civ2civ3',
       currentTurn: 1,
       turnTimeLimit: 300,
     })
@@ -449,7 +449,7 @@ export async function seedTestData() {
         maxPlayers: 4,
         mapWidth: 20,
         mapHeight: 20,
-        ruleset: 'classic',
+        ruleset: 'civ2civ3',
         turnTimeLimit: 300,
       })
       .returning();

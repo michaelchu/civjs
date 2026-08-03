@@ -39,7 +39,7 @@ const buildings = {
     }) as any,
 };
 
-describe('CityCaptureService classic conquest', () => {
+describe('CityCaptureService C2C3 conquest', () => {
   /**
    * @evidence parity
    * @reference reference/freeciv/server/citytools.c:924-950

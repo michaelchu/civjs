@@ -4,7 +4,7 @@ import { UnitContextMenu } from '../UnitContextMenu';
 import { ActionType } from '../../../types/shared/actions';
 import type { Unit } from '../../../types';
 
-describe('UnitContextMenu classic espionage actions', () => {
+describe('UnitContextMenu espionage actions', () => {
   const spy: Unit = {
     id: 'spy-1',
     playerId: 'player-1',
@@ -24,7 +24,7 @@ describe('UnitContextMenu classic espionage actions', () => {
     },
   };
 
-  it('renders server-advertised classic actions and selects them', () => {
+  it('renders server-advertised actions and selects them', () => {
     const onActionSelect = vi.fn();
     render(
       <UnitContextMenu

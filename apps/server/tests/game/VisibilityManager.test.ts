@@ -56,7 +56,7 @@ describe('VisibilityManager', () => {
       expect(player2Visible.size).toBe(0);
     });
 
-    it('permanently reveals the classic hut map-scroll radius', () => {
+    it('permanently reveals the C2C3 hut map-scroll radius', () => {
       const explored = visibilityManager.revealArea('player-123', 10, 10, 30);
 
       expect(explored).toContain('10,10');
@@ -65,7 +65,7 @@ describe('VisibilityManager', () => {
       expect(visibilityManager.getVisibleTiles('player-123')).toEqual(new Set());
     });
 
-    it('uses the classic city vision radius as a vision source', () => {
+    it('uses the C2C3 city vision radius as a vision source', () => {
       visibilityManager.setCityVisionProvider(playerId =>
         playerId === 'player-123' ? [{ x: 10, y: 10 }] : []
       );
@@ -229,7 +229,7 @@ describe('VisibilityManager', () => {
     });
 
     it('should calculate correct sight range for different unit types', async () => {
-      // Create warrior (sight 2) and explorer (sight 2)
+      // Create warrior (sight 2) and C2C3 explorer (sight 6).
       await unitManager.createUnit('player-123', 'warriors', 10, 10);
       await unitManager.createUnit('player-123', 'explorer', 15, 15);
 
@@ -260,26 +260,28 @@ describe('VisibilityManager', () => {
       expect(visibleTiles.has('8,10')).toBe(false); // 2 tiles west (distance 2, outside range)
       expect(visibleTiles.has('12,10')).toBe(false); // 2 tiles east (distance 2, outside range)
 
-      // Check explorer sight range (both have same vision in freeciv)
+      // C2C3 Explorers have vision_radius_sq=6.
       expect(visibleTiles.has('14,15')).toBe(true); // 1 tile west from explorer (distance 1)
       expect(visibleTiles.has('16,15')).toBe(true); // 1 tile east from explorer (distance 1)
-      expect(visibleTiles.has('13,15')).toBe(false); // 2 tiles west from explorer (distance 2, outside range)
-      expect(visibleTiles.has('17,15')).toBe(false); // 2 tiles east from explorer (distance 2, outside range)
+      expect(visibleTiles.has('13,15')).toBe(true); // 2 tiles west (distance squared 4)
+      expect(visibleTiles.has('17,15')).toBe(true); // 2 tiles east (distance squared 4)
+      expect(visibleTiles.has('12,15')).toBe(false); // 3 tiles west (distance squared 9)
+      expect(visibleTiles.has('18,15')).toBe(false); // 3 tiles east (distance squared 9)
     });
 
-    it('applies the classic mountain vision effect using the unit and tile context', async () => {
+    it('applies the C2C3 mountain vision effect using the unit and tile context', async () => {
       await unitManager.createUnit('player-123', 'warriors', 10, 10);
       const unitTile = mapManager.getTile(10, 10)!;
       unitTile.terrain = 'mountains';
 
       visibilityManager.updatePlayerVisibility('player-123');
 
-      // Warrior base vision is 2; classic mountains add 4 squared tiles.
-      // @reference reference/freeciv/data/classic/effects.ruleset:132-139
+      // Warrior base vision is 2; C2C3 mountains add 4 squared tiles.
+      // @reference reference/freeciv/data/civ2civ3/effects.ruleset:132-139
       expect(visibilityManager.getVisibleTiles('player-123').has('12,10')).toBe(true);
     });
 
-    it('applies tech-gated fortress vision only after the player has Invention', async () => {
+    it('applies tech-gated C2C3 fortress vision only after the player has Astronomy', async () => {
       await unitManager.createUnit('player-123', 'warriors', 10, 10);
       const unitTile = mapManager.getTile(10, 10)!;
       unitTile.improvements = ['fortress'];
@@ -289,12 +291,12 @@ describe('VisibilityManager', () => {
         unitManager,
         mapManager,
         undefined,
-        () => new Set(['invention'])
+        () => new Set(['astronomy'])
       );
       visibilityManager.updatePlayerVisibility('player-123');
 
-      // Warrior base vision is 2; a fortress adds 8 only with Invention.
-      // @reference reference/freeciv/data/classic/effects.ruleset:121-130
+      // Warrior base vision is 2; a C2C3 fortress adds 8 only with Astronomy.
+      // @reference reference/freeciv/data/civ2civ3/effects.ruleset:121-130
       expect(visibilityManager.getVisibleTiles('player-123').has('13,10')).toBe(true);
     });
 

@@ -12,14 +12,14 @@ jest.mock('@shared/data/rulesets/RulesetLoader', () => ({
 
 const mockedRulesetLoader = jest.mocked(rulesetLoader);
 
-describe('EffectsManager classic requirement evaluation', () => {
+describe('EffectsManager C2C3 requirement evaluation', () => {
   beforeEach(() => {
     mockedRulesetLoader.getEffects.mockReturnValue({
       mountain_vision: {
         id: 'mountain_vision',
         type: 'Unit_Vision_Radius_Sq',
         value: 4,
-        // @reference reference/freeciv/data/classic/effects.ruleset:132-140
+        // @reference reference/freeciv/data/civ2civ3/effects.ruleset:132-140
         reqs: [
           { type: 'Terrain', name: 'Mountains', range: 'Tile' },
           { type: 'UnitClass', name: 'Land', range: 'Local' },
@@ -29,7 +29,7 @@ describe('EffectsManager classic requirement evaluation', () => {
         id: 'city_defense',
         type: 'Fortify_Defense_Bonus',
         value: 50,
-        // @reference reference/freeciv/data/classic/effects.ruleset:164-172
+        // @reference reference/freeciv/data/civ2civ3/effects.ruleset:164-172
         reqs: [
           { type: 'CityTile', name: 'Center', range: 'Tile' },
           { type: 'Activity', name: 'Fortified', range: 'Local', present: false },
@@ -41,7 +41,7 @@ describe('EffectsManager classic requirement evaluation', () => {
         id: 'palace_center',
         type: 'Gov_Center',
         value: 1,
-        // @reference reference/freeciv/data/classic/effects.ruleset:620-626
+        // @reference reference/freeciv/data/civ2civ3/effects.ruleset:620-626
         reqs: [{ type: 'Building', name: 'Palace', range: 'City' }],
       },
       wonder_blocked: {
@@ -54,14 +54,14 @@ describe('EffectsManager classic requirement evaluation', () => {
         id: 'base_upkeep_not_gold',
         type: 'Upkeep_Pct',
         value: 100,
-        // @reference reference/freeciv/data/classic/effects.ruleset:343-349
+        // @reference reference/freeciv/data/civ2civ3/effects.ruleset:343-349
         reqs: [{ type: 'OutputType', name: 'Gold', range: 'Local', present: false }],
       },
       base_upkeep_gold: {
         id: 'base_upkeep_gold',
         type: 'Upkeep_Pct',
         value: 100,
-        // @reference reference/freeciv/data/classic/effects.ruleset:351-358
+        // @reference reference/freeciv/data/civ2civ3/effects.ruleset:351-358
         reqs: [
           { type: 'OutputType', name: 'Gold', range: 'Local' },
           { type: 'UnitState', name: 'HasHomeCity', range: 'Local' },
@@ -71,14 +71,14 @@ describe('EffectsManager classic requirement evaluation', () => {
         id: 'republic_unhappy',
         type: 'Unhappy_Factor',
         value: 1,
-        // @reference reference/freeciv/data/classic/effects.ruleset:378-384
+        // @reference reference/freeciv/data/civ2civ3/effects.ruleset:378-384
         reqs: [{ type: 'Gov', name: 'Republic', range: 'Player' }],
       },
       republic_corruption: {
         id: 'republic_corruption',
         type: 'Output_Waste',
-        value: 15,
-        // @reference reference/freeciv/data/classic/effects.ruleset:325-332
+        value: 25,
+        // @reference reference/freeciv/data/civ2civ3/effects.ruleset:325-332
         reqs: [
           { type: 'Gov', name: 'Republic', range: 'Player' },
           { type: 'OutputType', name: 'Trade', range: 'Local' },
@@ -131,7 +131,7 @@ describe('EffectsManager classic requirement evaluation', () => {
     ).toBe(0);
   });
 
-  it('matches classic display names against normalized ruleset identifiers', () => {
+  it('matches C2C3 display names against normalized ruleset identifiers', () => {
     const effects = new EffectsManager();
 
     expect(
@@ -346,7 +346,7 @@ describe('EffectsManager classic requirement evaluation', () => {
     expect(effects.calculateEffect(EffectType.UNHAPPY_FACTOR, {}).value).toBe(0);
   });
 
-  it('does not apply classic corruption to non-trade output or missing government context', () => {
+  it('does not apply C2C3 corruption to non-trade output or missing government context', () => {
     const effects = new EffectsManager();
 
     expect(
@@ -354,7 +354,7 @@ describe('EffectsManager classic requirement evaluation', () => {
         government: 'Republic',
         outputType: OutputType.TRADE,
       }).value
-    ).toBe(15);
+    ).toBe(25);
     expect(
       effects.calculateEffect(EffectType.OUTPUT_WASTE, {
         government: 'Republic',

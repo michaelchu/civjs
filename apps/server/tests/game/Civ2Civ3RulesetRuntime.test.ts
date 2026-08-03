@@ -4,15 +4,14 @@ import { CityProductionService } from '@game/services/CityProductionService';
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
+import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 
 describe('Civ2Civ3 ruleset runtime routing', () => {
-  it('discovers every complete installed ruleset while standalone catalogues retain classic compatibility', () => {
-    expect(rulesetLoader.getAvailableRulesets()).toEqual(
-      expect.arrayContaining(['classic', 'civ2civ3'])
-    );
-    expect(rulesetLoader.hasRuleset('classic')).toBe(true);
+  it('exposes only the supported Civ2Civ3 ruleset', () => {
+    expect(rulesetLoader.getAvailableRulesets()).toEqual([DEFAULT_RULESET]);
     expect(rulesetLoader.hasRuleset('civ2civ3')).toBe(true);
-    expect(rulesetUnitsService.getUnitTypes()).toBe(rulesetUnitsService.getUnitTypes('classic'));
+    expect(rulesetLoader.hasRuleset('not-a-ruleset')).toBe(false);
+    expect(rulesetUnitsService.getUnitTypes()).toBe(rulesetUnitsService.getUnitTypes('civ2civ3'));
   });
 
   it.each(rulesetLoader.getAvailableRulesets())(
@@ -22,18 +21,14 @@ describe('Civ2Civ3 ruleset runtime routing', () => {
     }
   );
 
-  it.each(['classic', 'civ1', 'civ2civ3'])(
-    'loads the requested %s catalogue independently',
-    rulesetName => {
-      const units = rulesetUnitsService.getUnitTypes(rulesetName);
-      const buildings = rulesetBuildingsService.getPlayableBuildingTypes(rulesetName);
-
-      expect(Object.keys(units).length).toBeGreaterThan(0);
-      expect(Object.values(units).every(unit => unit.id && unit.name)).toBe(true);
-      expect(Object.keys(buildings).length).toBeGreaterThan(0);
-      expect(Object.values(buildings).every(building => building.id && building.name)).toBe(true);
-    }
-  );
+  it('rejects any ruleset outside the C2C3 product boundary', () => {
+    expect(() => rulesetUnitsService.getUnitTypes('not-a-ruleset')).toThrow(
+      "Unsupported ruleset 'not-a-ruleset'. CivJS supports only 'civ2civ3'."
+    );
+    expect(() => rulesetBuildingsService.getPlayableBuildingTypes('another-ruleset')).toThrow(
+      "Unsupported ruleset 'another-ruleset'. CivJS supports only 'civ2civ3'."
+    );
+  });
 
   /**
    * @evidence parity

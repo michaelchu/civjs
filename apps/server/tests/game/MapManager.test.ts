@@ -371,8 +371,8 @@ describe('MapManager', () => {
       expect(denseTiles.some(tile => tile.improvements.includes('hut'))).toBe(true);
     });
 
-    it('preserves the pinned classic topology reference case', async () => {
-      const referenceMap = new MapManager(20, 15, 'classic-topology-v1');
+    it('preserves the pinned C2C3 topology reference case', async () => {
+      const referenceMap = new MapManager(20, 15, 'c2c3-topology-v1');
       await referenceMap.generateMap(new Map());
       const mapData = referenceMap.getMapData()!;
       const terrainCounts: Record<string, number> = {};
@@ -402,19 +402,18 @@ describe('MapManager', () => {
         ],
       }).toEqual({
         terrainCounts: {
-          coast: 1,
-          deep_ocean: 149,
-          forest: 9,
-          grassland: 19,
+          coast: 4,
+          deep_ocean: 179,
+          forest: 7,
+          grassland: 17,
           hills: 6,
           jungle: 1,
-          lake: 3,
-          mountains: 2,
-          ocean: 94,
-          plains: 12,
-          swamp: 4,
+          mountains: 1,
+          ocean: 77,
+          plains: 6,
+          swamp: 2,
         },
-        landContinents: 5,
+        landContinents: 7,
         corners: ['deep_ocean', 'deep_ocean', 'deep_ocean', 'deep_ocean'],
       });
     });
