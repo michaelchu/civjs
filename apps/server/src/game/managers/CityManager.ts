@@ -271,6 +271,9 @@ export class CityManager {
     // ruleset instance so effects cannot diverge between subsystems.
     this.calculationService = new CityCalculationService(effectsManager);
     this.happinessService = new CityHappinessService(effectsManager);
+    this.happinessService.setPlayerCityCountProvider(
+      playerId => this.getPlayerCities(playerId).length
+    );
   }
 
   /**
@@ -315,6 +318,7 @@ export class CityManager {
   public setPlayerBuildingsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
     this.playerBuildingsProvider = provider;
     this.happinessService.setPlayerBuildingsProvider(provider);
+    this.tradeRouteService?.setPlayerBuildingsProvider(provider);
   }
 
   public setPlayerSpaceshipProvider(provider: (playerId: string) => SpaceshipState): void {
@@ -423,6 +427,7 @@ export class CityManager {
       this.effectsManager
     );
     this.tradeRouteService.setPlayerTechsProvider(this.playerTechsProvider);
+    this.tradeRouteService.setPlayerBuildingsProvider(this.playerBuildingsProvider);
 
     this.productionService = new CityProductionService(
       this.cities,
@@ -578,6 +583,7 @@ export class CityManager {
       reconcileCitizenAssignments: this.reconcileCitizenAssignments.bind(this),
       destroyCity: this.destroyCity.bind(this),
       saveCityToDatabase: this.saveCityToDatabase.bind(this),
+      refreshCapitalStatus: this.refreshCapitalStatus.bind(this),
     });
   }
 
@@ -758,11 +764,11 @@ export class CityManager {
     const isFirstCity = !this.playersWithFirstCity.has(playerId);
     if (isFirstCity) {
       this.buildFreeBuildings(city);
-      city.isCapital = true;
       this.playersWithFirstCity.add(playerId);
     }
 
     this.cities.set(cityId, city);
+    this.refreshCapitalStatus(playerId);
 
     // Classic roads are automatically present on eligible city centers.
     // A river center requires Bridge Building, so leave that case untouched.
@@ -1500,10 +1506,94 @@ export class CityManager {
     city.goldPerTurn = outputs.gold + wealthConversion;
     city.luxuryPerTurn = outputs.luxury;
     city.pollution = outputs.pollution;
+    this.refreshCityPresentationEffects(city);
     city.unitGoldUpkeep = unitUpkeep.gold;
     city.unitShieldUpkeep = unitUpkeep.shield;
 
     return outputs;
+  }
+
+  /**
+   * Resolve the packet-visible city graphics from the active ruleset rather
+   * than infer them from hard-coded population or building IDs.
+   * @reference reference/freeciv/server/citytools.c:2698-2704
+   */
+  private refreshCityPresentationEffects(city: CityState): void {
+    const context = this.getCityEffectContext(city);
+    city.cityImage = Math.max(
+      0,
+      this.effectsManager.calculateEffect(EffectType.CITY_IMAGE, context).value
+    );
+    city.walls = Math.max(
+      0,
+      this.effectsManager.calculateEffect(EffectType.VISIBLE_WALLS, context).value
+    );
+  }
+
+  private getCityEffectContext(city: CityState) {
+    const playerCities = this.getPlayerCities(city.playerId);
+    return {
+      playerId: city.playerId,
+      cityId: city.id,
+      tileX: city.x,
+      tileY: city.y,
+      cityPopulation: city.population,
+      government: this.playerGovernmentProvider?.(city.playerId),
+      cityBuildings: new Set(city.buildings),
+      playerBuildings: new Set([
+        ...this.playerBuildingsProvider(city.playerId),
+        ...playerCities.flatMap(candidate => candidate.buildings),
+      ]),
+      worldBuildings: new Set([...this.cities.values()].flatMap(candidate => candidate.buildings)),
+      playerTechs: new Set(this.playerTechsProvider(city.playerId)),
+      mapWidth: this.mapManager?.getMapData()?.width,
+      mapHeight: this.mapManager?.getMapData()?.height,
+    };
+  }
+
+  /**
+   * Recalculate the player's primary capital from `Capital_City` effects.
+   * Freeciv chooses the highest active value and marks all other positive
+   * values secondary; C2C3's Palace (2) therefore takes precedence over the
+   * Ecclesiastical Palace (1).
+   * @reference reference/freeciv/server/plrhand.c:731-768
+   */
+  public refreshCapitalStatus(playerId: string, excludedCityId?: string): CityState | undefined {
+    const playerCities = this.getPlayerCities(playerId).filter(city => city.id !== excludedCityId);
+    let primary: CityState | undefined;
+    let highestValue = 0;
+    let equalHighestCount = 0;
+
+    for (const city of playerCities) {
+      const value = this.effectsManager.calculateEffect(
+        EffectType.CAPITAL_CITY,
+        this.getCityEffectContext(city)
+      ).value;
+      city.isCapital = false;
+      if (value <= 0) continue;
+
+      if (value > highestValue) {
+        highestValue = value;
+        primary = city;
+        equalHighestCount = 1;
+      } else if (value === highestValue) {
+        equalHighestCount += 1;
+        if (randomInt(this.random, equalHighestCount) === 0) primary = city;
+      }
+    }
+
+    if (primary) primary.isCapital = true;
+    return primary;
+  }
+
+  public hasPrimaryCapital(playerId: string): boolean {
+    return this.refreshCapitalStatus(playerId) !== undefined;
+  }
+
+  public isPrimaryCapital(cityId: string): boolean {
+    const city = this.cities.get(cityId);
+    if (!city) return false;
+    return this.refreshCapitalStatus(city.playerId)?.id === cityId;
   }
 
   /**
@@ -2001,7 +2091,7 @@ export class CityManager {
       };
     const cityBeforeCapture = this.cities.get(cityId);
     const oldPlayerId = cityBeforeCapture?.playerId ?? '';
-    const lostCapital = cityBeforeCapture?.buildings.includes('palace') ?? false;
+    const lostCapital = cityBeforeCapture ? this.isPrimaryCapital(cityId) : false;
     const cityCountBeforeLoss = lostCapital ? this.getCitiesByPlayer(oldPlayerId).length : 0;
     const capitalLossEvent: CapitalLossEvent | undefined = lostCapital
       ? { playerId: oldPlayerId, lostCityId: cityId, cityCountBeforeLoss }
@@ -2128,7 +2218,7 @@ export class CityManager {
     if (!city) return false;
 
     let pendingCapitalLoss: CapitalLossEvent | undefined;
-    if (city.buildings.includes('palace')) {
+    if (this.isPrimaryCapital(cityId)) {
       const event =
         capitalLossEvent ??
         ({
@@ -2201,12 +2291,13 @@ export class CityManager {
     const { playerId, lostCityId } = event;
     const lostCity = this.cities.get(lostCityId);
     if (lostCity) lostCity.isCapital = false;
-    const replacement = this.getCitiesByPlayer(playerId).find(city => city.id !== lostCityId);
-    if (replacement) {
-      if (!replacement.buildings.includes('palace')) replacement.buildings.push('palace');
-      replacement.isCapital = true;
-      await this.saveCityToDatabase(replacement);
-    }
+    // Freeciv does not conjure a replacement Palace when the primary capital
+    // falls. An existing lower-valued Capital_City effect may become primary;
+    // otherwise the player simply has no capital until building one.
+    // @reference reference/freeciv/server/citytools.c:1412-1419
+    // @reference reference/freeciv/server/plrhand.c:731-768
+    const replacement = this.refreshCapitalStatus(playerId, lostCityId);
+    if (replacement) await this.saveCityToDatabase(replacement);
     if (notify) await this.callbacks.onCapitalLost?.(event);
   }
 

@@ -133,6 +133,53 @@ describe('CityManager', () => {
     ]);
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/server/plrhand.c:731-768
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2341-2348
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2433-2440
+   * @assertion C2C3 selects the Palace's Capital_City value of two over the Ecclesiastical Palace's value of one, then promotes the latter only after the Palace is gone.
+   * @c2c3-surface victory-space
+   * @c2c3-surface-scenario boundary
+   */
+  it('derives the primary capital from active Capital_City effects', async () => {
+    const palace = await cityManager.foundCity(10, 10, 'Palace', 'player-123');
+    const ecclesiastical = await cityManager.foundCity(20, 20, 'Ecclesiastical', 'player-123');
+    ecclesiastical.buildings.push('ecclesiastical_palace');
+
+    expect(cityManager.refreshCapitalStatus('player-123')?.id).toBe(palace.id);
+    expect(cityManager.isPrimaryCapital(palace.id)).toBe(true);
+    expect(cityManager.isPrimaryCapital(ecclesiastical.id)).toBe(false);
+
+    palace.buildings = palace.buildings.filter(building => building !== 'palace');
+    expect(cityManager.refreshCapitalStatus('player-123')?.id).toBe(ecclesiastical.id);
+    expect(cityManager.hasPrimaryCapital('player-123')).toBe(true);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/server/citytools.c:2698-2704
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:1900-1906
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3830-3862
+   * @assertion C2C3 exposes the fourth city graphic tier at population 17 and a visible-wall graphic only while the City Walls effect is active.
+   * @c2c3-surface city-economy
+   * @c2c3-surface-scenario normal, boundary
+   */
+  it('derives packet-visible city image and wall levels from C2C3 effects', async () => {
+    const city = await cityManager.foundCity(10, 10, 'Visuals', 'player-123');
+    city.population = 17;
+    city.size = 17;
+    city.buildings.push('city_walls');
+    cityManager.calculateCityOutputs(city.id);
+
+    expect(city.cityImage).toBe(4);
+    expect(city.walls).toBe(1);
+
+    city.buildings = city.buildings.filter(building => building !== 'city_walls');
+    cityManager.calculateCityOutputs(city.id);
+    expect(city.walls).toBe(0);
+  });
+
   it('reconstructs persisted production type from the production id', () => {
     const inferProductionType = (cityManager as any).inferProductionType.bind(cityManager);
 
@@ -549,7 +596,7 @@ describe('CityManager', () => {
       });
     });
 
-    it('relocates the Palace and notifies the owner when a capital is destroyed', async () => {
+    it('does not create a replacement Palace when a capital is destroyed', async () => {
       const capitalLoss = jest.fn();
       cityManager.setCallbacks({ onCapitalLost: capitalLoss });
       const capital = await cityManager.foundCity(10, 10, 'Capital', 'player-123');
@@ -557,7 +604,8 @@ describe('CityManager', () => {
 
       await expect(cityManager.destroyCity(capital.id)).resolves.toBe(true);
 
-      expect(replacement.buildings).toContain('palace');
+      expect(replacement.buildings).not.toContain('palace');
+      expect(replacement.isCapital).toBe(false);
       expect(capitalLoss).toHaveBeenCalledWith({
         playerId: 'player-123',
         lostCityId: capital.id,

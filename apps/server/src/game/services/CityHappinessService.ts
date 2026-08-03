@@ -97,6 +97,7 @@ export class CityHappinessService extends BaseGameService {
   private readonly effectsManager: EffectsManager;
   private playerTechsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
   private playerBuildingsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
+  private playerCityCountProvider?: (playerId: string) => number;
   private playerGovernmentProvider?: (playerId: string) => string;
 
   setPlayerTechsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
@@ -105,6 +106,15 @@ export class CityHappinessService extends BaseGameService {
 
   setPlayerBuildingsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
     this.playerBuildingsProvider = provider;
+  }
+
+  /**
+   * Supplies the owner's live city count for the empire-size happiness
+   * effects. A standalone calculator still treats the supplied city as the
+   * owner's first city when no game provider is installed.
+   */
+  setPlayerCityCountProvider(provider: (playerId: string) => number): void {
+    this.playerCityCountProvider = provider;
   }
 
   setPlayerGovernmentProvider(provider: (playerId: string) => string): void {
@@ -164,6 +174,7 @@ export class CityHappinessService extends BaseGameService {
       cityBuildings: new Set(city.buildings),
       playerTechs: new Set(this.playerTechsProvider(city.playerId)),
       playerBuildings: new Set(this.playerBuildingsProvider(city.playerId)),
+      cityPopulation: city.population,
     };
 
     // Specialists are removed before Freeciv creates the base citizen mood.
@@ -173,10 +184,32 @@ export class CityHappinessService extends BaseGameService {
       0
     );
     const ordinaryCitizens = Math.max(0, city.population - specialistCount);
-    const baseContent = this.effectsManager.calculateEffect(
+    let baseContent = this.effectsManager.calculateEffect(
       EffectType.CITY_UNHAPPY_SIZE,
       effectContext
     ).value;
+
+    // In C2C3, a large empire progressively loses one base content citizen
+    // at `Empire_Size_Base + 1` cities and again every `Empire_Size_Step`
+    // cities. This acts before specialists and city-local happiness effects.
+    // @reference reference/freeciv/common/city.c:2149-2182
+    const empireBasis = this.effectsManager.calculateEffect(
+      EffectType.EMPIRE_SIZE_BASE,
+      effectContext
+    ).value;
+    const empireStep = this.effectsManager.calculateEffect(
+      EffectType.EMPIRE_SIZE_STEP,
+      effectContext
+    ).value;
+    if (empireBasis + empireStep > 0) {
+      const cities = Math.max(1, this.playerCityCountProvider?.(city.playerId) ?? 1);
+      if (cities > empireBasis) {
+        baseContent -= 1;
+        if (empireStep !== 0) {
+          baseContent -= Math.floor((cities - empireBasis - 1) / empireStep);
+        }
+      }
+    }
 
     // Start with ruleset-driven base population happiness.
     let happy = 0;

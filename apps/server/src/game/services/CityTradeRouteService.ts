@@ -19,6 +19,7 @@ import type { TradeRules } from '@shared/data/rulesets/schemas';
  */
 export class CityTradeRouteService extends BaseGameService {
   private playerTechsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
+  private playerBuildingsProvider: (playerId: string) => ReadonlySet<string> = () => new Set();
   private readonly tradeRules: TradeRules;
   private readonly tradeWorldRelativePct: number;
 
@@ -52,6 +53,10 @@ export class CityTradeRouteService extends BaseGameService {
 
   setPlayerTechsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
     this.playerTechsProvider = provider;
+  }
+
+  setPlayerBuildingsProvider(provider: (playerId: string) => ReadonlySet<string>): void {
+    this.playerBuildingsProvider = provider;
   }
 
   private getMaxTradeRoutes(city: CityState): number {
@@ -130,14 +135,15 @@ export class CityTradeRouteService extends BaseGameService {
       this.isIntercontinental(sourceCity, partnerCity)
     );
     const setting = this.tradeRules.settings.find(candidate => candidate.type === routeType);
+    const baseBonus = Math.ceil(
+      ((weightedDistance + 10) *
+        ((sourceCity.tradePerTurn ?? 0) + (partnerCity.tradePerTurn ?? 0))) /
+        24
+    );
     return {
       routeType,
       bonusType: setting?.bonus ?? 'None',
-      bonus: Math.ceil(
-        ((weightedDistance + 10) *
-          ((sourceCity.tradePerTurn ?? 0) + (partnerCity.tradePerTurn ?? 0))) /
-          24
-      ),
+      bonus: this.applyTradeRevenueBonus(sourceCity, baseBonus),
       goods:
         Object.keys(
           rulesetLoader.loadGameRulesRuleset(this.effectsManager.getRulesetName()).goods
@@ -157,6 +163,25 @@ export class CityTradeRouteService extends BaseGameService {
     if (relation === 'team') return `Team${suffix}`;
     if (relation === 'war') return `Enemy${suffix}`;
     return `IN${suffix}`;
+  }
+
+  /**
+   * Freeciv scales caravan trade revenue by powers of two in thousandths.
+   * The C2C3 base, railroad, and compatibility-fudge effects are all
+   * evaluated from the source city owner's context.
+   * @reference reference/freeciv/common/traderoutes.c:520-555
+   */
+  private applyTradeRevenueBonus(sourceCity: CityState, revenue: number): number {
+    const modifier = this.effectsManager.calculateEffect(EffectType.TRADE_REVENUE_BONUS, {
+      playerId: sourceCity.playerId,
+      cityId: sourceCity.id,
+      cityPopulation: sourceCity.population,
+      cityBuildings: new Set(sourceCity.buildings),
+      playerTechs: new Set(this.playerTechsProvider(sourceCity.playerId)),
+      playerBuildings: new Set(this.playerBuildingsProvider(sourceCity.playerId)),
+      action: 'Establish Trade Route',
+    }).value;
+    return Math.ceil(revenue * Math.pow(2, modifier / 1000));
   }
 
   /**

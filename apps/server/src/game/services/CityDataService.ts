@@ -53,6 +53,10 @@ export interface ClientCityData {
   trade: number;
   history: number;
   isCapital: boolean;
+  /** Freeciv's ruleset-derived city sprite tier. */
+  cityImage?: number;
+  /** Freeciv's ruleset-derived visible-wall graphic level. */
+  walls?: number;
   foundedTurn: number;
   defenseStrength: number;
   health: number;
@@ -279,6 +283,8 @@ export class CityDataService {
       trade: tradePerTurn,
       history: city.history,
       isCapital: Boolean((city as CityState & { isCapital?: boolean }).isCapital),
+      cityImage: city.cityImage,
+      walls: city.walls,
       foundedTurn: city.founded,
       defenseStrength: city.defenseStrength ?? 1,
       health: this.numberOrZero((city as CityState & { health?: number }).health) || 100,

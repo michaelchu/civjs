@@ -817,7 +817,7 @@ export class GameManager {
       this.gameBroadcastManager.broadcastCityData(gameId);
       result = { success: true, message: `Poisoned ${city.name}; its population fell by one` };
     } else if (actionType === ActionType.INCITE_CITY) {
-      if (city.buildings.includes('palace')) {
+      if (game.cityManager.isPrimaryCapital(city.id)) {
         return { success: false, message: 'A capital cannot be incited' };
       }
       if (
@@ -1819,9 +1819,7 @@ export class GameManager {
   }
 
   private playerHasCapital(game: GameInstance, playerId: string): boolean {
-    return game.cityManager
-      .getCitiesByPlayer(playerId)
-      .some(city => city.buildings.includes('palace'));
+    return game.cityManager.hasPrimaryCapital(playerId);
   }
 
   private sameSpaceshipState(left: unknown, right: unknown): boolean {

@@ -133,7 +133,7 @@ export class CityRepository {
       didBuyTurn: city.didBuyTurn ?? null,
       espionageThefts: city.espionageThefts,
       health: 100,
-      isCapital: city.isCapital ?? city.buildings.includes('palace'),
+      isCapital: city.isCapital ?? false,
       isPuppet: false,
       isOccupied: false,
       wallsLevel: 0,

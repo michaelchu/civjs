@@ -18,6 +18,7 @@ describe('GameManager spaceship lifecycle', () => {
     config: { victoryConditions },
     players: new Map([[player.id, player]]),
     cityManager: {
+      hasPrimaryCapital: jest.fn(() => true),
       getCitiesByPlayer: jest.fn(() => [
         { id: 'capital', playerId: player.id, isCapital: true, buildings: ['palace'] },
       ]),

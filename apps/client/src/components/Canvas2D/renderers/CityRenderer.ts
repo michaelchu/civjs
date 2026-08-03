@@ -227,10 +227,11 @@ export class CityRenderer extends BaseRenderer {
 
     // Use authentic Freeciv size mapping
     // Reference: freeciv-web tilespec.js:get_city_sprite() size calculation
-    const sizeIndex = this.getCitySizeIndex(city.size);
+    const sizeIndex = city.cityImage ?? this.getCitySizeIndex(city.size);
 
     // Check if city has walls - use authentic walls system
-    const hasWalls = city.presentation?.hasWalls ?? this.cityHasWalls(city);
+    const hasWalls =
+      city.presentation?.hasWalls ?? ((city.walls ?? 0) > 0 || this.cityHasWalls(city));
     const spriteType = hasWalls ? 'wall' : 'city';
 
     // Generate authentic Freeciv sprite key format

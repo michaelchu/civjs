@@ -28,6 +28,7 @@ export enum EffectType {
 
   // Government center effects (Palace, Courthouse)
   GOV_CENTER = 'Gov_Center',
+  CAPITAL_CITY = 'Capital_City',
 
   // Happiness and martial law effects
   MAKE_HAPPY = 'Make_Happy',
@@ -39,6 +40,9 @@ export enum EffectType {
   MARTIAL_LAW_BY_UNIT = 'Martial_Law_By_Unit',
   MARTIAL_LAW_MAX = 'Martial_Law_Max',
   CITY_UNHAPPY_SIZE = 'City_Unhappy_Size',
+  EMPIRE_SIZE_BASE = 'Empire_Size_Base',
+  EMPIRE_SIZE_STEP = 'Empire_Size_Step',
+  HAPPINESS_TO_GOLD = 'Happiness_To_Gold',
   REVOLUTION_UNHAPPINESS = 'Revolution_Unhappiness',
 
   // Unit support cost effects
@@ -66,6 +70,10 @@ export enum EffectType {
   RAPTURE_GROW = 'Rapture_Grow',
   MAX_RATES = 'Max_Rates',
   MAX_TRADE_ROUTES = 'Max_Trade_Routes',
+  TRADE_REVENUE_BONUS = 'Trade_Revenue_Bonus',
+  CITY_BUILD_SLOTS = 'City_Build_Slots',
+  CITY_IMAGE = 'City_Image',
+  VISIBLE_WALLS = 'Visible_Walls',
   POLLU_POP_PCT = 'Pollu_Pop_Pct',
   POLLU_POP_PCT_2 = 'Pollu_Pop_Pct_2',
   POLLU_PROD_PCT = 'Pollu_Prod_Pct',

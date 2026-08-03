@@ -182,6 +182,8 @@ export interface City {
   // Culture system (freeciv-based)
   history: number; // Accumulated culture history
   isCapital?: boolean;
+  cityImage?: number;
+  walls?: number;
   foundedTurn?: number;
   defenseStrength?: number;
   health?: number;

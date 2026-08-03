@@ -92,6 +92,10 @@ export interface CityState {
   cityRadius: number;
   founded: number;
   isCapital?: boolean;
+  /** Ruleset-derived city graphic tier sent to clients. */
+  cityImage?: number;
+  /** Ruleset-derived visible wall graphic level sent to clients. */
+  walls?: number;
   currentProduction?: string | null;
   productionType?: 'unit' | 'building' | null;
   turnsToComplete: number;

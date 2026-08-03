@@ -78,6 +78,32 @@ describe('city happiness from loaded effects', () => {
     expect(republic.unitEffect).toBe(0);
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/common/city.c:2149-2182
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:1211-1337
+   * @assertion C2C3 reduces base content one city after a Republic reaches its 16-city empire basis, before local happiness effects are applied.
+   * @c2c3-surface city-economy
+   * @c2c3-surface-scenario normal, boundary
+   */
+  it('applies C2C3 empire-size content penalties at the source threshold', () => {
+    const service = new CityHappinessService(new EffectsManager('civ2civ3'));
+    service.setPlayerGovernmentProvider(() => 'republic');
+    service.setPlayerTechsProvider(() => new Set());
+    service.setPlayerBuildingsProvider(() => new Set());
+
+    service.setPlayerCityCountProvider(() => 16);
+    const atBasis = service.calculateDetailedHappiness(city());
+    service.setPlayerCityCountProvider(() => 17);
+    const onePastBasis = service.calculateDetailedHappiness(city());
+    service.setPlayerCityCountProvider(() => 33);
+    const secondStep = service.calculateDetailedHappiness(city());
+
+    expect(atBasis).toMatchObject({ content: 4, unhappy: 4 });
+    expect(onePastBasis).toMatchObject({ content: 3, unhappy: 5 });
+    expect(secondStep).toMatchObject({ content: 2, unhappy: 6 });
+  });
+
   it('uses loaded elvis output and excludes specialists from base mood', () => {
     const entertainerCity = city({
       population: 3,

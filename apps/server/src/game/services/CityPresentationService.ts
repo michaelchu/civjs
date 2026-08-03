@@ -55,7 +55,7 @@ export function resolveCityPresentation(
     graphic: selected?.graphic ?? 'city.european',
     graphicAlt:
       selected?.graphic_alt && selected.graphic_alt !== '-' ? selected.graphic_alt : undefined,
-    hasWalls: buildings.has('city_walls'),
+    hasWalls: city.walls === undefined ? buildings.has('city_walls') : city.walls > 0,
     overlays,
   };
 }

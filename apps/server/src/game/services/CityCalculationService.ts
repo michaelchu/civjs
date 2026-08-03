@@ -216,10 +216,16 @@ export class CityCalculationService extends BaseGameService {
       OutputType.SCIENCE,
       convertedTrade.science + specialistOutputs.science
     );
+    // Fundamentalism-style governments can convert city building
+    // contentment into direct gold. Freeciv adds this before the final gold
+    // output bonus and does not use the number of currently content citizens.
+    // @reference reference/freeciv/common/city.c:2227-2240
+    // @reference reference/freeciv/common/city.c:3013-3037
+    const tithes = this.calculateTithes(effectContext);
     const gold = this.applyOutputBonus(
       effectContext,
       OutputType.GOLD,
-      convertedTrade.gold + specialistOutputs.gold
+      convertedTrade.gold + specialistOutputs.gold + tithes
     );
     const luxury = this.applyOutputBonus(
       effectContext,
@@ -340,7 +346,27 @@ export class CityCalculationService extends BaseGameService {
       cityBuildings: new Set(city.buildings),
       playerTechs: new Set(playerContext.playerTechs),
       playerBuildings: new Set(playerContext.playerBuildings),
+      cityPopulation: city.population,
     };
+  }
+
+  /**
+   * Return the ruleset-defined building-tithe gold for this city.
+   *
+   * `Happiness_To_Gold` is a gate in Freeciv: a positive value enables gold
+   * equal to the active Make_Content plus Force_Content effects. The effect
+   * value itself is not a multiplier.
+   * @reference reference/freeciv/common/city.c:2227-2240
+   */
+  private calculateTithes(effectContext: EffectContext): number {
+    if (this.effectsManager.calculateEffect(EffectType.HAPPINESS_TO_GOLD, effectContext).value <= 0) {
+      return 0;
+    }
+
+    return (
+      this.effectsManager.calculateEffect(EffectType.MAKE_CONTENT, effectContext).value +
+      this.effectsManager.calculateEffect(EffectType.FORCE_CONTENT, effectContext).value
+    );
   }
 
   private applyOutputBonus(

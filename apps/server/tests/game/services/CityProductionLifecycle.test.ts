@@ -329,6 +329,50 @@ describe('city production lifecycle', () => {
     expect(cityState.productionStock).toBe(9);
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/common/city.c:747-801
+   * @reference reference/freeciv/server/cityturn.c:3004-3062
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3811-3827
+   * @assertion A C2C3 Manufacturing Plant grants two unit build slots, consuming two same-unit worklist entries and twenty shields in one turn without spilling into the following Granary.
+   * @c2c3-internal-action Finish Unit
+   * @c2c3-internal-scenario normal
+   * @c2c3-surface cities
+   * @c2c3-surface-scenario turn
+   */
+  it('uses C2C3 Manufacturing Plant unit build slots only for matching unit worklist entries', async () => {
+    const cityState = city({
+      currentProduction: 'warriors',
+      productionType: 'unit',
+      productionStock: 20,
+      productionPerTurn: 0,
+      buildings: ['mfg_plant'],
+      worklist: [
+        { kind: 'unit', value: 'warriors' },
+        { kind: 'building', value: 'granary' },
+      ],
+    });
+    const onComplete = jest.fn();
+
+    await turnService(
+      cityState,
+      onComplete,
+      rulesetUnitsService.getUnitTypes('civ2civ3'),
+      undefined,
+      undefined,
+      new EffectsManager('civ2civ3')
+    ).processCityTurn(cityState.id, 7);
+
+    expect(onComplete).toHaveBeenCalledTimes(2);
+    expect(onComplete.mock.calls.map(([, completed]) => completed.value)).toEqual([
+      'warriors',
+      'warriors',
+    ]);
+    expect(cityState.productionStock).toBe(0);
+    expect(cityState.currentProduction).toBe('granary');
+    expect(cityState.worklist).toEqual([]);
+  });
+
   it('converts Wealth production without accumulating or completing shields', async () => {
     const cityState = city({
       currentProduction: 'capitalization',

@@ -30,7 +30,7 @@ import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
 import type { Server as SocketServer } from 'socket.io';
 import type { CityGovernorService } from './CityGovernorService';
 import type { CityTileManagementService } from './CityTileManagementService';
-import { isSpaceshipPart } from './SpaceshipService';
+import { spaceshipPartFromEffects } from './SpaceshipService';
 import type { BuildingType, TradeRoute } from '@game/cities/CityTypes';
 
 // Import types from CityManager (we'll need to make these available)
@@ -157,6 +157,7 @@ export interface CityTurnProcessingDependencies {
   reconcileCitizenAssignments: (cityId: string, reason: string) => Promise<boolean>;
   destroyCity: (cityId: string) => Promise<boolean>;
   saveCityToDatabase: (city: CityState) => Promise<void>;
+  refreshCapitalStatus?: (playerId: string) => void;
 }
 
 /**
@@ -615,27 +616,112 @@ export class CityTurnProcessingService extends BaseGameService {
     const completedProductionType = city.productionType as 'unit' | 'building' | 'wonder';
     const completedProductionId = city.currentProduction;
     this.addCompletedBuilding(city);
+    if (completedProductionType === 'building') {
+      this.dependencies.refreshCapitalStatus?.(city.playerId);
+    }
     const productionItem: ProductionItem = {
       kind: city.productionType as 'unit' | 'building',
       value: city.currentProduction,
     };
-    this.resetCompletedProduction(city, productionCost);
-    await this.notifyProductionComplete(city, productionItem);
+    const completedCount = this.getCompletedProductionCount(city, productionCost);
+    const remaining = Math.max(
+      0,
+      (city.productionStock ?? city.shieldStock ?? 0) - productionCost * completedCount
+    );
+
+    // A city may use multiple City_Build_Slots only for identical, ordinary
+    // units. Freeciv does not let excess shields spill into a different
+    // target in the same turn.
+    // @reference reference/freeciv/common/city.c:747-801
+    // @reference reference/freeciv/server/cityturn.c:3004-3062
+    for (let index = 0; index < completedCount; index += 1) {
+      await this.notifyProductionComplete(city, productionItem);
+      if (index > 0 && city.worklist.length > 0) {
+        city.worklist.shift();
+      }
+    }
+
+    this.resetCompletedProduction(city, remaining);
     this.promoteProductionAfterCompletion(city);
     this.emitProductionComplete(cityId, completedProductionType, completedProductionId);
+  }
+
+  /**
+   * Return the number of copies of the active unit that can be completed in
+   * this turn. City_Build_Slots applies only to regular zero-population,
+   * non-unique units and stops before the first different worklist target.
+   * @reference reference/freeciv/common/city.c:747-801
+   */
+  private getCompletedProductionCount(city: CityState, productionCost: number): number {
+    if (city.productionType !== 'unit' || !city.currentProduction || productionCost <= 0) return 1;
+
+    const unitType = this.unitTypes[city.currentProduction];
+    if (!unitType || (unitType.pop_cost ?? 0) > 0 || unitType.flags?.includes('Unique')) return 1;
+
+    const configuredSlots = this.effectsManager.calculateEffect(EffectType.CITY_BUILD_SLOTS, {
+      playerId: city.playerId,
+      cityId: city.id,
+      cityPopulation: city.population,
+      cityBuildings: new Set(city.buildings),
+      playerBuildings: new Set(
+        [...this.dependencies.cities.values()]
+          .filter(candidate => candidate.playerId === city.playerId)
+          .flatMap(candidate => candidate.buildings)
+      ),
+      worldBuildings: new Set(
+        [...this.dependencies.cities.values()].flatMap(candidate => candidate.buildings)
+      ),
+      government: this.dependencies.getPlayerGovernment?.(city.playerId),
+    }).value;
+    const slots = Math.max(1, configuredSlots);
+    let shieldsLeft = city.productionStock ?? city.shieldStock ?? 0;
+    let completed = 0;
+
+    for (let index = 0; index < slots && shieldsLeft >= productionCost; index += 1) {
+      completed += 1;
+      shieldsLeft -= productionCost;
+      const queued = city.worklist[index];
+      if (queued && (queued.kind !== 'unit' || queued.value !== city.currentProduction)) break;
+    }
+
+    return Math.max(1, completed);
   }
 
   private addCompletedBuilding(city: CityState): void {
     if (
       city.productionType === 'building' &&
-      !isSpaceshipPart(city.currentProduction!) &&
+      !this.isSpaceshipPart(city, city.currentProduction!) &&
       !city.buildings.includes(city.currentProduction!)
     )
       city.buildings.push(city.currentProduction!);
   }
 
-  private resetCompletedProduction(city: CityState, cost: number): void {
-    const remaining = Math.max(0, (city.productionStock ?? city.shieldStock ?? 0) - cost);
+  /**
+   * Freeciv consumes Special spaceship improvements at completion based on
+   * their active SS_* effect, rather than on a fixed building identifier.
+   *
+   * @reference reference/freeciv/server/cityturn.c:2768-2779
+   */
+  private isSpaceshipPart(city: CityState, buildingId: string): boolean {
+    return (
+      spaceshipPartFromEffects(this.effectsManager, {
+        playerId: city.playerId,
+        cityId: city.id,
+        buildingId,
+        cityBuildings: new Set([...city.buildings, buildingId]),
+        playerBuildings: new Set(
+          [...this.dependencies.cities.values()]
+            .filter(candidate => candidate.playerId === city.playerId)
+            .flatMap(candidate => candidate.buildings)
+        ),
+        worldBuildings: new Set(
+          [...this.dependencies.cities.values()].flatMap(candidate => candidate.buildings)
+        ),
+      }) !== undefined
+    );
+  }
+
+  private resetCompletedProduction(city: CityState, remaining: number): void {
     city.currentProduction = null;
     city.productionType = null;
     city.productionStock = remaining;
