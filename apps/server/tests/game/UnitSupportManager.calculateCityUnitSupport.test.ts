@@ -9,6 +9,7 @@ function makeUnit(overrides?: Partial<UnitSupportData>): UnitSupportData {
   return {
     unitId: overrides?.unitId ?? 'u',
     unitType: overrides?.unitType ?? 'warrior',
+    unitTypeFlags: overrides?.unitTypeFlags,
     homeCity: overrides?.homeCity ?? 'c1',
     currentLocation: overrides?.currentLocation ?? 'c1',
     upkeep: overrides?.upkeep ?? { food: 1, shield: 1, gold: 0 },
@@ -25,7 +26,9 @@ describe('UnitSupportManager.calculateCityUnitSupport', () => {
 
     const res = mgr.calculateCityUnitSupport('city-1', 'p1', 'despotism', 1, units) as any;
 
-    expect(res.upkeepCosts.shield).toBe(0); // Despotism's C2C3 shield upkeep is zero.
+    // C2C3's Despotism free-unit effect applies to gold, not shield upkeep.
+    // @reference reference/freeciv/data/civ2civ3/effects.ruleset:921-928
+    expect(res.upkeepCosts.shield).toBe(3);
     expect(res.upkeepCosts.food).toBe(2); // Four C2C3 free food slots cover all three units.
     expect(res.upkeepCosts.gold).toBe(0); // Mixed C2C3 gold upkeep is national.
     // freeUnitsSupported uses min across resources (shield=2, food=2, gold=0) => 0
@@ -43,8 +46,8 @@ describe('UnitSupportManager.calculateCityUnitSupport', () => {
 
     const res = mgr.calculateCityUnitSupport('city-2', 'p1', 'monarchy', 2, units) as any;
 
-    // C2C3 Monarchy has zero shield upkeep for these units.
-    expect(res.upkeepCosts.shield).toBe(0);
+    // C2C3 Monarchy has no shield-free support effect.
+    expect(res.upkeepCosts.shield).toBe(2);
     // The base four free food slots cover both units, leaving population consumption only.
     expect(res.upkeepCosts.food).toBe(4);
     // Mixed C2C3 gold upkeep is paid nationally.
@@ -100,8 +103,8 @@ describe('UnitSupportManager.calculateCityUnitSupport', () => {
 
     // City should not pay any gold upkeep
     expect(res.upkeepCosts.gold).toBe(0);
-    // Shield: 1 shield - 2 free (despotism) => 0; Food: 0 units - 2 free => 0 + population 2
-    expect(res.upkeepCosts.shield).toBe(0);
+    // Shield has no Despotism free-support effect; Food is citizen consumption only.
+    expect(res.upkeepCosts.shield).toBe(1);
     expect(res.upkeepCosts.food).toBe(2);
   });
 
@@ -112,6 +115,52 @@ describe('UnitSupportManager.calculateCityUnitSupport', () => {
     const res = mgr.calculateCityUnitSupport('city-mixed', 'p1', 'despotism', 1, [unit]) as any;
 
     expect(res.upkeepCosts.gold).toBe(0);
+  });
+
+  test('C2C3 Fundamentalism gives Fanatic-flagged units zero upkeep', () => {
+    const mgr = new UnitSupportManager('g1', new EffectsManager('civ2civ3'));
+    const fanatic = makeUnit({
+      unitType: 'fanatics',
+      unitTypeFlags: new Set(['Fanatic']),
+      upkeep: { food: 0, shield: 0, gold: 2 },
+    });
+    const regular = makeUnit({
+      unitType: 'warriors',
+      upkeep: { food: 0, shield: 0, gold: 2 },
+    });
+    const fanatics = Array.from({ length: 5 }, (_, index) => ({
+      ...fanatic,
+      unitId: `fanatic-${index}`,
+    }));
+    const regulars = Array.from({ length: 5 }, (_, index) => ({
+      ...regular,
+      unitId: `regular-${index}`,
+    }));
+
+    mgr.setGoldUpkeepStyle(GoldUpkeepStyle.CITY);
+    const fundamentalism = mgr.calculateCityUnitSupport(
+      'fanatic-city',
+      'p1',
+      'fundamentalism',
+      1,
+      fanatics
+    ) as any;
+    const regularFundamentalism = mgr.calculateCityUnitSupport(
+      'fanatic-city',
+      'p1',
+      'fundamentalism',
+      1,
+      regulars
+    ) as any;
+
+    // @reference reference/freeciv/common/unittype.c:152-156 utype_upkeep_cost()
+    // @reference reference/freeciv/data/civ2civ3/effects.ruleset:1670-1676
+    expect(fundamentalism.upkeepCosts.gold).toBe(0);
+    expect(regularFundamentalism.upkeepCosts.gold).toBeGreaterThan(0);
+
+    mgr.setGoldUpkeepStyle(GoldUpkeepStyle.NATION);
+    expect(mgr.calculateNationalUnitSupport('p1', 'fundamentalism', [fanatic]).gold).toBe(0);
+    expect(mgr.calculateNationalUnitSupport('p1', 'republic', [fanatic]).gold).toBeGreaterThan(0);
   });
 
   test('single-arg overload rejects on non-existent city', async () => {

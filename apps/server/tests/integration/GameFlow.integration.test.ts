@@ -153,13 +153,14 @@ describe('Game Integration Flow', () => {
       expect(mapView!.height).toBeGreaterThan(0);
       expect(mapView!.tiles.length).toBeGreaterThan(0);
 
-      // Test research functionality
-      await gameManager.setPlayerResearch(gameId, hostPlayerId, 'pottery');
-      const hostResearch = gameManager.getPlayerResearch(gameId, hostPlayerId);
-      expect(hostResearch?.currentTech).toBe('pottery');
-
+      // C2C3 can grant a source-selected initial technology, so select a
+      // currently legal unknown technology instead of assuming Pottery is free.
       const availableTechs = gameManager.getAvailableTechnologies(gameId, hostPlayerId);
       expect(availableTechs.length).toBeGreaterThan(0);
+      const researchTarget = availableTechs[0]!;
+      await gameManager.setPlayerResearch(gameId, hostPlayerId, researchTarget.id);
+      const hostResearch = gameManager.getPlayerResearch(gameId, hostPlayerId);
+      expect(hostResearch?.currentTech).toBe(researchTarget.id);
 
       // Test turn mechanics - should properly track turn ending
       const turnAdvanced1 = await gameManager.endTurn(hostPlayerId);
@@ -349,6 +350,39 @@ describe('Game Integration Flow', () => {
       });
 
       const initialGame = gameManager.getGameInstance(gameId)!;
+      // This vertical slice exercises AI decisions, turn processing, and
+      // recovery. C2C3's nation-selected starting roster is not guaranteed to
+      // include a founder in this compact test setup, so establish legal
+      // starting cities through authoritative unit creation and Found City
+      // actions rather than depending on a small-map AI settler route to
+      // complete within six turns.
+      for (const [index, playerId] of aiPlayerIds.entries()) {
+        const citySite = initialGame.mapManager
+          .getMapData()!
+          .tiles.flat()
+          .find(
+            tile =>
+              !['ocean', 'coast', 'deep_ocean', 'lake'].includes(tile.terrain) &&
+              initialGame.cityManager.canFoundCityAt(tile.x, tile.y, playerId)
+          );
+        expect(citySite).toBeDefined();
+        const founderId = await gameManager.createUnit(
+          gameId,
+          playerId,
+          'settlers',
+          citySite!.x,
+          citySite!.y
+        );
+        const cityId = await gameManager.foundCity(
+          gameId,
+          playerId,
+          `AI Confidence City ${index + 1}`,
+          citySite!.x,
+          citySite!.y,
+          founderId
+        );
+        expect(initialGame.cityManager.getCity(cityId)).toBeDefined();
+      }
       const initialTechnologyCount = aiPlayerIds.reduce(
         (total, playerId) =>
           total + initialGame.researchManager.getResearchedTechs(playerId).length,
@@ -552,7 +586,9 @@ describe('Game Integration Flow', () => {
         { winnerPlayerIds?: string[]; standings?: Array<{ playerId: string }> } | undefined;
       expect(report?.winnerPlayerIds?.some(playerId => aiPlayerIds.includes(playerId))).toBe(true);
       expect(report?.standings).toHaveLength(2);
-    }, 120_000);
+      // This vertical slice runs multiple authoritative AI turns, a recovery,
+      // combat, and end-game persistence; slower CI runners need a wider budget.
+    }, 180_000);
 
     it('should recover persisted map, units, cities, and borders after a server restart', async () => {
       const db = getTestDatabase();

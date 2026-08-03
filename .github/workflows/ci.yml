@@ -97,7 +97,18 @@ jobs:
       - name: Run server unit tests
         run: cd apps/server && npm run test:unit -- --ci --coverage --maxWorkers=2
 
-      - name: Run PostgreSQL integration and recovery tests
+      - name: Run PostgreSQL integration smoke tests
+        env:
+          # Keep one short representative from each authoritative boundary in
+          # pull-request CI. The scheduled full-integration workflow runs every
+          # integration case, including the long AI/recovery matrices.
+          INTEGRATION_TEST_PATHS: >-
+            tests/integration/SocketGameFlow.integration.test.ts,
+            tests/integration/GameFlow.integration.test.ts,
+            tests/integration/GameManager.integration.test.ts,
+            tests/integration/AIManagerBoundaries.integration.test.ts
+          INTEGRATION_TEST_NAME_PATTERN: >-
+            connects, creates and joins a game, loads its map, advances a turn, and reconnects|should handle full game creation and player interaction flow|should apply defaults for minimal game config|does not execute or persist a completed AI phase twice for the same turn
         run: npm run test:integration
 
       - name: Upload coverage reports
@@ -189,17 +200,17 @@ jobs:
       - name: Install server dependencies
         run: cd apps/server && npm ci
 
-      - name: Generate batched Civ2Civ3 Freeciv oracle results
+      - name: Generate isolated Civ2Civ3 Freeciv oracle results
         env:
           FREECIV_ORACLE_BIN: ${{ runner.temp }}/freeciv-build/freeciv-server
           FREECIV_ORACLE_DATA: ${{ runner.temp }}/freeciv-source/data
           FREECIV_ORACLE_SOURCE: ${{ runner.temp }}/freeciv-source
           FREECIV_ORACLE_PORT: '0'
-        # One runner invocation starts Freeciv once and evaluates every
-        # deterministic fixture. Jest consumes this read-only result bundle.
+        # One runner invocation validates the pinned build, runs every fixture
+        # in a fresh Freeciv session, and writes a read-only result bundle.
         run: node tools/run-freeciv-oracle.mjs > "$RUNNER_TEMP/civ2civ3-oracle-results.json"
 
-      - name: Verify batched Civ2Civ3 differential oracle results
+      - name: Verify isolated Civ2Civ3 differential oracle results
         env:
           FREECIV_ORACLE_RESULTS: ${{ runner.temp }}/civ2civ3-oracle-results.json
         run: cd apps/server && npm run test:unit -- --runTestsByPath tests/game/Civ2Civ3Oracle.test.ts tests/game/UnitManager.test.ts

@@ -43,9 +43,13 @@ report. It derives the enabled action set from c2c3 data, requires explicit
 source-backed normal/rejected/boundary cases for each action, inventories raw
 effect types without declared runtime handlers, and reports the adapter and
 oracle surface. `npm run certify:civ2civ3-parity` is intentionally strict: it
-must fail until the report has no blockers. It is not a normal CI check while
-the port remains incomplete; CI runs the non-strict metadata check so action
-annotations cannot silently drift from c2c3 source names.
+passes only when the report has no mechanical blockers. The 2026-08-03 audit
+passes with 62/62 actions, 12/12 gameplay surfaces, 3/3 active script hooks,
+and 97/97 raw effect types covered. That is an evidence-certificate result,
+not a whole-game semantic-parity claim; see
+[C2C3 Parity Audit](CIV2CIV3_PARITY_AUDIT.md) for the precise scope and known
+limitations. CI also runs the non-strict metadata check so action annotations
+cannot silently drift from c2c3 source names.
 
 The required gameplay domains and their evidence classes are versioned in
 `docs/CIV2CIV3_PARITY_SURFACES.json`. Each domain needs source-mapped normal,
@@ -90,19 +94,22 @@ npm run check:civ2civ3-oracle
 The runner checks the bundled reference tree, every bundled gameplay source
 file, the upstream source commit, and the binary version before it runs. It
 keeps saves in an isolated temporary directory and emits structured results.
-CI invokes it once without a scenario filter, so every deterministic fixture
-runs in one Freeciv server session. Jest then reads the resulting JSON bundle;
-individual parity assertions never start their own native server process. The
-CI job caches the pinned source checkout and server build by Freeciv revision,
-runner platform, and build-profile version. A cold cache builds once; a warm
-cache skips the source fetch, build-tool installation, and native compilation
-while retaining the runner's source revision and binary-version validation.
-The fixture set creates a controlled city and ground defender, then confirms
+CI invokes it once without a scenario filter. The runner validates the pinned
+source and binary once, starts a fresh Freeciv server session for each
+deterministic fixture, and merges the results into one JSON bundle. This keeps
+world-scoped effects from leaking across fixtures while individual parity
+assertions never start their own native server process. The CI job caches the
+pinned source checkout and server build by Freeciv revision, runner platform,
+and build-profile version. A cold cache builds once; a warm cache skips the
+source fetch, build-tool installation, and native compilation while retaining
+the runner's source revision and binary-version validation.
+The current bundle contains 16 deterministic fixtures. It creates a controlled
+city and ground defender, then confirms
 that City Walls produce the reference `Defend_Bonus` of 150 (the normal city
 50 plus City Walls 100). It also fixes a three-player state, performs the
 c2c3 Diplomat `Establish Embassy Stay` action, confirms the resulting real
 embassy, and verifies the Technology Leakage research cost it enables. The
-same one-session bundle verifies c2c3's base and Electricity city-vision
+same bundle verifies c2c3's base and Electricity city-vision
 radius plus Apollo Program's `Reveal_Map` and Internet's `Reveal_Cities`
 effects. CivJS applies the two player knowledge effects at the source turn
 boundary, retaining fog of war and propagating knowledge through shared
@@ -110,9 +117,12 @@ vision. The same session also verifies Magellan's Expedition's `+50`
 `Veteran_Combat` effect on an eligible Sea unit. CivJS carries each unit's
 source-defined veteran profile through combat strength, movement, combat
 promotion, and useful worker activity rather than applying one generic
-experience table. This is a working differential-test foundation, not a whole-game
-certificate; new scenarios must cover the remaining action and turn-state
-matrices before a parity claim is justified.
+experience table. This is a sampled differential oracle, not a whole-game
+certificate. The strict action and surface matrices now pass, but the fixture
+corpus still does not compare every deterministic action sequence or full
+authoritative state after every turn. The C2C3 map-topology fixture, for
+example, compares the wrapped ISO-hex first-ring neighbor set rather than
+claiming identical terrain or resource generation.
 
 The same oracle bundle now includes a zero-movement self-detonation by a c2c3
 Nuclear on the ruleset's default ISO-hex map. It compares action success,

@@ -936,6 +936,42 @@ describe('CityManager', () => {
       expect(updatedCity!.id).toBe(city.id);
     });
 
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/server/cityturn.c:3746-3768
+     * @reference reference/freeciv/server/citytools.c:2978-2998
+     * @assertion A deterministic illness roll below the computed C2C3 risk removes exactly one citizen, records the plague turn, and recomputes the persisted illness state.
+     * @c2c3-surface random-systems
+     * @c2c3-surface-scenario turn
+     */
+    it('applies an authoritative C2C3 plague strike before city growth', async () => {
+      const illnessManager = new CityManager(
+        'illness-game',
+        mockDbProvider,
+        new EffectsManager('civ2civ3'),
+        {},
+        undefined,
+        undefined,
+        () => 0
+      );
+      illnessManager.setPlayerGovernmentProvider(() => 'despotism');
+      illnessManager.setMapManager(mockMapManager);
+      await illnessManager.initialize();
+      const plagueCity = await illnessManager.foundCity(20, 20, 'Plague City', 'player-123');
+      plagueCity.population = 10;
+      plagueCity.size = 10;
+      plagueCity.foodPerTurn = 0;
+      plagueCity.foodStock = 0;
+      plagueCity.pollution = 0;
+
+      await expect(illnessManager.processCityIllness(plagueCity.id, 17)).resolves.toBe(true);
+
+      expect(plagueCity.population).toBe(9);
+      expect(plagueCity.size).toBe(9);
+      expect(plagueCity.turnPlague).toBe(17);
+      expect(plagueCity.illness).toBeGreaterThan(0);
+    });
+
     it('activates the first queued item when the city is idle', async () => {
       city.currentProduction = null;
       city.productionType = null;
@@ -1012,6 +1048,8 @@ describe('CityManager', () => {
     });
 
     it('destroys a size-one city through the normal city-destruction path', async () => {
+      const resolver = jest.fn();
+      cityManager.setConquestTechnologyProvider(resolver);
       const captureResult = await cityManager.captureCity(city.id, 'player-456', 'unit-123');
 
       expect(captureResult).toEqual(
@@ -1022,6 +1060,7 @@ describe('CityManager', () => {
         })
       );
       expect(cityManager.getCity(city.id)).toBeUndefined();
+      expect(resolver).not.toHaveBeenCalled();
     });
 
     it('reports conquest ownership changes with the original owner and reason', async () => {
@@ -1041,6 +1080,40 @@ describe('CityManager', () => {
         'player-456',
         'conquest'
       );
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/server/citytools.c:2126-2129 unit_conquer_city()
+     * @reference reference/freeciv/server/techtools.c:1249-1329 steal_a_tech()
+     * @assertion A non-destroyed C2C3 conquest invokes the authoritative technology resolver before city ownership changes and reports the granted technology without making a failed resolver fatal.
+     * @c2c3-surface combat
+     * @c2c3-surface-scenario normal, boundary
+     */
+    it('resolves a C2C3 conquest technology before transferring the city', async () => {
+      city.population = 4;
+      const resolver = jest.fn(async () => {
+        expect(city.playerId).toBe('player-123');
+        return 'writing';
+      });
+      cityManager.setConquestTechnologyProvider(resolver);
+
+      await expect(cityManager.captureCity(city.id, 'player-456', 'unit-123')).resolves.toEqual(
+        expect.objectContaining({ success: true, conqueredTechnology: 'writing' })
+      );
+      expect(resolver).toHaveBeenCalledWith('player-456', 'player-123', expect.any(Function));
+    });
+
+    it('preserves the city conquest when its technology resolver has no grant', async () => {
+      city.population = 4;
+      cityManager.setConquestTechnologyProvider(async () => {
+        throw new Error('No eligible technology');
+      });
+
+      await expect(cityManager.captureCity(city.id, 'player-456', 'unit-123')).resolves.toEqual(
+        expect.objectContaining({ success: true, cityDestroyed: false })
+      );
+      expect(city.playerId).toBe('player-456');
     });
 
     /**

@@ -8,7 +8,7 @@
  * checkout. The script refuses an unpinned checkout: a result from a different
  * Freeciv revision must not be mistaken for c2c3 parity evidence.
  */
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -56,7 +56,7 @@ function collectFiles(directory, relativeDirectory = '') {
 
 const scenarios = readdirSync(scenariosDir)
   .filter(file => file.endsWith('.lua'))
-  .sort()
+  .sort((left, right) => left.localeCompare(right))
   .map(file => ({ name: basename(file, '.lua'), path: join(scenariosDir, file) }));
 
 if (argumentsList.includes('--list')) {
@@ -149,50 +149,69 @@ if (version.status !== 0 || !versionOutput.includes(`Freeciv version ${pinnedVer
 const tempDirectory = mkdtempSync(join(tmpdir(), 'civjs-freeciv-oracle-'));
 
 try {
-  const commands = [
-    'set aifill 1',
-    'set minplayers 0',
-    'set animals 0',
-    'start',
-    ...selectedScenarios.map(scenario => `lua unsafe-file ${scenario.path}`),
-    'quit',
-  ].join('\n');
-  const run = spawnSync(
-    binaryPath,
-    [
-      '--ruleset',
-      'civ2civ3',
-      '--Announce',
-      'none',
-      '--port',
-      port,
-      '--saves',
-      join(tempDirectory, 'saves'),
-    ],
-    {
-      input: `${commands}\n`,
-      encoding: 'utf8',
-      env: { ...process.env, FREECIV_DATA_PATH: dataPath },
-      timeout: 60_000,
-    }
-  );
-  const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
-
-  if (run.error) fail(run.error.message);
-  if (run.status !== 0) {
-    fail(`reference server exited with status ${run.status}.\n${failureOutput(output)}`);
-  }
-  if (/\blua error:/i.test(output)) {
-    fail(`reference server reported a Lua fixture error.\n${failureOutput(output)}`);
-  }
-
   const results = {};
-  for (const line of output.split(/\r?\n/)) {
-    const match = line.match(/CIVJS_ORACLE_RESULT\s+([a-z0-9_]+)=(-?\d+(?:\.\d+)?)/i);
-    if (!match) continue;
-    const [, key, value] = match;
-    if (key in results) fail(`oracle emitted duplicate result '${key}'.`);
-    results[key] = Number(value);
+
+  // Some c2c3 effects retain world state after their source is destroyed.
+  // Start every fixture in a fresh server session so each observation sees its
+  // own controlled baseline, then merge their uniquely named results.
+  for (const scenario of selectedScenarios) {
+    const scenarioTempDirectory = join(tempDirectory, scenario.name);
+    mkdirSync(scenarioTempDirectory);
+    // Keep the spaceship fixture's baseline free of an unrelated filled AI
+    // player.
+    // Apollo is a world-ranged surviving wonder, so an automatically filled
+    // player can contaminate the "without Apollo" observation before the
+    // fixture creates its controlled player and city.
+    const hasIsolatedPlayerSetup = scenario.name === 'civ2civ3-spaceship-effects';
+    const commands = [
+      hasIsolatedPlayerSetup ? 'set aifill 0' : 'set aifill 1',
+      'set minplayers 0',
+      'set animals 0',
+      ...(hasIsolatedPlayerSetup ? ['create OracleBootstrap'] : []),
+      'start',
+      `lua unsafe-file ${scenario.path}`,
+      'quit',
+    ].join('\n');
+    const run = spawnSync(
+      binaryPath,
+      [
+        '--ruleset',
+        'civ2civ3',
+        '--Announce',
+        'none',
+        '--port',
+        port,
+        '--saves',
+        join(scenarioTempDirectory, 'saves'),
+      ],
+      {
+        input: `${commands}\n`,
+        encoding: 'utf8',
+        env: { ...process.env, FREECIV_DATA_PATH: dataPath },
+        timeout: 60_000,
+      }
+    );
+    const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
+
+    if (run.error) fail(`${scenario.name}: ${run.error.message}`);
+    if (run.status !== 0) {
+      fail(
+        `${scenario.name}: reference server exited with status ${run.status}.\n${failureOutput(output)}`
+      );
+    }
+    if (/\blua error:/i.test(output)) {
+      fail(
+        `${scenario.name}: reference server reported a Lua fixture error.\n${failureOutput(output)}`
+      );
+    }
+
+    for (const line of output.split(/\r?\n/)) {
+      const match = line.match(/CIVJS_ORACLE_RESULT\s+([a-z0-9_]+)=(-?\d+(?:\.\d+)?)/i);
+      if (!match) continue;
+      const [, key, value] = match;
+      if (key in results) fail(`oracle emitted duplicate result '${key}'.`);
+      results[key] = Number(value);
+    }
   }
 
   if (Object.keys(results).length === 0) {

@@ -91,6 +91,7 @@ import {
 } from '@game/services/CityTurnProcessingService';
 import { CityCalculationService } from '@game/services/CityCalculationService';
 import { CityHappinessService } from '@game/services/CityHappinessService';
+import { CityIllnessService, type CityIllnessResult } from '@game/services/CityIllnessService';
 import { CityOptimizationService } from '@game/services/CityOptimizationService';
 import {
   countSpaceshipPartCommitments,
@@ -111,6 +112,13 @@ export const GAME_MIN_CITYMINDIST = 1;
 export const GAME_MAX_CITYMINDIST = 11;
 
 export type AirliftDirection = 'from' | 'to';
+
+/** Grants an eligible victim technology after a successful city conquest. */
+export type ConquestTechnologyProvider = (
+  conquerorPlayerId: string,
+  victimPlayerId: string,
+  pickCandidateIndex: (candidateCount: number) => number
+) => Promise<string | undefined>;
 
 export interface AirliftAvailability {
   enabled: boolean;
@@ -208,6 +216,7 @@ export class CityManager {
   private governmentManager?: GovernmentManager;
   private calculationService: CityCalculationService;
   private happinessService: CityHappinessService;
+  private readonly illnessService: CityIllnessService;
   private playerGovernmentProvider?: (playerId: string) => string;
   private playerAIProvider: (playerId: string) => { isAI: boolean; aiLevel?: string } = () => ({
     isAI: false,
@@ -229,6 +238,7 @@ export class CityManager {
   private diplomaticStateProvider: (playerId: string, otherPlayerId: string) => Promise<string> =
     async () => 'no_contact';
   private unitSupportProvider: (city: CityState) => UnitSupportData[] = () => [];
+  private conquestTechnologyProvider?: ConquestTechnologyProvider;
   private mapChangedCallback?: (gameId: string, mapData: unknown) => void;
   private readonly unitSupportManager: UnitSupportManager;
   private readonly unitProductionValidation: UnitProductionValidationService;
@@ -271,6 +281,7 @@ export class CityManager {
     // ruleset instance so effects cannot diverge between subsystems.
     this.calculationService = new CityCalculationService(effectsManager);
     this.happinessService = new CityHappinessService(effectsManager);
+    this.illnessService = new CityIllnessService(effectsManager);
     this.happinessService.setPlayerCityCountProvider(
       playerId => this.getPlayerCities(playerId).length
     );
@@ -338,6 +349,16 @@ export class CityManager {
 
   public setUnitSupportProvider(provider: (city: CityState) => UnitSupportData[]): void {
     this.unitSupportProvider = provider;
+  }
+
+  /** Set the game-owned research resolver for city-conquest technology theft. */
+  public setConquestTechnologyProvider(provider?: ConquestTechnologyProvider): void {
+    this.conquestTechnologyProvider = provider;
+  }
+
+  /** Exposes the game-owned effect evaluator to AI and runtime controllers. */
+  public getEffectsManager(): EffectsManager {
+    return this.effectsManager;
   }
 
   /** Provide authoritative unit state for city-founding occupancy validation. */
@@ -451,7 +472,8 @@ export class CityManager {
       undefined,
       this.random,
       this.buildingTypes,
-      this.reconcileCitizenAssignments.bind(this)
+      this.reconcileCitizenAssignments.bind(this),
+      this.resolveConquestTechnology.bind(this)
     );
 
     this.citizenManagementService = CitizenManagementService.getInstance();
@@ -573,6 +595,7 @@ export class CityManager {
       applyCityHappiness: this.applyCityHappiness.bind(this),
       getPlayerGovernment: this.getPlayerGovernment.bind(this),
       checkPollution: this.checkPollution.bind(this),
+      processIllness: this.processCityIllness.bind(this),
       canCityContinueProduction: this.canCityContinueProduction.bind(this),
       forceGovernmentRevolution: async playerId => {
         await this.governmentManager?.overthrowGovernment(
@@ -736,6 +759,8 @@ export class CityManager {
       sciencePerTurn: 0, // Will be calculated
       history: 0, // Start with no culture history
       wasHappy: false,
+      illness: 0,
+      illnessTrade: 0,
       buildings: [],
       specialists: {
         [SpecialistType.SCIENTIST]: 0,
@@ -1637,6 +1662,67 @@ export class CityManager {
     return true;
   }
 
+  /**
+   * Recalculate the C2C3 illness risk and apply a plague strike before city
+   * growth. The random draw mirrors Freeciv's fc_rand(1000) illness check.
+   * @reference reference/freeciv/server/cityturn.c:3746-3768
+   * @reference reference/freeciv/server/cityturn.c:3885-3895
+   * @reference reference/freeciv/server/citytools.c:2978-2998
+   */
+  public async processCityIllness(cityId: string, currentTurn: number): Promise<boolean> {
+    const city = this.cities.get(cityId);
+    if (!city) return false;
+    if (!this.illnessService.isEnabled()) {
+      city.illness = 0;
+      city.illnessTrade = 0;
+      return true;
+    }
+
+    const illness = this.calculateCityIllness(cityId, currentTurn);
+    if (!illness) return false;
+    city.illness = illness.illness;
+    city.illnessTrade = illness.illnessTrade;
+    if (randomInt(this.random, 1000) >= illness.illness) return true;
+
+    if (city.population <= 1) {
+      await this.destroyCity(city.id);
+      return this.cities.has(city.id);
+    }
+
+    city.population -= 1;
+    city.size = city.population;
+    city.turnPlague = currentTurn;
+    if (!(await this.reconcileCitizenAssignments(city.id, 'plague'))) {
+      throw new Error(`Failed to reconcile citizens after plague in ${city.name}`);
+    }
+    const recalculated = this.calculateCityIllness(city.id, currentTurn);
+    if (recalculated) {
+      city.illness = recalculated.illness;
+      city.illnessTrade = recalculated.illnessTrade;
+    }
+    logger.info('City plague reduced population', {
+      gameId: this.gameId,
+      cityId: city.id,
+      playerId: city.playerId,
+      currentTurn,
+      population: city.population,
+    });
+    return true;
+  }
+
+  /** Calculates the packet-persisted C2C3 illness components for one city. */
+  public calculateCityIllness(cityId: string, currentTurn: number): CityIllnessResult | undefined {
+    const city = this.cities.get(cityId);
+    return city
+      ? this.illnessService.calculate(
+          city,
+          this.cities.values(),
+          currentTurn,
+          this.getCityEffectContext(city)
+        )
+      : undefined;
+  }
+
   private stableHash(value: string): number {
     let hash = 2166136261;
     for (let index = 0; index < value.length; index++) {
@@ -2127,6 +2213,55 @@ export class CityManager {
       this.callbacks.onCityCaptured?.(city, oldPlayerId);
     }
     return result;
+  }
+
+  /**
+   * Applies C2C3's Conquest_Tech_Pct effect without allowing a research
+   * failure to roll the already-valid city conquest back.
+   * @reference reference/freeciv/server/citytools.c:2126-2129
+   * @reference reference/freeciv/server/techtools.c:1234-1340
+   */
+  private async resolveConquestTechnology(
+    conquerorPlayerId: string,
+    victimPlayerId: string,
+    conquerorUnitId: string
+  ): Promise<string | undefined> {
+    const unit = this.unitProvider().get(conquerorUnitId);
+    const unitType = unit === undefined ? undefined : this.unitTypes[unit.unitTypeId];
+    const ai = this.playerAIProvider(conquerorPlayerId);
+    const chance = this.effectsManager.calculateEffect(EffectType.CONQUEST_TECH_PCT, {
+      playerId: conquerorPlayerId,
+      playerIsAI: ai.isAI,
+      aiLevel: ai.aiLevel,
+      unitId: conquerorUnitId,
+      unitType: unit?.unitTypeId,
+      unitTypeFlags: new Set(unitType?.flags ?? []),
+      playerTechs: new Set(this.playerTechsProvider(conquerorPlayerId)),
+      playerBuildings: new Set(this.playerBuildingsProvider(conquerorPlayerId)),
+    }).value;
+
+    // Keep the chance draw in the same position as Freeciv's fc_rand(100),
+    // including when the configured chance is zero.
+    if (randomInt(this.random, 100) >= chance || !this.conquestTechnologyProvider) {
+      return undefined;
+    }
+
+    try {
+      return await this.conquestTechnologyProvider(
+        conquerorPlayerId,
+        victimPlayerId,
+        candidateCount => randomInt(this.random, candidateCount)
+      );
+    } catch (error) {
+      logger.warn('Conquest technology resolution failed; preserving city capture', {
+        gameId: this.gameId,
+        conquerorPlayerId,
+        victimPlayerId,
+        conquerorUnitId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return undefined;
+    }
   }
 
   async transferCity(

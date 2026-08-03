@@ -2521,17 +2521,24 @@ describe('UnitManager', () => {
     });
 
     it('charges the ruleset attack movement cost instead of clearing excess movement', async () => {
+      const map = {
+        getTile: jest.fn(() => ({ terrain: 'ocean' })),
+      };
       const manager = new UnitManager(
         gameId,
         mockDbProvider,
         mapWidth,
         mapHeight,
+        map as any,
         undefined,
-        undefined,
-        new EffectsManager('civ2civ3')
+        new EffectsManager('civ2civ3'),
+        () => 0.99
       );
-      const attacker = await manager.createUnit('player-123', 'warriors', 10, 10);
-      const defender = await manager.createUnit('player-456', 'warriors', 11, 10);
+      // A Cruiser has fifteen C2C3 movement fragments, so nine is a valid
+      // post-movement state rather than an impossible over-cap test fixture.
+      // @reference reference/freeciv/data/civ2civ3/units.ruleset:2062-2071
+      const attacker = await manager.createUnit('player-123', 'cruiser', 10, 10);
+      const defender = await manager.createUnit('player-456', 'cruiser', 11, 10);
       attacker.movementLeft = 9;
 
       await manager.attackUnit(attacker.id, defender.id);
@@ -2669,6 +2676,42 @@ describe('UnitManager', () => {
         experienceGained: { attacker: 0, defender: 1 },
       });
       expect(deterministicManager.getUnit(defender.id)?.veteranLevel).toBe(1);
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/common/movement.c:49-95
+     * @reference reference/freeciv/server/unithand.c:5047-5105
+     * @reference reference/freeciv/data/civ2civ3/units.ruleset:157-165
+     * @assertion A damaged C2C3 DamageSlows defender recalculates its remaining movement after combat from current HP and persists that value.
+     * @c2c3-action Attack
+     * @c2c3-scenario normal
+     * @c2c3-surface combat
+     * @c2c3-surface-scenario normal
+     */
+    it('reconciles and persists a damaged C2C3 defender movement rate after combat', async () => {
+      const rolls = [...Array(6).fill(0.99), ...Array(10).fill(0)];
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        undefined,
+        undefined,
+        new EffectsManager('civ2civ3'),
+        () => rolls.shift() ?? 0,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      const attacker = await manager.createUnit('player-123', 'warriors', 10, 10);
+      const defender = await manager.createUnit('player-456', 'warriors', 11, 10);
+
+      const result = await manager.attackUnit(attacker.id, defender.id);
+
+      expect(result).toMatchObject({ attackerDestroyed: true, defenderDestroyed: false });
+      expect(manager.getUnit(defender.id)).toMatchObject({ health: 40, movementLeft: 2 });
+      expect((mockDbProvider.getDatabase() as any).set).toHaveBeenLastCalledWith(
+        expect.objectContaining({ health: 40, movementPoints: '2', movedThisTurn: false })
+      );
     });
 
     it('applies C2C3 tired attack from remaining movement fragments', async () => {
@@ -3498,6 +3541,15 @@ describe('UnitManager', () => {
       await unitManager.moveUnit(unitId, 11, 10);
     });
 
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/server/srv_main.c:1529-1548
+     * @reference reference/freeciv/server/unittools.c:482-545
+     * @reference reference/freeciv/server/unittools.c:662-669
+     * @assertion A C2C3 Warrior that consumed its movement during the prior player phase receives its full six movement fragments when Freeciv restores player units at the turn boundary.
+     * @c2c3-surface movement-transport
+     * @c2c3-surface-scenario turn
+     */
     it('should reset movement for player units', async () => {
       await unitManager.resetMovement('player-123');
 
@@ -3663,16 +3715,33 @@ describe('UnitManager', () => {
       );
     });
 
-    it('should heal fortified units', async () => {
-      const unit = unitManager.getUnit(unitId)!;
-      unit.health = 80;
-      unit.fortified = true;
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/server/unittools.c:482-545
+     * @reference reference/freeciv/server/unittools.c:626-654
+     * @reference reference/freeciv/common/unit.c:2247-2282
+     * @reference reference/freeciv/server/unittools.c:4141-4148
+     * @assertion At the C2C3 turn boundary, a damaged unit that moved in its prior player phase does not receive coordinate HP regeneration, while a stationary fortified unit does and both clear their persisted movement state.
+     * @c2c3-surface combat
+     * @c2c3-surface-scenario turn
+     */
+    it('gates unit regeneration on persisted turn movement', async () => {
+      const movedUnit = unitManager.getUnit(unitId)!;
+      movedUnit.health = 80;
+      movedUnit.fortified = true;
+      const stationaryUnit = await unitManager.createUnit('player-123', 'warriors', 12, 10);
+      stationaryUnit.health = 80;
+      stationaryUnit.fortified = true;
 
       await unitManager.resetMovement('player-123');
 
       // C2C3 base regeneration (10%) stacks with fortified regeneration
-      // (10%), both sourced from effects.json.
-      expect(unit.health).toBe(100);
+      // (10%), both sourced from effects.json, but only while stationary.
+      expect(movedUnit).toMatchObject({ health: 80, movedThisTurn: false });
+      expect(stationaryUnit).toMatchObject({ health: 100, movedThisTurn: false });
+      expect((mockDbProvider.getDatabase() as any).set).toHaveBeenLastCalledWith(
+        expect.objectContaining({ movedThisTurn: false })
+      );
     });
 
     it('retires an isolated age-five Barbarian unit through Retire_Pct', async () => {

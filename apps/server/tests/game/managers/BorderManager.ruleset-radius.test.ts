@@ -1,4 +1,5 @@
 import { BorderManager } from '@game/managers/BorderManager';
+import { EffectType } from '@game/managers/EffectsManager';
 
 describe('BorderManager C2C3 population-driven territory', () => {
   it('uses the configured C2C3 base radius plus the capped city-size effect', () => {
@@ -28,7 +29,10 @@ describe('BorderManager C2C3 population-driven territory', () => {
       ),
     };
     const effectsManager = {
-      calculateEffect: jest.fn(() => ({ value: 0, effects: [] })),
+      calculateEffect: jest.fn((effectType: EffectType) => ({
+        value: effectType === EffectType.TILE_CLAIMABLE ? 1 : 0,
+        effects: [],
+      })),
     };
     const manager = new BorderManager(
       mapManager as any,

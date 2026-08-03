@@ -52,6 +52,7 @@ export enum EffectType {
   UPKEEP_PCT = 'Upkeep_Pct',
   UNHAPPY_FACTOR = 'Unhappy_Factor',
   SHIELD2GOLD_PCT = 'Shield2Gold_Pct',
+  FANATICS = 'Fanatics',
 
   // Building and specialist effects
   SPECIALIST_OUTPUT = 'Specialist_Output',
@@ -79,6 +80,7 @@ export enum EffectType {
   POLLU_POP_PCT_2 = 'Pollu_Pop_Pct_2',
   POLLU_PROD_PCT = 'Pollu_Prod_Pct',
   GIVE_IMMEDIATE_TECH = 'Give_Imm_Tech',
+  CONQUEST_TECH_PCT = 'Conquest_Tech_Pct',
   TECH_PARASITE = 'Tech_Parasite',
   UNIT_VISION_RADIUS_SQ = 'Unit_Vision_Radius_Sq',
   CITY_VISION_RADIUS_SQ = 'City_Vision_Radius_Sq',
@@ -95,12 +97,14 @@ export enum EffectType {
   HP_REGEN = 'HP_Regen',
   MIN_HP_PCT = 'Min_HP_Pct',
   HP_REGEN_2 = 'HP_Regen_2',
+  HEALTH_PCT = 'Health_Pct',
   RETIRE_PCT = 'Retire_Pct',
   TECH_UPKEEP_FREE = 'Tech_Upkeep_Free',
   TECH_COST_FACTOR = 'Tech_Cost_Factor',
   TECH_LEAKAGE = 'Tech_Leakage',
   HAVE_CONTACTS = 'Have_Contacts',
   HAVE_EMBASSIES = 'Have_Embassies',
+  GAIN_AI_LOVE = 'Gain_AI_Love',
   BUILDING_BUY_COST_PCT = 'Building_Buy_Cost_Pct',
   AIRLIFT = 'Airlift',
   MOVE_BONUS = 'Move_Bonus',
@@ -136,6 +140,7 @@ export enum EffectType {
   // Border and vision effects related to culture
   BORDER_VISION = 'Border_Vision', // EFT_BORDER_VISION (136)
   BORDER_STRENGTH_PCT = 'Border_Strength_Pct', // EFT_BORDER_STRENGTH_PCT (154)
+  TILE_CLAIMABLE = 'Tile_Claimable', // EFT_TILE_CLAIMABLE
 
   // General effects
   ANY_GOVERNMENT = 'Any_Government',
@@ -189,6 +194,20 @@ export interface EffectContext {
   tileTerrainAlterations?: Set<string>;
   adjacentTerrainClasses?: Set<string>;
   adjacentTerrainFlags?: Set<string>;
+  /**
+   * Region facts for `TileRel` and `MaxRegionTiles` requirements. `tileRegionId`
+   * describes Freeciv's primary (candidate) context tile, while
+   * `sourceTileRegionId` describes its `other_context` source tile.
+   *
+   * @reference reference/freeciv/common/requirements.c:5110-5295
+   */
+  tileRegionId?: string;
+  sourceTileRegionId?: string;
+  tileRegionSize?: number;
+  tileSameRegionAdjacentCount?: number;
+  tileAdjacentRegionIds?: Set<string>;
+  tileRegionSurroundedBy?: string;
+  tileDistanceSqToSource?: number;
   tileExtras?: Set<string>;
   tileIsCityCenter?: boolean;
   maxUnitsOnTile?: number;
@@ -796,6 +815,18 @@ export class EffectsManager {
         req,
         this.setContains(context.tileTerrainAlterations, req.name)
       );
+    // Tile relationship and region-size requirements receive both the
+    // candidate tile and the source tile through EffectContext. This mirrors
+    // Freeciv's get_target_bonus_effects(context, other_context, ...) path
+    // used by map border claims.
+    // @reference reference/freeciv/common/requirements.c:5110-5295
+    this.requirementHandlers['TileRel'] = (req, context) =>
+      this.requirementResult('TileRel', req, this.getTileRelationValue(req, context));
+    // @reference reference/freeciv/common/requirements.c:6186-6310
+    this.requirementHandlers['MaxDistanceSq'] = (req, context) =>
+      this.requirementResult('MaxDistanceSq', req, this.getMaxDistanceSqValue(req, context));
+    this.requirementHandlers['MaxRegionTiles'] = (req, context) =>
+      this.requirementResult('MaxRegionTiles', req, this.getMaxRegionTilesValue(req, context));
     this.requirementHandlers['AI'] = (req, context) =>
       this.requirementResult(
         'AI',
@@ -906,6 +937,62 @@ export class EffectsManager {
         return context.unitHasHomeCity;
       case 'onnativetile':
         return context.unitIsOnNativeTile;
+      default:
+        return undefined;
+    }
+  }
+
+  private getTileRelationValue(req: Requirement, context: EffectContext): boolean | undefined {
+    const relation = this.normaliseRuleName(req.name);
+    const range = this.normaliseRuleName(req.range);
+    const tileRegionId = context.tileRegionId;
+    const sourceRegionId = context.sourceTileRegionId;
+
+    if (!tileRegionId || !sourceRegionId) return undefined;
+
+    switch (relation) {
+      case 'sameregion':
+        if (range === 'tile') return tileRegionId === sourceRegionId;
+        if (range === 'adjacent') {
+          return context.tileAdjacentRegionIds === undefined
+            ? undefined
+            : tileRegionId === sourceRegionId || context.tileAdjacentRegionIds.has(sourceRegionId);
+        }
+        return undefined;
+      case 'onlyotherregion':
+        if (range !== 'adjacent' || context.tileAdjacentRegionIds === undefined) {
+          return undefined;
+        }
+        return [...context.tileAdjacentRegionIds].every(
+          regionId => regionId === tileRegionId || regionId === sourceRegionId
+        );
+      case 'regionsurrounded':
+        return range === 'tile' ? context.tileRegionSurroundedBy === sourceRegionId : undefined;
+      default:
+        return undefined;
+    }
+  }
+
+  private getMaxDistanceSqValue(req: Requirement, context: EffectContext): boolean | undefined {
+    if (this.normaliseRuleName(req.range) !== 'tile') return undefined;
+    const maximum = Number(req.name);
+    if (!Number.isFinite(maximum) || context.tileDistanceSqToSource === undefined) {
+      return undefined;
+    }
+    return context.tileDistanceSqToSource <= maximum;
+  }
+
+  private getMaxRegionTilesValue(req: Requirement, context: EffectContext): boolean | undefined {
+    const maximum = Number(req.name);
+    if (!Number.isFinite(maximum)) return undefined;
+
+    switch (this.normaliseRuleName(req.range)) {
+      case 'continent':
+        return context.tileRegionSize === undefined ? undefined : context.tileRegionSize <= maximum;
+      case 'adjacent':
+        return context.tileSameRegionAdjacentCount === undefined
+          ? undefined
+          : context.tileSameRegionAdjacentCount <= maximum;
       default:
         return undefined;
     }

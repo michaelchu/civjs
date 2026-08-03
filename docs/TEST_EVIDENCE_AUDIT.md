@@ -1,16 +1,29 @@
 # Test Evidence Audit
 
-## Verdict
+## Current C2C3 evidence result (2026-08-03)
 
-**No — the current suite is not sufficient to claim that CivJS gameplay is
-fully in parity with the Freeciv reference.**
+**The mechanical C2C3 evidence certificate passes; a public whole-game parity
+claim remains unsupported.**
+
+`npm run certify:civ2civ3-parity` now reports 62/62 enabled actions (89
+enablers), 12/12 gameplay surfaces, 3/3 active script hooks, and 97/97 raw
+effect types with declared runtime handlers. The strict result validates source
+mappings and required scenario classes; it does not establish semantic
+equivalence for every branch or full turn sequence. The current audit, source
+references, native-fixture count, and known differences are maintained in
+[C2C3 Parity Audit](CIV2CIV3_PARITY_AUDIT.md).
+
+## Historical pre-certificate snapshot (superseded)
+
+**No — at this historical snapshot, the suite was not sufficient to claim that
+CivJS gameplay was fully in parity with the Freeciv reference.**
 
 This is a completed classification audit of every supported gameplay surface
 listed in [PORT_STATUS.md](PORT_STATUS.md). It classifies the strength of the
 existing evidence; it does not mistake broad feature coverage, source comments,
 or line coverage for a parity certificate.
 
-The current checked snapshot is:
+The historical checked snapshot was:
 
 | Measure                                    | Result                                                               |
 | ------------------------------------------ | -------------------------------------------------------------------- |
@@ -65,8 +78,8 @@ or a source citation that does not cover the test's actual assertion.
 | Browser rendering, controls, and freeciv-web behavior                  | The client preserves c2c3's ISO-hex and wrapping `MAP_INFO` flags against the freeciv-web source.                                                                                                                                          | Canvas, HUD, transport, store, and interaction tests are broad.                                                       | **Functional-only for rendering and controls.** The packet contract is source-backed, but it is not client-behavior certification.                             |
 | Ruleset baseline selection                                             | The exact c2c3 source tree and matching upstream Freeciv build are pinned; Core/Extended nation behavior is source-mapped.                                                                                                                 | Civ2Civ3 runtime and validation tests exist.                                                                          | **Partial.** The default target is correctly pinned, but much gameplay evidence remains CivJS-only rather than differential.                                   |
 
-No row is certified as complete reference parity. The phrase “full parity” is
-therefore not justified for the supported game as a whole.
+At that point no row was certified as complete reference parity. The phrase
+“full parity” was therefore not justified for the supported game as a whole.
 
 ## Representative parity ledger
 
@@ -106,7 +119,7 @@ directly specify:
 These tests are essential, but they answer “does the CivJS stack work?” rather
 than “does Freeciv produce the same gameplay outcome?”
 
-## Material audit findings
+## Historical audit findings
 
 1. **The default ruleset is now pinned, but the evidence has not caught up.**
    New games use civ2civ3 and the matching upstream Freeciv commit is recorded
@@ -138,21 +151,22 @@ than “does Freeciv produce the same gameplay outcome?”
    The 33 numbered entries in GAMEPLAY_GAPS.md informed this audit, but a
    resolved entry proves its reported symptom is covered, not that the entire
    surrounding Freeciv subsystem is equivalent.
-8. **The remaining gaps are now mechanically visible.**
+8. **The remaining gaps were mechanically visible.**
    `npm run audit:civ2civ3-parity` derives the c2c3 action matrix and effect
-   inventory from the checked-in ruleset. It currently reports incomplete
-   action scenarios and raw effects without declared runtime handlers. The strict
-   certificate command remains red until those categories are resolved.
+   inventory from the checked-in ruleset. It reported incomplete action
+   scenarios and raw effects without declared runtime handlers. The strict
+   certificate command was red until those categories were resolved.
 9. **Ruleset scripts are a separate source surface.** The c2c3-local
    `script.lua` only creates visual Ruins and map labels; the inherited
    `default/default.lua` also controls huts, partisans, and notifications.
    The converter does not execute Lua, so the gameplay callbacks must be
    covered in their corresponding action and gameplay-surface scenarios.
 
-## Standard required for a parity certificate
+## Standard for a public whole-game parity claim
 
-Do not restore a repository-wide full-parity claim until all of the following
-are true for the selected civ2civ3 baseline:
+The mechanical evidence certificate now passes. Do not restore a repository-
+wide full-parity claim until all of the following are true for the selected
+civ2civ3 baseline:
 
 1. A generated or golden-data check compares every consumed ruleset entity,
    effect, and active gameplay script against the checked-in Freeciv source,

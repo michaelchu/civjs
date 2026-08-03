@@ -532,6 +532,7 @@ export class UnitManager {
         rangedStrength: unitType.range > 1 ? unitType.combat : 0,
         movementPoints: initialMovementPoints.toString(),
         maxMovementPoints: movementPoints.toString(),
+        movedThisTurn: false,
         fuel: unitType.fuel ?? 0,
         veteranLevel,
         homeCityId,
@@ -550,6 +551,7 @@ export class UnitManager {
       x,
       y,
       movementLeft: initialMovementPoints,
+      movedThisTurn: false,
       fuel: unitType.fuel ?? 0,
       health: 100,
       veteranLevel,
@@ -813,6 +815,7 @@ export class UnitManager {
     unit.x = newX;
     unit.y = newY;
     unit.movementLeft = Math.max(0, unit.movementLeft - plan.effectiveMovementCost);
+    unit.movedThisTurn = true;
     unit.fortified = false;
     this.embarkUnit(unit, plan.embarkTransport);
     const cargo = this.moveCargo(unit, newX, newY);
@@ -1053,7 +1056,12 @@ export class UnitManager {
     await this.databaseProvider
       .getDatabase()
       .update(units)
-      .set({ x: unit.x, y: unit.y, movementPoints: unit.movementLeft.toString() })
+      .set({
+        x: unit.x,
+        y: unit.y,
+        movementPoints: unit.movementLeft.toString(),
+        movedThisTurn: unit.movedThisTurn ?? false,
+      })
       .where(eq(units.id, unitId));
   }
 
@@ -1372,6 +1380,8 @@ export class UnitManager {
     );
     const attackerStartingHealth = setup.attacker.health;
     const defenderStartingHealth = setup.defender.health;
+    const attackerMovesUsed = this.getMovesUsedBeforeCombat(setup.attacker, setup.attackerType);
+    const defenderMovesUsed = this.getMovesUsedBeforeCombat(setup.defender, setup.defenderType);
     while (setup.attacker.health > 0 && setup.defender.health > 0) {
       if (
         randomInt(
@@ -1391,7 +1401,31 @@ export class UnitManager {
       setup.attackerType,
       'Attack'
     );
-    setup.attacker.movementLeft = Math.max(0, setup.attacker.movementLeft - moveCost);
+    // DamageSlows can lower a unit's move rate during combat. Preserve the
+    // moves already spent, then reconcile both survivors against their new
+    // health-dependent maximums before applying the action's movement cost.
+    // @reference reference/freeciv/server/unithand.c:5047-5105
+    setup.attacker.movementLeft = Math.max(
+      0,
+      this.getUnitMovementPoints(
+        setup.attacker.playerId,
+        setup.attackerType,
+        setup.attacker.veteranLevel,
+        setup.attacker.health
+      ) -
+        attackerMovesUsed -
+        moveCost
+    );
+    setup.defender.movementLeft = Math.max(
+      0,
+      this.getUnitMovementPoints(
+        setup.defender.playerId,
+        setup.defenderType,
+        setup.defender.veteranLevel,
+        setup.defender.health
+      ) - defenderMovesUsed
+    );
+    setup.attacker.movedThisTurn = true;
     return {
       attackerDamage: attackerStartingHealth - setup.attacker.health,
       defenderDamage: defenderStartingHealth - setup.defender.health,
@@ -1440,21 +1474,28 @@ export class UnitManager {
         )
       : false;
     if (outcome.attackerDestroyed) await this.destroyUnit(setup.attackerId);
-    else await this.persistCombatUnit(setup.attackerId, setup.attacker, true);
-    if (!outcome.defenderDestroyed)
-      await this.persistCombatUnit(setup.defenderId, setup.defender, false);
+    else await this.persistCombatUnit(setup.attackerId, setup.attacker);
+    if (!outcome.defenderDestroyed) await this.persistCombatUnit(setup.defenderId, setup.defender);
     return { attacker: attackerPromoted ? 1 : 0, defender: defenderPromoted ? 1 : 0 };
   }
 
-  private async persistCombatUnit(unitId: string, unit: Unit, attacker: boolean): Promise<void> {
+  private getMovesUsedBeforeCombat(unit: Unit, unitType: UnitType): number {
+    return Math.max(
+      0,
+      this.getUnitMovementPoints(unit.playerId, unitType, unit.veteranLevel, unit.health) -
+        unit.movementLeft
+    );
+  }
+
+  private async persistCombatUnit(unitId: string, unit: Unit): Promise<void> {
     await this.databaseProvider
       .getDatabase()
       .update(units)
-      .set(
-        attacker
-          ? { health: unit.health, movementPoints: String(unit.movementLeft) }
-          : { health: unit.health }
-      )
+      .set({
+        health: unit.health,
+        movementPoints: String(unit.movementLeft),
+        movedThisTurn: unit.movedThisTurn ?? false,
+      })
       .where(eq(units.id, unitId));
   }
 
@@ -1909,6 +1950,16 @@ export class UnitManager {
         if (!(await this.restoreUnitFuel(unit, unitType))) {
           continue;
         }
+        // Freeciv applies coordinate regeneration only to a unit that did
+        // not move in the prior player phase, then clears the saved movement
+        // state for the next turn.
+        // @reference reference/freeciv/common/unit.c:2247-2282
+        // @reference reference/freeciv/server/unittools.c:626-654
+        if (this.effectsManager && unit.health < 100 && !unit.movedThisTurn) {
+          const { gain } = this.calculateUnitHitpointRecovery(unit);
+          unit.health = Math.min(100, unit.health + Math.max(0, gain));
+        }
+        unit.movedThisTurn = false;
         // Restore full movement points in fragments
         unit.movementLeft = this.getUnitMovementPoints(
           unit.playerId,
@@ -1916,11 +1967,6 @@ export class UnitManager {
           unit.veteranLevel,
           unit.health
         );
-
-        if (this.effectsManager && unit.health < 100) {
-          const { gain } = this.calculateUnitHitpointRecovery(unit);
-          unit.health = Math.min(100, unit.health + Math.max(0, gain));
-        }
       }
     }
 
@@ -1934,6 +1980,7 @@ export class UnitManager {
             movementPoints: unit.movementLeft.toString(),
             health: unit.health,
             fuel: unit.fuel,
+            movedThisTurn: false,
           })
           .where(eq(units.id, unit.id));
       }
@@ -2319,6 +2366,7 @@ export class UnitManager {
         parseFloat(dbUnit.movementPoints) || 0,
         this.getUnitMovementPoints(dbUnit.playerId, unitType, dbUnit.veteranLevel, dbUnit.health)
       ),
+      movedThisTurn: dbUnit.movedThisTurn,
       fuel: this.getLoadedFuel(dbUnit.fuel, unitType),
       health: dbUnit.health,
       veteranLevel: dbUnit.veteranLevel,
@@ -3135,6 +3183,7 @@ export class UnitManager {
     unit.automation = undefined;
     unit.automationTask = undefined;
     unit.movementLeft = 0;
+    unit.movedThisTurn = true;
     unit.fortified = false;
     await this.databaseProvider
       .getDatabase()
@@ -3148,6 +3197,7 @@ export class UnitManager {
         automationMode: null,
         automationTask: null,
         movementPoints: '0',
+        movedThisTurn: true,
         isFortified: false,
       })
       .where(eq(units.id, unitId));
@@ -3240,6 +3290,7 @@ export class UnitManager {
     unit.x = targetX;
     unit.y = targetY;
     unit.movementLeft = 0;
+    unit.movedThisTurn = true;
     unit.orders = [];
     unit.fortified = false;
     await this.databaseProvider
@@ -3249,6 +3300,7 @@ export class UnitManager {
         x: targetX,
         y: targetY,
         movementPoints: '0',
+        movedThisTurn: true,
         orders: [],
         currentOrder: null,
         isFortified: false,
@@ -4142,6 +4194,7 @@ export class UnitManager {
     await this.releaseTransportedUnit(unit);
     unit.x = x;
     unit.y = y;
+    unit.movedThisTurn = true;
     unit.fortified = false;
     unit.lastActionTurn = this.currentTurnProvider?.() ?? 1;
     await this.databaseProvider
@@ -4151,6 +4204,7 @@ export class UnitManager {
         transportedBy: null,
         x,
         y,
+        movedThisTurn: true,
         isFortified: false,
         lastActionTurn: this.currentTurnProvider?.() ?? 1,
       })
@@ -4311,6 +4365,7 @@ export class UnitManager {
     unit.x = targetX as number;
     unit.y = targetY as number;
     unit.movementLeft = 0;
+    unit.movedThisTurn = true;
     unit.fortified = false;
     await this.databaseProvider
       .getDatabase()
@@ -4320,6 +4375,7 @@ export class UnitManager {
         x: unit.x,
         y: unit.y,
         movementPoints: '0',
+        movedThisTurn: true,
         isFortified: false,
         lastActionTurn: this.currentTurnProvider?.() ?? 1,
       })
@@ -4989,6 +5045,7 @@ export class UnitManager {
     if (targetPosition) {
       unit.x = targetPosition.x;
       unit.y = targetPosition.y;
+      unit.movedThisTurn = true;
       unit.fortified = false;
     }
     await this.databaseProvider
@@ -4997,6 +5054,7 @@ export class UnitManager {
       .set({
         movementPoints: String(unit.movementLeft),
         lastActionTurn: this.currentTurnProvider?.() ?? 1,
+        ...(targetPosition ? { movedThisTurn: true } : {}),
         ...(targetPosition ? { x: unit.x, y: unit.y, isFortified: false } : {}),
       })
       .where(eq(units.id, unit.id));
@@ -6966,13 +7024,15 @@ export class UnitManager {
     y: number
   ): Promise<boolean> {
     const remainingMovement = this.getUnloadMovement(cargo, transport, x, y);
+    const disembarkedToAnotherTile = cargo.x !== x || cargo.y !== y;
     transport.cargoUnits = (transport.cargoUnits ?? []).filter(id => id !== cargo.id);
     cargo.transportedBy = undefined;
     cargo.x = x;
     cargo.y = y;
     cargo.movementLeft = remainingMovement;
+    if (disembarkedToAnotherTile) cargo.movedThisTurn = true;
 
-    await this.persistUnload(cargo.id, transport, x, y, remainingMovement);
+    await this.persistUnload(cargo, transport, x, y, remainingMovement);
     return true;
   }
 
@@ -7036,7 +7096,7 @@ export class UnitManager {
   }
 
   private async persistUnload(
-    unitId: string,
+    cargo: Unit,
     transport: Unit,
     x: number,
     y: number,
@@ -7046,8 +7106,14 @@ export class UnitManager {
       this.databaseProvider
         .getDatabase()
         .update(units)
-        .set({ transportedBy: null, x, y, movementPoints: String(movement) })
-        .where(eq(units.id, unitId)),
+        .set({
+          transportedBy: null,
+          x,
+          y,
+          movementPoints: String(movement),
+          movedThisTurn: cargo.movedThisTurn ?? false,
+        })
+        .where(eq(units.id, cargo.id)),
       this.databaseProvider
         .getDatabase()
         .update(units)

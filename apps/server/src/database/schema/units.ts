@@ -32,6 +32,7 @@ export const units = pgTable('units', {
   // Movement
   movementPoints: decimal('movement_points', { precision: 10, scale: 2 }).notNull(),
   maxMovementPoints: decimal('max_movement_points', { precision: 10, scale: 2 }).notNull(),
+  movedThisTurn: boolean('moved_this_turn').default(false).notNull(),
   // Null identifies units created before fueled-aircraft persistence was added;
   // recovery initializes those records from their ruleset maximum.
   fuel: integer('fuel'),

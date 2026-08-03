@@ -12,6 +12,7 @@ import { logger } from '@utils/logger';
 import type { MapManager } from '@game/managers/MapManager';
 import type { CityManager } from '@game/managers/CityManager';
 import { EffectsManager, EffectType, type EffectContext } from '@game/managers/EffectsManager';
+import type { MapData, TerrainType } from '@game/map/MapTypes';
 import {
   BORDERS_ENABLED,
   BORDER_DEFAULT_CITY_RADIUS_SQ,
@@ -37,6 +38,28 @@ interface BorderChangeCallbacks {
   onBorderSourceRemoved?: (x: number, y: number) => void;
 }
 
+/**
+ * Freeciv assigns a signed continent identifier to every connected land or
+ * ocean region, then derives lake/island surrounders from those regions.
+ * CivJS's persisted `continentId` only identifies land, so border claims keep
+ * an authoritative per-map cache that also includes ocean regions.
+ *
+ * @reference reference/freeciv/server/generator/mapgen_utils.c:235-350
+ */
+interface TerrainRegion {
+  id: string;
+  isOceanic: boolean;
+  size: number;
+  adjacentRegionIds: Set<string>;
+  surrounderId?: string;
+}
+
+interface TerrainRegionSnapshot {
+  mapData: MapData;
+  tileRegionIds: Map<string, string>;
+  regions: Map<string, TerrainRegion>;
+}
+
 export class BorderManager {
   private mapManager: MapManager;
   private cityManager: CityManager;
@@ -47,6 +70,7 @@ export class BorderManager {
   // Cached border data for performance
   private borderSources: Map<string, BorderSource> = new Map();
   private tileOwnership: Map<string, TileOwnership> = new Map();
+  private terrainRegions?: TerrainRegionSnapshot;
 
   constructor(
     mapManager: MapManager,
@@ -225,7 +249,7 @@ export class BorderManager {
       const sourceRadiusSq = this.getBorderSourceRadius(source);
       const withinRadius = distance <= sourceRadiusSq; // Compare squared distance with radius_sq directly
 
-      if (withinRadius) {
+      if (withinRadius && this.isTileClaimable(x, y, source)) {
         const tileStrength = this.getTileBorderStrength(x, y, source);
         debugInfo.push({
           sourcePos: { x: source.x, y: source.y },
@@ -322,7 +346,7 @@ export class BorderManager {
       const distance = this.getSquaredDistance(x, y, source.x, source.y);
       const sourceRadiusSq = this.getBorderSourceRadius(source);
 
-      if (distance <= sourceRadiusSq) {
+      if (distance <= sourceRadiusSq && this.isTileClaimable(x, y, source)) {
         // Compare squared distance with radius_sq directly
         sources.push(source);
       }
@@ -583,6 +607,11 @@ export class BorderManager {
       return { tiles: [], sources: [], removedSources: [], affectedPlayers: [] };
     }
 
+    // Terrain can change through climate and engineering. Rebuild the region
+    // cache with each full border pass so subsequent claims use the current
+    // Freeciv-style land/ocean topology.
+    this.terrainRegions = undefined;
+
     for (const source of this.borderSources.values()) {
       source.radius = this.getBorderSourceRadius(source);
       source.strength = this.getBorderSourceStrength(source);
@@ -684,6 +713,152 @@ export class BorderManager {
     return typeof borderSq === 'number' ? borderSq : 0;
   }
 
+  /**
+   * Apply C2C3's `Tile_Claimable` effect before a source can compete on
+   * border strength. A border source always owns its own tile.
+   *
+   * @reference reference/freeciv/server/maphand.c:2086-2104
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4626-4665
+   */
+  private isTileClaimable(x: number, y: number, source: BorderSource): boolean {
+    if (x === source.x && y === source.y) return true;
+
+    const context = this.getTileClaimContext(x, y, source);
+    if (!context) return false;
+
+    return this.effectsManager.calculateEffect(EffectType.TILE_CLAIMABLE, context).value > 0;
+  }
+
+  private getTileClaimContext(
+    x: number,
+    y: number,
+    source: BorderSource
+  ): EffectContext | undefined {
+    const tile = this.mapManager.getTile(x, y);
+    const sourceTile = this.mapManager.getTile(source.x, source.y);
+    const terrainRegions = this.getTerrainRegions();
+    if (!tile || !sourceTile || !terrainRegions) return undefined;
+
+    const tileRegionId = terrainRegions.tileRegionIds.get(this.getTileKey(x, y));
+    const sourceTileRegionId = terrainRegions.tileRegionIds.get(
+      this.getTileKey(source.x, source.y)
+    );
+    if (!tileRegionId || !sourceTileRegionId) return undefined;
+
+    const tileRegion = terrainRegions.regions.get(tileRegionId);
+    if (!tileRegion) return undefined;
+
+    const topology = this.getTopology();
+    const adjacentRegionIds = new Set<string>();
+    let sameRegionAdjacentCount = 1;
+    for (const adjacent of topology.getNeighbors(x, y)) {
+      const adjacentRegionId = terrainRegions.tileRegionIds.get(
+        this.getTileKey(adjacent.x, adjacent.y)
+      );
+      if (!adjacentRegionId) continue;
+      adjacentRegionIds.add(adjacentRegionId);
+      if (adjacentRegionId === tileRegionId) sameRegionAdjacentCount++;
+    }
+
+    return {
+      playerId: source.playerId,
+      tileX: x,
+      tileY: y,
+      tileTerrain: tile.terrain,
+      tileTerrainClass: this.isOceanicTerrain(tile.terrain) ? 'Oceanic' : 'Land',
+      tileExtras: new Set(tile.improvements),
+      tileIsCityCenter: Boolean(tile.cityId),
+      tileRegionId,
+      sourceTileRegionId,
+      tileRegionSize: tileRegion.size,
+      tileSameRegionAdjacentCount: sameRegionAdjacentCount,
+      tileAdjacentRegionIds: adjacentRegionIds,
+      tileRegionSurroundedBy: tileRegion.surrounderId,
+      tileDistanceSqToSource: this.getSquaredDistance(x, y, source.x, source.y),
+    };
+  }
+
+  private getTerrainRegions(): TerrainRegionSnapshot | undefined {
+    const mapData = this.mapManager.getMapData();
+    if (!mapData) return undefined;
+    if (this.terrainRegions?.mapData === mapData) return this.terrainRegions;
+
+    const tileRegionIds = new Map<string, string>();
+    const regions = new Map<string, TerrainRegion>();
+    const topology = this.getTopology();
+
+    for (let x = 0; x < mapData.width; x++) {
+      for (let y = 0; y < mapData.height; y++) {
+        const key = this.getTileKey(x, y);
+        const startTile = this.mapManager.getTile(x, y);
+        if (!startTile || tileRegionIds.has(key)) continue;
+
+        const isOceanic = this.isOceanicTerrain(startTile.terrain);
+        const regionId = `${isOceanic ? 'ocean' : 'land'}-${regions.size + 1}`;
+        const region: TerrainRegion = {
+          id: regionId,
+          isOceanic,
+          size: 0,
+          adjacentRegionIds: new Set(),
+        };
+        const pending = [{ x, y }];
+        tileRegionIds.set(key, regionId);
+
+        while (pending.length > 0) {
+          const position = pending.pop()!;
+          const tile = this.mapManager.getTile(position.x, position.y);
+          if (!tile) continue;
+          region.size++;
+
+          for (const adjacent of topology.getNeighbors(position.x, position.y)) {
+            const adjacentKey = this.getTileKey(adjacent.x, adjacent.y);
+            if (tileRegionIds.has(adjacentKey)) continue;
+            const adjacentTile = this.mapManager.getTile(adjacent.x, adjacent.y);
+            if (!adjacentTile || this.isOceanicTerrain(adjacentTile.terrain) !== isOceanic) {
+              continue;
+            }
+            tileRegionIds.set(adjacentKey, regionId);
+            pending.push(adjacent);
+          }
+        }
+
+        regions.set(regionId, region);
+      }
+    }
+
+    for (let x = 0; x < mapData.width; x++) {
+      for (let y = 0; y < mapData.height; y++) {
+        const regionId = tileRegionIds.get(this.getTileKey(x, y));
+        const region = regionId ? regions.get(regionId) : undefined;
+        if (!region) continue;
+
+        for (const adjacent of topology.getNeighbors(x, y)) {
+          const adjacentRegionId = tileRegionIds.get(this.getTileKey(adjacent.x, adjacent.y));
+          if (adjacentRegionId && adjacentRegionId !== regionId) {
+            region.adjacentRegionIds.add(adjacentRegionId);
+          }
+        }
+      }
+    }
+
+    for (const region of regions.values()) {
+      const oppositeRegions = [...region.adjacentRegionIds].filter(adjacentRegionId => {
+        const adjacentRegion = regions.get(adjacentRegionId);
+        return adjacentRegion !== undefined && adjacentRegion.isOceanic !== region.isOceanic;
+      });
+      if (oppositeRegions.length === 1) {
+        region.surrounderId = oppositeRegions[0];
+      }
+    }
+
+    this.terrainRegions = { mapData, tileRegionIds, regions };
+    return this.terrainRegions;
+  }
+
+  private isOceanicTerrain(terrain: TerrainType): boolean {
+    return rulesetLoader.getTerrain(terrain).properties?.MG_OCEAN_DEPTH !== undefined;
+  }
+
   private normalizeExtra(extraType?: string): string {
     return (extraType ?? '')
       .toLowerCase()
@@ -730,6 +905,7 @@ export class BorderManager {
   clearBorderData(): void {
     this.borderSources.clear();
     this.tileOwnership.clear();
+    this.terrainRegions = undefined;
     logger.info('Border data cleared');
   }
 }

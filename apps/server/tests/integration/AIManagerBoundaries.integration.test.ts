@@ -47,6 +47,13 @@ const validationSeeds = Array.from(
   (_, index) => `ai-validation-${String(validationSeedOffset + index + 1).padStart(2, '0')}`
 );
 const validationMaxTurns = Math.max(4, Number(process.env.AI_VALIDATION_MAX_TURNS ?? 8));
+const aiTurnProcessingBudgetMs = 15_000;
+// A validation case runs a complete, persisted terminal game. Give the whole
+// case room for shared CI database contention while keeping each turn bounded.
+const aiValidationScenarioTimeoutMs = 90_000;
+// The paired oracle runs three seeds in both starting positions: six complete
+// 12-turn games. Its timeout must cover that entire deterministic matrix.
+const aiPairedBenchmarkTimeoutMs = 600_000;
 const recoveryTurnsBySeed: Record<string, number> = {
   'ai-validation-01': 1,
   'ai-validation-13': 2,
@@ -247,6 +254,13 @@ describe('AI authoritative manager boundaries', () => {
   function prepareRoadableCityTile(game: GameInstance, cityId: string) {
     const city = game.cityManager.getCity(cityId);
     if (!city) throw new Error('Expected city');
+    const map = game.mapManager.getMapData();
+    if (!map) throw new Error('Expected generated map');
+    const mapWidth = map.tiles[0]?.length ?? 0;
+    const mapHeight = map.tiles.length;
+    const isInterior = (tile: { x: number; y: number }) =>
+      tile.x > 0 && tile.x < mapWidth - 1 && tile.y > 0 && tile.y < mapHeight - 1;
+    const isLand = (terrain: string) => !['ocean', 'coast', 'deep_ocean', 'lake'].includes(terrain);
     const candidates = (city.workableTiles ?? [])
       .map(workable => game.mapManager.getTile(workable.x, workable.y))
       .filter((tile): tile is NonNullable<typeof tile> =>
@@ -257,9 +271,10 @@ describe('AI authoritative manager boundaries', () => {
         )
       );
     const tile =
-      candidates.find(
-        candidate => !['ocean', 'coast', 'deep_ocean', 'lake'].includes(candidate.terrain)
-      ) ?? candidates[0];
+      candidates.find(candidate => isInterior(candidate) && isLand(candidate.terrain)) ??
+      candidates.find(isInterior) ??
+      candidates.find(candidate => isLand(candidate.terrain)) ??
+      candidates[0];
     if (!tile) throw new Error(`Expected a workable adjacent tile for city ${cityId}`);
 
     // The worker tests exercise activity execution rather than terrain
@@ -1167,7 +1182,10 @@ describe('AI authoritative manager boundaries', () => {
   });
 
   it('produces a terrain improver and completes a requested road through authoritative managers', async () => {
-    const scenario = await createActiveGame(2);
+    const scenario = await createActiveGame(2, {
+      mapSeed: 'ai-worker-lifecycle-01',
+      randomSeed: 0xc1f0_0201,
+    });
     const [host, guest] = scenario.players;
     // This scenario verifies the requested-work lifecycle, not threat
     // avoidance. Remove the opposing start stack so a nearby hostile cannot
@@ -1189,7 +1207,7 @@ describe('AI authoritative manager boundaries', () => {
       { aiLevel: 'normal' }
     );
 
-    const state = assertAIState(scenario.game.players.get(guest!.playerId)?.aiState);
+    let state = assertAIState(scenario.game.players.get(guest!.playerId)?.aiState);
     const target = prepareRoadableCityTile(scenario.game, city.id);
     city.currentProduction = null;
     city.productionType = null;
@@ -1198,12 +1216,20 @@ describe('AI authoritative manager boundaries', () => {
     city.workerTaskRequests = [
       { x: target.x, y: target.y, action: ActionType.BUILD_ROAD, want: 500 },
     ];
+    // This fixture exercises the ordinary Worker lifecycle. C2C3 Migrants
+    // require Pottery and may be chosen when a nation starts with it; remove
+    // that optional initial technology so the test does not conflate
+    // infrastructure automation with a population-consuming substitute.
+    // @reference reference/freeciv/data/civ2civ3/units.ruleset:526-567
+    // @reference reference/freeciv/data/civ2civ3/units.ruleset:573-601
+    await scenario.game.researchManager.revokeGrantedTechnology(guest!.playerId, 'pottery');
     const cityController = (gameManager as any).aiOrchestrator.playerController.city;
     await cityController.selectProduction(scenario.game, guest!.playerId, state);
 
     const workerType = scenario.game.unitManager.getUnitType(city.currentProduction!)!;
     expect(workerType.canBuildImprovements).toBe(true);
     expect(workerType.canFoundCity).toBe(false);
+    expect(workerType.id).toBe('worker');
     city.productionStock = workerType.cost;
     city.shieldStock = workerType.cost;
     await scenario.game.cityManager.processCityTurn(city.id, scenario.game.currentTurn);
@@ -1242,6 +1268,7 @@ describe('AI authoritative manager boundaries', () => {
     city = scenario.game.cityManager.getCity(city.id)!;
     worker = scenario.game.unitManager.getUnit(worker!.id)!;
     unitController = (gameManager as any).aiOrchestrator.playerController.units;
+    state = assertAIState(scenario.game.players.get(guest!.playerId)?.aiState);
 
     // Improvement duration is ruleset/tile dependent. Drive the authoritative
     // order processor until it completes, instead of assuming every road has
@@ -1256,6 +1283,9 @@ describe('AI authoritative manager boundaries', () => {
     const completed = scenario.game.mapManager.getTile(target.x, target.y)!;
     expect(completed.hasRoad).toBe(true);
     expect(completed.improvements).toContain('road');
+    // The worksite's test-only ownership normalization is not a border claim,
+    // so reapply it after recovery before asking the planner to rank it.
+    scenario.game.mapManager.updateTileProperty(target.x, target.y, 'owner', guest!.playerId);
 
     // Freeciv's autoworker prioritizes hazardous extras above ordinary yield
     // work. Reuse the produced worker to verify the authoritative cleanup
@@ -1791,10 +1821,10 @@ describe('AI authoritative manager boundaries', () => {
     expect(persistedCity?.buildings).toContain('pyramids');
   });
 
-  it('carries a C2C3 future-government plan through research and starts the unlocked revolution', async () => {
+  it('carries a C2C3 Republic plan through research and starts the unlocked revolution', async () => {
     const scenario = await createActiveGame(2);
     const [, guest] = scenario.players;
-    const city = await foundPlayerCity(scenario, guest!.playerId, 'AI Democracy City');
+    const city = await foundPlayerCity(scenario, guest!.playerId, 'AI Republic City');
     city.population = 10;
     city.size = 10;
     city.foodPerTurn = 10;
@@ -1812,7 +1842,13 @@ describe('AI authoritative manager boundaries', () => {
     for (const technology of ['alphabet', 'writing', 'code_of_laws']) {
       await scenario.game.researchManager.grantTechnology(guest!.playerId, technology);
     }
-    await scenario.game.researchManager.setCurrentResearch(guest!.playerId, 'pottery');
+    // C2C3 may have assigned Pottery as a source-selected initial technology,
+    // so retain a currently legal unknown research target for this fixture.
+    const initialResearch = scenario.game.researchManager.getAvailableTechnologies(
+      guest!.playerId
+    )[0];
+    expect(initialResearch).toBeDefined();
+    await scenario.game.researchManager.setCurrentResearch(guest!.playerId, initialResearch!.id);
     await gameManager.setPlayerAIControl(
       scenario.gameId,
       scenario.hostUserId,
@@ -1832,25 +1868,25 @@ describe('AI authoritative manager boundaries', () => {
     const state = assertAIState(scenario.game.players.get(guest!.playerId)?.aiState);
     const domestic = (gameManager as any).aiOrchestrator.playerController.domestic;
     await domestic.manageGovernment(scenario.game, guest!.playerId, state);
-    // C2C3's effect-driven ranking values Democracy ahead of Republic for
-    // this productive peace-time city.
-    // @reference reference/freeciv/data/civ2civ3/governments.ruleset:222-245
-    expect(state.techWants.democracy).toBeGreaterThan(0);
-    state.techWants.democracy = 1_000_000;
+    // C2C3 Tribal explicitly identifies Republic as its better government;
+    // Republic then requires The Republic technology.
+    // @reference reference/freeciv/data/civ2civ3/governments.ruleset:108-118
+    // @reference reference/freeciv/data/civ2civ3/governments.ruleset:359-365
+    expect(state.techWants.the_republic).toBeGreaterThan(0);
+    state.techWants.the_republic = 1_000_000;
     await domestic.selectResearch(scenario.game, guest!.playerId, state);
-    expect(scenario.game.researchManager.getPlayerResearch(guest!.playerId)).toMatchObject({
-      techGoal: 'democracy',
-    });
+    expect(scenario.game.researchManager.getPlayerResearch(guest!.playerId)?.currentTech).toBe(
+      'literacy'
+    );
 
-    await scenario.game.researchManager.grantTechnology(guest!.playerId, 'banking');
-    await scenario.game.researchManager.grantTechnology(guest!.playerId, 'invention');
-    await scenario.game.researchManager.grantTechnology(guest!.playerId, 'democracy');
+    await scenario.game.researchManager.grantTechnology(guest!.playerId, 'literacy');
+    await scenario.game.researchManager.grantTechnology(guest!.playerId, 'the_republic');
     scenario.game.currentTurn += 1;
     await domestic.manageGovernment(scenario.game, guest!.playerId, state);
 
     expect(scenario.game.governmentManager?.getPlayerGovernment(guest!.playerId)).toMatchObject({
       currentGovernment: 'anarchy',
-      requestedGovernment: 'democracy',
+      requestedGovernment: 'republic',
     });
     const persistedPlayer = await getTestDatabase().query.players.findFirst({
       where: eq(schema.players.id, guest!.playerId),
@@ -2020,7 +2056,7 @@ describe('AI authoritative manager boundaries', () => {
           const processingTurn = game.currentTurn;
           const startedAt = performance.now();
           await game.turnManager.processTurn();
-          expect(performance.now() - startedAt).toBeLessThan(15_000);
+          expect(performance.now() - startedAt).toBeLessThan(aiTurnProcessingBudgetMs);
           assertAIValidationInvariants(game);
           metrics.push(captureAIValidationMetrics(game));
           lastKnownGoodSnapshot = buildAIValidationReplayFingerprint(game);
@@ -2072,84 +2108,91 @@ describe('AI authoritative manager boundaries', () => {
       expect(metrics.every(point => point.players.every(player => player.units >= 0))).toBe(true);
       assertAIValidationMetricBaseline(metrics, aiValidationBaseline);
       assertAIValidationInvariants(game);
-    }
+    },
+    aiValidationScenarioTimeoutMs
   );
 
-  it('runs paired swapped-position AI benchmarks through authoritative terminal games', async () => {
-    async function runLeg(
-      mapSeed: string,
-      firstLevel: 'easy' | 'hard',
-      secondLevel: 'easy' | 'hard'
-    ) {
-      const scenario = await createActiveGame(2, {
-        maxTurns: aiPairedBenchmarkBaseline.maxTurns,
-        victoryConditions: ['max_turns'],
-        mapSeed,
-        randomSeed: 0xc1f0_0000 + Number(mapSeed.slice(-2)),
-      });
-      const [first, second] = scenario.players;
-      await gameManager.setPlayerAIControl(
-        scenario.gameId,
-        scenario.hostUserId,
-        first!.playerId,
-        true,
-        { aiLevel: firstLevel }
-      );
-      await gameManager.setPlayerAIControl(
-        scenario.gameId,
-        scenario.hostUserId,
-        second!.playerId,
-        true,
-        { aiLevel: secondLevel }
-      );
-      const metrics = [];
-      while (scenario.game.state === 'active') {
-        await scenario.game.turnManager.processTurn();
-        assertAIValidationInvariants(scenario.game);
-        metrics.push(captureAIValidationMetrics(scenario.game));
+  it(
+    'runs paired swapped-position AI benchmarks through authoritative terminal games',
+    async () => {
+      async function runLeg(
+        mapSeed: string,
+        firstLevel: 'easy' | 'hard',
+        secondLevel: 'easy' | 'hard'
+      ) {
+        const scenario = await createActiveGame(2, {
+          maxTurns: aiPairedBenchmarkBaseline.maxTurns,
+          victoryConditions: ['max_turns'],
+          mapSeed,
+          randomSeed: 0xc1f0_0000 + Number(mapSeed.slice(-2)),
+        });
+        const [first, second] = scenario.players;
+        await gameManager.setPlayerAIControl(
+          scenario.gameId,
+          scenario.hostUserId,
+          first!.playerId,
+          true,
+          { aiLevel: firstLevel }
+        );
+        await gameManager.setPlayerAIControl(
+          scenario.gameId,
+          scenario.hostUserId,
+          second!.playerId,
+          true,
+          { aiLevel: secondLevel }
+        );
+        const metrics = [];
+        while (scenario.game.state === 'active') {
+          const startedAt = performance.now();
+          await scenario.game.turnManager.processTurn();
+          expect(performance.now() - startedAt).toBeLessThan(aiTurnProcessingBudgetMs);
+          assertAIValidationInvariants(scenario.game);
+          metrics.push(captureAIValidationMetrics(scenario.game));
+        }
+        return {
+          first: scoreAIValidationPlayer(metrics, first!.playerId),
+          second: scoreAIValidationPlayer(metrics, second!.playerId),
+        };
       }
-      return {
-        first: scoreAIValidationPlayer(metrics, first!.playerId),
-        second: scoreAIValidationPlayer(metrics, second!.playerId),
-      };
-    }
 
-    const seeds = Array.from(
-      { length: aiPairedBenchmarkBaseline.seedCount },
-      (_, index) => `ai-paired-benchmark-${String(index + 1).padStart(2, '0')}`
-    );
-    let hardTotal = 0;
-    let easyTotal = 0;
-    let hardWins = 0;
-    for (const mapSeed of seeds) {
-      const firstLeg = await runLeg(mapSeed, 'hard', 'easy');
-      gameManager.clearAllGames();
-      (GameManager as any).instance = null;
-      gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
-      const secondLeg = await runLeg(mapSeed, 'easy', 'hard');
-      const hardScore = firstLeg.first.total + secondLeg.second.total;
-      const easyScore = firstLeg.second.total + secondLeg.first.total;
-      hardTotal += hardScore;
-      easyTotal += easyScore;
-      hardWins += Number(
-        pairedBenchmarkWinner([
-          { ...firstLeg.first, total: hardScore },
-          { ...firstLeg.second, total: easyScore },
-        ]) === 'first'
+      const seeds = Array.from(
+        { length: aiPairedBenchmarkBaseline.seedCount },
+        (_, index) => `ai-paired-benchmark-${String(index + 1).padStart(2, '0')}`
       );
-      gameManager.clearAllGames();
-      (GameManager as any).instance = null;
-      gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
-    }
-    expect({ hardTotal, easyTotal, hardWins }).toEqual({
-      hardTotal: aiPairedBenchmarkBaseline.hardTotal,
-      easyTotal: aiPairedBenchmarkBaseline.easyTotal,
-      hardWins: aiPairedBenchmarkBaseline.hardWins,
-    });
-    // The frozen position-swapped aggregate above is the regression oracle.
-    // This short tactical opening intentionally does not prescribe a global
-    // difficulty ordering; focused AI tests cover level-specific behavior.
-  }, 120_000);
+      let hardTotal = 0;
+      let easyTotal = 0;
+      let hardWins = 0;
+      for (const mapSeed of seeds) {
+        const firstLeg = await runLeg(mapSeed, 'hard', 'easy');
+        gameManager.clearAllGames();
+        (GameManager as any).instance = null;
+        gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
+        const secondLeg = await runLeg(mapSeed, 'easy', 'hard');
+        const hardScore = firstLeg.first.total + secondLeg.second.total;
+        const easyScore = firstLeg.second.total + secondLeg.first.total;
+        hardTotal += hardScore;
+        easyTotal += easyScore;
+        hardWins += Number(
+          pairedBenchmarkWinner([
+            { ...firstLeg.first, total: hardScore },
+            { ...firstLeg.second, total: easyScore },
+          ]) === 'first'
+        );
+        gameManager.clearAllGames();
+        (GameManager as any).instance = null;
+        gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
+      }
+      expect({ hardTotal, easyTotal, hardWins }).toEqual({
+        hardTotal: aiPairedBenchmarkBaseline.hardTotal,
+        easyTotal: aiPairedBenchmarkBaseline.easyTotal,
+        hardWins: aiPairedBenchmarkBaseline.hardWins,
+      });
+      // The frozen position-swapped aggregate above is the regression oracle.
+      // This short tactical opening intentionally does not prescribe a global
+      // difficulty ordering; focused AI tests cover level-specific behavior.
+    },
+    aiPairedBenchmarkTimeoutMs
+  );
 
   it('replays the same seeded terminal configuration with the same authoritative outcome', async () => {
     async function runReplay(gameSeed: string): Promise<string> {

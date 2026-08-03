@@ -1,11 +1,12 @@
 -- Deterministic c2c3 fixture for the world effect that enables spaceship
--- construction. It runs in the existing batched native-server
--- process, so no individual Jest test needs to start Freeciv.
+-- construction. The runner gives it an isolated native-server process, then
+-- merges its results into the batch so no individual Jest test starts Freeciv.
 --
 -- @reference reference/freeciv/data/civ2civ3/effects.ruleset:2907-2913
 
--- The batch already contains a randomly selected AI player. Let Freeciv pick
--- a compatible nation; no result below depends on nation.
+-- The runner provides one controlled bootstrap player for the game to start,
+-- without filling it with an unrelated AI player. Let Freeciv pick a compatible
+-- nation for this fixture too; no result below depends on nation.
 local owner = edit.create_player("Spaceship Oracle", nil, nil)
 assert(owner, "Could not create c2c3 spaceship fixture player")
 

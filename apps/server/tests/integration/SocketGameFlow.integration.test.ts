@@ -203,9 +203,17 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     const combatTarget = { x: moveTarget.x + 1, y: moveTarget.y };
     // Map generation is intentionally variable; pin only the two tiles this
     // transport-boundary movement assertion needs.
-    map.tiles[unitStart.x][unitStart.y].terrain = 'grassland';
-    map.tiles[moveTarget.x][moveTarget.y].terrain = 'grassland';
-    map.tiles[combatTarget.x][combatTarget.y].terrain = 'grassland';
+    // Clear generated extras as well: a goody hut on the movement target would
+    // legitimately award random gold and contaminate the initial treasury
+    // snapshot below.
+    for (const tilePosition of [unitStart, moveTarget, combatTarget]) {
+      const tile = map.tiles[tilePosition.x][tilePosition.y];
+      tile.terrain = 'grassland';
+      tile.resource = undefined;
+      tile.improvements = [];
+      tile.riverMask = 0;
+      tile.hasRoad = false;
+    }
     expect(getTerrainMovementCost(map.tiles[moveTarget.x][moveTarget.y].terrain, 'warriors')).toBe(
       SINGLE_MOVE
     );

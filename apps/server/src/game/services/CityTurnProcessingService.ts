@@ -56,6 +56,9 @@ export interface CityState {
   sciencePerTurn?: number;
   goldPerTurn?: number;
   luxuryPerTurn?: number;
+  illness?: number;
+  illnessTrade?: number;
+  turnPlague?: number;
   wasHappy?: boolean;
   disorderTurns?: number;
   history: number;
@@ -152,6 +155,8 @@ export interface CityTurnProcessingDependencies {
   applyCityHappiness?: (cityId: string) => void;
   getPlayerGovernment?: (playerId: string) => string;
   checkPollution: (cityId: string, currentTurn: number) => Promise<boolean>;
+  /** Recalculate and resolve C2C3 illness before food and growth. */
+  processIllness?: (cityId: string, currentTurn: number) => Promise<boolean>;
   canCityContinueProduction?: (cityId: string, kind: 'unit' | 'building', value: string) => boolean;
   forceGovernmentRevolution?: (playerId: string) => Promise<void>;
   reconcileCitizenAssignments: (cityId: string, reason: string) => Promise<boolean>;
@@ -264,6 +269,10 @@ export class CityTurnProcessingService extends BaseGameService {
     recordStep('happiness');
     this.dependencies.callbacks.onCityTurnProcessed?.(city);
     recordStep('callbacks');
+    const citySurvivedIllness =
+      (await this.dependencies.processIllness?.(cityId, currentTurn)) ?? true;
+    recordStep('illness');
+    if (!citySurvivedIllness || !this.dependencies.cities.has(cityId)) return;
     await this.processFoodAndGrowth(city, currentTurn);
     recordStep('food_growth');
     if (!this.dependencies.cities.has(cityId)) return;

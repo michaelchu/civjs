@@ -20,15 +20,19 @@ limited to C2C3.
 
 ## Evidence status
 
-The runtime has broad functional coverage and source-mapped tests across the
-core gameplay domains. Differential fixtures use one native Freeciv server
-session as an oracle, so they remain practical in CI. This is not yet a claim
-of complete whole-game parity: every surface still needs sufficient
-source-backed normal, rejected, boundary, turn-state, and differential cases.
+The strict C2C3 evidence certificate currently passes: all 62 enabled actions
+(89 enablers), all 12 gameplay surfaces, all 3 active script hooks, and all 97
+raw effect types meet its source-backed coverage requirements. Differential
+fixtures use one native Freeciv server session as an oracle, so they remain
+practical in CI. This remains short of a public complete whole-game parity
+claim: the certificate validates required evidence shape, while native
+fixtures and simplified default-AI behavior do not yet prove every semantic
+branch or full turn-state sequence.
 
-The current evidence classification and remaining proof gaps are maintained in
-[Test Evidence Audit](TEST_EVIDENCE_AUDIT.md). Concrete implementation gaps
-belong in [Gameplay Gaps](GAMEPLAY_GAPS.md).
+The current evidence classification, source mappings, and known limitations
+are maintained in [C2C3 Parity Audit](CIV2CIV3_PARITY_AUDIT.md). The historical
+pre-certificate assessment remains in [Test Evidence Audit](TEST_EVIDENCE_AUDIT.md).
+Concrete implementation gaps belong in [Gameplay Gaps](GAMEPLAY_GAPS.md).
 
 ## Intentional exclusions
 
@@ -47,7 +51,7 @@ npm run test:integration
 npm run test:e2e
 ```
 
-Use `npm run check:civ2civ3-oracle` when changing a covered differential
-surface. The non-strict metadata audit runs in CI; the strict certificate
-command remains intentionally blocked until the audit reports no missing
-evidence.
+Use `npm run check:civ2civ3-oracle` in a configured native Freeciv environment
+when changing a covered differential surface. The non-strict metadata audit
+runs in CI; run `npm run certify:civ2civ3-parity` for the strict C2C3 evidence
+certificate.
