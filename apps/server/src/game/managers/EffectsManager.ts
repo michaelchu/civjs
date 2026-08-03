@@ -109,6 +109,8 @@ export enum EffectType {
   ACTION_SUCCESS_ACTOR_MOVE_COST = 'Action_Success_Actor_Move_Cost',
   ACTION_ODDS_PCT = 'Action_Odds_Pct',
   BUILDING_SABOTEUR_RESISTANT = 'Building_Saboteur_Resistant',
+  CASUS_BELLI_CAUGHT = 'Casus_Belli_Caught',
+  CASUS_BELLI_SUCCESS = 'Casus_Belli_Success',
   SPY_RESISTANT = 'Spy_Resistant',
   CIVIL_WAR_CHANCE = 'Civil_War_Chance',
   CIVIL_WAR_CITY_BONUS = 'Civil_War_City_Bonus',

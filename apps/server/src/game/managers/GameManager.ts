@@ -24,7 +24,7 @@ import type { NuclearPresentationEvent } from '@app-types/presentation';
 // Keep existing imports for delegation
 import type { CityState } from '@game/cities/CityTypes';
 import { MapManager } from '@game/managers/MapManager';
-import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
+import { EffectsManager, EffectType, type EffectContext } from '@game/managers/EffectsManager';
 import type { ResearchDiplomacyState, ResearchManager } from '@game/managers/ResearchManager';
 import type { Unit } from '@game/units/UnitTypes';
 import {
@@ -667,7 +667,7 @@ export class GameManager {
     await this.diplomacyManager.establishContact(gameId, playerId, targetOwnerId);
     const relation = await this.getDiplomaticState(gameId, playerId, targetOwnerId);
     const theftCount = game.cityManager.getEspionageTheftCount?.(city.id, playerId) ?? 0;
-    const sourceAction = this.getDiplomatActionMoveCostSource(
+    const sourceAction = this.getDiplomatActionSource(
       actionType,
       unitFlags,
       requestedTechnologyId,
@@ -699,6 +699,19 @@ export class GameManager {
       };
       actorSurvives = resolved.actorSurvives;
       if (resolved.success) return null;
+      await this.recordActionCasusBelli(
+        gameId,
+        game,
+        unit,
+        targetOwnerId,
+        sourceAction,
+        'caught',
+        relation,
+        targetX,
+        targetY,
+        city,
+        AI_INCIDENT_SEVERITY[actionType] ?? 100
+      );
       await game.unitManager.removeUnit(unit.id);
       return {
         success: false,
@@ -904,20 +917,32 @@ export class GameManager {
       return { success: false, message: 'Unsupported diplomat action' };
     }
 
-    if (
-      result.success &&
-      [
-        ActionType.STEAL_TECH,
-        ActionType.SABOTAGE_CITY,
-        ActionType.SABOTAGE_CITY_PRODUCTION,
-        ActionType.POISON_WATER,
-        ActionType.INCITE_CITY,
-      ].includes(actionType)
-    ) {
-      await this.diplomacyManager.recordIncident(
+    if (result.success) {
+      await this.recordActionCasusBelli(
         gameId,
-        playerId,
+        game,
+        unit,
         targetOwnerId,
+        sourceAction,
+        'success',
+        relation,
+        targetX,
+        targetY,
+        city,
+        AI_INCIDENT_SEVERITY[actionType] ?? 100
+      );
+    } else if (result.unitDestroyed) {
+      await this.recordActionCasusBelli(
+        gameId,
+        game,
+        unit,
+        targetOwnerId,
+        sourceAction,
+        'caught',
+        relation,
+        targetX,
+        targetY,
+        city,
         AI_INCIDENT_SEVERITY[actionType] ?? 100
       );
     }
@@ -1058,14 +1083,19 @@ export class GameManager {
         resolution.actorVeteranChance
       );
       await game.unitManager.finishSpyAttack(actor.id);
-      if (relation !== 'war') {
-        await this.diplomacyManager.recordIncident(
-          gameId,
-          playerId,
-          defender.playerId,
-          AI_INCIDENT_SEVERITY[ActionType.SPY_ATTACK]
-        );
-      }
+      await this.recordActionCasusBelli(
+        gameId,
+        game,
+        actor,
+        defender.playerId,
+        'Spy Attack',
+        'success',
+        relation,
+        targetX,
+        targetY,
+        undefined,
+        AI_INCIDENT_SEVERITY[ActionType.SPY_ATTACK] ?? 100
+      );
       await this.refreshSharedVision(gameId);
       return {
         success: true,
@@ -1078,15 +1108,20 @@ export class GameManager {
       defender.id,
       resolution.defenderVeteranChance
     );
+    await this.recordActionCasusBelli(
+      gameId,
+      game,
+      actor,
+      defender.playerId,
+      'Spy Attack',
+      'caught',
+      relation,
+      targetX,
+      targetY,
+      undefined,
+      AI_INCIDENT_SEVERITY[ActionType.SPY_ATTACK] ?? 100
+    );
     await game.unitManager.removeUnit(actor.id);
-    if (relation !== 'war') {
-      await this.diplomacyManager.recordIncident(
-        gameId,
-        playerId,
-        defender.playerId,
-        AI_INCIDENT_SEVERITY[ActionType.SPY_ATTACK]
-      );
-    }
     await this.refreshSharedVision(gameId);
     return {
       success: false,
@@ -1181,9 +1216,11 @@ export class GameManager {
       return { success: false, message: 'An adjacent, single foreign unit is required' };
     }
     const target = targets[0]!;
+    const targetOwnerId = target.playerId;
     const targetType = this.getGameUnitType(game, target.unitTypeId);
-    await this.diplomacyManager.establishContact(gameId, playerId, target.playerId);
-    const relation = await this.getDiplomaticState(gameId, playerId, target.playerId);
+    const sourceAction = actionType === ActionType.BRIBE_UNIT ? 'Bribe Unit' : 'Sabotage Unit';
+    await this.diplomacyManager.establishContact(gameId, playerId, targetOwnerId);
+    const relation = await this.getDiplomaticState(gameId, playerId, targetOwnerId);
     let result: ActionResult;
     let actorSurvives = actorFlags.includes('Spy');
     const attemptMission = async (): Promise<ActionResult | null> => {
@@ -1197,6 +1234,19 @@ export class GameManager {
       };
       actorSurvives = resolution.actorSurvives;
       if (resolution.success) return null;
+      await this.recordActionCasusBelli(
+        gameId,
+        game,
+        actor,
+        targetOwnerId,
+        sourceAction,
+        'caught',
+        relation,
+        targetX,
+        targetY,
+        undefined,
+        AI_INCIDENT_SEVERITY[actionType] ?? 100
+      );
       await game.unitManager.removeUnit(actor.id);
       return {
         success: false,
@@ -1272,10 +1322,17 @@ export class GameManager {
       };
     }
 
-    await this.diplomacyManager.recordIncident(
+    await this.recordActionCasusBelli(
       gameId,
-      playerId,
-      target.playerId,
+      game,
+      actor,
+      targetOwnerId,
+      sourceAction,
+      'success',
+      relation,
+      targetX,
+      targetY,
+      undefined,
       AI_INCIDENT_SEVERITY[actionType] ?? 100
     );
     if (!actorSurvives) {
@@ -1301,6 +1358,54 @@ export class GameManager {
     return (
       snapshot.nations.find(nation => nation.id === otherPlayerId)?.relation.state ?? 'no_contact'
     );
+  }
+
+  /**
+   * Evaluate the concrete action outcome against the active ruleset before
+   * persisting the victim's treaty-cancellation reason. This keeps C2C3's
+   * action-specific Casus_Belli effects separate from CivJS's AI severity
+   * model.
+   *
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3985-4165
+   * @reference reference/freeciv/common/player.c:1652-1689
+   * @reference reference/freeciv/server/actiontools.c:115-203
+   */
+  private async recordActionCasusBelli(
+    gameId: string,
+    game: GameInstance,
+    actor: Unit,
+    victimId: string,
+    sourceAction: string,
+    outcome: 'success' | 'caught',
+    relation: string,
+    targetX: number,
+    targetY: number,
+    city: CityState | null | undefined,
+    severity: number
+  ): Promise<void> {
+    const actorType = this.getGameUnitType(game, actor.unitTypeId);
+    const context: EffectContext = {
+      playerId: actor.playerId,
+      action: sourceAction,
+      unitId: actor.id,
+      unitType: actor.unitTypeId,
+      unitClass: actorType?.rulesetUnitClass,
+      unitClassFlags: new Set(actorType?.rulesetUnitClassFlags ?? []),
+      unitTypeFlags: new Set(actorType?.flags ?? []),
+      tileX: targetX,
+      tileY: targetY,
+      cityId: city?.id,
+      cityBuildings: new Set(city?.buildings ?? []),
+      cityPopulation: city?.size,
+      tileIsCityCenter: Boolean(city),
+      diplomaticRelations: new Set(relation === 'war' ? ['Foreign', 'War'] : ['Foreign']),
+    };
+    await this.diplomacyManager.recordActionCasusBelli(gameId, actor.playerId, victimId, {
+      sourceAction,
+      outcome,
+      context,
+      severity,
+    });
   }
 
   /**
@@ -1337,22 +1442,23 @@ export class GameManager {
   }
 
   /**
-   * Preserve the concrete C2C3 action identity through to UnitManager so
-   * source-defined Action_Success_Actor_Move_Cost effects are applied rather
-   * than treating every surviving diplomat mission as a full-turn action.
+   * Preserve the concrete C2C3 action identity through to both the movement
+   * cost and Casus_Belli effect consumers, rather than collapsing every
+   * diplomatic mission into its UI action type.
    *
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3985-4165
    * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4437-4532
    */
-  private getDiplomatActionMoveCostSource(
+  private getDiplomatActionSource(
     actionType: ActionType,
     unitFlags: string[],
     requestedTechnologyId?: string,
     requestedBuildingId?: string
-  ): string | undefined {
+  ): string {
     const isSpy = unitFlags.includes('Spy');
     switch (actionType) {
       case ActionType.ESTABLISH_EMBASSY:
-        return isSpy ? 'Establish Embassy' : undefined;
+        return isSpy ? 'Establish Embassy' : 'Establish Embassy Stay';
       case ActionType.INVESTIGATE_CITY:
         return 'Investigate City';
       case ActionType.STEAL_TECH:
@@ -1360,21 +1466,21 @@ export class GameManager {
           ? requestedTechnologyId === undefined
             ? 'Steal Tech Escape Expected'
             : 'Targeted Steal Tech Escape Expected'
-          : undefined;
+          : 'Steal Tech';
       case ActionType.SABOTAGE_CITY:
         return isSpy
           ? requestedBuildingId === undefined
             ? 'Sabotage City Escape'
             : 'Targeted Sabotage City Escape'
-          : undefined;
+          : 'Sabotage City';
       case ActionType.SABOTAGE_CITY_PRODUCTION:
         return 'Sabotage City Production Escape';
       case ActionType.POISON_WATER:
         return 'Poison City Escape';
       case ActionType.INCITE_CITY:
-        return isSpy ? 'Incite City Escape' : undefined;
+        return isSpy ? 'Incite City Escape' : 'Incite City';
       default:
-        return undefined;
+        return actionType;
     }
   }
 
@@ -1686,6 +1792,27 @@ export class GameManager {
       (playerId, unitId, actionType, targetX, targetY) =>
         this.executeDiplomatAction(gameId, playerId, unitId, actionType, targetX, targetY)
     );
+    gameInstance.unitManager.setNuclearActionConsequenceCallback(async event => {
+      if (!event.targetPlayerId) return;
+      const relation = await this.getDiplomaticState(
+        gameId,
+        event.actor.playerId,
+        event.targetPlayerId
+      );
+      await this.recordActionCasusBelli(
+        gameId,
+        gameInstance,
+        event.actor,
+        event.targetPlayerId,
+        event.action,
+        event.outcome,
+        relation,
+        event.targetX,
+        event.targetY,
+        undefined,
+        100
+      );
+    });
     gameInstance.cityManager.setCallbacks({
       onCityDestroyed: async city => {
         this.aiOrchestrator.onCityInvalidated(gameId, gameInstance, city.id);

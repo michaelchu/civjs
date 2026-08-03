@@ -152,6 +152,20 @@ export interface DiplomacyReplayEvent {
   scope?: DiplomacyEvent['scope'];
 }
 
+/**
+ * The outcome-specific action context Freeciv uses to decide whether an
+ * action gives its victim a reason to cancel a treaty.
+ *
+ * @reference reference/freeciv/common/player.c:1652-1689
+ * @reference reference/freeciv/server/actiontools.c:115-203
+ */
+export interface ActionCasusBelliInput {
+  sourceAction: string;
+  outcome: 'success' | 'caught';
+  context: EffectContext;
+  severity?: number;
+}
+
 export function toDiplomacyReplayEvent(event: DiplomacyEvent): DiplomacyReplayEvent {
   return {
     type: event.type,
@@ -971,6 +985,35 @@ export class DiplomacyManager {
         message: `${offender.leaderName} caused a diplomatic incident against ${victim.leaderName}.`,
       });
     });
+  }
+
+  /**
+   * Apply a ruleset-defined Casus_Belli outcome before recording CivJS's
+   * persistent victim-only diplomatic consequence. C2C3 defines these effects
+   * per concrete action, rather than treating every covert action alike.
+   *
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3985-4165
+   * @reference reference/freeciv/common/player.c:1652-1689
+   * @reference reference/freeciv/server/actiontools.c:115-203
+   */
+  async recordActionCasusBelli(
+    gameId: string,
+    offenderId: string,
+    victimId: string,
+    input: ActionCasusBelliInput
+  ): Promise<boolean> {
+    if (offenderId === victimId) return false;
+    const effectType =
+      input.outcome === 'success' ? EffectType.CASUS_BELLI_SUCCESS : EffectType.CASUS_BELLI_CAUGHT;
+    const effect = this.getEffectsManager(gameId).calculateEffect(effectType, {
+      ...input.context,
+      playerId: offenderId,
+      action: input.sourceAction,
+    });
+    if (effect.value < 1) return false;
+
+    await this.recordIncident(gameId, offenderId, victimId, input.severity);
+    return true;
   }
 
   private applyClauses(

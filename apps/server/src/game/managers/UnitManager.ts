@@ -165,7 +165,21 @@ interface RulesetWorkerActionEvaluation {
   improvementType?: string;
 }
 
-type NuclearSourceAction = 'Explode Nuclear' | 'Nuke City' | 'Nuke Units';
+export type NuclearSourceAction = 'Explode Nuclear' | 'Nuke City' | 'Nuke Units';
+
+/**
+ * Outcome context needed by the game-level diplomatic consequence consumer.
+ * The target owner is captured before a nuclear blast mutates the map or city
+ * state, matching Freeciv's target-tile consequence lookup.
+ */
+export interface NuclearActionConsequence {
+  actor: Unit;
+  action: NuclearSourceAction;
+  outcome: 'success' | 'caught';
+  targetX: number;
+  targetY: number;
+  targetPlayerId?: string;
+}
 
 const NUCLEAR_ACTION_SETTINGS: Record<
   NuclearSourceAction,
@@ -233,6 +247,7 @@ export class UnitManager {
   private combatObserver?: (event: UnitCombatEvent) => void;
   private combatPresentationCallback?: (event: CombatPresentationEvent) => void;
   private nuclearPresentationCallback?: (event: NuclearPresentationEvent) => void;
+  private nuclearActionConsequenceCallback?: (event: NuclearActionConsequence) => Promise<void>;
   private diplomatActionExecutor?: (
     playerId: string,
     unitId: string,
@@ -1085,6 +1100,12 @@ export class UnitManager {
 
   setNuclearPresentationCallback(callback?: (event: NuclearPresentationEvent) => void): void {
     this.nuclearPresentationCallback = callback;
+  }
+
+  setNuclearActionConsequenceCallback(
+    callback?: (event: NuclearActionConsequence) => Promise<void>
+  ): void {
+    this.nuclearActionConsequenceCallback = callback;
   }
 
   hasNuclearPresentationCallback(): boolean {
@@ -4475,6 +4496,9 @@ export class UnitManager {
     const centerX = targetX ?? unit.x;
     const centerY = targetY ?? unit.y;
     const action = this.getNuclearSourceAction(unit, centerX, centerY);
+    const targetCity = this.gameManagerCallback?.getCityAt?.(centerX, centerY);
+    const targetPlayerId =
+      this.mapManager?.getTile?.(centerX, centerY)?.owner ?? targetCity?.playerId;
     if (!(await this.canNuclearStrikeTarget(unit, action, centerX, centerY))) {
       return { success: false, message: 'Nuclear attack would strike a non-hostile nation' };
     }
@@ -4482,6 +4506,14 @@ export class UnitManager {
     if (defendingCity) {
       // Freeciv destroys the actor even when the SDI interception prevents
       // the explosion, then reports the action as unsuccessful.
+      await this.notifyNuclearActionConsequence({
+        actor: unit,
+        action,
+        outcome: 'caught',
+        targetX: centerX,
+        targetY: centerY,
+        targetPlayerId,
+      });
       await this.destroyUnit(unit.id);
       return {
         success: false,
@@ -4508,6 +4540,14 @@ export class UnitManager {
       )) ?? [];
     this.applyNuclearFallout(centerX, centerY, blastRadiusSquared);
     await this.persistMapState();
+    await this.notifyNuclearActionConsequence({
+      actor: unit,
+      action,
+      outcome: 'success',
+      targetX: centerX,
+      targetY: centerY,
+      targetPlayerId,
+    });
     if (this.nuclearPresentationCallback) {
       try {
         this.nuclearPresentationCallback({
@@ -4527,6 +4567,19 @@ export class UnitManager {
       unitDestroyed: true,
       affectedUnitIds,
     };
+  }
+
+  private async notifyNuclearActionConsequence(event: NuclearActionConsequence): Promise<void> {
+    try {
+      await this.nuclearActionConsequenceCallback?.(event);
+    } catch (error) {
+      logger.warn('Nuclear diplomatic consequence callback failed after authoritative action', {
+        gameId: this.gameId,
+        actorId: event.actor.id,
+        action: event.action,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   private getNuclearSourceAction(

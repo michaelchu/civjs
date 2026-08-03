@@ -5655,6 +5655,43 @@ describe('UnitManager', () => {
 
     /**
      * @evidence parity
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4127-4165
+     * @reference reference/freeciv/server/unithand.c:4777-4805
+     * @assertion A successful Nuke Units action preserves its exact source action and the target tile's pre-blast owner for the ruleset Casus_Belli_Success consumer.
+     * @c2c3-action Nuke Units
+     * @c2c3-scenario normal
+     * @c2c3-surface diplomacy-espionage
+     * @c2c3-surface-scenario normal
+     */
+    it('emits the source-aligned nuclear diplomatic consequence with the pre-blast tile owner', async () => {
+      const map = makeNuclearMap();
+      map.tiles.get('11,10').owner = 'player-456';
+      const { manager } = createCiv2Civ3NuclearManager(map);
+      manager.setHostilityProvider(async () => true);
+      const consequence = jest.fn().mockResolvedValue(undefined);
+      manager.setNuclearActionConsequenceCallback(consequence);
+      const nuclear = await manager.createUnit('player-123', 'nuclear', 10, 10);
+      nuclear.movementLeft = 1;
+      await manager.createUnit('player-456', 'warriors', 11, 10);
+
+      await expect(
+        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 11, 10, 'player-123')
+      ).resolves.toMatchObject({ success: true });
+
+      expect(consequence).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actor: expect.objectContaining({ id: nuclear.id, playerId: 'player-123' }),
+          action: 'Nuke Units',
+          outcome: 'success',
+          targetX: 11,
+          targetY: 10,
+          targetPlayerId: 'player-456',
+        })
+      );
+    });
+
+    /**
+     * @evidence parity
      * @reference reference/freeciv/common/actions.c:4640-4664
      * @reference reference/freeciv/data/civ2civ3/actions.ruleset:781-792
      * @assertion Nuke Units is unavailable for a known empty tile.

@@ -397,6 +397,69 @@ describe('DiplomacyManager', () => {
     );
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3985-4109
+   * @reference reference/freeciv/common/player.c:1652-1689
+   * @reference reference/freeciv/server/actiontools.c:115-203
+   * @assertion C2C3 grants the victim a treaty-cancellation reason only when the exact covert-action source and outcome have a Casus_Belli effect; the same caught Bribe Unit at war has no effect.
+   * @c2c3-surface diplomacy-espionage
+   * @c2c3-surface-scenario normal, boundary
+   */
+  it('applies C2C3 action casus belli only for configured sources outside war', async () => {
+    manager = new DiplomacyManager(
+      { getDatabase: () => database } as any,
+      () => 7,
+      () => new Set(),
+      new EffectsManager('civ2civ3')
+    );
+
+    await expect(
+      manager.recordActionCasusBelli('game-1', 'p2', 'p1', {
+        sourceAction: 'Targeted Steal Tech Escape Expected',
+        outcome: 'success',
+        context: { diplomaticRelations: new Set(['Foreign']) },
+        severity: 143,
+      })
+    ).resolves.toBe(true);
+    expect((await manager.getSnapshot('game-1', 'p1')).nations[0]?.relation).toMatchObject({
+      hasReasonToCancel: 2,
+      reputation: 857,
+      attitude: -143,
+    });
+
+    await expect(
+      manager.recordActionCasusBelli('game-1', 'p2', 'p1', {
+        sourceAction: 'Bribe Unit',
+        outcome: 'caught',
+        context: { diplomaticRelations: new Set(['Foreign']) },
+        severity: 143,
+      })
+    ).resolves.toBe(true);
+    const beforeWarAttempt = (await manager.getSnapshot('game-1', 'p1')).nations[0]?.relation;
+
+    await expect(
+      manager.recordActionCasusBelli('game-1', 'p2', 'p1', {
+        sourceAction: 'Bribe Unit',
+        outcome: 'caught',
+        context: { diplomaticRelations: new Set(['Foreign', 'War']) },
+        severity: 143,
+      })
+    ).resolves.toBe(false);
+    expect((await manager.getSnapshot('game-1', 'p1')).nations[0]?.relation).toEqual(
+      beforeWarAttempt
+    );
+
+    await expect(
+      manager.recordActionCasusBelli('game-1', 'p2', 'p1', {
+        sourceAction: 'Sabotage City Escape',
+        outcome: 'success',
+        context: { diplomaticRelations: new Set(['Foreign']) },
+        severity: 143,
+      })
+    ).resolves.toBe(false);
+  });
+
   it('supports repeated material types and contributions from both parties', async () => {
     await manager.establishContact('game-1', 'p1', 'p2');
     const executeTransfers = jest.fn().mockResolvedValue(undefined);

@@ -21,6 +21,7 @@ describe('GameManager classic espionage actions', () => {
         nations: [{ id: targetPlayerId, relation: { state: 'war' } }],
       }),
       recordIncident: jest.fn(),
+      recordActionCasusBelli: jest.fn().mockResolvedValue(false),
     };
     (manager as any).gameBroadcastManager = {
       broadcastCityData: jest.fn(),
@@ -335,7 +336,15 @@ describe('GameManager classic espionage actions', () => {
     );
     expect(game.cityManager.sabotageCityBuilding).not.toHaveBeenCalled();
     expect(game.unitManager.removeUnit).toHaveBeenCalledWith('actor');
-    expect((manager as any).diplomacyManager.recordIncident).not.toHaveBeenCalled();
+    expect((manager as any).diplomacyManager.recordActionCasusBelli).toHaveBeenCalledWith(
+      gameId,
+      actorPlayerId,
+      targetPlayerId,
+      expect.objectContaining({
+        sourceAction: 'Targeted Sabotage City Escape',
+        outcome: 'caught',
+      })
+    );
   });
 
   /**
@@ -524,6 +533,53 @@ describe('GameManager classic espionage actions', () => {
     ).resolves.toMatchObject({ success: true });
     expect(theftCount).toHaveBeenCalledWith(city.id, actorPlayerId);
     expect(game.researchManager.grantTechnology).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:4009-4029
+   * @reference reference/freeciv/common/player.c:1652-1689
+   * @assertion A successful targeted Spy technology theft preserves its precise C2C3 source action and non-war relationship for the Casus_Belli_Success effect evaluator.
+   * @c2c3-action Targeted Steal Tech Escape Expected
+   * @c2c3-scenario normal
+   * @c2c3-surface diplomacy-espionage
+   * @c2c3-surface-scenario normal
+   */
+  it('routes targeted technology theft through the exact non-war casus belli source', async () => {
+    const city = foreignCity();
+    const { game } = installGame('spy');
+    game.cityManager.getCityAt.mockReturnValue(city);
+    game.researchManager.getResearchedTechs.mockImplementation((playerId: string) =>
+      playerId === targetPlayerId ? ['alphabet'] : []
+    );
+    setRelation('peace');
+
+    await expect(
+      manager.executeDiplomatAction(
+        gameId,
+        actorPlayerId,
+        'actor',
+        ActionType.STEAL_TECH,
+        5,
+        5,
+        'alphabet'
+      )
+    ).resolves.toMatchObject({ success: true });
+
+    expect((manager as any).diplomacyManager.recordActionCasusBelli).toHaveBeenCalledWith(
+      gameId,
+      actorPlayerId,
+      targetPlayerId,
+      expect.objectContaining({
+        sourceAction: 'Targeted Steal Tech Escape Expected',
+        outcome: 'success',
+        severity: 143,
+        context: expect.objectContaining({
+          action: 'Targeted Steal Tech Escape Expected',
+          diplomaticRelations: new Set(['Foreign']),
+        }),
+      })
+    );
   });
 
   it('honors a validated targeted technology selection', async () => {
