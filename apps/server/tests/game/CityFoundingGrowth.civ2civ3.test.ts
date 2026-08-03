@@ -8,7 +8,9 @@ describe('civ2civ3 city founding and growth', () => {
   /**
    * @evidence parity
    * @reference reference/freeciv/common/city.c:1308-1371
-   * @reference reference/freeciv/server/cityturn.c:4704-4770
+   * @reference reference/freeciv/server/cityturn.c:878-883
+   * @reference reference/freeciv/server/cityturn.c:918-975
+   * @reference reference/freeciv/server/cityturn.c:1119-1144
    * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2024-2050
    * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3890-3911
    * @assertion C2C3's automatic city-center irrigation is carried through authoritative city-turn processing, so a grassland center plus one grassland worker produces a three-food surplus at size one; C2C3's free small-city granary retains ten food at each growth.
