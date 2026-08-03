@@ -125,6 +125,28 @@ function civ2civ3CityTileEffects(): Record<string, number> {
   };
 }
 
+function civ2civ3HealthEffects(): Record<string, number> {
+  const effects = new EffectsManager('civ2civ3');
+  const effectContext = (cityBuildings: string[], playerTechs: string[] = []) => ({
+    playerId: 'oracle-player',
+    cityId: 'oracle-city',
+    cityPopulation: 15,
+    cityBuildings: new Set(cityBuildings),
+    playerBuildings: new Set(cityBuildings),
+    playerTechs: new Set(playerTechs),
+  });
+  const health = (cityBuildings: string[], playerTechs?: string[]) =>
+    effects.calculateEffect(EffectType.HEALTH_PCT, effectContext(cityBuildings, playerTechs)).value;
+
+  return {
+    health_pct_base: health([]),
+    health_pct_medicine: health([], ['medicine']),
+    health_pct_aqueduct: health(['aqueduct'], ['medicine']),
+    health_pct_sewer: health(['aqueduct', 'sewer_system'], ['medicine']),
+    health_pct_cure: health(['aqueduct', 'sewer_system', 'cure_for_cancer'], ['medicine']),
+  };
+}
+
 function civ2civ3ResearchBaseCosts(): Record<string, number> {
   const technologies = loadRulesetTechnologies(rulesetLoader, 'civ2civ3');
   return {
@@ -542,6 +564,16 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
     });
   });
 
+  it('applies the c2c3 city health-effect fixture', () => {
+    expect(civ2civ3HealthEffects()).toEqual({
+      health_pct_base: 0,
+      health_pct_medicine: 30,
+      health_pct_aqueduct: 60,
+      health_pct_sewer: 90,
+      health_pct_cure: 100,
+    });
+  });
+
   /**
    * @evidence parity
    * @reference reference/freeciv/common/tech.c:225-275
@@ -592,6 +624,23 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
     it('matches the batched pinned Freeciv city-tile effects fixture', () => {
       expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
       expect(oracle.results).toMatchObject(civ2civ3CityTileEffects());
+    });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/common/city.c:2849-2918 city_illness_calc()
+     * @reference reference/freeciv/common/scriptcore/api_game_effects.c:65-78
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:474-481
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:1751-1757
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2662-2668
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2996-3002
+     * @assertion CivJS and the pinned Freeciv c2c3 server expose identical accumulated Health_Pct values for Medicine, Aqueduct, Sewer System, and Cure For Cancer.
+     * @c2c3-surface random-systems
+     * @c2c3-surface-scenario differential
+     */
+    it('matches the batched pinned Freeciv city-health effects fixture', () => {
+      expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
+      expect(oracle.results).toMatchObject(civ2civ3HealthEffects());
     });
 
     /**

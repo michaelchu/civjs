@@ -36,9 +36,17 @@ export type CityWithBuildings = Omit<
   | 'didSellTurn'
   | 'didBuyTurn'
   | 'espionageThefts'
+  // These optional runtime fields are absent from pre-illness saves and from
+  // focused culture fixtures.  Culture calculations do not consume them.
+  | 'illness'
+  | 'illnessTrade'
+  | 'turnPlague'
 > & {
   buildings: string[]; // Building IDs in the city
   airliftUsedTurn?: number | null;
+  illness?: number;
+  illnessTrade?: number;
+  turnPlague?: number | null;
 };
 
 export interface PlayerWithTechs extends DatabasePlayer {

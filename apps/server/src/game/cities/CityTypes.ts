@@ -109,6 +109,12 @@ export interface CityState {
   goldPerTurn?: number;
   luxuryPerTurn?: number;
   pollution?: number;
+  /** Current illness risk in tenths of a percent. */
+  illness?: number;
+  /** Trade-derived illness component in tenths of a percent. */
+  illnessTrade?: number;
+  /** Turn of the latest plague strike; undefined means no prior strike. */
+  turnPlague?: number;
   unitGoldUpkeep?: number;
   unitShieldUpkeep?: number;
   grossProductionPerTurn?: number;

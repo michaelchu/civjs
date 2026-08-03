@@ -91,6 +91,7 @@ import {
 } from '@game/services/CityTurnProcessingService';
 import { CityCalculationService } from '@game/services/CityCalculationService';
 import { CityHappinessService } from '@game/services/CityHappinessService';
+import { CityIllnessService, type CityIllnessResult } from '@game/services/CityIllnessService';
 import { CityOptimizationService } from '@game/services/CityOptimizationService';
 import {
   countSpaceshipPartCommitments,
@@ -215,6 +216,7 @@ export class CityManager {
   private governmentManager?: GovernmentManager;
   private calculationService: CityCalculationService;
   private happinessService: CityHappinessService;
+  private readonly illnessService: CityIllnessService;
   private playerGovernmentProvider?: (playerId: string) => string;
   private playerAIProvider: (playerId: string) => { isAI: boolean; aiLevel?: string } = () => ({
     isAI: false,
@@ -279,6 +281,7 @@ export class CityManager {
     // ruleset instance so effects cannot diverge between subsystems.
     this.calculationService = new CityCalculationService(effectsManager);
     this.happinessService = new CityHappinessService(effectsManager);
+    this.illnessService = new CityIllnessService(effectsManager);
     this.happinessService.setPlayerCityCountProvider(
       playerId => this.getPlayerCities(playerId).length
     );
@@ -592,6 +595,7 @@ export class CityManager {
       applyCityHappiness: this.applyCityHappiness.bind(this),
       getPlayerGovernment: this.getPlayerGovernment.bind(this),
       checkPollution: this.checkPollution.bind(this),
+      processIllness: this.processCityIllness.bind(this),
       canCityContinueProduction: this.canCityContinueProduction.bind(this),
       forceGovernmentRevolution: async playerId => {
         await this.governmentManager?.overthrowGovernment(
@@ -755,6 +759,8 @@ export class CityManager {
       sciencePerTurn: 0, // Will be calculated
       history: 0, // Start with no culture history
       wasHappy: false,
+      illness: 0,
+      illnessTrade: 0,
       buildings: [],
       specialists: {
         [SpecialistType.SCIENTIST]: 0,
@@ -1654,6 +1660,67 @@ export class CityManager {
       .where(eq(games.id, this.gameId));
     this.mapChangedCallback?.(this.gameId, this.mapManager.getMapData());
     return true;
+  }
+
+  /**
+   * Recalculate the C2C3 illness risk and apply a plague strike before city
+   * growth. The random draw mirrors Freeciv's fc_rand(1000) illness check.
+   * @reference reference/freeciv/server/cityturn.c:3746-3768
+   * @reference reference/freeciv/server/cityturn.c:3885-3895
+   * @reference reference/freeciv/server/citytools.c:2978-2998
+   */
+  public async processCityIllness(cityId: string, currentTurn: number): Promise<boolean> {
+    const city = this.cities.get(cityId);
+    if (!city) return false;
+    if (!this.illnessService.isEnabled()) {
+      city.illness = 0;
+      city.illnessTrade = 0;
+      return true;
+    }
+
+    const illness = this.calculateCityIllness(cityId, currentTurn);
+    if (!illness) return false;
+    city.illness = illness.illness;
+    city.illnessTrade = illness.illnessTrade;
+    if (randomInt(this.random, 1000) >= illness.illness) return true;
+
+    if (city.population <= 1) {
+      await this.destroyCity(city.id);
+      return this.cities.has(city.id);
+    }
+
+    city.population -= 1;
+    city.size = city.population;
+    city.turnPlague = currentTurn;
+    if (!(await this.reconcileCitizenAssignments(city.id, 'plague'))) {
+      throw new Error(`Failed to reconcile citizens after plague in ${city.name}`);
+    }
+    const recalculated = this.calculateCityIllness(city.id, currentTurn);
+    if (recalculated) {
+      city.illness = recalculated.illness;
+      city.illnessTrade = recalculated.illnessTrade;
+    }
+    logger.info('City plague reduced population', {
+      gameId: this.gameId,
+      cityId: city.id,
+      playerId: city.playerId,
+      currentTurn,
+      population: city.population,
+    });
+    return true;
+  }
+
+  /** Calculates the packet-persisted C2C3 illness components for one city. */
+  public calculateCityIllness(cityId: string, currentTurn: number): CityIllnessResult | undefined {
+    const city = this.cities.get(cityId);
+    return city
+      ? this.illnessService.calculate(
+          city,
+          this.cities.values(),
+          currentTurn,
+          this.getCityEffectContext(city)
+        )
+      : undefined;
   }
 
   private stableHash(value: string): number {

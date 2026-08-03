@@ -97,6 +97,7 @@ export enum EffectType {
   HP_REGEN = 'HP_Regen',
   MIN_HP_PCT = 'Min_HP_Pct',
   HP_REGEN_2 = 'HP_Regen_2',
+  HEALTH_PCT = 'Health_Pct',
   RETIRE_PCT = 'Retire_Pct',
   TECH_UPKEEP_FREE = 'Tech_Upkeep_Free',
   TECH_COST_FACTOR = 'Tech_Cost_Factor',

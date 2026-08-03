@@ -936,6 +936,42 @@ describe('CityManager', () => {
       expect(updatedCity!.id).toBe(city.id);
     });
 
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/server/cityturn.c:3746-3768
+     * @reference reference/freeciv/server/citytools.c:2978-2998
+     * @assertion A deterministic illness roll below the computed C2C3 risk removes exactly one citizen, records the plague turn, and recomputes the persisted illness state.
+     * @c2c3-surface random-systems
+     * @c2c3-surface-scenario turn
+     */
+    it('applies an authoritative C2C3 plague strike before city growth', async () => {
+      const illnessManager = new CityManager(
+        'illness-game',
+        mockDbProvider,
+        new EffectsManager('civ2civ3'),
+        {},
+        undefined,
+        undefined,
+        () => 0
+      );
+      illnessManager.setPlayerGovernmentProvider(() => 'despotism');
+      illnessManager.setMapManager(mockMapManager);
+      await illnessManager.initialize();
+      const plagueCity = await illnessManager.foundCity(20, 20, 'Plague City', 'player-123');
+      plagueCity.population = 10;
+      plagueCity.size = 10;
+      plagueCity.foodPerTurn = 0;
+      plagueCity.foodStock = 0;
+      plagueCity.pollution = 0;
+
+      await expect(illnessManager.processCityIllness(plagueCity.id, 17)).resolves.toBe(true);
+
+      expect(plagueCity.population).toBe(9);
+      expect(plagueCity.size).toBe(9);
+      expect(plagueCity.turnPlague).toBe(17);
+      expect(plagueCity.illness).toBeGreaterThan(0);
+    });
+
     it('activates the first queued item when the city is idle', async () => {
       city.currentProduction = null;
       city.productionType = null;
