@@ -359,7 +359,9 @@ export class CityCalculationService extends BaseGameService {
    * @reference reference/freeciv/common/city.c:2227-2240
    */
   private calculateTithes(effectContext: EffectContext): number {
-    if (this.effectsManager.calculateEffect(EffectType.HAPPINESS_TO_GOLD, effectContext).value <= 0) {
+    if (
+      this.effectsManager.calculateEffect(EffectType.HAPPINESS_TO_GOLD, effectContext).value <= 0
+    ) {
       return 0;
     }
 
