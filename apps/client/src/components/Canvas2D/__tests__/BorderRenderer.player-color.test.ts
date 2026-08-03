@@ -108,4 +108,40 @@ describe('BorderRenderer player colors', () => {
 
     expect(context.stroke).not.toHaveBeenCalled();
   });
+
+  it('samples cardinal borders from native ISO tile storage', () => {
+    const renderer = new BorderRenderer({} as CanvasRenderingContext2D, {} as never, 96, 48);
+    const owner = 'player-1';
+    const center = {
+      x: 10,
+      y: 10,
+      terrain: 'grassland',
+      known: true,
+      visible: true,
+      owner,
+    };
+    const neighbors = [
+      { x: 10, y: 9 },
+      { x: 10, y: 11 },
+      { x: 9, y: 11 },
+      { x: 9, y: 9 },
+    ].map(tile => ({ ...tile, terrain: 'grassland', known: true, visible: true, owner }));
+    const map = {
+      width: 32,
+      height: 64,
+      xsize: 32,
+      ysize: 64,
+      topology_id: 12,
+      wrap_id: 3,
+      tiles: Object.fromEntries([center, ...neighbors].map(tile => [`${tile.x},${tile.y}`, tile])),
+    };
+
+    const sprites = (
+      renderer as unknown as {
+        getBorderLineSprites(tile: typeof center, candidate: typeof map): unknown[];
+      }
+    ).getBorderLineSprites(center, map);
+
+    expect(sprites).toEqual([]);
+  });
 });

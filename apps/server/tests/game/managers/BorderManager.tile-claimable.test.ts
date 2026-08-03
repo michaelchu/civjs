@@ -53,22 +53,22 @@ describe('BorderManager C2C3 Tile_Claimable integration', () => {
    */
   it('claims connected land, adjacent water, and distant enclosed lakes but rejects open water', () => {
     const lake = createBorderManager(9, 9, 'grassland');
-    lake.mapManager.getTile(7, 4)!.terrain = 'lake';
+    lake.mapManager.getTile(4, 7)!.terrain = 'lake';
     lake.borderManager.addCityBorderSource(SOURCE);
 
     // The lake is five hex steps from the source: too far for MaxDistanceSq
     // but an enclosed one-tile ocean region, so C2C3's lake effect claims it.
-    expect(lake.borderManager.getTileOwner(7, 4)).toBe(SOURCE.playerId);
-    expect(lake.borderManager.getTileOwner(6, 4)).toBe(SOURCE.playerId);
+    expect(lake.borderManager.getTileOwner(4, 7)).toBe(SOURCE.playerId);
+    expect(lake.borderManager.getTileOwner(4, 6)).toBe(SOURCE.playerId);
 
     const ocean = createBorderManager(11, 11, 'ocean');
     ocean.borderManager.addCityBorderSource(SOURCE);
 
     // Adjacent water is covered by C2C3's MaxDistanceSq = 2 exception.
-    expect(ocean.borderManager.getTileOwner(3, 4)).toBe(SOURCE.playerId);
+    expect(ocean.borderManager.getTileOwner(2, 3)).toBe(SOURCE.playerId);
     // An open-ocean tile at the same five-step range is neither a small lake
     // nor a narrow bay and must not compete in border strength.
-    expect(ocean.borderManager.getTileOwner(7, 4)).toBeNull();
-    expect(ocean.borderManager.getBorderingSources(7, 4)).toEqual([]);
+    expect(ocean.borderManager.getTileOwner(4, 7)).toBeNull();
+    expect(ocean.borderManager.getBorderingSources(4, 7)).toEqual([]);
   });
 });

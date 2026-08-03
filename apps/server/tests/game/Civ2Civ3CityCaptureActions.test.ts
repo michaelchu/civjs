@@ -27,7 +27,7 @@ describe('Civ2Civ3 city conquest actions', () => {
         getTile: jest.fn((x: number, y: number) => ({
           terrain: terrainAt(x, y),
           improvements: [],
-          owner: x === 11 && y === 10 ? options.cityOwner() : undefined,
+          owner: x === 10 && y === 9 ? options.cityOwner() : undefined,
         })),
         getTopology: jest.fn(
           () =>
@@ -41,7 +41,7 @@ describe('Civ2Civ3 city conquest actions', () => {
         requestPath: jest.fn(),
         broadcastUnitMoved: jest.fn(),
         getCityAt: (x, y) =>
-          x === 11 && y === 10
+          x === 10 && y === 9
             ? { id: 'enemy-city', playerId: options.cityOwner(), buildings: [] }
             : null,
         captureCity: jest.fn(options.onCapture),
@@ -76,10 +76,10 @@ describe('Civ2Civ3 city conquest actions', () => {
     const warrior = await manager.createUnit(attackerId, 'warriors', 10, 10);
     warrior.movementLeft = 1;
 
-    await expect(manager.moveUnit(warrior.id, 11, 10)).resolves.toBe(true);
+    await expect(manager.moveUnit(warrior.id, 10, 9)).resolves.toBe(true);
 
     expect(cityOwner).toBe(attackerId);
-    expect(warrior).toMatchObject({ x: 11, y: 10, movementLeft: 0 });
+    expect(warrior).toMatchObject({ x: 10, y: 9, movementLeft: 0 });
   });
 
   /**
@@ -95,9 +95,9 @@ describe('Civ2Civ3 city conquest actions', () => {
       onCapture: jest.fn().mockResolvedValue(true),
     });
     const warrior = await manager.createUnit(attackerId, 'warriors', 10, 10);
-    await manager.createUnit(defenderId, 'warriors', 11, 10);
+    await manager.createUnit(defenderId, 'warriors', 10, 9);
 
-    await expect(manager.moveUnit(warrior.id, 11, 10)).rejects.toThrow(
+    await expect(manager.moveUnit(warrior.id, 10, 9)).rejects.toThrow(
       'Cannot move to tile occupied by enemy unit'
     );
   });
@@ -125,14 +125,14 @@ describe('Civ2Civ3 city conquest actions', () => {
     const marine = await manager.createUnit(attackerId, 'marines', 10, 10, undefined, transport.id);
     marine.movementLeft = manager.getUnitMaxMovement('marines');
 
-    await expect(manager.moveUnit(marine.id, 11, 10)).resolves.toBe(true);
+    await expect(manager.moveUnit(marine.id, 10, 9)).resolves.toBe(true);
 
     expect(cityOwner).toBe(attackerId);
     expect(transport.cargoUnits).toEqual([]);
     expect(marine).toMatchObject({
       transportedBy: undefined,
-      x: 11,
-      y: 10,
+      x: 10,
+      y: 9,
       movementLeft: 0,
     });
   });
@@ -161,7 +161,7 @@ describe('Civ2Civ3 city conquest actions', () => {
     );
     warrior.movementLeft = manager.getUnitMaxMovement('warriors');
 
-    await expect(manager.moveUnit(warrior.id, 11, 10)).rejects.toThrow(
+    await expect(manager.moveUnit(warrior.id, 10, 9)).rejects.toThrow(
       'Transported unit must unload before moving'
     );
   });

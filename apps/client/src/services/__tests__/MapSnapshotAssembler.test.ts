@@ -56,4 +56,76 @@ describe('map snapshot boundaries', () => {
       '1,0': expect.objectContaining({ terrain: 'ocean' }),
     });
   });
+
+  it('merges an incremental visibility batch without replacing known tiles', () => {
+    const assembler = new MapSnapshotAssembler();
+    const initial = assembler.begin({ xsize: 2, ysize: 1 });
+    const map = assembler.applyBatch(initial, {
+      tiles: [
+        { x: 0, y: 0, terrain: 'plains', known: 2 },
+        { x: 1, y: 0, terrain: 'ocean', known: 1 },
+      ],
+      startIndex: 0,
+      endIndex: 2,
+      total: 2,
+      fullSnapshot: true,
+    })!;
+
+    const updated = assembler.applyBatch(map, {
+      tiles: [{ x: 1, y: 0, terrain: 'ocean', known: 2 }],
+      startIndex: 0,
+      endIndex: 1,
+      total: 1,
+      fullSnapshot: false,
+    });
+    expect(updated?.tiles).toEqual({
+      '0,0': expect.objectContaining({ terrain: 'plains' }),
+      '1,0': expect.objectContaining({ visible: true }),
+    });
+  });
+
+  it('keeps an interleaved delta newer than a staged full snapshot', () => {
+    const assembler = new MapSnapshotAssembler();
+    const pending = assembler.begin({ xsize: 2, ysize: 1 });
+    const visible = {
+      ...pending,
+      width: 1,
+      xsize: 1,
+      tiles: { '0,0': mapTileFromWire({ x: 0, y: 0, terrain: 'grassland', known: 2 }) },
+    };
+
+    expect(
+      assembler.applyBatch(pending, {
+        tiles: [{ x: 0, y: 0, terrain: 'plains', known: 1 }],
+        startIndex: 0,
+        endIndex: 1,
+        total: 2,
+        fullSnapshot: true,
+      })
+    ).toBeNull();
+
+    const visibleWithDelta = assembler.applyBatch(visible, {
+      tiles: [{ x: 0, y: 0, terrain: 'plains', known: 2 }],
+      fullSnapshot: false,
+    });
+    expect(visibleWithDelta).toMatchObject({
+      width: 1,
+      tiles: { '0,0': { terrain: 'plains', visible: true } },
+    });
+
+    const complete = assembler.applyBatch(pending, {
+      tiles: [{ x: 1, y: 0, terrain: 'ocean', known: 2 }],
+      startIndex: 1,
+      endIndex: 2,
+      total: 2,
+      fullSnapshot: true,
+    });
+    expect(complete).toMatchObject({
+      width: 2,
+      tiles: {
+        '0,0': { terrain: 'plains', visible: true },
+        '1,0': { terrain: 'ocean', visible: true },
+      },
+    });
+  });
 });

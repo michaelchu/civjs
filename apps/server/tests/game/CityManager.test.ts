@@ -361,8 +361,8 @@ describe('CityManager', () => {
         ...center,
         id: 'diagonal-city',
         name: 'Diagonal',
-        x: 11,
-        y: 11,
+        x: 10,
+        y: 9,
       };
       (cityManager as any).cities.set(diagonal.id, diagonal);
 
@@ -399,15 +399,15 @@ describe('CityManager', () => {
         ...center,
         id: 'hex-neighbor-city',
         name: 'Hex Neighbor',
-        x: 11,
-        y: 11,
+        x: 10,
+        y: 9,
       };
       const excludedDiagonal = {
         ...center,
         id: 'excluded-diagonal-city',
         name: 'Excluded Diagonal',
         x: 11,
-        y: 9,
+        y: 10,
       };
       (cityManager as any).cities.set(hexNeighbor.id, hexNeighbor);
       (cityManager as any).cities.set(excludedDiagonal.id, excludedDiagonal);

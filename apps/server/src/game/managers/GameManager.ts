@@ -1610,7 +1610,7 @@ export class GameManager {
         );
       }
       game.visibilityManager.updateAllPlayersVisibility([proposerId, recipientId]);
-      this.gameBroadcastManager.broadcastVisibilityState(gameId);
+      this.gameBroadcastManager.broadcastVisibilityDelta(gameId);
     };
 
     try {
@@ -1654,7 +1654,7 @@ export class GameManager {
       throw error;
     }
     game.visibilityManager.updateAllPlayersVisibility([proposerId, recipientId]);
-    this.gameBroadcastManager.broadcastVisibilityState(gameId);
+    this.gameBroadcastManager.broadcastVisibilityDelta(gameId);
     return rollback;
   }
 

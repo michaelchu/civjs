@@ -96,6 +96,7 @@ import {
 import {
   landPercentForTerrain,
   resolveMapSizing,
+  validateFreecivFixedMapDimensions,
   type MapSizingMetadata,
 } from '@game/services/MapSizingService';
 import { CivilWarService } from '@game/services/CivilWarService';
@@ -108,12 +109,6 @@ function configuredVictoryConditions(gameConfig: GameConfig): string[] {
 
 const PROVISIONAL_MAP_WIDTH = 80;
 const PROVISIONAL_MAP_HEIGHT = 50;
-
-function assertFixedMapDimension(value: number | undefined, name: string): asserts value is number {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
-    throw new Error(`Fixed map sizing requires a positive integer ${name}`);
-  }
-}
 
 export interface GameLifecycleService {
   createGame(gameConfig: GameConfig): Promise<string>;
@@ -278,18 +273,22 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         ? Math.max(requestedMaxPlayers, Math.ceil(mapSettings.aiFill))
         : requestedMaxPlayers;
 
-    if (mapSizingMode === 'fixed') {
-      assertFixedMapDimension(gameConfig.mapWidth, 'mapWidth');
-      assertFixedMapDimension(gameConfig.mapHeight, 'mapHeight');
-    }
+    const fixedDimensions =
+      mapSizingMode === 'fixed'
+        ? validateFreecivFixedMapDimensions(
+            gameConfig.mapWidth,
+            gameConfig.mapHeight,
+            terrainSettings.topologyId
+          )
+        : undefined;
 
     return {
       name: gameConfig.name,
       hostId: gameConfig.hostId,
       gameType: gameConfig.gameType || 'multiplayer',
       maxPlayers,
-      mapWidth: mapSizingMode === 'fixed' ? gameConfig.mapWidth! : PROVISIONAL_MAP_WIDTH,
-      mapHeight: mapSizingMode === 'fixed' ? gameConfig.mapHeight! : PROVISIONAL_MAP_HEIGHT,
+      mapWidth: fixedDimensions?.width ?? PROVISIONAL_MAP_WIDTH,
+      mapHeight: fixedDimensions?.height ?? PROVISIONAL_MAP_HEIGHT,
       mapSeed: gameConfig.mapSeed,
       ruleset: rulesetName,
       historyInterestPml: rulesetLoader.getCultureRules(rulesetName).history_interest_pml,
@@ -1444,6 +1443,11 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       resolvedTerrainSettings,
       temperatureParam
     );
+    validateFreecivFixedMapDimensions(
+      game.mapWidth,
+      game.mapHeight,
+      resolvedTerrainSettings.topologyId
+    );
     return new MapManager(
       game.mapWidth,
       game.mapHeight,
@@ -1549,6 +1553,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       },
       broadcastVisibilityState: (gameId: string) => {
         this.broadcastManager?.broadcastVisibilityState(gameId);
+      },
+      broadcastVisibilityDelta: (gameId: string) => {
+        this.broadcastManager?.broadcastVisibilityDelta(gameId);
       },
       syncGameStateToPlayer: (gameId: string, playerId: string) => {
         this.broadcastManager?.syncGameStateToPlayer(gameId, playerId);
@@ -1704,7 +1711,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         requestPath: (playerId: string, unitId: string, targetX: number, targetY: number) =>
           this.requestPathDelegate(gameId, playerId, unitId, targetX, targetY),
         broadcastUnitMoved: gameId => {
-          this.broadcastManager?.broadcastVisibilityState(gameId);
+          this.broadcastManager?.broadcastVisibilityDelta(gameId);
         },
         broadcastUnitDestroyed: (gameId, unit) => {
           this.broadcastManager?.broadcastUnitDestroyed(gameId, unit);

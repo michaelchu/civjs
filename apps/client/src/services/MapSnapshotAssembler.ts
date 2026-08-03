@@ -19,6 +19,7 @@ export interface MapTileBatchWireData {
   startIndex?: number;
   endIndex?: number;
   total?: number;
+  fullSnapshot?: boolean;
 }
 
 /**
@@ -27,9 +28,11 @@ export interface MapTileBatchWireData {
  */
 export class MapSnapshotAssembler {
   private pendingTiles: Record<string, Tile> | null = null;
+  private pendingOverrides: Record<string, Tile> | null = null;
 
   begin(data: MapInfoWireData): GameMap {
     this.pendingTiles = {};
+    this.pendingOverrides = {};
     return {
       width: data.xsize,
       height: data.ysize,
@@ -52,6 +55,15 @@ export class MapSnapshotAssembler {
   }
 
   applyBatch(map: GameMap, data: MapTileBatchWireData): GameMap | null {
+    if (data.fullSnapshot === false) {
+      if (this.pendingOverrides) {
+        for (const tile of data.tiles) {
+          this.pendingOverrides[`${tile.x},${tile.y}`] = mapTileFromWire(tile);
+        }
+      }
+      return data.tiles.reduce((nextMap, tile) => this.applyTile(nextMap, tile), map);
+    }
+
     if (data.startIndex === 0 || !this.pendingTiles) {
       this.pendingTiles = {};
     }
@@ -66,12 +78,14 @@ export class MapSnapshotAssembler {
       data.endIndex >= data.total;
     if (!complete) return null;
 
-    const tiles = this.pendingTiles;
+    const tiles = { ...this.pendingTiles, ...this.pendingOverrides };
     this.pendingTiles = null;
+    this.pendingOverrides = null;
     return { ...map, tiles };
   }
 
   cancel(): void {
     this.pendingTiles = null;
+    this.pendingOverrides = null;
   }
 }

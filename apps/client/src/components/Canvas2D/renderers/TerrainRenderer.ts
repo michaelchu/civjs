@@ -15,6 +15,7 @@ import {
   CARDINAL_TILESET_DIRS,
 } from '../../../constants/freeciv';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
+import { stepNativeMapPosition } from '../mapTopologyGeometry';
 
 export class TerrainRenderer extends BaseRenderer {
   private extraGraphics: Record<string, { graphic?: string; graphic_alt?: string }> = {};
@@ -25,6 +26,7 @@ export class TerrainRenderer extends BaseRenderer {
   private lastTiles: Record<string, Tile> | null = null;
   private mapWidth = 0;
   private mapHeight = 0;
+  private topologyId = 0;
   private wrapId = 0;
 
   /**
@@ -326,7 +328,7 @@ export class TerrainRenderer extends BaseRenderer {
     const addConnections = (property: 'hasRoad' | 'hasRailroad', prefix: string) => {
       if (!tile[property]) return;
       const connected = directions.filter(({ dx, dy }) =>
-        Boolean(this.getNeighborTile(tile.x + dx, tile.y + dy)?.[property])
+        Boolean(this.getDirectionalNeighborTile(tile, dx, dy)?.[property])
       );
       if (connected.length === 0) {
         sprites.push(`${prefix}_isolated`);
@@ -699,7 +701,7 @@ export class TerrainRenderer extends BaseRenderer {
 
     for (const dir of directions) {
       // Fast O(1) lookup instead of O(n) search
-      const neighborTile = this.getNeighborTile(tile.x + dir.dx, tile.y + dir.dy);
+      const neighborTile = this.getDirectionalNeighborTile(tile, dir.dx, dir.dy);
       let neighborTerrain = null;
 
       const neighborIsKnown =
@@ -727,17 +729,27 @@ export class TerrainRenderer extends BaseRenderer {
   private setMapTopology(state: RenderState): void {
     this.mapWidth = state.map.xsize ?? state.map.width;
     this.mapHeight = state.map.ysize ?? state.map.height;
+    this.topologyId = state.map.topology_id ?? 0;
     this.wrapId = state.map.wrap_id ?? 0;
   }
 
-  private getNeighborTile(x: number, y: number): Tile | undefined {
+  private getDirectionalNeighborTile(tile: Tile, dx: number, dy: number): Tile | undefined {
     if (!this.mapWidth || !this.mapHeight) {
-      return this.tileMap.get(`${x},${y}`) as Tile | undefined;
+      return this.tileMap.get(`${tile.x + dx},${tile.y + dy}`) as Tile | undefined;
     }
-    if ((this.wrapId & 1) !== 0) x = ((x % this.mapWidth) + this.mapWidth) % this.mapWidth;
-    if ((this.wrapId & 2) !== 0) y = ((y % this.mapHeight) + this.mapHeight) % this.mapHeight;
-    if (x < 0 || x >= this.mapWidth || y < 0 || y >= this.mapHeight) return undefined;
-    return this.tileMap.get(`${x},${y}`) as Tile | undefined;
+    const position = stepNativeMapPosition(
+      tile.x,
+      tile.y,
+      dx,
+      dy,
+      this.mapWidth,
+      this.mapHeight,
+      this.topologyId,
+      this.wrapId
+    );
+    return position
+      ? (this.tileMap.get(`${position.x},${position.y}`) as Tile | undefined)
+      : undefined;
   }
 
   // Simplified wrapper that calls the original logic

@@ -31,6 +31,7 @@ export interface BroadcastService {
   broadcastUnitInfo(gameId: string, unit: any): void;
   broadcastCombatOccurred(gameId: string, event: CombatPresentationEvent): void;
   broadcastVisibilityState(gameId: string): void;
+  broadcastVisibilityDelta(gameId: string): void;
   broadcastCityData(gameId: string): void;
   broadcastCityDataToPlayer(gameId: string, playerId: string): void;
   syncGameStateToPlayer(gameId: string, playerId: string): void;
@@ -42,6 +43,15 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   private games = new Map<string, GameInstance>();
   private debugVisibilityPlayers = new Set<string>();
   private rulesetActionServices = new Map<string, RulesetActionsService>();
+  private visibilityState = new Map<
+    string,
+    {
+      tiles: Map<string, string>;
+      units: Map<string, string>;
+      cities: Map<string, string>;
+      borders: Map<string, string>;
+    }
+  >();
 
   constructor(io: SocketServer) {
     super(logger);
@@ -171,7 +181,11 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       return;
     }
 
-    this.broadcastVisibilityState(gameId);
+    const mapData = gameInstance.mapManager.getMapData();
+    if (!mapData) return;
+    for (const [playerId] of gameInstance.players) {
+      this.sendVisibilityDeltaToPlayer(gameInstance, gameId, playerId, mapData, unit);
+    }
   }
 
   broadcastCombatOccurred(gameId: string, event: CombatPresentationEvent): void {
@@ -241,6 +255,21 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     }
   }
 
+  /**
+   * Send only playermap changes caused by ordinary movement or vision-source updates.
+   * @reference reference/freeciv/server/maphand.c:442-683
+   * @reference reference/freeciv/server/unittools.c:2089-2147
+   */
+  broadcastVisibilityDelta(gameId: string): void {
+    const gameInstance = this.games.get(gameId);
+    const mapData = gameInstance?.mapManager.getMapData();
+    if (!gameInstance || !mapData) return;
+
+    for (const [playerId] of gameInstance.players) {
+      this.sendVisibilityDeltaToPlayer(gameInstance, gameId, playerId, mapData);
+    }
+  }
+
   setDebugVisibility(gameId: string, playerId: string, enabled: boolean): boolean {
     const gameInstance = this.games.get(gameId);
     const mapData = gameInstance?.mapManager.getMapData();
@@ -284,8 +313,9 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         gameId,
         unitId: unit.id,
       });
+      this.getVisibilityCache(gameId, playerId).units.delete(unit.id);
     }
-    this.broadcastVisibilityState(gameId);
+    this.broadcastVisibilityDelta(gameId);
   }
 
   private computeMapDataMetrics(mapData: any): {
@@ -384,12 +414,15 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       this.sendPacketToPlayer(gameInstance, playerId, PacketType.MAP_INFO, mapInfoPacket);
 
       // Send tiles in batches like original code
-      this.sendTileDataInBatches(gameInstance, playerId, visibility.tiles);
+      this.sendTileDataInBatches(gameInstance, playerId, visibility.tiles, true);
+      const cached = this.getVisibilityCache(gameId, playerId);
+      cached.tiles = this.indexWireState(visibility.tiles, tile => `${tile.x},${tile.y}`);
 
       this.sendPacketToPlayer(gameInstance, playerId, PacketType.UNIT_INFO, {
         units: formattedUnits,
         fullSnapshot: true,
       });
+      cached.units = this.indexWireState(formattedUnits, unit => unit.id);
 
       this.logger.debug('Sent player-specific map data', {
         gameId,
@@ -660,7 +693,9 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       gameInstance.config.ruleset ?? DEFAULT_RULESET,
       new Set(gameInstance.researchManager.getResearchedTechs(playerId))
     );
-    this.sendTileDataInBatches(gameInstance, playerId, tiles);
+    this.sendTileDataInBatches(gameInstance, playerId, tiles, true);
+    const cached = this.getVisibilityCache(gameId, playerId);
+    cached.tiles = this.indexWireState(tiles, tile => `${tile.x},${tile.y}`);
 
     const visibleUnits = debugVisibility
       ? Array.from(gameInstance.unitManager.getAllUnits().values())
@@ -681,14 +716,134 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       units,
       fullSnapshot: true,
     });
+    cached.units = this.indexWireState(units, unit => unit.id);
 
     this.broadcastCityDataToPlayer(gameId, playerId);
 
-    const currentBorderTiles = gameInstance.borderManager
+    const borderTiles = this.getBorderTilesForPlayer(
+      gameInstance,
+      playerId,
+      visibleTiles,
+      rememberedTiles,
+      debugVisibility
+    );
+    this.sendPacketToPlayer(gameInstance, playerId, PacketType.BORDER_UPDATE, {
+      type: 'border_update',
+      updateType: 'full_update',
+      tiles: borderTiles,
+    });
+    cached.borders = this.indexWireState(borderTiles, tile => `${tile.x},${tile.y}`);
+  }
+
+  private sendVisibilityDeltaToPlayer(
+    gameInstance: GameInstance,
+    gameId: string,
+    playerId: string,
+    mapData: any,
+    unitHint?: any
+  ): void {
+    gameInstance.visibilityManager.updatePlayerVisibility(playerId);
+    const debug = this.isDebugVisibilityEnabled(gameId, playerId);
+    const allTiles = debug ? this.getAllTileKeys(mapData) : undefined;
+    const visibleTiles = allTiles ?? gameInstance.visibilityManager.getVisibleTiles(playerId);
+    const exploredTiles = allTiles ?? gameInstance.visibilityManager.getExploredTiles(playerId);
+    const rememberedTiles = this.getRememberedTiles(gameInstance, playerId, mapData, exploredTiles);
+    const tiles = this.processMapTilesForPlayer(
+      mapData,
+      visibleTiles,
+      exploredTiles,
+      rememberedTiles,
+      gameInstance.config.ruleset ?? DEFAULT_RULESET,
+      new Set(gameInstance.researchManager.getResearchedTechs(playerId))
+    );
+    const cached = this.getVisibilityCache(gameId, playerId);
+    const nextTiles = this.indexWireState(tiles, tile => `${tile.x},${tile.y}`);
+    const changedTiles = tiles.filter(
+      tile => cached.tiles.get(`${tile.x},${tile.y}`) !== JSON.stringify(tile)
+    );
+    if (changedTiles.length > 0) {
+      this.sendTileDataInBatches(gameInstance, playerId, changedTiles, false);
+    }
+    cached.tiles = nextTiles;
+
+    const visibleUnits: any[] = debug
+      ? Array.from(gameInstance.unitManager.getAllUnits().values())
+      : gameInstance.unitManager.getVisibleUnits(
+          playerId,
+          visibleTiles,
+          gameInstance.visibilityManager.getDetectionTiles?.(playerId)
+        );
+    if (
+      unitHint?.playerId === playerId &&
+      !visibleUnits.some(visibleUnit => visibleUnit.id === unitHint.id)
+    ) {
+      visibleUnits.push(unitHint);
+    }
+    const units = visibleUnits.map((unit: any) =>
+      this.formatUnitForClient(
+        unit,
+        gameInstance.unitManager,
+        playerId,
+        gameInstance.config.ruleset ?? DEFAULT_RULESET
+      )
+    );
+    const nextUnits = this.indexWireState(units, unit => unit.id);
+    const changedUnits = units.filter(unit => cached.units.get(unit.id) !== JSON.stringify(unit));
+    if (changedUnits.length > 0) {
+      this.sendPacketToPlayer(gameInstance, playerId, PacketType.UNIT_INFO, {
+        units: changedUnits,
+        fullSnapshot: false,
+      });
+    }
+    const recipientId = gameInstance.players.get(playerId)?.userId || playerId;
+    for (const unitId of cached.units.keys()) {
+      if (!nextUnits.has(unitId)) {
+        this.io.to(`player:${recipientId}`).emit('unit_destroyed', { gameId, unitId });
+      }
+    }
+    cached.units = nextUnits;
+
+    this.broadcastCityDataToPlayer(gameId, playerId, true);
+
+    const borders = this.getBorderTilesForPlayer(
+      gameInstance,
+      playerId,
+      visibleTiles,
+      rememberedTiles,
+      debug
+    );
+    const nextBorders = this.indexWireState(borders, tile => `${tile.x},${tile.y}`);
+    const changedBorders = borders.filter(
+      tile => cached.borders.get(`${tile.x},${tile.y}`) !== JSON.stringify(tile)
+    );
+    for (const key of cached.borders.keys()) {
+      if (!nextBorders.has(key)) {
+        const [x, y] = key.split(',').map(Number);
+        changedBorders.push({ x, y, owner: null, strength: 0 });
+      }
+    }
+    if (changedBorders.length > 0) {
+      this.sendPacketToPlayer(gameInstance, playerId, PacketType.BORDER_UPDATE, {
+        type: 'border_update',
+        updateType: 'incremental',
+        tiles: changedBorders,
+      });
+    }
+    cached.borders = nextBorders;
+  }
+
+  private getBorderTilesForPlayer(
+    gameInstance: GameInstance,
+    playerId: string,
+    visibleTiles: Set<string>,
+    rememberedTiles: Map<string, any>,
+    debug: boolean
+  ): any[] {
+    const current = gameInstance.borderManager
       .getAllTileOwnership()
       .filter(
         (ownership: any) =>
-          debugVisibility ||
+          debug ||
           ownership.playerId === playerId ||
           visibleTiles.has(`${ownership.x},${ownership.y}`)
       )
@@ -698,31 +853,32 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         owner: ownership.playerId,
         strength: ownership.strength,
       }));
-    const borderTiles = debugVisibility
-      ? currentBorderTiles
-      : [
-          ...currentBorderTiles,
-          ...[...rememberedTiles.values()]
-            .filter(
-              (tile: any) =>
-                tile.owner &&
-                !visibleTiles.has(`${tile.x},${tile.y}`) &&
-                !currentBorderTiles.some(
-                  (current: any) => current.x === tile.x && current.y === tile.y
-                )
-            )
-            .map((tile: any) => ({
-              x: tile.x,
-              y: tile.y,
-              owner: tile.owner,
-              strength: 0,
-            })),
-        ];
-    this.sendPacketToPlayer(gameInstance, playerId, PacketType.BORDER_UPDATE, {
-      type: 'border_update',
-      updateType: 'full_update',
-      tiles: borderTiles,
-    });
+    if (debug) return current;
+    return [
+      ...current,
+      ...[...rememberedTiles.values()]
+        .filter(
+          (tile: any) =>
+            tile.owner &&
+            !visibleTiles.has(`${tile.x},${tile.y}`) &&
+            !current.some((item: any) => item.x === tile.x && item.y === tile.y)
+        )
+        .map((tile: any) => ({ x: tile.x, y: tile.y, owner: tile.owner, strength: 0 })),
+    ];
+  }
+
+  private getVisibilityCache(gameId: string, playerId: string) {
+    const key = `${gameId}:${playerId}`;
+    let state = this.visibilityState.get(key);
+    if (!state) {
+      state = { tiles: new Map(), units: new Map(), cities: new Map(), borders: new Map() };
+      this.visibilityState.set(key, state);
+    }
+    return state;
+  }
+
+  private indexWireState<T>(items: T[], key: (item: T) => string): Map<string, string> {
+    return new Map(items.map(item => [key(item), JSON.stringify(item)]));
   }
 
   private getAllTileKeys(mapData: any): Set<string> {
@@ -896,7 +1052,8 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   private sendTileDataInBatches(
     gameInstance: GameInstance,
     playerId: string,
-    visibleTiles: any[]
+    visibleTiles: any[],
+    fullSnapshot = true
   ): void {
     const BATCH_SIZE = 100;
     for (let i = 0; i < visibleTiles.length; i += BATCH_SIZE) {
@@ -922,6 +1079,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         startIndex: i,
         endIndex: Math.min(i + BATCH_SIZE, visibleTiles.length),
         total: visibleTiles.length,
+        fullSnapshot,
       });
     }
   }
@@ -1091,7 +1249,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   /**
    * Broadcast city data to a specific player
    */
-  broadcastCityDataToPlayer(gameId: string, playerId: string): void {
+  broadcastCityDataToPlayer(gameId: string, playerId: string, incremental = false): void {
     const gameInstance = this.games.get(gameId);
     if (!gameInstance) {
       this.logger.warn('Attempted to broadcast city data to non-existent game', { gameId });
@@ -1161,10 +1319,26 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       }
     }
 
+    const cached = this.getVisibilityCache(gameId, playerId);
+    const cityEntries = Object.entries(clientCityData);
+    const nextCities = this.indexWireState(cityEntries, ([cityId]) => cityId);
+    const changedCities = Object.fromEntries(
+      cityEntries.filter(
+        ([cityId, city]) => cached.cities.get(cityId) !== JSON.stringify([cityId, city])
+      )
+    );
+    const removedCityIds = [...cached.cities.keys()].filter(cityId => !nextCities.has(cityId));
+    cached.cities = nextCities;
+    if (incremental && Object.keys(changedCities).length === 0 && removedCityIds.length === 0) {
+      return;
+    }
+
     const recipientId = gameInstance.players.get(playerId)?.userId || playerId;
     this.broadcastToPlayer(recipientId, 'cities_updated', {
       gameId,
-      cities: clientCityData,
+      cities: incremental ? changedCities : clientCityData,
+      removedCityIds: incremental ? removedCityIds : [],
+      fullSnapshot: !incremental,
       timestamp: Date.now(),
     });
 

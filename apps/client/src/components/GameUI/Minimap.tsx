@@ -1,16 +1,28 @@
 /**
  * @module client/components/GameUI/Minimap
- * Defines the Minimap client UI component.
+ * Freeciv-web-compatible overview map with an independently refreshed viewport overlay.
+ *
+ * @reference reference/freeciv-web/javascript/overview.js:20-24,50-119,233-320,459-474
+ * @reference reference/freeciv/client/overview_common.c:324-374,408-483
  */
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useGameStore } from '../../store/gameStore';
+import { getMapRenderTileSize, subscribeMapRenderTileSize } from '../Canvas2D/mapRenderMetrics';
 import { HudPanel } from './HudPanel';
 import { isMinimapMarkerVisible } from './minimapVisibility';
+import {
+  getMinimapLayout,
+  getMinimapViewportPolygons,
+  minimapPointToMapTile,
+  minimapPositionToNative,
+  nativeToMinimapPosition,
+  VIEWPORT_OUTLINE_COLOR,
+  VIEWPORT_OUTLINE_WIDTH,
+} from './minimapGeometry';
 
-const MINIMAP_WIDTH = 220;
-const MINIMAP_HEIGHT = 140;
 const TILE_COLORS: Record<string, string> = {
   ocean: '#164e63',
+  deep_ocean: '#164e63',
   coast: '#0e7490',
   grassland: '#3f7d4a',
   plains: '#78934e',
@@ -28,23 +40,17 @@ const TILE_COLORS: Record<string, string> = {
 
 const terrainColor = (terrain: string | undefined): string => {
   const normalized = terrain?.toLowerCase() ?? 'unknown';
-  return TILE_COLORS[normalized] ?? (normalized === 'unknown' ? '#111827' : '#475569');
+  return TILE_COLORS[normalized] ?? (normalized === 'unknown' ? '#000000' : '#475569');
 };
-
-const isOceanTerrain = (terrain: string | undefined): boolean =>
-  terrain?.toLowerCase().includes('ocean') ?? false;
 
 const playerColor = (color: string | undefined, fallback: string): string => color || fallback;
 
-const inverseIsometric = (guiX: number, guiY: number): { x: number; y: number } => ({
-  x: guiX / 96 + guiY / 48,
-  y: guiY / 48 - guiX / 96,
-});
-
 export const Minimap: React.FC = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const baseCanvasRef = useRef<HTMLCanvasElement>(null);
+  const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const draggingRef = useRef(false);
-  const redrawFrameRef = useRef<number | null>(null);
+  const baseFrameRef = useRef<number | null>(null);
+  const overlayFrameRef = useRef<number | null>(null);
   const map = useGameStore(state => state.map);
   const viewport = useGameStore(state => state.viewport);
   const units = useGameStore(state => state.units);
@@ -53,45 +59,68 @@ export const Minimap: React.FC = () => {
   const currentPlayerId = useGameStore(state => state.currentPlayerId);
   const selectedCityId = useGameStore(state => state.selectedCityId);
   const selectedUnitId = useGameStore(state => state.selectedUnitId);
+  const tileSize = useSyncExternalStore(
+    subscribeMapRenderTileSize,
+    getMapRenderTileSize,
+    getMapRenderTileSize
+  );
+  const mapWidth = map.xsize ?? map.width;
+  const mapHeight = map.ysize ?? map.height;
+  const topologyId = map.topology_id ?? 0;
+  const wrapId = map.wrap_id ?? 0;
+  const layout = getMinimapLayout(mapWidth ?? 0, mapHeight ?? 0, topologyId);
 
-  const drawMinimap = useCallback(() => {
-    const canvas = canvasRef.current;
+  const drawBase = useCallback(() => {
+    const canvas = baseCanvasRef.current;
     if (!canvas) return;
     const context = canvas.getContext('2d');
     if (!context) return;
 
-    const mapWidth = map.xsize ?? map.width;
-    const mapHeight = map.ysize ?? map.height;
-    context.clearRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
+    context.clearRect(0, 0, layout.width, layout.height);
+    context.fillStyle = '#000000';
+    context.fillRect(0, 0, layout.width, layout.height);
     if (!mapWidth || !mapHeight) return;
 
-    const cellWidth = MINIMAP_WIDTH / mapWidth;
-    const cellHeight = MINIMAP_HEIGHT / mapHeight;
     const tiles = Object.values(map.tiles);
     const tilesByCoordinate = new Map(tiles.map(tile => [`${tile.x},${tile.y}`, tile]));
-
-    for (const tile of tiles) {
-      if (!tile.known) continue;
-      context.globalAlpha = tile.visible ? 1 : 0.55;
-      if (!isOceanTerrain(tile.terrain)) {
+    const markerPosition = (x: number, y: number) => {
+      const origin = nativeToMinimapPosition(x, y, mapWidth, mapHeight, topologyId, wrapId);
+      return {
+        x: (origin.x + 0.5) * layout.scaleX,
+        y: (origin.y + 0.5) * layout.scaleY,
+      };
+    };
+    for (let overviewY = 0; overviewY < layout.coordinateHeight; overviewY += 1) {
+      for (let overviewX = 0; overviewX < layout.coordinateWidth; overviewX += 1) {
+        const native = minimapPositionToNative(
+          overviewX,
+          overviewY,
+          mapWidth,
+          mapHeight,
+          topologyId,
+          wrapId
+        );
+        const tile = tilesByCoordinate.get(`${native.x},${native.y}`);
+        if (!tile?.known) continue;
+        context.globalAlpha = tile.visible ? 1 : 0.55;
         context.fillStyle = terrainColor(tile.terrain);
         context.fillRect(
-          tile.x * cellWidth,
-          tile.y * cellHeight,
-          cellWidth + 0.5,
-          cellHeight + 0.5
+          overviewX * layout.scaleX,
+          overviewY * layout.scaleY,
+          layout.scaleX + 0.5,
+          layout.scaleY + 0.5
         );
-      }
 
-      if (tile.owner) {
-        context.globalAlpha = tile.visible ? 0.42 : 0.22;
-        context.fillStyle = playerColor(players[tile.owner]?.color, '#94a3b8');
-        context.fillRect(
-          tile.x * cellWidth,
-          tile.y * cellHeight,
-          cellWidth + 0.5,
-          cellHeight + 0.5
-        );
+        if (tile.owner) {
+          context.globalAlpha = tile.visible ? 0.42 : 0.22;
+          context.fillStyle = playerColor(players[tile.owner]?.color, '#94a3b8');
+          context.fillRect(
+            overviewX * layout.scaleX,
+            overviewY * layout.scaleY,
+            layout.scaleX + 0.5,
+            layout.scaleY + 0.5
+          );
+        }
       }
     }
     context.globalAlpha = 1;
@@ -99,22 +128,20 @@ export const Minimap: React.FC = () => {
     for (const city of Object.values(cities)) {
       const tile = tilesByCoordinate.get(`${city.x},${city.y}`);
       if (!isMinimapMarkerVisible(tile, city.playerId, currentPlayerId, false)) continue;
-      const x = (city.x + 0.5) * cellWidth;
-      const y = (city.y + 0.5) * cellHeight;
+      const { x, y } = markerPosition(city.x, city.y);
       context.fillStyle = playerColor(players[city.playerId]?.color, '#f8fafc');
-      context.fillRect(Math.max(0, x - 2), Math.max(0, y - 2), 4, 4);
+      context.fillRect(x - 2, y - 2, 4, 4);
       if (city.playerId === currentPlayerId) {
         context.strokeStyle = '#f8fafc';
         context.lineWidth = 1;
-        context.strokeRect(Math.max(0, x - 3), Math.max(0, y - 3), 6, 6);
+        context.strokeRect(x - 3, y - 3, 6, 6);
       }
     }
 
     for (const unit of Object.values(units)) {
       const tile = tilesByCoordinate.get(`${unit.x},${unit.y}`);
       if (!isMinimapMarkerVisible(tile, unit.playerId, currentPlayerId, true)) continue;
-      const x = (unit.x + 0.5) * cellWidth;
-      const y = (unit.y + 0.5) * cellHeight;
+      const { x, y } = markerPosition(unit.x, unit.y);
       context.fillStyle = unit.playerId === currentPlayerId ? '#67e8f9' : '#e2e8f0';
       context.beginPath();
       context.arc(x, y, unit.playerId === currentPlayerId ? 2 : 1.5, 0, 2 * Math.PI);
@@ -123,78 +150,115 @@ export const Minimap: React.FC = () => {
 
     const selectedCity = selectedCityId ? cities[selectedCityId] : undefined;
     if (selectedCity) {
-      const x = (selectedCity.x + 0.5) * cellWidth;
-      const y = (selectedCity.y + 0.5) * cellHeight;
+      const { x, y } = markerPosition(selectedCity.x, selectedCity.y);
       context.strokeStyle = '#f8fafc';
       context.lineWidth = 2;
-      context.strokeRect(Math.max(0, x - 4), Math.max(0, y - 4), 8, 8);
+      context.strokeRect(x - 4, y - 4, 8, 8);
     }
 
     const selectedUnit = selectedUnitId ? units[selectedUnitId] : undefined;
     if (selectedUnit) {
-      const x = (selectedUnit.x + 0.5) * cellWidth;
-      const y = (selectedUnit.y + 0.5) * cellHeight;
+      const { x, y } = markerPosition(selectedUnit.x, selectedUnit.y);
       context.strokeStyle = '#67e8f9';
       context.lineWidth = 2;
       context.beginPath();
       context.arc(x, y, 4.5, 0, 2 * Math.PI);
       context.stroke();
     }
+  }, [
+    cities,
+    currentPlayerId,
+    layout,
+    map.tiles,
+    mapHeight,
+    mapWidth,
+    players,
+    selectedCityId,
+    selectedUnitId,
+    topologyId,
+    wrapId,
+    units,
+  ]);
 
-    const cameraCorners = [
-      inverseIsometric(viewport.x, viewport.y),
-      inverseIsometric(viewport.x + viewport.width, viewport.y),
-      inverseIsometric(viewport.x + viewport.width, viewport.y + viewport.height),
-      inverseIsometric(viewport.x, viewport.y + viewport.height),
-    ];
-    context.strokeStyle = '#f8fafc';
-    context.lineWidth = 1.5;
+  const drawOverlay = useCallback(() => {
+    const canvas = overlayCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+
+    context.clearRect(0, 0, layout.width, layout.height);
+    if (!mapWidth || !mapHeight) return;
+    const polygons = getMinimapViewportPolygons(
+      viewport,
+      mapWidth,
+      mapHeight,
+      wrapId,
+      layout,
+      tileSize.width,
+      tileSize.height,
+      topologyId
+    );
+    context.strokeStyle = VIEWPORT_OUTLINE_COLOR;
+    context.lineWidth = VIEWPORT_OUTLINE_WIDTH;
     context.beginPath();
-    cameraCorners.forEach((point, index) => {
-      const x = point.x * cellWidth;
-      const y = point.y * cellHeight;
-      if (index === 0) context.moveTo(x, y);
-      else context.lineTo(x, y);
-    });
-    context.closePath();
+    for (const polygon of polygons) {
+      context.moveTo(polygon[0].x, polygon[0].y);
+      for (let index = 1; index < polygon.length; index += 1) {
+        context.lineTo(polygon[index].x, polygon[index].y);
+      }
+      context.lineTo(polygon[0].x, polygon[0].y);
+    }
     context.stroke();
-  }, [cities, currentPlayerId, map, players, selectedCityId, selectedUnitId, units, viewport]);
+  }, [layout, mapHeight, mapWidth, tileSize.height, tileSize.width, topologyId, viewport, wrapId]);
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
-      redrawFrameRef.current = null;
-      drawMinimap();
+      baseFrameRef.current = null;
+      drawBase();
     });
-    redrawFrameRef.current = frameId;
-
+    baseFrameRef.current = frameId;
     return () => {
       window.cancelAnimationFrame(frameId);
-      if (redrawFrameRef.current === frameId) redrawFrameRef.current = null;
+      if (baseFrameRef.current === frameId) baseFrameRef.current = null;
     };
-  }, [drawMinimap]);
+  }, [drawBase]);
+
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => {
+      overlayFrameRef.current = null;
+      drawOverlay();
+    });
+    overlayFrameRef.current = frameId;
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      if (overlayFrameRef.current === frameId) overlayFrameRef.current = null;
+    };
+  }, [drawOverlay]);
 
   const centerFromPointer = (clientX: number, clientY: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const canvas = overlayCanvasRef.current;
+    if (!canvas || !mapWidth || !mapHeight || !layout.width || !layout.height) return;
     if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return;
     const rect = canvas.getBoundingClientRect();
-    const mapWidth = map.xsize ?? map.width;
-    const mapHeight = map.ysize ?? map.height;
-    if (!mapWidth || !mapHeight) return;
-    const x = Math.floor(((clientX - rect.left) / (rect.width || MINIMAP_WIDTH)) * mapWidth);
-    const y = Math.floor(((clientY - rect.top) / (rect.height || MINIMAP_HEIGHT)) * mapHeight);
+    const localX = ((clientX - rect.left) / (rect.width || layout.width)) * layout.width;
+    const localY = ((clientY - rect.top) / (rect.height || layout.height)) * layout.height;
+    const point = minimapPointToMapTile(
+      localX,
+      localY,
+      mapWidth,
+      mapHeight,
+      layout,
+      topologyId,
+      wrapId
+    );
     document.dispatchEvent(
       new CustomEvent('center-map-on-tile', {
         detail: {
-          x: Math.max(0, Math.min(mapWidth - 1, x)),
-          y: Math.max(0, Math.min(mapHeight - 1, y)),
+          x: Math.max(0, Math.min(mapWidth - 1, point.x)),
+          y: Math.max(0, Math.min(mapHeight - 1, point.y)),
         },
       })
     );
-  };
-
-  const handleClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    centerFromPointer(event.clientX, event.clientY);
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -202,11 +266,9 @@ export const Minimap: React.FC = () => {
     event.currentTarget.setPointerCapture?.(event.pointerId);
     centerFromPointer(event.clientX, event.clientY);
   };
-
   const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (draggingRef.current) centerFromPointer(event.clientX, event.clientY);
   };
-
   const handlePointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
     draggingRef.current = false;
     event.currentTarget.releasePointerCapture?.(event.pointerId);
@@ -219,21 +281,33 @@ export const Minimap: React.FC = () => {
     : selectedUnit
       ? `, selected unit ${selectedUnit.unitTypeId.replaceAll('_', ' ')}`
       : '';
+  const canvasStyle = { width: layout.width, height: layout.height };
 
   return (
-    <HudPanel className="hidden w-[234px] overflow-hidden p-1.5 sm:block">
-      <canvas
-        ref={canvasRef}
-        width={MINIMAP_WIDTH}
-        height={MINIMAP_HEIGHT}
-        onClick={handleClick}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        aria-label={`Minimap overview${selectionLabel}`}
-        className="block h-[140px] w-[220px] cursor-crosshair touch-none rounded-md"
-      />
+    <HudPanel className="hidden overflow-hidden p-1.5 sm:block">
+      <div className="relative" style={canvasStyle}>
+        <canvas
+          ref={baseCanvasRef}
+          width={layout.width}
+          height={layout.height}
+          aria-hidden="true"
+          className="block rounded-md"
+          style={canvasStyle}
+        />
+        <canvas
+          ref={overlayCanvasRef}
+          width={layout.width}
+          height={layout.height}
+          onClick={event => centerFromPointer(event.clientX, event.clientY)}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          aria-label={`Minimap overview${selectionLabel}`}
+          className="absolute inset-0 block cursor-crosshair touch-none rounded-md"
+          style={canvasStyle}
+        />
+      </div>
     </HudPanel>
   );
 };

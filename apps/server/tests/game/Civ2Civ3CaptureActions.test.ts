@@ -62,12 +62,12 @@ describe('Civ2Civ3 capture and ransom actions', () => {
     const { manager } = createManager();
     manager.setHostilityProvider(async () => true);
     const capturer = await manager.createUnit(attackerId, 'warriors', 10, 10, 'home-city');
-    const caravan = await manager.createUnit(defenderId, 'caravan', 11, 10, 'enemy-home');
+    const caravan = await manager.createUnit(defenderId, 'caravan', 10, 9, 'enemy-home');
     capturer.movementLeft = 7;
     caravan.movementLeft = 2;
 
     await expect(
-      manager.executeUnitAction(capturer.id, ActionType.CAPTURE_UNITS, 11, 10, attackerId)
+      manager.executeUnitAction(capturer.id, ActionType.CAPTURE_UNITS, 10, 9, attackerId)
     ).resolves.toMatchObject({
       success: true,
       affectedUnitIds: [caravan.id],
@@ -93,11 +93,11 @@ describe('Civ2Civ3 capture and ransom actions', () => {
     const { manager } = createManager();
     manager.setHostilityProvider(async () => true);
     const capturer = await manager.createUnit(attackerId, 'warriors', 10, 10, 'home-city');
-    const escort = await manager.createUnit(defenderId, 'warriors', 11, 10, 'enemy-home');
-    const caravan = await manager.createUnit(defenderId, 'caravan', 11, 10, 'enemy-home');
+    const escort = await manager.createUnit(defenderId, 'warriors', 10, 9, 'enemy-home');
+    const caravan = await manager.createUnit(defenderId, 'caravan', 10, 9, 'enemy-home');
 
     await expect(
-      manager.executeUnitAction(capturer.id, ActionType.CAPTURE_UNITS, 11, 10, attackerId)
+      manager.executeUnitAction(capturer.id, ActionType.CAPTURE_UNITS, 10, 9, attackerId)
     ).resolves.toMatchObject({
       success: true,
       affectedUnitIds: [escort.id, caravan.id],
@@ -117,11 +117,11 @@ describe('Civ2Civ3 capture and ransom actions', () => {
     const { manager } = createManager();
     manager.setHostilityProvider(async () => true);
     const capturer = await manager.createUnit(attackerId, 'warriors', 10, 10, 'home-city');
-    const caravan = await manager.createUnit(defenderId, 'caravan', 11, 10, 'enemy-home');
-    await manager.createUnit(attackerId, 'warriors', 11, 10, 'home-city');
+    const caravan = await manager.createUnit(defenderId, 'caravan', 10, 9, 'enemy-home');
+    await manager.createUnit(attackerId, 'warriors', 10, 9, 'home-city');
 
     await expect(
-      manager.executeUnitAction(capturer.id, ActionType.CAPTURE_UNITS, 11, 10, attackerId)
+      manager.executeUnitAction(capturer.id, ActionType.CAPTURE_UNITS, 10, 9, attackerId)
     ).resolves.toMatchObject({ success: false });
     expect(caravan.playerId).toBe(defenderId);
   });
@@ -137,10 +137,10 @@ describe('Civ2Civ3 capture and ransom actions', () => {
     const { manager } = createManager();
     manager.setHostilityProvider(async () => false);
     const capturer = await manager.createUnit(attackerId, 'warriors', 10, 10, 'home-city');
-    const caravan = await manager.createUnit(defenderId, 'caravan', 11, 10, 'enemy-home');
+    const caravan = await manager.createUnit(defenderId, 'caravan', 10, 9, 'enemy-home');
 
     await expect(
-      manager.executeUnitAction(capturer.id, ActionType.CAPTURE_UNITS, 11, 10, attackerId)
+      manager.executeUnitAction(capturer.id, ActionType.CAPTURE_UNITS, 10, 9, attackerId)
     ).resolves.toMatchObject({ success: false });
     expect(caravan.playerId).toBe(defenderId);
   });
@@ -154,14 +154,14 @@ describe('Civ2Civ3 capture and ransom actions', () => {
    */
   it('rejects Capture Units on a C2C3 city center', async () => {
     const { manager } = createManager({
-      cityAt: (x, y) => (x === 11 && y === 10 ? { id: 'city-1', playerId: defenderId } : null),
+      cityAt: (x, y) => (x === 10 && y === 9 ? { id: 'city-1', playerId: defenderId } : null),
     });
     manager.setHostilityProvider(async () => true);
     const capturer = await manager.createUnit(attackerId, 'warriors', 10, 10, 'home-city');
-    const caravan = await manager.createUnit(defenderId, 'caravan', 11, 10, 'enemy-home');
+    const caravan = await manager.createUnit(defenderId, 'caravan', 10, 9, 'enemy-home');
 
     await expect(
-      manager.executeUnitAction(capturer.id, ActionType.CAPTURE_UNITS, 11, 10, attackerId)
+      manager.executeUnitAction(capturer.id, ActionType.CAPTURE_UNITS, 10, 9, attackerId)
     ).resolves.toMatchObject({ success: false });
     expect(caravan.playerId).toBe(defenderId);
   });
@@ -185,19 +185,19 @@ describe('Civ2Civ3 capture and ransom actions', () => {
     });
     manager.setHostilityProvider(async () => true);
     const collector = await manager.createUnit(attackerId, 'warriors', 10, 10);
-    const leader = await manager.createUnit(barbarianId, 'barbarian_leader', 11, 10);
+    const leader = await manager.createUnit(barbarianId, 'barbarian_leader', 10, 9);
     collector.movementLeft = 7;
 
     await expect(
-      manager.executeUnitAction(collector.id, ActionType.COLLECT_RANSOM, 11, 10, attackerId)
+      manager.executeUnitAction(collector.id, ActionType.COLLECT_RANSOM, 10, 9, attackerId)
     ).resolves.toMatchObject({
       success: true,
       targetDestroyed: true,
       affectedUnitIds: [leader.id],
       newMovementLeft: 1,
-      newPosition: { x: 11, y: 10 },
+      newPosition: { x: 10, y: 9 },
     });
-    expect(collector).toMatchObject({ movementLeft: 1, x: 11, y: 10 });
+    expect(collector).toMatchObject({ movementLeft: 1, x: 10, y: 9 });
     expect(manager.getUnit(leader.id)).toBeUndefined();
   });
 
@@ -218,11 +218,11 @@ describe('Civ2Civ3 capture and ransom actions', () => {
     });
     manager.setHostilityProvider(async () => true);
     const collector = await manager.createUnit(attackerId, 'warriors', 10, 10);
-    const leader = await manager.createUnit(barbarianId, 'barbarian_leader', 11, 10);
-    const escort = await manager.createUnit(barbarianId, 'warriors', 11, 10);
+    const leader = await manager.createUnit(barbarianId, 'barbarian_leader', 10, 9);
+    const escort = await manager.createUnit(barbarianId, 'warriors', 10, 9);
 
     await expect(
-      manager.executeUnitAction(collector.id, ActionType.COLLECT_RANSOM, 11, 10, attackerId)
+      manager.executeUnitAction(collector.id, ActionType.COLLECT_RANSOM, 10, 9, attackerId)
     ).resolves.toMatchObject({ success: false });
     expect(manager.getUnit(leader.id)).toBeDefined();
     expect(manager.getUnit(escort.id)).toBeDefined();

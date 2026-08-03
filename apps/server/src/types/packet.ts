@@ -4,6 +4,7 @@
  */
 import { z } from 'zod';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
+import { validateFreecivFixedMapDimensions } from '@game/services/MapSizingService';
 export { PacketType, PACKET_NAMES, PROTOCOL_VERSION } from './shared/packetContract';
 import { PacketType } from './shared/packetContract';
 
@@ -673,6 +674,21 @@ export const GameCreateSchema = z
         code: 'custom',
         path: ['mapHeight'],
         message: 'Fixed map sizing requires mapHeight',
+      });
+    }
+    if (value.mapWidth === undefined || value.mapHeight === undefined) return;
+
+    try {
+      validateFreecivFixedMapDimensions(
+        value.mapWidth,
+        value.mapHeight,
+        value.terrainSettings?.topologyId
+      );
+    } catch (error) {
+      context.addIssue({
+        code: 'custom',
+        path: ['mapHeight'],
+        message: error instanceof Error ? error.message : 'Invalid fixed map dimensions',
       });
     }
   });

@@ -50,6 +50,46 @@ export interface ResolveMapSizingInput {
   loader?: RulesetLoader;
 }
 
+/**
+ * Validate explicit native map dimensions against the Freeciv-web limits.
+ *
+ * Freeciv validates the linear bounds through the xsize/ysize settings,
+ * validates the total tile area separately, and requires an even native
+ * height for every isometric or hexagonal topology.
+ *
+ * @reference reference/freeciv/server/settings.c:1264-1353
+ * @reference reference/freeciv/common/map.h:643-670
+ */
+export function validateFreecivFixedMapDimensions(
+  width: number | undefined,
+  height: number | undefined,
+  topologyId = 0
+): { width: number; height: number } {
+  assertDimension(width, 'mapWidth');
+  assertDimension(height, 'mapHeight');
+
+  if (width < FREECIV_MIN_LINEAR_SIZE || width > FREECIV_MAX_LINEAR_SIZE) {
+    throw new Error(
+      `mapWidth must be between ${FREECIV_MIN_LINEAR_SIZE} and ${FREECIV_MAX_LINEAR_SIZE}`
+    );
+  }
+  if (height < FREECIV_MIN_LINEAR_SIZE || height > FREECIV_MAX_LINEAR_SIZE) {
+    throw new Error(
+      `mapHeight must be between ${FREECIV_MIN_LINEAR_SIZE} and ${FREECIV_MAX_LINEAR_SIZE}`
+    );
+  }
+  if (width * height > FREECIV_WEB_MAX_AREA) {
+    throw new Error(`Fixed map area must not exceed ${FREECIV_WEB_MAX_AREA} tiles`);
+  }
+
+  const topology = normalizeTopologyId(topologyId);
+  if ((topology & (TopologyFlag.ISO | TopologyFlag.HEX)) !== 0 && height % 2 !== 0) {
+    throw new Error('For an isometric or hexagonal map, mapHeight must be even');
+  }
+
+  return { width, height };
+}
+
 export function landPercentForTerrain(landmass?: string): number {
   return landmass === 'sparse' ? 20 : landmass === 'dense' ? 50 : 30;
 }
@@ -58,15 +98,12 @@ export function resolveMapSizing(input: ResolveMapSizingInput): MapSizingResolut
   const settings = resolveRulesetMapSettings(input.rulesetName, input.loader ?? rulesetLoader);
 
   if (input.mode === 'fixed') {
-    assertDimension(input.fixedWidth, 'mapWidth');
-    assertDimension(input.fixedHeight, 'mapHeight');
-    return buildResolution(
-      input,
-      settings,
+    const { width, height } = validateFreecivFixedMapDimensions(
       input.fixedWidth,
       input.fixedHeight,
-      input.fixedWidth * input.fixedHeight
+      input.topologyId
     );
+    return buildResolution(input, settings, width, height, width * height);
   }
 
   if (settings.mapsize !== 'PLAYER') {

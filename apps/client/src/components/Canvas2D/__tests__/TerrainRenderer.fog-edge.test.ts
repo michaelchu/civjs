@@ -155,6 +155,48 @@ describe('TerrainRenderer fog-edge neighbors', () => {
     expect(neighbors[4].graphic_str).toBe('grassland');
   });
 
+  it('samples logical terrain neighbors from native ISO tile storage', () => {
+    const renderer = new TerrainRenderer({} as CanvasRenderingContext2D, {} as never, 96, 48);
+    const state = {
+      viewport: { x: 0, y: 0, width: 800, height: 600 },
+      map: {
+        width: 32,
+        height: 64,
+        xsize: 32,
+        ysize: 64,
+        topology_id: 12,
+        wrap_id: 3,
+        tiles: {},
+      },
+      units: {},
+      cities: {},
+      players: {},
+    } satisfies RenderState;
+    renderer.invalidateTileCache({
+      '10,10': { x: 10, y: 10, terrain: 'grassland', known: true, visible: true },
+      // Logical east is native (10,11); raw x + 1 is an unrelated tile.
+      '10,11': { x: 10, y: 11, terrain: 'plains', known: true, visible: true },
+      '11,10': { x: 11, y: 10, terrain: 'desert', known: true, visible: true },
+    });
+    (
+      renderer as unknown as {
+        setMapTopology(candidate: RenderState): void;
+      }
+    ).setMapTopology(state);
+
+    const neighbors = (
+      renderer as unknown as {
+        getNeighboringTerrains(tile: {
+          x: number;
+          y: number;
+          terrain: string;
+        }): Array<{ graphic_str: string }>;
+      }
+    ).getNeighboringTerrains({ x: 10, y: 10, terrain: 'grassland' });
+
+    expect(neighbors[2].graphic_str).toBe('plains');
+  });
+
   it('pads ocean across the full canvas when viewport dimensions lag', () => {
     const context = {
       canvas: { width: 500, height: 300 },

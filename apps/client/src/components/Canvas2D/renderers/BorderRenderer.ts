@@ -12,6 +12,7 @@
 import { BaseRenderer } from './BaseRenderer';
 import type { RenderState } from './BaseRenderer';
 import type { Tile } from '../../../types';
+import { stepNativeMapPosition } from '../mapTopologyGeometry';
 
 // Direction constants from freeciv
 // @reference freeciv-web/javascript/fc_types.js
@@ -174,22 +175,21 @@ export class BorderRenderer extends BaseRenderer {
    * @reference freeciv-web/javascript/mapctrl.js - mapstep function
    */
   private getNeighborTile(tile: Tile, dir: Direction, map: any): Tile | null {
-    const { x, y } = tile;
-    let newX = x;
-    let newY = y;
+    let dx = 0;
+    let dy = 0;
 
     switch (dir) {
       case Direction.DIR8_NORTH:
-        newY--;
+        dy = -1;
         break;
       case Direction.DIR8_EAST:
-        newX++;
+        dx = 1;
         break;
       case Direction.DIR8_SOUTH:
-        newY++;
+        dy = 1;
         break;
       case Direction.DIR8_WEST:
-        newX--;
+        dx = -1;
         break;
       default:
         return null;
@@ -198,13 +198,17 @@ export class BorderRenderer extends BaseRenderer {
     const mapWidth = map.xsize ?? map.width;
     const mapHeight = map.ysize ?? map.height;
     const wrapId = map.wrap_id ?? 0;
-
-    // CivJS wraps the authoritative rectangular map coordinates directly.
-    if ((wrapId & 1) !== 0) newX = ((newX % mapWidth) + mapWidth) % mapWidth;
-    if ((wrapId & 2) !== 0) newY = ((newY % mapHeight) + mapHeight) % mapHeight;
-    if (newX < 0 || newX >= mapWidth || newY < 0 || newY >= mapHeight) return null;
-
-    return map.tiles[`${newX},${newY}`] || null;
+    const position = stepNativeMapPosition(
+      tile.x,
+      tile.y,
+      dx,
+      dy,
+      mapWidth,
+      mapHeight,
+      map.topology_id ?? 0,
+      wrapId
+    );
+    return position ? map.tiles[`${position.x},${position.y}`] || null : null;
   }
 
   /**

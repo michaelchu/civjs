@@ -1,4 +1,11 @@
-import { MapTopology, normalizeTopologyId, TopologyFlag, WrapFlag } from '@game/map/MapTopology';
+import {
+  mapToNativePosition,
+  MapTopology,
+  nativeToMapPosition,
+  normalizeTopologyId,
+  TopologyFlag,
+  WrapFlag,
+} from '@game/map/MapTopology';
 
 describe('MapTopology', () => {
   /**
@@ -53,10 +60,35 @@ describe('MapTopology', () => {
     });
 
     expect(topology.getDirections()).toHaveLength(6);
-    expect(topology.getNeighbors(4, 3)).not.toContainEqual({ x: 5, y: 2 });
-    expect(topology.getNeighbors(4, 3)).not.toContainEqual({ x: 3, y: 4 });
-    expect(topology.realDistance(1, 1, 4, 4)).toBe(3);
-    expect(topology.realDistance(1, 4, 4, 1)).toBe(6);
+    expect(topology.getNeighbors(4, 3)).toEqual(
+      expect.arrayContaining([
+        { x: 5, y: 2 },
+        { x: 5, y: 4 },
+        { x: 4, y: 5 },
+        { x: 4, y: 4 },
+        { x: 4, y: 2 },
+        { x: 4, y: 1 },
+      ])
+    );
+    expect(topology.getNeighbors(4, 3)).toHaveLength(6);
+  });
+
+  /**
+   * @reference reference/freeciv/common/map.h:170-180
+   * @reference reference/freeciv/common/map.c:1162-1193
+   */
+  it('matches C2C3 native/map conversion and wrapped seam fixtures', () => {
+    const topology = new MapTopology(32, 64, {
+      topologyId: TopologyFlag.ISO | TopologyFlag.HEX,
+      wrapId: WrapFlag.X | WrapFlag.Y,
+    });
+
+    expect(nativeToMapPosition(0, 0, 32, true)).toEqual({ x: 0, y: 32 });
+    expect(nativeToMapPosition(31, 63, 32, true)).toEqual({ x: 63, y: 32 });
+    expect(mapToNativePosition(63, 32, 32, true)).toEqual({ x: 31, y: 63 });
+    expect(topology.normalize(-1, -1)).toEqual({ x: 31, y: 63 });
+    expect(topology.getNeighbors(0, 0)).toContainEqual({ x: 31, y: 63 });
+    expect(topology.realDistance(0, 0, 31, 63)).toBe(1);
   });
 
   it('deduplicates neighbors on tiny wrapped maps', () => {
@@ -103,7 +135,7 @@ describe('MapTopology', () => {
     });
 
     expect(topology.getPositionsWithinSquaredRadius(4, 3, 2)).toHaveLength(7);
-    expect(topology.getPositionsWithinSquaredRadius(4, 3, 2)).not.toContainEqual({ x: 5, y: 2 });
-    expect(topology.getPositionsWithinSquaredRadius(4, 3, 2)).toContainEqual({ x: 5, y: 4 });
+    expect(topology.getPositionsWithinSquaredRadius(4, 3, 2)).not.toContainEqual({ x: 5, y: 3 });
+    expect(topology.getPositionsWithinSquaredRadius(4, 3, 2)).toContainEqual({ x: 5, y: 2 });
   });
 });

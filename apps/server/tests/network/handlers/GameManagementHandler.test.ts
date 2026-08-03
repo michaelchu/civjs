@@ -100,6 +100,27 @@ describe('GameManagementHandler', () => {
         }).success
       ).toBe(true);
     });
+
+    it('rejects fixed dimensions that violate the selected Freeciv topology', () => {
+      expect(
+        GameCreateSchema.safeParse({
+          name: 'Odd isometric game',
+          mapSizingMode: 'fixed',
+          mapWidth: 80,
+          mapHeight: 51,
+          terrainSettings: {
+            generator: 'random',
+            landmass: 'normal',
+            huts: 15,
+            temperature: 50,
+            wetness: 50,
+            rivers: 50,
+            resources: 'normal',
+            topologyId: 3,
+          },
+        }).success
+      ).toBe(false);
+    });
   });
 
   describe('register', () => {

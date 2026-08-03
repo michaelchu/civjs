@@ -16,6 +16,12 @@ import { PresentationEffectRenderer } from './renderers/PresentationEffectRender
 import { rulesetService } from '../../services/RulesetService';
 import { resolveGraphic } from '../../services/PresentationResolver';
 import type { RenderState } from './renderers/BaseRenderer';
+import {
+  mapToNativePosition,
+  nativeAxisMapPeriod,
+  nativeToMapPosition,
+  normalizeMapPosition,
+} from './mapTopologyGeometry';
 
 declare global {
   interface Window {
@@ -154,6 +160,11 @@ export class MapRenderer {
     }
   }
 
+  /** Exposes the resolved tileset dimensions for viewport projection overlays. */
+  getTileSize(): { width: number; height: number } {
+    return { width: this.tileWidth, height: this.tileHeight };
+  }
+
   /** Configures the canvas for crisp pixel-art sprite rendering. */
   private setupCanvas() {
     this.ctx.imageSmoothingEnabled = false;
@@ -215,6 +226,14 @@ export class MapRenderer {
       this.renderEmptyMap();
       return;
     }
+
+    this.terrainRenderer.setMapGeometry?.(state.map);
+    this.borderRenderer.setMapGeometry?.(state.map);
+    this.cityRenderer.setMapGeometry?.(state.map);
+    this.unitRenderer.setMapGeometry?.(state.map);
+    this.presentationEffectRenderer.setMapGeometry?.(state.map);
+    this.fogRenderer.setMapGeometry?.(state.map);
+    this.pathRenderer.setMapGeometry?.(state.map);
 
     /**
      * Implement freeciv-web's map boundary handling to fix diamond-shaped map edges.
@@ -429,7 +448,13 @@ export class MapRenderer {
     const guiX = canvasX + viewport.x;
     const guiY = canvasY + viewport.y;
     const result = this.guiToMapPos(guiX, guiY);
-    return result;
+    const native = mapToNativePosition(
+      result.mapX,
+      result.mapY,
+      this.currentMap.xsize ?? this.currentMap.width,
+      ((this.currentMap.topology_id ?? 0) & 4) !== 0
+    );
+    return { mapX: native.x, mapY: native.y };
   }
 
   /**
@@ -487,23 +512,6 @@ export class MapRenderer {
   }
 
   /**
-   * Freeciv coordinate wrapping function for handling map boundaries.
-   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/utility.js FC_WRAP function
-   * @param value - The coordinate value to wrap
-   * @param range - The range size (map dimension)
-   * @returns The wrapped coordinate value
-   */
-  private fcWrap(value: number, range: number): number {
-    return value < 0
-      ? value % range !== 0
-        ? (value % range) + range
-        : 0
-      : value >= range
-        ? value % range
-        : value;
-  }
-
-  /**
    * Return whether the current map has at least one periodic axis.
    */
   private isWrappedMap(): boolean {
@@ -511,15 +519,8 @@ export class MapRenderer {
   }
 
   /**
-   * Normalize a mapview origin in CivJS's rectangular map-coordinate space.
-   *
-   * The server stores and wraps authoritative tiles directly by x/y. The
-   * previous client implementation converted the viewport through Freeciv's
-   * native isometric coordinates, which can select a different GUI period
-   * even when no seam was crossed. That was the source of the drag-release
-   * snapback once Civ2Civ3 began sending wrap_id.
-   *
-   * @reference apps/server/src/game/map/MapTopology.ts:4-10
+   * Normalize a mapview origin through Freeciv's native rectangular axes.
+   * @reference reference/freeciv-web/javascript/2dcanvas/mapview_common.js:195-239
    */
   private normalizeGuiPos(guiX: number, guiY: number): { guiX: number; guiY: number } {
     const mapWidth = this.currentMap.xsize ?? this.currentMap.width;
@@ -537,13 +538,16 @@ export class MapRenderer {
     const diffX = guiX - guiX0;
     const diffY = guiY - guiY0;
 
-    // Apply the same independent x/y wrapping used by the authoritative map.
-    if (this.wrapHasFlag(MapRenderer.WRAP_X)) {
-      mapX = this.fcWrap(mapX, mapWidth);
-    }
-    if (this.wrapHasFlag(MapRenderer.WRAP_Y)) {
-      mapY = this.fcWrap(mapY, mapHeight);
-    }
+    const normalized = normalizeMapPosition(
+      mapX,
+      mapY,
+      mapWidth,
+      mapHeight,
+      this.currentMap.topology_id ?? 0,
+      this.currentMap.wrap_id ?? 0
+    );
+    mapX = normalized.x;
+    mapY = normalized.y;
 
     // Now convert the wrapped map position back to a GUI position and add the offset back on
     const wrappedGuiPos = this.mapToGuiVector(mapX, mapY);
@@ -561,8 +565,13 @@ export class MapRenderer {
   private getGuiWrapPeriod(axis: 'x' | 'y'): { x: number; y: number } {
     const mapWidth = this.currentMap.xsize ?? this.currentMap.width;
     const mapHeight = this.currentMap.ysize ?? this.currentMap.height;
-    const period =
-      axis === 'x' ? this.mapToGuiVector(mapWidth, 0) : this.mapToGuiVector(0, mapHeight);
+    const mapPeriod = nativeAxisMapPeriod(
+      axis,
+      mapWidth,
+      mapHeight,
+      this.currentMap.topology_id ?? 0
+    );
+    const period = this.mapToGuiVector(mapPeriod.x, mapPeriod.y);
     return { x: period.guiDx, y: period.guiDy };
   }
 
@@ -611,7 +620,7 @@ export class MapRenderer {
 
         views.push({
           viewport: copyViewport,
-          visibleTiles: this.getVisibleTiles(mapTiles, copyViewport),
+          visibleTiles: this.fogOfWarEnabled ? copyTiles.filter(tile => tile.known) : copyTiles,
         });
       }
     }
@@ -656,7 +665,7 @@ export class MapRenderer {
     viewportWidth: number,
     viewportHeight: number
   ): { x: number; y: number } {
-    const tileGui = this.mapToGuiVector(mapX, mapY);
+    const tileGui = this.nativeToGuiPosition(mapX, mapY);
     return {
       // Keep the viewport origin on device pixels. Fractional origins make
       // adjacent terrain sprites sample between rows and expose dark seams.
@@ -835,7 +844,7 @@ export class MapRenderer {
     const verticalMargin = this.tileHeight * 2;
 
     for (const tile of mapTiles) {
-      const position = this.mapToGuiVector(tile.x, tile.y);
+      const position = this.nativeToGuiPosition(tile.x, tile.y);
       const screenX = position.guiDx - viewport.x;
       const screenY = position.guiDy - viewport.y;
       const intersectsViewport =
@@ -862,5 +871,15 @@ export class MapRenderer {
     }
 
     return tiles;
+  }
+
+  private nativeToGuiPosition(nativeX: number, nativeY: number): { guiDx: number; guiDy: number } {
+    const logical = nativeToMapPosition(
+      nativeX,
+      nativeY,
+      this.currentMap.xsize ?? this.currentMap.width,
+      ((this.currentMap.topology_id ?? 0) & 4) !== 0
+    );
+    return this.mapToGuiVector(logical.x, logical.y);
   }
 }

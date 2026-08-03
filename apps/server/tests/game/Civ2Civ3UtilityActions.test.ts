@@ -61,21 +61,21 @@ describe('Civ2Civ3 city utility actions', () => {
    */
   it('performs Help Wonder at the c2c3 range and movement boundary', async () => {
     const { manager, executeCityUnitAction } = createManager({
-      cityAt: (x, y) => (x === 11 && y === 10 ? { id: 'wonder-city', playerId } : null),
+      cityAt: (x, y) => (x === 10 && y === 9 ? { id: 'wonder-city', playerId } : null),
     });
     const caravan = await manager.createUnit(playerId, 'caravan', 10, 10, 'home-city');
     caravan.movementLeft = 1;
 
     await expect(
-      manager.executeUnitAction(caravan.id, ActionType.HELP_WONDER, 11, 10, playerId)
+      manager.executeUnitAction(caravan.id, ActionType.HELP_WONDER, 10, 9, playerId)
     ).resolves.toMatchObject({ success: true, unitDestroyed: true });
     expect(executeCityUnitAction).toHaveBeenCalledWith(
       ActionType.HELP_WONDER,
       playerId,
       'caravan',
       'home-city',
-      11,
-      10
+      10,
+      9
     );
     expect(manager.getUnit(caravan.id)).toBeUndefined();
   });
@@ -89,13 +89,13 @@ describe('Civ2Civ3 city utility actions', () => {
    */
   it('rejects Help Wonder without a c2c3 movement fragment', async () => {
     const { manager, executeCityUnitAction } = createManager({
-      cityAt: (x, y) => (x === 11 && y === 10 ? { id: 'wonder-city', playerId } : null),
+      cityAt: (x, y) => (x === 10 && y === 9 ? { id: 'wonder-city', playerId } : null),
     });
     const caravan = await manager.createUnit(playerId, 'caravan', 10, 10, 'home-city');
     caravan.movementLeft = 0;
 
     await expect(
-      manager.executeUnitAction(caravan.id, ActionType.HELP_WONDER, 11, 10, playerId)
+      manager.executeUnitAction(caravan.id, ActionType.HELP_WONDER, 10, 9, playerId)
     ).resolves.toMatchObject({ success: false });
     expect(executeCityUnitAction).not.toHaveBeenCalled();
   });
@@ -110,25 +110,25 @@ describe('Civ2Civ3 city utility actions', () => {
    */
   it('allows an allied c2c3 city to receive wonder help', async () => {
     const { manager, executeCityUnitAction } = createManager({
-      cityAt: (x, y) => (x === 11 && y === 10 ? { id: 'ally-city', playerId: 'player-2' } : null),
+      cityAt: (x, y) => (x === 10 && y === 9 ? { id: 'ally-city', playerId: 'player-2' } : null),
     });
     manager.setDiplomaticStateLookup(() => 'alliance');
     const caravan = await manager.createUnit(playerId, 'caravan', 10, 10, 'home-city');
 
     await expect(
-      manager.executeUnitAction(caravan.id, ActionType.HELP_WONDER, 11, 10, playerId)
+      manager.executeUnitAction(caravan.id, ActionType.HELP_WONDER, 10, 9, playerId)
     ).resolves.toMatchObject({ success: true, unitDestroyed: true });
     expect(executeCityUnitAction).toHaveBeenCalledWith(
       ActionType.HELP_WONDER,
       playerId,
       'caravan',
       'home-city',
-      11,
-      10
+      10,
+      9
     );
 
     const rejected = createManager({
-      cityAt: (x, y) => (x === 11 && y === 10 ? { id: 'peace-city', playerId: 'player-2' } : null),
+      cityAt: (x, y) => (x === 10 && y === 9 ? { id: 'peace-city', playerId: 'player-2' } : null),
     });
     rejected.manager.setDiplomaticStateLookup(() => 'peace');
     const peacefulCaravan = await rejected.manager.createUnit(
@@ -161,21 +161,21 @@ describe('Civ2Civ3 city utility actions', () => {
    */
   it('recovers a c2c3 unit in an adjacent friendly city without movement', async () => {
     const { manager, executeCityUnitAction } = createManager({
-      cityAt: (x, y) => (x === 11 && y === 10 ? { id: 'city-1', playerId } : null),
+      cityAt: (x, y) => (x === 10 && y === 9 ? { id: 'city-1', playerId } : null),
     });
     const caravan = await manager.createUnit(playerId, 'caravan', 10, 10, 'home-city');
     caravan.movementLeft = 0;
 
     await expect(
-      manager.executeUnitAction(caravan.id, ActionType.DISBAND_UNIT_RECOVER, 11, 10, playerId)
+      manager.executeUnitAction(caravan.id, ActionType.DISBAND_UNIT_RECOVER, 10, 9, playerId)
     ).resolves.toMatchObject({ success: true, unitDestroyed: true });
     expect(executeCityUnitAction).toHaveBeenCalledWith(
       ActionType.DISBAND_UNIT_RECOVER,
       playerId,
       'caravan',
       'home-city',
-      11,
-      10
+      10,
+      9
     );
   });
 
@@ -188,12 +188,12 @@ describe('Civ2Civ3 city utility actions', () => {
    */
   it('rejects recovery disband for a c2c3 EvacuateFirst leader', async () => {
     const { manager, executeCityUnitAction } = createManager({
-      cityAt: (x, y) => (x === 11 && y === 10 ? { id: 'city-1', playerId } : null),
+      cityAt: (x, y) => (x === 10 && y === 9 ? { id: 'city-1', playerId } : null),
     });
     const leader = await manager.createUnit(playerId, 'leader', 10, 10);
 
     await expect(
-      manager.executeUnitAction(leader.id, ActionType.DISBAND_UNIT_RECOVER, 11, 10, playerId)
+      manager.executeUnitAction(leader.id, ActionType.DISBAND_UNIT_RECOVER, 10, 9, playerId)
     ).resolves.toMatchObject({ success: false });
     expect(executeCityUnitAction).not.toHaveBeenCalled();
   });
@@ -244,21 +244,21 @@ describe('Civ2Civ3 city utility actions', () => {
    */
   it('joins a c2c3 settler to an adjacent friendly city', async () => {
     const { manager, executeCityUnitAction } = createManager({
-      cityAt: (x, y) => (x === 11 && y === 10 ? { id: 'city-1', playerId } : null),
+      cityAt: (x, y) => (x === 10 && y === 9 ? { id: 'city-1', playerId } : null),
     });
     const settler = await manager.createUnit(playerId, 'settlers', 10, 10, 'home-city');
     settler.movementLeft = 1;
 
     await expect(
-      manager.executeUnitAction(settler.id, ActionType.JOIN_CITY, 11, 10, playerId)
+      manager.executeUnitAction(settler.id, ActionType.JOIN_CITY, 10, 9, playerId)
     ).resolves.toMatchObject({ success: true, unitDestroyed: true });
     expect(executeCityUnitAction).toHaveBeenCalledWith(
       ActionType.JOIN_CITY,
       playerId,
       'settlers',
       'home-city',
-      11,
-      10
+      10,
+      9
     );
   });
 
@@ -271,13 +271,12 @@ describe('Civ2Civ3 city utility actions', () => {
    */
   it('rejects joining a c2c3 settler to a foreign city', async () => {
     const { manager, executeCityUnitAction } = createManager({
-      cityAt: (x, y) =>
-        x === 11 && y === 10 ? { id: 'foreign-city', playerId: 'player-2' } : null,
+      cityAt: (x, y) => (x === 10 && y === 9 ? { id: 'foreign-city', playerId: 'player-2' } : null),
     });
     const settler = await manager.createUnit(playerId, 'settlers', 10, 10, 'home-city');
 
     await expect(
-      manager.executeUnitAction(settler.id, ActionType.JOIN_CITY, 11, 10, playerId)
+      manager.executeUnitAction(settler.id, ActionType.JOIN_CITY, 10, 9, playerId)
     ).resolves.toMatchObject({ success: false });
     expect(executeCityUnitAction).not.toHaveBeenCalled();
   });

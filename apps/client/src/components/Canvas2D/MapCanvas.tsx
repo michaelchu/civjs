@@ -5,6 +5,7 @@
 import React, { useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { MapRenderer } from './MapRenderer';
+import { setMapRenderTileSize } from './mapRenderMetrics';
 import { ActionFeedbackBanner, type ActionFeedback } from './ActionFeedbackBanner';
 import { UnitContextMenu } from '../GameUI/UnitContextMenu';
 import { CityNameDialog } from '../GameUI/CityNameDialog';
@@ -316,6 +317,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           return;
         }
 
+        setMapRenderTileSize(renderer.getTileSize?.() ?? { width: 96, height: 48 });
+
         setRendererReady(true);
         const gameState = useGameStore.getState();
 
@@ -425,6 +428,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
   const cameraSlideFrame = useRef<number | null>(null);
   const cameraSlideViewport = useRef<MapViewport | null>(null);
+  const storeRenderFrame = useRef<number | null>(null);
 
   const cancelCameraSlide = useCallback(
     (commitLatest = true): MapViewport | null => {
@@ -606,8 +610,16 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   useEffect(() => {
     if (!rendererReady || !rendererRef.current || !canvasRef.current) return;
 
+    const scheduleStoreRender = () => {
+      if (storeRenderFrame.current !== null) return;
+      storeRenderFrame.current = requestAnimationFrame(() => {
+        storeRenderFrame.current = null;
+        renderLatestSnapshot();
+      });
+    };
+
     renderLatestSnapshot();
-    return useGameStore.subscribe(
+    const unsubscribe = useGameStore.subscribe(
       state =>
         [
           state.viewport,
@@ -624,9 +636,17 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           state.currentPlayerId,
           state.research?.researchedTechs,
         ] as const,
-      () => renderLatestSnapshot(),
+      scheduleStoreRender,
       { equalityFn: shallow }
     );
+
+    return () => {
+      unsubscribe();
+      if (storeRenderFrame.current !== null) {
+        cancelAnimationFrame(storeRenderFrame.current);
+        storeRenderFrame.current = null;
+      }
+    };
   }, [contextMenu?.unit.id, renderLatestSnapshot, rendererReady]);
 
   const hasRenderableSelection = Boolean(

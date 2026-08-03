@@ -8,6 +8,7 @@ import type { TerrainSettings } from '@game/runtime/GameTypes';
 import { scenarioSetupSchema } from './ScenarioSetup';
 import { simulationExpectationSchema } from '../expectations/SimulationExpectations';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
+import { validateFreecivFixedMapDimensions } from '@game/services/MapSizingService';
 
 export const SIMULATION_RUN_SCHEMA_VERSION = 1;
 export const SIMULATION_DIAGNOSTIC_SCHEMA_VERSION = 3;
@@ -53,24 +54,40 @@ const terrainSettingsSchema = z
     resources: 'normal',
   });
 
-export const headlessSimulationConfigSchema = z.object({
-  name: z.string().trim().min(1).max(100).default('Headless AI Simulation'),
-  aiPlayerCount: z.number().int().min(2).max(32),
-  mapWidth: z.number().int().min(20).max(200).default(80),
-  mapHeight: z.number().int().min(20).max(200).default(50),
-  ruleset: z.literal(DEFAULT_RULESET).default(DEFAULT_RULESET),
-  aiLevel: z
-    .custom<SettableAILevel>(isSettableAILevel, { message: 'Invalid settable AI level' })
-    .default('easy'),
-  randomSeed: z.number().int().min(0).max(0xffff_ffff),
-  mapSeed: z.string().trim().min(1),
-  maxTurns: z.number().int().min(1).max(100_000),
-  victoryConditions: simulationVictoryConditions,
-  terrainSettings: terrainSettingsSchema,
-  turnTimeLimit: z.number().int().min(0).max(86_400).default(0),
-  scenarioSetup: scenarioSetupSchema.optional(),
-  expect: simulationExpectationSchema.optional(),
-});
+export const headlessSimulationConfigSchema = z
+  .object({
+    name: z.string().trim().min(1).max(100).default('Headless AI Simulation'),
+    aiPlayerCount: z.number().int().min(2).max(32),
+    mapWidth: z.number().int().min(20).max(200).default(80),
+    mapHeight: z.number().int().min(20).max(200).default(50),
+    ruleset: z.literal(DEFAULT_RULESET).default(DEFAULT_RULESET),
+    aiLevel: z
+      .custom<SettableAILevel>(isSettableAILevel, { message: 'Invalid settable AI level' })
+      .default('easy'),
+    randomSeed: z.number().int().min(0).max(0xffff_ffff),
+    mapSeed: z.string().trim().min(1),
+    maxTurns: z.number().int().min(1).max(100_000),
+    victoryConditions: simulationVictoryConditions,
+    terrainSettings: terrainSettingsSchema,
+    turnTimeLimit: z.number().int().min(0).max(86_400).default(0),
+    scenarioSetup: scenarioSetupSchema.optional(),
+    expect: simulationExpectationSchema.optional(),
+  })
+  .superRefine((value, context) => {
+    try {
+      validateFreecivFixedMapDimensions(
+        value.mapWidth,
+        value.mapHeight,
+        value.terrainSettings.topologyId
+      );
+    } catch (error) {
+      context.addIssue({
+        code: 'custom',
+        path: ['mapHeight'],
+        message: error instanceof Error ? error.message : 'Invalid fixed map dimensions',
+      });
+    }
+  });
 
 export type HeadlessSimulationConfig = z.infer<typeof headlessSimulationConfigSchema>;
 

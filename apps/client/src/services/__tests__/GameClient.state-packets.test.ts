@@ -537,6 +537,17 @@ describe('GameClient state-bearing packets', () => {
    * @contract The client exposes a recovered map only after receiving every authoritative tile batch.
    */
   it('commits a recovered map only after the final tile batch', () => {
+    useGameStore.setState({
+      map: {
+        width: 1,
+        height: 1,
+        xsize: 1,
+        ysize: 1,
+        tiles: {
+          '0,0': { x: 0, y: 0, terrain: 'grassland', known: true, visible: true },
+        },
+      },
+    });
     handlePacket({
       type: PacketType.MAP_INFO,
       data: { xsize: 2, ysize: 1, wrap_id: 0 },
@@ -551,7 +562,29 @@ describe('GameClient state-bearing packets', () => {
       },
     });
 
-    expect(useGameStore.getState().map.tiles).toEqual({});
+    expect(useGameStore.getState().map).toEqual(
+      expect.objectContaining({
+        width: 1,
+        tiles: { '0,0': expect.objectContaining({ terrain: 'grassland' }) },
+      })
+    );
+
+    handlePacket({
+      type: PacketType.TILE_INFO,
+      data: {
+        tiles: [{ tile: 0, x: 0, y: 0, terrain: 'plains', known: 2, seen: 1 }],
+        startIndex: 0,
+        endIndex: 1,
+        total: 1,
+        fullSnapshot: false,
+      },
+    });
+    expect(useGameStore.getState().map).toEqual(
+      expect.objectContaining({
+        width: 1,
+        tiles: { '0,0': expect.objectContaining({ terrain: 'plains', visible: true }) },
+      })
+    );
 
     handlePacket({
       type: PacketType.TILE_INFO,
@@ -564,7 +597,7 @@ describe('GameClient state-bearing packets', () => {
     });
 
     expect(useGameStore.getState().map.tiles).toEqual({
-      '0,0': expect.objectContaining({ terrain: 'plains' }),
+      '0,0': expect.objectContaining({ terrain: 'plains', visible: true }),
       '1,0': expect.objectContaining({ terrain: 'ocean' }),
     });
   });

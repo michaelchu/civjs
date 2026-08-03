@@ -48,6 +48,7 @@ export class GameClient {
   private readonly session = new GameSessionCoordinator();
   private readonly transport: GameTransport;
   private readonly mapSnapshots = new MapSnapshotAssembler();
+  private pendingMapSnapshot: ReturnType<MapSnapshotAssembler['begin']> | null = null;
   private readonly cityApi: CityClientApi;
   private readonly runtimeControls: RuntimeControlClientApi;
   private reconnectPromise: Promise<void> | null = null;
@@ -85,6 +86,7 @@ export class GameClient {
           clientLogger.info('Disconnected from game server');
           this.session.disconnected();
           this.mapSnapshots.cancel();
+          this.pendingMapSnapshot = null;
           useGameStore.getState().setClientState('initial');
         },
         connectionError: error => {
@@ -213,13 +215,13 @@ export class GameClient {
       clientLogger.debug('Cities updated with production data:', data);
 
       if (data.cities) {
+        const nextCities = data.fullSnapshot === false ? { ...useGameStore.getState().cities } : {};
+        for (const cityId of data.removedCityIds ?? []) delete nextCities[cityId];
+        for (const [cityId, city] of Object.entries(data.cities)) {
+          nextCities[cityId] = this.normalizeCityData(city);
+        }
         useGameStore.getState().updateGameState({
-          cities: Object.fromEntries(
-            Object.entries(data.cities).map(([cityId, city]) => [
-              cityId,
-              this.normalizeCityData(city),
-            ])
-          ),
+          cities: nextCities,
         });
       }
     });
@@ -872,8 +874,8 @@ export class GameClient {
       totalTiles: data.xsize * data.ysize,
     });
 
+    this.pendingMapSnapshot = this.mapSnapshots.begin(data);
     useGameStore.setState({
-      map: this.mapSnapshots.begin(data),
       hasReceivedUnitSnapshot: false,
       presentationEffects: [],
     });
@@ -889,8 +891,9 @@ export class GameClient {
     });
 
     if (data.tile !== undefined) {
-      const currentMap = useGameStore.getState().map;
+      const currentMap = this.pendingMapSnapshot ?? useGameStore.getState().map;
       const map = this.mapSnapshots.applyTile(currentMap, data);
+      this.pendingMapSnapshot = null;
 
       useGameStore.getState().updateGameState({
         map,
@@ -924,9 +927,13 @@ export class GameClient {
 
     if (!data.tiles) return;
 
-    const currentMap = useGameStore.getState().map;
+    const incremental = data.fullSnapshot === false;
+    const currentMap = incremental
+      ? useGameStore.getState().map
+      : (this.pendingMapSnapshot ?? useGameStore.getState().map);
     const map = this.mapSnapshots.applyBatch(currentMap, data);
     if (!map) return;
+    if (!incremental) this.pendingMapSnapshot = null;
     useGameStore.getState().updateGameState({
       map,
     });
@@ -1765,6 +1772,7 @@ export class GameClient {
   disconnect() {
     this.session.cancel();
     this.mapSnapshots.cancel();
+    this.pendingMapSnapshot = null;
     this.pendingGameJoins.clear();
     this.currentGameId = null;
     const socket = this.socket;

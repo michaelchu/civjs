@@ -4036,10 +4036,10 @@ describe('UnitManager', () => {
       await expect(manager.loadUnitOntoTransport(transport.id, paratrooper.id)).resolves.toBe(true);
 
       await expect(
-        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 16, 10, 'player-123')
-      ).resolves.toMatchObject({ success: true, newPosition: { x: 16, y: 10 } });
+        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 13, 16, 'player-123')
+      ).resolves.toMatchObject({ success: true, newPosition: { x: 13, y: 16 } });
 
-      expect(paratrooper).toMatchObject({ x: 16, y: 10, transportedBy: undefined });
+      expect(paratrooper).toMatchObject({ x: 13, y: 16, transportedBy: undefined });
       expect(transport.cargoUnits).toEqual([]);
     });
 
@@ -4055,16 +4055,16 @@ describe('UnitManager', () => {
       const paratrooper = await manager.createUnit('player-123', 'paratroopers', 10, 10);
       paratrooper.movementLeft = 5;
 
-      expect(manager.canUnitPerformAction(paratrooper.id, ActionType.PARADROP, 16, 10)).toBe(false);
+      expect(manager.canUnitPerformAction(paratrooper.id, ActionType.PARADROP, 13, 16)).toBe(false);
       await expect(
-        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 16, 10, 'player-123')
+        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 13, 16, 'player-123')
       ).resolves.toMatchObject({ success: false });
       expect(paratrooper).toMatchObject({ x: 10, y: 10, movementLeft: 5 });
 
       paratrooper.movementLeft = 6;
-      expect(manager.canUnitPerformAction(paratrooper.id, ActionType.PARADROP, 21, 10)).toBe(false);
+      expect(manager.canUnitPerformAction(paratrooper.id, ActionType.PARADROP, 15, 21)).toBe(false);
       await expect(
-        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 21, 10, 'player-123')
+        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 15, 21, 'player-123')
       ).resolves.toMatchObject({ success: false });
       expect(paratrooper).toMatchObject({ x: 10, y: 10, movementLeft: 6 });
     });
@@ -4078,7 +4078,7 @@ describe('UnitManager', () => {
      */
     it('does not capture an allied city while carrying out an ordinary Civ2Civ3 paradrop', async () => {
       const cities = defaultCities();
-      cities.set('16,10', { id: 'allied-city', playerId: 'player-456', buildings: [] });
+      cities.set('13,16', { id: 'allied-city', playerId: 'player-456', buildings: [] });
       const { manager, captureCity } = createManager(cities);
       (mockDbProvider.getDatabase() as any).query.players.findFirst.mockResolvedValue({
         diplomaticRelations: { 'player-456': { state: 'alliance' } },
@@ -4086,11 +4086,11 @@ describe('UnitManager', () => {
       const paratrooper = await manager.createUnit('player-123', 'paratroopers', 10, 10);
 
       await expect(
-        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 16, 10, 'player-123')
-      ).resolves.toMatchObject({ success: true, newPosition: { x: 16, y: 10 } });
+        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 13, 16, 'player-123')
+      ).resolves.toMatchObject({ success: true, newPosition: { x: 13, y: 16 } });
 
       expect(captureCity).not.toHaveBeenCalled();
-      expect(paratrooper).toMatchObject({ x: 16, y: 10 });
+      expect(paratrooper).toMatchObject({ x: 13, y: 16 });
     });
 
     /**
@@ -4102,7 +4102,7 @@ describe('UnitManager', () => {
      * @c2c3-scenario normal
      */
     it('allows an ordinary Civ2Civ3 paradrop onto peaceful foreign terrain', async () => {
-      tileOwners.set('16,10', 'player-456');
+      tileOwners.set('13,16', 'player-456');
       const { manager, captureCity } = createManager();
       (mockDbProvider.getDatabase() as any).query.players.findFirst.mockResolvedValue({
         diplomaticRelations: { 'player-456': { state: 'peace' } },
@@ -4110,11 +4110,11 @@ describe('UnitManager', () => {
       const paratrooper = await manager.createUnit('player-123', 'paratroopers', 10, 10);
 
       await expect(
-        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 16, 10, 'player-123')
-      ).resolves.toMatchObject({ success: true, newPosition: { x: 16, y: 10 } });
+        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 13, 16, 'player-123')
+      ).resolves.toMatchObject({ success: true, newPosition: { x: 13, y: 16 } });
 
       expect(captureCity).not.toHaveBeenCalled();
-      expect(paratrooper).toMatchObject({ x: 16, y: 10 });
+      expect(paratrooper).toMatchObject({ x: 13, y: 16 });
     });
 
     /**
@@ -4128,7 +4128,7 @@ describe('UnitManager', () => {
      */
     it('loses a Civ2Civ3 paratrooper at a no-contact foreign city', async () => {
       const cities = defaultCities();
-      cities.set('16,10', { id: 'stale-city', playerId: 'player-456', buildings: [] });
+      cities.set('13,16', { id: 'stale-city', playerId: 'player-456', buildings: [] });
       const { manager, captureCity } = createManager(cities);
       (mockDbProvider.getDatabase() as any).query.players.findFirst.mockResolvedValue({
         diplomaticRelations: {},
@@ -4136,7 +4136,7 @@ describe('UnitManager', () => {
       const paratrooper = await manager.createUnit('player-123', 'paratroopers', 10, 10);
 
       await expect(
-        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 16, 10, 'player-123')
+        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 13, 16, 'player-123')
       ).resolves.toMatchObject({ success: true, unitDestroyed: true });
 
       expect(captureCity).not.toHaveBeenCalled();
@@ -4156,7 +4156,7 @@ describe('UnitManager', () => {
       'rejects a Civ2Civ3 paradrop into a %s city',
       async relation => {
         const cities = defaultCities();
-        cities.set('16,10', { id: `${relation}-city`, playerId: 'player-456', buildings: [] });
+        cities.set('13,16', { id: `${relation}-city`, playerId: 'player-456', buildings: [] });
         const { manager, captureCity } = createManager(cities);
         (mockDbProvider.getDatabase() as any).query.players.findFirst.mockResolvedValue({
           diplomaticRelations: { 'player-456': { state: relation } },
@@ -4164,7 +4164,7 @@ describe('UnitManager', () => {
         const paratrooper = await manager.createUnit('player-123', 'paratroopers', 10, 10);
 
         await expect(
-          manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 16, 10, 'player-123')
+          manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 13, 16, 'player-123')
         ).resolves.toMatchObject({ success: false });
 
         expect(captureCity).not.toHaveBeenCalled();
@@ -4186,7 +4186,7 @@ describe('UnitManager', () => {
        */
       it('matches the batched pinned Freeciv stale-city paradrop fixture', async () => {
         const cities = defaultCities();
-        cities.set('16,10', { id: 'stale-city', playerId: 'player-456', buildings: [] });
+        cities.set('13,16', { id: 'stale-city', playerId: 'player-456', buildings: [] });
         const { manager, captureCity } = createManager(cities);
         (mockDbProvider.getDatabase() as any).query.players.findFirst.mockResolvedValue({
           diplomaticRelations: {},
@@ -4228,7 +4228,7 @@ describe('UnitManager', () => {
      */
     it('captures a warring Civ2Civ3 city after a conquering paradrop', async () => {
       const cities = defaultCities();
-      cities.set('16,10', { id: 'enemy-city', playerId: 'player-456', buildings: [] });
+      cities.set('13,16', { id: 'enemy-city', playerId: 'player-456', buildings: [] });
       const { manager, captureCity } = createManager(cities);
       (mockDbProvider.getDatabase() as any).query.players.findFirst.mockResolvedValue({
         diplomaticRelations: { 'player-456': { state: 'war' } },
@@ -4236,11 +4236,11 @@ describe('UnitManager', () => {
       const paratrooper = await manager.createUnit('player-123', 'paratroopers', 10, 10);
 
       await expect(
-        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 16, 10, 'player-123')
-      ).resolves.toMatchObject({ success: true, newPosition: { x: 16, y: 10 } });
+        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 13, 16, 'player-123')
+      ).resolves.toMatchObject({ success: true, newPosition: { x: 13, y: 16 } });
 
       expect(captureCity).toHaveBeenCalledWith('enemy-city', 'player-123', paratrooper.id);
-      expect(paratrooper).toMatchObject({ x: 16, y: 10 });
+      expect(paratrooper).toMatchObject({ x: 13, y: 16 });
     });
 
     /**
@@ -4252,13 +4252,13 @@ describe('UnitManager', () => {
      */
     it('rejects a Civ2Civ3 conquering paradrop without enough movement or war', async () => {
       const cities = defaultCities();
-      cities.set('16,10', { id: 'enemy-city', playerId: 'player-456', buildings: [] });
+      cities.set('13,16', { id: 'enemy-city', playerId: 'player-456', buildings: [] });
       const { manager, captureCity } = createManager(cities);
       const paratrooper = await manager.createUnit('player-123', 'paratroopers', 10, 10);
       paratrooper.movementLeft = 5;
 
       await expect(
-        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 16, 10, 'player-123')
+        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 13, 16, 'player-123')
       ).resolves.toMatchObject({ success: false });
       expect(paratrooper).toMatchObject({ x: 10, y: 10, movementLeft: 5 });
 
@@ -4267,7 +4267,7 @@ describe('UnitManager', () => {
         diplomaticRelations: { 'player-456': { state: 'peace' } },
       });
       await expect(
-        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 16, 10, 'player-123')
+        manager.executeUnitAction(paratrooper.id, ActionType.PARADROP, 13, 16, 'player-123')
       ).resolves.toMatchObject({ success: false });
 
       expect(captureCity).not.toHaveBeenCalled();
@@ -5529,7 +5529,7 @@ describe('UnitManager', () => {
       const { manager, applyNuclearCityDamage } = createCiv2Civ3NuclearManager(map);
       const nuclear = await manager.createUnit('player-123', 'nuclear', 10, 10);
       nuclear.movementLeft = 0;
-      const hexNeighbor = await manager.createUnit('player-456', 'warriors', 11, 11);
+      const hexNeighbor = await manager.createUnit('player-456', 'warriors', 10, 9);
 
       expect(manager.canUnitPerformAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 10, 10)).toBe(
         true
@@ -5545,7 +5545,7 @@ describe('UnitManager', () => {
       expect(manager.getUnit(nuclear.id)).toBeUndefined();
       expect(manager.getUnit(hexNeighbor.id)).toBeUndefined();
       expect(applyNuclearCityDamage).toHaveBeenCalledWith(10, 10, 2, 'player-123');
-      expect(map.tiles.get('11,11').improvements).toContain('fallout');
+      expect(map.tiles.get('10,9').improvements).toContain('fallout');
     });
 
     /**
@@ -5578,24 +5578,24 @@ describe('UnitManager', () => {
     it('nukes an adjacent enemy c2c3 city while at war', async () => {
       const map = makeNuclearMap();
       const cities = new Map([
-        ['11,10', { id: 'target-city', playerId: 'player-456', buildings: [] }],
+        ['10,9', { id: 'target-city', playerId: 'player-456', buildings: [] }],
       ]);
       const { manager, applyNuclearCityDamage } = createCiv2Civ3NuclearManager(map, cities);
       manager.setHostilityProvider(async () => true);
       const nuclear = await manager.createUnit('player-123', 'nuclear', 10, 10);
       nuclear.movementLeft = 1;
-      const hexNeighbor = await manager.createUnit('player-456', 'warriors', 12, 11);
+      const hexNeighbor = await manager.createUnit('player-456', 'warriors', 10, 8);
 
       await expect(
-        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 11, 10, 'player-123')
+        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 10, 9, 'player-123')
       ).resolves.toMatchObject({
         success: true,
         affectedUnitIds: expect.arrayContaining([nuclear.id, hexNeighbor.id]),
       });
 
-      expect(applyNuclearCityDamage).toHaveBeenCalledWith(11, 10, 2, 'player-123');
+      expect(applyNuclearCityDamage).toHaveBeenCalledWith(10, 9, 2, 'player-123');
       expect(manager.getUnit(hexNeighbor.id)).toBeUndefined();
-      expect(map.tiles.get('11,10').improvements).not.toContain('fallout');
+      expect(map.tiles.get('10,9').improvements).not.toContain('fallout');
     });
 
     /**
@@ -5608,7 +5608,7 @@ describe('UnitManager', () => {
     it('rejects a c2c3 city nuke against a non-hostile foreign city', async () => {
       const map = makeNuclearMap();
       const cities = new Map([
-        ['11,10', { id: 'target-city', playerId: 'player-456', buildings: [] }],
+        ['10,9', { id: 'target-city', playerId: 'player-456', buildings: [] }],
       ]);
       const { manager, applyNuclearCityDamage } = createCiv2Civ3NuclearManager(map, cities);
       manager.setHostilityProvider(async () => false);
@@ -5616,7 +5616,7 @@ describe('UnitManager', () => {
       nuclear.movementLeft = 1;
 
       await expect(
-        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 11, 10, 'player-123')
+        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 10, 9, 'player-123')
       ).resolves.toMatchObject({ success: false });
 
       expect(manager.getUnit(nuclear.id)).toBeDefined();
@@ -5637,8 +5637,8 @@ describe('UnitManager', () => {
     it('intercepts a c2c3 city nuke from an SDI city at square radius two', async () => {
       const map = makeNuclearMap();
       const cities = new Map([
-        ['11,10', { id: 'target-city', playerId: 'player-456', buildings: [] }],
-        ['13,12', { id: 'sdi-city', playerId: 'player-789', buildings: ['sdi_defense'] }],
+        ['10,9', { id: 'target-city', playerId: 'player-456', buildings: [] }],
+        ['10,13', { id: 'sdi-city', playerId: 'player-789', buildings: ['sdi_defense'] }],
       ]);
       const { manager, applyNuclearCityDamage } = createCiv2Civ3NuclearManager(
         map,
@@ -5650,12 +5650,12 @@ describe('UnitManager', () => {
       nuclear.movementLeft = 1;
 
       await expect(
-        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 11, 10, 'player-123')
+        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 10, 9, 'player-123')
       ).resolves.toMatchObject({ success: false, unitDestroyed: true });
 
       expect(manager.getUnit(nuclear.id)).toBeUndefined();
       expect(applyNuclearCityDamage).not.toHaveBeenCalled();
-      expect(map.tiles.get('11,10').improvements).not.toContain('fallout');
+      expect(map.tiles.get('10,9').improvements).not.toContain('fallout');
     });
 
     /**
@@ -5673,10 +5673,10 @@ describe('UnitManager', () => {
       manager.setHostilityProvider(async () => true);
       const nuclear = await manager.createUnit('player-123', 'nuclear', 10, 10);
       nuclear.movementLeft = 1;
-      const defender = await manager.createUnit('player-456', 'warriors', 11, 10);
+      const defender = await manager.createUnit('player-456', 'warriors', 10, 9);
 
       await expect(
-        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 11, 10, 'player-123')
+        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 10, 9, 'player-123')
       ).resolves.toMatchObject({
         success: true,
         affectedUnitIds: expect.arrayContaining([nuclear.id, defender.id]),
@@ -5696,17 +5696,17 @@ describe('UnitManager', () => {
      */
     it('emits the source-aligned nuclear diplomatic consequence with the pre-blast tile owner', async () => {
       const map = makeNuclearMap();
-      map.tiles.get('11,10').owner = 'player-456';
+      map.tiles.get('10,9').owner = 'player-456';
       const { manager } = createCiv2Civ3NuclearManager(map);
       manager.setHostilityProvider(async () => true);
       const consequence = jest.fn().mockResolvedValue(undefined);
       manager.setNuclearActionConsequenceCallback(consequence);
       const nuclear = await manager.createUnit('player-123', 'nuclear', 10, 10);
       nuclear.movementLeft = 1;
-      await manager.createUnit('player-456', 'warriors', 11, 10);
+      await manager.createUnit('player-456', 'warriors', 10, 9);
 
       await expect(
-        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 11, 10, 'player-123')
+        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 10, 9, 'player-123')
       ).resolves.toMatchObject({ success: true });
 
       expect(consequence).toHaveBeenCalledWith(
@@ -5714,8 +5714,8 @@ describe('UnitManager', () => {
           actor: expect.objectContaining({ id: nuclear.id, playerId: 'player-123' }),
           action: 'Nuke Units',
           outcome: 'success',
-          targetX: 11,
-          targetY: 10,
+          targetX: 10,
+          targetY: 9,
           targetPlayerId: 'player-456',
         })
       );
@@ -5735,11 +5735,11 @@ describe('UnitManager', () => {
       const nuclear = await manager.createUnit('player-123', 'nuclear', 10, 10);
       nuclear.movementLeft = 1;
 
-      expect(manager.canUnitPerformAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 11, 10)).toBe(
+      expect(manager.canUnitPerformAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 10, 9)).toBe(
         false
       );
       await expect(
-        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 11, 10, 'player-123')
+        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 10, 9, 'player-123')
       ).resolves.toMatchObject({ success: false });
       expect(manager.getUnit(nuclear.id)).toBeDefined();
     });
@@ -5758,13 +5758,13 @@ describe('UnitManager', () => {
       manager.setHostilityProvider(async () => true);
       const nuclear = await manager.createUnit('player-123', 'nuclear', 10, 10);
       nuclear.movementLeft = 1;
-      const defender = await manager.createUnit('player-456', 'warriors', 11, 11);
+      const defender = await manager.createUnit('player-456', 'warriors', 10, 9);
 
-      expect(manager.canUnitPerformAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 11, 11)).toBe(
+      expect(manager.canUnitPerformAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 10, 9)).toBe(
         true
       );
       await expect(
-        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 11, 11, 'player-123')
+        manager.executeUnitAction(nuclear.id, ActionType.NUCLEAR_EXPLOSION, 10, 9, 'player-123')
       ).resolves.toMatchObject({
         success: true,
         affectedUnitIds: expect.arrayContaining([nuclear.id, defender.id]),
@@ -5783,10 +5783,10 @@ describe('UnitManager', () => {
         () => 0.99
       );
       const missile = await manager.createUnit('player-123', 'cruise_missile', 10, 10);
-      await manager.createUnit('player-456', 'warriors', 11, 10);
+      await manager.createUnit('player-456', 'warriors', 10, 9);
 
       await expect(
-        manager.executeUnitAction(missile.id, ActionType.SUICIDE_ATTACK, 11, 10, 'player-123')
+        manager.executeUnitAction(missile.id, ActionType.SUICIDE_ATTACK, 10, 9, 'player-123')
       ).resolves.toMatchObject({ success: true, unitDestroyed: true });
       expect(manager.getUnit(missile.id)).toBeUndefined();
     });

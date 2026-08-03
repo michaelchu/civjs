@@ -586,6 +586,9 @@ describe('GameBroadcastManager visibility sync', () => {
   });
 
   it('does not disclose a newly produced unit outside the recipient vision', () => {
+    manager.broadcastVisibilityState(gameId);
+    emitted = [];
+
     manager.broadcastUnitInfo(gameId, {
       id: 'new-unit',
       playerId: playerOne,
@@ -605,13 +608,13 @@ describe('GameBroadcastManager visibility sync', () => {
       )
     ).toBe(true);
     expect(
-      emitted.find(
+      emitted.some(
         emission =>
           emission.room === `player:${userTwo}` &&
           emission.event === 'packet' &&
           emission.data.type === PacketType.UNIT_INFO
-      )?.data.data.units
-    ).toEqual([]);
+      )
+    ).toBe(false);
     expect(
       emitted.find(
         emission =>
@@ -621,13 +624,50 @@ describe('GameBroadcastManager visibility sync', () => {
       )?.data.data.units
     ).toEqual([
       expect.objectContaining({
-        id: 'own-unit',
+        id: 'new-unit',
         owner: playerOne,
         type: 'warriors',
         hp: 100,
         movesleft: 1,
       }),
     ]);
+    expect(
+      emitted.find(
+        emission =>
+          emission.room === `player:${userOne}` &&
+          emission.event === 'packet' &&
+          emission.data.type === PacketType.UNIT_INFO
+      )?.data.data.fullSnapshot
+    ).toBe(false);
+  });
+
+  it('removes a unit that leaves sight without sending full visibility snapshots', () => {
+    const game = (manager as any).games.get(gameId);
+    const ownUnit = game.unitManager.getAllUnits().get('own-unit');
+    game.unitManager.getVisibleUnits = (playerId: string) =>
+      playerId === playerOne || playerId === playerTwo ? [ownUnit] : [];
+    manager.broadcastVisibilityState(gameId);
+    emitted = [];
+
+    game.unitManager.getVisibleUnits = (playerId: string) =>
+      playerId === playerOne ? [ownUnit] : [];
+    manager.broadcastVisibilityDelta(gameId);
+
+    expect(emitted).toContainEqual({
+      room: `player:${userTwo}`,
+      event: 'unit_destroyed',
+      data: { gameId, unitId: 'own-unit' },
+    });
+    expect(
+      emitted.some(
+        emission =>
+          emission.event === 'packet' &&
+          ((emission.data.type === PacketType.UNIT_INFO &&
+            emission.data.data.fullSnapshot === true) ||
+            (emission.data.type === PacketType.TILE_INFO &&
+              emission.data.data.fullSnapshot === true))
+      )
+    ).toBe(false);
   });
 
   it('sends and maintains a complete development visibility snapshot', () => {

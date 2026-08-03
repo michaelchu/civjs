@@ -44,6 +44,33 @@ export interface MapTopologyOptions {
   wrapId?: number;
 }
 
+/** Freeciv MAP_TO_NATIVE_POS for isometric maps. */
+export function mapToNativePosition(
+  mapX: number,
+  mapY: number,
+  nativeWidth: number,
+  isIsometric: boolean
+): MapPosition {
+  if (!isIsometric) return { x: mapX, y: mapY };
+  const nativeY = mapX + mapY - nativeWidth;
+  return {
+    x: Math.floor((2 * mapX - nativeY - (nativeY & 1)) / 2),
+    y: nativeY,
+  };
+}
+
+/** Freeciv NATIVE_TO_MAP_POS for isometric maps. */
+export function nativeToMapPosition(
+  nativeX: number,
+  nativeY: number,
+  nativeWidth: number,
+  isIsometric: boolean
+): MapPosition {
+  if (!isIsometric) return { x: nativeX, y: nativeY };
+  const mapX = Math.floor((nativeY + (nativeY & 1)) / 2 + nativeX);
+  return { x: mapX, y: nativeY - mapX + nativeWidth };
+}
+
 /**
  * Translate the topology values written by CivJS before it adopted Freeciv's
  * serialized flag positions. Those values were only ever used internally:
@@ -163,9 +190,16 @@ export class MapTopology {
 
   getPositionsWithinRadius(x: number, y: number, radius: number): MapPosition[] {
     const positions = new Map<string, MapPosition>();
+    const origin = nativeToMapPosition(x, y, this.width, this.isIsometric());
     for (let dx = -radius; dx <= radius; dx++) {
       for (let dy = -radius; dy <= radius; dy++) {
-        const position = this.normalize(x + dx, y + dy);
+        const candidate = mapToNativePosition(
+          origin.x + dx,
+          origin.y + dy,
+          this.width,
+          this.isIsometric()
+        );
+        const position = this.normalize(candidate.x, candidate.y);
         if (position && this.realDistance(x, y, position.x, position.y) <= radius) {
           positions.set(`${position.x},${position.y}`, position);
         }
@@ -186,9 +220,16 @@ export class MapTopology {
   getPositionsWithinSquareRadius(x: number, y: number, radius: number): MapPosition[] {
     const positions = new Map<string, MapPosition>();
     const boundedRadius = Math.max(0, Math.floor(radius));
+    const origin = nativeToMapPosition(x, y, this.width, this.isIsometric());
     for (let dx = -boundedRadius; dx <= boundedRadius; dx++) {
       for (let dy = -boundedRadius; dy <= boundedRadius; dy++) {
-        const position = this.normalize(x + dx, y + dy);
+        const candidate = mapToNativePosition(
+          origin.x + dx,
+          origin.y + dy,
+          this.width,
+          this.isIsometric()
+        );
+        const position = this.normalize(candidate.x, candidate.y);
         if (position) positions.set(`${position.x},${position.y}`, position);
       }
     }
@@ -208,9 +249,16 @@ export class MapTopology {
   getPositionsWithinSquaredRadius(x: number, y: number, radiusSquared: number): MapPosition[] {
     const positions = new Map<string, MapPosition>();
     const radius = Math.floor(Math.sqrt(Math.max(0, radiusSquared)));
+    const origin = nativeToMapPosition(x, y, this.width, this.isIsometric());
     for (let dx = -radius; dx <= radius; dx++) {
       for (let dy = -radius; dy <= radius; dy++) {
-        const position = this.normalize(x + dx, y + dy);
+        const candidate = mapToNativePosition(
+          origin.x + dx,
+          origin.y + dy,
+          this.width,
+          this.isIsometric()
+        );
+        const position = this.normalize(candidate.x, candidate.y);
         if (position && this.squaredDistance(x, y, position.x, position.y) <= radiusSquared) {
           positions.set(`${position.x},${position.y}`, position);
         }
@@ -225,9 +273,16 @@ export class MapTopology {
     directions: ReadonlyArray<MapVector>
   ): MapPosition[] {
     const neighbors = new Map<string, MapPosition>();
+    const origin = nativeToMapPosition(x, y, this.width, this.isIsometric());
 
     for (const { dx, dy } of directions) {
-      const position = this.normalize(x + dx, y + dy);
+      const candidate = mapToNativePosition(
+        origin.x + dx,
+        origin.y + dy,
+        this.width,
+        this.isIsometric()
+      );
+      const position = this.normalize(candidate.x, candidate.y);
       if (!position || (position.x === x && position.y === y)) continue;
       neighbors.set(`${position.x},${position.y}`, position);
     }
@@ -236,17 +291,24 @@ export class MapTopology {
   }
 
   distanceVector(fromX: number, fromY: number, toX: number, toY: number): MapVector {
-    let dx = toX - fromX;
-    let dy = toY - fromY;
+    let nativeDx = toX - fromX;
+    let nativeDy = toY - fromY;
 
     if (this.hasWrapFlag(WrapFlag.X)) {
-      dx = this.minimumWrappedDelta(dx, this.width);
+      nativeDx = this.minimumWrappedDelta(nativeDx, this.width);
     }
     if (this.hasWrapFlag(WrapFlag.Y)) {
-      dy = this.minimumWrappedDelta(dy, this.height);
+      nativeDy = this.minimumWrappedDelta(nativeDy, this.height);
     }
 
-    return { dx, dy };
+    const from = nativeToMapPosition(fromX, fromY, this.width, this.isIsometric());
+    const to = nativeToMapPosition(
+      fromX + nativeDx,
+      fromY + nativeDy,
+      this.width,
+      this.isIsometric()
+    );
+    return { dx: to.x - from.x, dy: to.y - from.y };
   }
 
   realDistance(fromX: number, fromY: number, toX: number, toY: number): number {

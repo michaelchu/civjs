@@ -53,6 +53,7 @@ import {
 } from '@game/services/PartisanService';
 import { getClimateSettingsFromGameState } from '@game/services/ClimateManager';
 import { researchPacingFromGameState } from '@game/services/ResearchPacing';
+import { validateFreecivFixedMapDimensions } from '@game/services/MapSizingService';
 import { resolveRulesetTerrainSettings } from '@game/services/RulesetTerrainDefaults';
 import { CivilWarService } from '@game/services/CivilWarService';
 import {
@@ -230,6 +231,11 @@ export class GameInstanceRecoveryService extends BaseGameService {
       game.ruleset ?? DEFAULT_RULESET,
       (game.gameState as any)?.terrainSettings
     );
+    validateFreecivFixedMapDimensions(
+      game.mapWidth,
+      game.mapHeight,
+      storedTerrainSettings.topologyId
+    );
     const { temperatureParam, startPosMode } = this.getRecoveryMapConfig(storedTerrainSettings);
     const mapManager = new MapManager(
       game.mapWidth,
@@ -392,7 +398,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
         foundCity: this.foundCity.bind(this),
         requestPath: this.requestPath.bind(this),
         broadcastUnitMoved: gid => {
-          this.broadcastManager.broadcastVisibilityState(gid);
+          this.broadcastManager.broadcastVisibilityDelta(gid);
         },
         broadcastUnitDestroyed: (gid, unit) => {
           this.broadcastManager.broadcastUnitDestroyed(gid, unit);
@@ -941,6 +947,7 @@ export class GameInstanceRecoveryService extends BaseGameService {
     mapSeed: string
   ): Promise<void> {
     try {
+      validateFreecivFixedMapDimensions(mapData.width, mapData.height, mapData.topologyId);
       // Reconstruct full MapData from serialized database storage
       const restoredMapData = {
         width: mapData.width,

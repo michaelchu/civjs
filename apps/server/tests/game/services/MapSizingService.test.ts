@@ -6,6 +6,7 @@ import {
   FREECIV_WEB_MAX_AREA,
   landPercentForTerrain,
   resolveMapSizing,
+  validateFreecivFixedMapDimensions,
 } from '@game/services/MapSizingService';
 import {
   resolveRulesetMapSettings,
@@ -145,5 +146,27 @@ describe('MapSizingService', () => {
 
     expect(result).toMatchObject({ width: 20, height: 20 });
     expect(result.metadata.mode).toBe('fixed');
+  });
+
+  it('accepts a reference-valid fixed C2C3 map', () => {
+    expect(() =>
+      validateFreecivFixedMapDimensions(32, 64, TopologyFlag.ISO | TopologyFlag.HEX)
+    ).not.toThrow();
+  });
+
+  it('rejects an odd fixed height for ISO or HEX maps', () => {
+    expect(() => validateFreecivFixedMapDimensions(40, 25, TopologyFlag.ISO)).toThrow(
+      'mapHeight must be even'
+    );
+    expect(() => validateFreecivFixedMapDimensions(40, 25, TopologyFlag.HEX)).toThrow(
+      'mapHeight must be even'
+    );
+  });
+
+  it('rejects fixed dimensions outside Freeciv-web bounds', () => {
+    expect(() => validateFreecivFixedMapDimensions(15, 20)).toThrow('mapWidth must be between');
+    expect(() => validateFreecivFixedMapDimensions(200, 200)).toThrow(
+      'must not exceed 38000 tiles'
+    );
   });
 });

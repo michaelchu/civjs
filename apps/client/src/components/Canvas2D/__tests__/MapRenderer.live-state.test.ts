@@ -61,32 +61,49 @@ describe('MapRenderer live-state updates', () => {
     });
   });
 
-  it('does not snap an ordinary drag release into another wrapped GUI period', () => {
+  it('normalizes a drag release to the reference native GUI period', () => {
     const renderer = new MapRenderer(createContext());
     Object.assign(renderer as unknown as Record<string, unknown>, {
-      currentMap: { width: 80, height: 50, xsize: 80, ysize: 50, wrap_id: 3, tiles: {} },
+      currentMap: {
+        width: 80,
+        height: 50,
+        xsize: 80,
+        ysize: 50,
+        topology_id: 12,
+        wrap_id: 3,
+        tiles: {},
+      },
     });
 
     const viewportOrigin = { x: 368, y: 1284 };
-    expect(renderer.setMapviewOrigin(viewportOrigin.x, viewportOrigin.y, 800, 600)).toEqual(
-      viewportOrigin
-    );
+    expect(renderer.setMapviewOrigin(viewportOrigin.x, viewportOrigin.y, 800, 600)).toEqual({
+      x: 368,
+      y: 2484,
+    });
   });
 
-  it('normalizes wrapped origins using the authoritative rectangular x/y coordinates', () => {
+  it('normalizes C2C3 wrapped origins through Freeciv native coordinates', () => {
     const renderer = new MapRenderer(createContext());
     Object.assign(renderer as unknown as Record<string, unknown>, {
-      currentMap: { width: 80, height: 50, xsize: 80, ysize: 50, wrap_id: 3, tiles: {} },
+      currentMap: {
+        width: 80,
+        height: 50,
+        xsize: 80,
+        ysize: 50,
+        topology_id: 12,
+        wrap_id: 3,
+        tiles: {},
+      },
     });
 
-    const source = renderer.mapToGuiVector(-1, 23);
+    const source = renderer.mapToGuiVector(-1, 80);
     const normalizeGuiPos = (
       renderer as unknown as {
         normalizeGuiPos: (guiX: number, guiY: number) => { guiX: number; guiY: number };
       }
     ).normalizeGuiPos;
     const normalized = normalizeGuiPos.call(renderer, source.guiDx + 32, source.guiDy + 12);
-    const wrapped = renderer.mapToGuiVector(79, 23);
+    const wrapped = renderer.mapToGuiVector(104, 25);
 
     expect(normalized).toEqual({
       guiX: wrapped.guiDx + 32,
@@ -106,6 +123,7 @@ describe('MapRenderer live-state updates', () => {
         height: 50,
         xsize: 80,
         ysize: 50,
+        topology_id: 12,
         wrap_id: 3,
         tiles: Object.fromEntries(tiles.map(tile => [`${tile.x},${tile.y}`, tile])),
       },
@@ -127,7 +145,7 @@ describe('MapRenderer live-state updates', () => {
     const views = getWrappedRenderViews.call(renderer, tiles, viewport);
 
     expect(views.map(view => view.viewport)).toEqual(
-      expect.arrayContaining([viewport, { ...viewport, x: 2288, y: 2244 }])
+      expect.arrayContaining([viewport, { ...viewport, x: 3536, y: 2244 }])
     );
   });
 

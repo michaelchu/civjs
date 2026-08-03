@@ -5,6 +5,7 @@
 import type { MapViewport, Unit, City, GameState, PresentationEffect } from '../../../types';
 import type { AccessibleTile, GotoPath } from '../../../services/PathfindingService';
 import type { TilesetProvider } from '../tilesets/TilesetProvider';
+import { nativeToMapPosition } from '../mapTopologyGeometry';
 
 export interface RenderState {
   viewport: MapViewport;
@@ -35,6 +36,8 @@ export abstract class BaseRenderer {
   protected tileWidth: number;
   protected tileHeight: number;
   private terrainGraphics: Record<string, string> = {};
+  private projectionMapWidth = 0;
+  private projectionIsIsometric = false;
 
   constructor(
     ctx: CanvasRenderingContext2D,
@@ -61,11 +64,23 @@ export abstract class BaseRenderer {
    * Convert map coordinates to screen coordinates.
    */
   protected mapToScreen(mapX: number, mapY: number, viewport: MapViewport) {
-    const guiVector = this.mapToGuiVector(mapX, mapY);
+    const logical = nativeToMapPosition(
+      mapX,
+      mapY,
+      this.projectionMapWidth,
+      this.projectionIsIsometric
+    );
+    const guiVector = this.mapToGuiVector(logical.x, logical.y);
     return {
       x: guiVector.guiDx - viewport.x,
       y: guiVector.guiDy - viewport.y,
     };
+  }
+
+  /** Configure the authoritative native-coordinate projection for this frame. */
+  setMapGeometry(map: GameState['map']): void {
+    this.projectionMapWidth = map.xsize ?? map.width;
+    this.projectionIsIsometric = ((map.topology_id ?? 0) & 4) !== 0;
   }
 
   /**

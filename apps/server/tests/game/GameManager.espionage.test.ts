@@ -99,7 +99,7 @@ describe('GameManager C2C3 espionage actions', () => {
       name: 'Target',
       playerId: targetPlayerId,
       x: 5,
-      y: 5,
+      y: 4,
       size: 3,
       buildings: [],
       happiness: { happy: 0, content: 3, unhappy: 0, angry: 0 },
@@ -1915,7 +1915,7 @@ describe('GameManager C2C3 espionage actions', () => {
     game.unitManager.getUnitsAt.mockReturnValue([defender]);
 
     await expect(
-      manager.executeDiplomatAction(gameId, actorPlayerId, 'actor', ActionType.SPY_ATTACK, 5, 5)
+      manager.executeDiplomatAction(gameId, actorPlayerId, 'actor', ActionType.SPY_ATTACK, 5, 4)
     ).resolves.toMatchObject({ success: true, targetDestroyed: true });
 
     expect(game.unitManager.removeUnit).toHaveBeenCalledWith(defender.id);
@@ -1937,7 +1937,7 @@ describe('GameManager C2C3 espionage actions', () => {
       playerId: targetPlayerId,
       unitTypeId: 'diplomat',
       x: 5,
-      y: 5,
+      y: 4,
       movementLeft: 3,
       health: 100,
       veteranLevel: 0,
@@ -1949,7 +1949,7 @@ describe('GameManager C2C3 espionage actions', () => {
     setRelation('alliance');
 
     await expect(
-      manager.executeDiplomatAction(gameId, actorPlayerId, 'actor', ActionType.SPY_ATTACK, 5, 5)
+      manager.executeDiplomatAction(gameId, actorPlayerId, 'actor', ActionType.SPY_ATTACK, 5, 4)
     ).resolves.toMatchObject({ success: false });
 
     expect(game.unitManager.removeUnit).not.toHaveBeenCalled();
@@ -1971,7 +1971,7 @@ describe('GameManager C2C3 espionage actions', () => {
       playerId: targetPlayerId,
       unitTypeId: 'diplomat',
       x: 5,
-      y: 5,
+      y: 4,
       movementLeft: 3,
       health: 100,
       veteranLevel: 0,
@@ -1993,7 +1993,7 @@ describe('GameManager C2C3 espionage actions', () => {
     game.unitManager.getUnitsAt.mockReturnValue([defender]);
 
     await expect(
-      manager.executeDiplomatAction(gameId, actorPlayerId, 'actor', ActionType.SPY_ATTACK, 5, 5)
+      manager.executeDiplomatAction(gameId, actorPlayerId, 'actor', ActionType.SPY_ATTACK, 5, 4)
     ).resolves.toMatchObject({ success: true });
 
     expect(game.unitManager.finishSpyAttack).toHaveBeenCalledWith('actor');

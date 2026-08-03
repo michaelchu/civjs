@@ -42,6 +42,25 @@ describe('headless simulation configuration', () => {
     ).toThrow();
   });
 
+  it('rejects map geometry outside Freeciv fixed-map constraints', () => {
+    const base = { aiPlayerCount: 2, randomSeed: 1, mapSeed: 'map', maxTurns: 12 };
+
+    expect(() =>
+      headlessSimulationConfigSchema.parse({
+        ...base,
+        mapWidth: 200,
+        mapHeight: 200,
+      })
+    ).toThrow('must not exceed 38000');
+    expect(() =>
+      headlessSimulationConfigSchema.parse({
+        ...base,
+        mapHeight: 51,
+        terrainSettings: { topologyId: 3 },
+      })
+    ).toThrow('mapHeight must be even');
+  });
+
   it('requires validated deterministic seeds', () => {
     expect(() =>
       headlessSimulationConfigSchema.parse({ aiPlayerCount: 2, maxTurns: 12 })
