@@ -102,6 +102,7 @@ describe('Nation Selection Flow - Integration', () => {
       const gameData = {
         name: 'Integration Test Game',
         maxPlayers: 4,
+        mapSizingMode: 'fixed',
         mapWidth: 50,
         mapHeight: 50,
         selectedNation: 'roman',
@@ -153,6 +154,7 @@ describe('Nation Selection Flow - Integration', () => {
       const gameData = {
         name: 'Random Test Game',
         maxPlayers: 4,
+        mapSizingMode: 'fixed',
         mapWidth: 50,
         mapHeight: 50,
         selectedNation: 'random',
@@ -205,6 +207,7 @@ describe('Nation Selection Flow - Integration', () => {
         name: 'Join Test Game',
         hostId: mockUserId,
         maxPlayers: 4,
+        mapSizingMode: 'fixed',
         mapWidth: 50,
         mapHeight: 50,
       };

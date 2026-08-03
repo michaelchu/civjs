@@ -46,6 +46,7 @@ describe('GameManager', () => {
       name: 'Test Game',
       hostId: 'test-host-id',
       maxPlayers: 4,
+      mapSizingMode: 'fixed',
       mapWidth: 80,
       mapHeight: 50,
       status: 'waiting',

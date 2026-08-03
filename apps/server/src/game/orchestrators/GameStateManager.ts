@@ -10,12 +10,26 @@ import { games, players } from '@database/schema';
 import { eq, sql } from 'drizzle-orm';
 import type { TerrainSettings } from '@game/runtime/GameTypes';
 import type { MapManager } from '@game/managers/MapManager';
+import type { MapSizingMetadata } from '@game/services/MapSizingService';
+
+function formatLobbyMapSize(game: any): string {
+  const state = game.gameState;
+  if (state?.mapSizingMode === 'player' && !state?.mapGenerated) {
+    return 'Calculated at game start';
+  }
+  return `${game.mapWidth}x${game.mapHeight}`;
+}
 
 export interface GameStateRepository {
   createGameInDatabase(gameData: any): Promise<any>;
   updateGameState(gameId: string, updates: any): Promise<void>;
   loadGameFromDatabase(gameId: string): Promise<any | null>;
-  persistMapData(gameId: string, mapData: any, terrainSettings?: TerrainSettings): Promise<void>;
+  persistMapData(
+    gameId: string,
+    mapData: any,
+    terrainSettings?: TerrainSettings,
+    mapSizing?: MapSizingMetadata
+  ): Promise<void>;
   restoreMapDataToManager(mapManager: MapManager, mapData: any, seed: string): Promise<void>;
 }
 
@@ -134,7 +148,7 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
       currentPlayers: game.players?.length || 0,
       maxPlayers: game.maxPlayers,
       currentTurn: game.currentTurn,
-      mapSize: `${game.mapWidth}x${game.mapHeight}`,
+      mapSize: formatLobbyMapSize(game),
       createdAt: game.createdAt.toISOString(),
       canJoin: game.status === 'waiting' && (game.players?.length || 0) < game.maxPlayers,
     };
@@ -172,7 +186,7 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
       currentPlayers: game.players?.length || 0,
       maxPlayers: game.maxPlayers,
       currentTurn: game.currentTurn,
-      mapSize: `${game.mapWidth}x${game.mapHeight}`,
+      mapSize: formatLobbyMapSize(game),
       createdAt: game.createdAt.toISOString(),
       canJoin: this.isJoinable(game),
       isPlayer: this.isUserPlayer(game, userId),
@@ -207,7 +221,8 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
   async persistMapData(
     gameId: string,
     mapData: any,
-    terrainSettings?: TerrainSettings
+    terrainSettings?: TerrainSettings,
+    mapSizing?: MapSizingMetadata
   ): Promise<void> {
     this.logger.info('Persisting map data to database', { gameId });
 
@@ -228,10 +243,13 @@ export class GameStateManager extends BaseGameService implements GameStateReposi
       .getDatabase()
       .update(games)
       .set({
+        mapWidth: mapData.width,
+        mapHeight: mapData.height,
         mapSeed: mapData.seed,
         mapData: serializedMapData,
         gameState: sql`coalesce(${games.gameState}, '{}'::jsonb) || ${JSON.stringify({
           terrainSettings: terrainSettings || null,
+          ...(mapSizing ? { mapSizing } : {}),
           mapGenerated: true,
           generatedAt: mapData.generatedAt.toISOString(),
         })}::jsonb`,

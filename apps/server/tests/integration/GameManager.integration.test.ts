@@ -60,6 +60,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
         name: 'Integration Test Game',
         hostId: testHostId,
         maxPlayers: 4,
+        mapSizingMode: 'fixed',
         mapWidth: 80,
         mapHeight: 50,
         ruleset: 'civ2civ3',
@@ -301,6 +302,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
         name: 'Lifecycle Test Game',
         hostId: hostData.user.id,
         maxPlayers: 4,
+        mapSizingMode: 'fixed',
         mapWidth: 20,
         mapHeight: 20,
       };
@@ -344,6 +346,7 @@ describe('GameManager - Integration Tests with Real Database', () => {
         name: 'Non-Host Test Game',
         hostId: hostData.user.id,
         maxPlayers: 4,
+        mapSizingMode: 'fixed',
         mapWidth: 20,
         mapHeight: 20,
       };

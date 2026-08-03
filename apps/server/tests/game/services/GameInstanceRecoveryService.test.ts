@@ -1,6 +1,30 @@
 import { GameInstanceRecoveryService } from '@game/services/GameInstanceRecoveryService';
 
 describe('GameInstanceRecoveryService map deserialization', () => {
+  it('rejects a recovered map whose persisted dimensions differ from the game record', async () => {
+    const findFirst = jest.fn().mockResolvedValue({
+      id: 'game-1',
+      status: 'active',
+      mapSeed: 'resolved-seed',
+      mapWidth: 32,
+      mapHeight: 64,
+      mapData: { width: 16, height: 32 },
+      players: [],
+    });
+    const recoveryService = new GameInstanceRecoveryService(
+      { getDatabase: () => ({ query: { games: { findFirst } } }) } as any,
+      new Map(),
+      new Map(),
+      {} as any,
+      jest.fn(),
+      jest.fn(),
+      jest.fn(),
+      {} as any
+    );
+
+    await expect((recoveryService as any).fetchGameRecord('game-1')).resolves.toBeNull();
+  });
+
   /**
    * @evidence stack
    * @contract CivJS recovers the durable map representation into the authoritative in-memory runtime format.

@@ -16,7 +16,7 @@ import {
   research,
   units,
 } from '@database/schema';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, notInArray, sql } from 'drizzle-orm';
 import serverConfig from '@config';
 import { TurnManager } from '@game/managers/TurnManager';
 import { MapManager, MapGeneratorType } from '@game/managers/MapManager';
@@ -44,6 +44,7 @@ import { PROTOCOL_VERSION } from '@app-types/packet';
 import type {
   GameConfig,
   GameInstance,
+  MapSizingMode,
   PlayerState,
   TerrainSettings,
 } from '@game/runtime/GameTypes';
@@ -88,12 +89,30 @@ import {
   resolveResearchPacingSettings,
   type ResearchPacingSettings,
 } from '@game/services/ResearchPacing';
-import { resolveRulesetTerrainSettings } from '@game/services/RulesetTerrainDefaults';
+import {
+  resolveRulesetMapSettings,
+  resolveRulesetTerrainSettings,
+} from '@game/services/RulesetTerrainDefaults';
+import {
+  landPercentForTerrain,
+  resolveMapSizing,
+  type MapSizingMetadata,
+} from '@game/services/MapSizingService';
 import { CivilWarService } from '@game/services/CivilWarService';
 import { resolveInitialTechnologyIds } from '@game/services/RulesetInitialSetupService';
+import { GameOperationLock } from '@game/runtime/GameOperationLock';
 
 function configuredVictoryConditions(gameConfig: GameConfig): string[] {
   return gameConfig.victoryConditions?.length ? gameConfig.victoryConditions : ['conquest'];
+}
+
+const PROVISIONAL_MAP_WIDTH = 80;
+const PROVISIONAL_MAP_HEIGHT = 50;
+
+function assertFixedMapDimension(value: number | undefined, name: string): asserts value is number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    throw new Error(`Fixed map sizing requires a positive integer ${name}`);
+  }
 }
 
 export interface GameLifecycleService {
@@ -116,7 +135,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   private onPersistMapData?: (
     gameId: string,
     mapData: any,
-    terrainSettings?: TerrainSettings
+    terrainSettings?: TerrainSettings,
+    mapSizing?: MapSizingMetadata
   ) => Promise<void>;
   private onCreateStartingUnits?: (
     gameId: string,
@@ -138,6 +158,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   private onBroadcastMapData?: (gameId: string, mapData: any) => void;
   private broadcastManager?: GameBroadcastManager;
   private borderNetworkService?: BorderNetworkService;
+  private onReconcilePlayers?: (gameId: string) => Promise<void>;
+  private operationLock: GameOperationLock;
 
   constructor(
     io: SocketServer,
@@ -147,7 +169,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     onPersistMapData?: (
       gameId: string,
       mapData: any,
-      terrainSettings?: TerrainSettings
+      terrainSettings?: TerrainSettings,
+      mapSizing?: MapSizingMetadata
     ) => Promise<void>,
     onCreateStartingUnits?: (
       gameId: string,
@@ -167,7 +190,9 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     ) => Promise<string>,
     // _onRequestPath removed - delegating to GameManager instead
     onBroadcastMapData?: (gameId: string, mapData: any) => void,
-    broadcastManager?: GameBroadcastManager
+    broadcastManager?: GameBroadcastManager,
+    onReconcilePlayers?: (gameId: string) => Promise<void>,
+    operationLock: GameOperationLock = new GameOperationLock()
   ) {
     super(logger);
     this.io = io;
@@ -180,6 +205,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     // this._onRequestPath removed - delegating to GameManager instead
     this.onBroadcastMapData = onBroadcastMapData;
     this.broadcastManager = broadcastManager;
+    this.onReconcilePlayers = onReconcilePlayers;
+    this.operationLock = operationLock;
   }
 
   getServiceName(): string {
@@ -243,13 +270,26 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     const researchPacing = resolveResearchPacingSettings(rulesetName, gameConfig.researchPacing);
     const nationSet = rulesetLoader.resolveNationSet(rulesetName, gameConfig.nationSet);
     const terrainSettings = resolveRulesetTerrainSettings(rulesetName, gameConfig.terrainSettings);
+    const mapSizingMode: MapSizingMode = gameConfig.mapSizingMode ?? 'player';
+    const mapSettings = resolveRulesetMapSettings(rulesetName);
+    const requestedMaxPlayers = gameConfig.maxPlayers ?? 8;
+    const maxPlayers =
+      gameConfig.gameType === 'single' && mapSizingMode === 'player'
+        ? Math.max(requestedMaxPlayers, Math.ceil(mapSettings.aiFill))
+        : requestedMaxPlayers;
+
+    if (mapSizingMode === 'fixed') {
+      assertFixedMapDimension(gameConfig.mapWidth, 'mapWidth');
+      assertFixedMapDimension(gameConfig.mapHeight, 'mapHeight');
+    }
+
     return {
       name: gameConfig.name,
       hostId: gameConfig.hostId,
       gameType: gameConfig.gameType || 'multiplayer',
-      maxPlayers: gameConfig.maxPlayers || 8,
-      mapWidth: gameConfig.mapWidth || 80,
-      mapHeight: gameConfig.mapHeight || 50,
+      maxPlayers,
+      mapWidth: mapSizingMode === 'fixed' ? gameConfig.mapWidth! : PROVISIONAL_MAP_WIDTH,
+      mapHeight: mapSizingMode === 'fixed' ? gameConfig.mapHeight! : PROVISIONAL_MAP_HEIGHT,
       mapSeed: gameConfig.mapSeed,
       ruleset: rulesetName,
       historyInterestPml: rulesetLoader.getCultureRules(rulesetName).history_interest_pml,
@@ -266,6 +306,19 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         barbarianRate: gameConfig.barbarianRate,
         climateSettings: gameConfig.climate ?? { enabled: true },
         terrainSettings,
+        mapSizingMode,
+        mapSizing: {
+          mode: mapSizingMode,
+          mapsize: mapSettings.mapsize,
+          tilesPerPlayer: mapSettings.tilesPerPlayer,
+          aifill: mapSettings.aiFill,
+          playerCount: null,
+          landmass: terrainSettings.landmass,
+          landPercent: landPercentForTerrain(terrainSettings.landmass),
+          requestedArea: null,
+          width: null,
+          height: null,
+        },
         scenarioSetup: gameConfig.scenarioSetup,
       },
     };
@@ -281,29 +334,44 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
    * @reference Original GameManager.ts:352-410 startGame()
    */
   async startGame(gameId: string, hostId: string): Promise<void> {
+    await this.operationLock.run(gameId, () => this.startGameLocked(gameId, hostId));
+  }
+
+  private async startGameLocked(gameId: string, hostId: string): Promise<void> {
     // Get game from database
-    const game = await this.databaseProvider.getDatabase().query.games.findFirst({
+    const originalGame = await this.databaseProvider.getDatabase().query.games.findFirst({
       where: eq(games.id, gameId),
       with: {
         players: true,
       },
     });
 
-    if (!game) {
+    if (!originalGame) {
       throw new Error('Game not found');
     }
 
     // Validate start conditions (preserves exact error messages)
-    this.validateStartConditions(game, hostId);
+    this.validateStartConditions(originalGame, hostId);
     this.assertScenarioGamesEnabled(
-      (game.gameState as any)?.terrainSettings,
-      (game.gameState as any)?.simulation?.executionMode
+      (originalGame.gameState as any)?.terrainSettings,
+      (originalGame.gameState as any)?.simulation?.executionMode
     );
 
-    this.logger.info('Starting game', { gameId, playerCount: game.players.length });
+    this.logger.info('Starting game', { gameId, playerCount: originalGame.players.length });
     await this.markGameStarting(gameId);
 
+    let game: any = originalGame;
     try {
+      // AI reconciliation and sizing must happen before any runtime manager
+      // captures the roster or dimensions.
+      await this.onReconcilePlayers?.(gameId);
+      game = await this.databaseProvider.getDatabase().query.games.findFirst({
+        where: eq(games.id, gameId),
+        with: { players: true },
+      });
+      if (!game) throw new Error('Game disappeared while starting');
+      this.prepareGameForStart(game);
+
       // Freeciv assigns the configured starting treasury when a new game begins.
       // Recovery follows a separate path and therefore retains persisted balances.
       // @reference reference/freeciv/server/srv_main.c:3406-3412
@@ -327,7 +395,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     } catch (error) {
       this.games.delete(gameId);
       try {
-        await this.markGameStartFailed(gameId, game, error);
+        await this.markGameStartFailed(gameId, originalGame, error);
       } catch (recoveryError) {
         this.logger.error('Failed to persist recoverable game-start state', {
           gameId,
@@ -336,6 +404,35 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       }
       throw error;
     }
+  }
+
+  private prepareGameForStart(game: any): MapSizingMetadata {
+    const terrainSettings = resolveRulesetTerrainSettings(
+      game.ruleset ?? DEFAULT_RULESET,
+      (game.gameState as any)?.terrainSettings
+    );
+    const storedMode = (game.gameState as any)?.mapSizingMode;
+    const mode: MapSizingMode = storedMode === 'fixed' ? 'fixed' : 'player';
+    const resolution = resolveMapSizing({
+      mode,
+      rulesetName: game.ruleset ?? DEFAULT_RULESET,
+      playerCount: game.players.length,
+      landmass: terrainSettings.landmass,
+      landPercent: landPercentForTerrain(terrainSettings.landmass),
+      topologyId: terrainSettings.topologyId,
+      wrapId: terrainSettings.wrapId,
+      fixedWidth: game.mapWidth,
+      fixedHeight: game.mapHeight,
+    });
+
+    game.mapWidth = resolution.width;
+    game.mapHeight = resolution.height;
+    game.gameState = {
+      ...(game.gameState && typeof game.gameState === 'object' ? game.gameState : {}),
+      mapSizingMode: mode,
+      mapSizing: resolution.metadata,
+    };
+    return resolution.metadata;
   }
 
   /**
@@ -969,7 +1066,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       generatorType,
       scenarioSetup,
       rulesetName,
-      researchManager
+      researchManager,
+      game
     );
   }
 
@@ -1079,7 +1177,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     generatorType: MapGeneratorType,
     scenarioSetup?: ScenarioSetup,
     rulesetName: string = DEFAULT_RULESET,
-    researchManager?: ResearchManager
+    researchManager?: ResearchManager,
+    game?: any
   ): Promise<void> {
     const mapData = mapManager.getMapData();
     if (!mapData) {
@@ -1094,7 +1193,12 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
     });
 
     // Persist map data to database
-    await this.onPersistMapData?.(gameId, mapData, terrainSettings);
+    await this.onPersistMapData?.(
+      gameId,
+      mapData,
+      terrainSettings,
+      game?.gameState?.mapSizing as MapSizingMetadata | undefined
+    );
 
     // Create starting units for all players
     if (unitManager && researchManager && !hasCustomScenarioInitialState(scenarioSetup)) {
@@ -1196,11 +1300,15 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   }
 
   private async markGameStarting(gameId: string): Promise<void> {
-    await this.databaseProvider
+    const updated = await this.databaseProvider
       .getDatabase()
       .update(games)
       .set({ status: 'starting', updatedAt: new Date() })
-      .where(eq(games.id, gameId));
+      .where(and(eq(games.id, gameId), eq(games.status, 'waiting')))
+      .returning({ id: games.id });
+    if (updated.length === 0) {
+      throw new Error('Game is not in waiting state');
+    }
   }
 
   private async markGameStartFailed(
@@ -1222,6 +1330,17 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       await transaction.delete(playerTechs).where(eq(playerTechs.gameId, gameId));
       await transaction.delete(research).where(eq(research.gameId, gameId));
       await transaction.delete(gameTurns).where(eq(gameTurns.gameId, gameId));
+
+      const originalPlayerIds = originalGame.players.map((player: { id: string }) => player.id);
+      const aiCleanupCondition =
+        originalPlayerIds.length > 0
+          ? and(
+              eq(playerRecords.gameId, gameId),
+              eq(playerRecords.isAI, true),
+              notInArray(playerRecords.id, originalPlayerIds)
+            )
+          : and(eq(playerRecords.gameId, gameId), eq(playerRecords.isAI, true));
+      await transaction.delete(playerRecords).where(aiCleanupCondition);
 
       for (const player of originalGame.players) {
         await transaction
@@ -1247,6 +1366,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
           startedAt: originalGame.startedAt,
           mapSeed: originalGame.mapSeed,
           mapData: originalGame.mapData,
+          mapWidth: originalGame.mapWidth,
+          mapHeight: originalGame.mapHeight,
           gameState: {
             ...priorState,
             startFailure: {
@@ -1374,8 +1495,7 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
   }
 
   private getLandPercent(value: string | undefined): number {
-    // Freeciv defaults landmass to 30%; keep presets centered on that value.
-    return value === 'sparse' ? 20 : value === 'dense' ? 50 : 30;
+    return landPercentForTerrain(value);
   }
 
   private getResourceRichness(value: string | undefined): number {

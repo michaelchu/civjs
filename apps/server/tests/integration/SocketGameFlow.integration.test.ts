@@ -164,6 +164,7 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
         name: 'Socket smoke game',
         gameType: 'multiplayer',
         maxPlayers: 2,
+        mapSizingMode: 'fixed',
         mapWidth: 40,
         mapHeight: 25,
         ruleset: 'civ2civ3',

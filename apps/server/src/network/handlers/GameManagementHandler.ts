@@ -269,6 +269,7 @@ export class GameManagementHandler extends BaseSocketHandler {
         hostId: connection.userId!,
         gameType: data.gameType,
         maxPlayers: data.maxPlayers,
+        mapSizingMode: data.mapSizingMode,
         mapWidth: data.mapWidth,
         mapHeight: data.mapHeight,
         ruleset: data.ruleset,

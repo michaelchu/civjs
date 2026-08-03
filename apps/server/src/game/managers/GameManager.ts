@@ -19,6 +19,7 @@ import { CityManagementService } from '@game/services/CityManagementService';
 import { ResearchManagementService } from '@game/services/ResearchManagementService';
 import { VisibilityMapService } from '@game/services/VisibilityMapService';
 import { GameInstanceRecoveryService } from '@game/services/GameInstanceRecoveryService';
+import { GameOperationLock } from '@game/runtime/GameOperationLock';
 import type { NuclearPresentationEvent } from '@app-types/presentation';
 
 // Keep existing imports for delegation
@@ -84,6 +85,7 @@ export type {
   GameConfig,
   GameInstance,
   GameState,
+  MapSizingMode,
   PlayerState,
   TerrainSettings,
   TurnPhase,
@@ -134,6 +136,7 @@ export class GameManager {
   >();
   private endTurnLocks = new Map<string, Promise<unknown>>();
   private treatyPlayerLocks = new Map<string, Promise<unknown>>();
+  private gameOperationLock = new GameOperationLock();
 
   // Extracted service components
   private gameStateManager!: GameStateManager;
@@ -180,7 +183,8 @@ export class GameManager {
     this.playerConnectionManager = new PlayerConnectionManager(
       this.databaseProvider,
       this.broadcastToGame.bind(this),
-      this.startGame.bind(this)
+      this.startGame.bind(this),
+      this.gameOperationLock
     );
 
     this.gameLifecycleManager = new GameLifecycleManager(
@@ -192,7 +196,9 @@ export class GameManager {
       this.createStartingUnits.bind(this),
       this.foundCity.bind(this),
       this.gameBroadcastManager.broadcastMapData.bind(this.gameBroadcastManager),
-      this.gameBroadcastManager
+      this.gameBroadcastManager,
+      this.playerConnectionManager.reconcileFinalRoster.bind(this.playerConnectionManager),
+      this.gameOperationLock
     );
 
     this.unitManagementService = new UnitManagementService(this.games, this.gameBroadcastManager);
@@ -265,9 +271,10 @@ export class GameManager {
   private async persistMapDataToDatabase(
     gameId: string,
     mapData: any,
-    terrainSettings?: TerrainSettings
+    terrainSettings?: TerrainSettings,
+    mapSizing?: import('@game/services/MapSizingService').MapSizingMetadata
   ): Promise<void> {
-    return this.gameStateManager.persistMapData(gameId, mapData, terrainSettings);
+    return this.gameStateManager.persistMapData(gameId, mapData, terrainSettings, mapSizing);
   }
 
   // requestPathForLifecycle removed - GameLifecycleManager now delegates to main requestPath method
@@ -302,6 +309,7 @@ export class GameManager {
     this.researchDiplomacyByGame.clear();
     this.endTurnLocks.clear();
     this.treatyPlayerLocks.clear();
+    this.gameOperationLock.clear();
   }
 
   /**

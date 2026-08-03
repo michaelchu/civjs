@@ -9,7 +9,6 @@ export interface GameCreationFormState {
   gameName: string;
   gameType: 'single' | 'multiplayer';
   maxPlayers: number;
-  mapSize: string;
   nationSet: string;
   selectedNation: string;
   aiLevel: 'restricted' | 'novice' | 'easy' | 'normal' | 'hard' | 'cheating';
@@ -51,7 +50,6 @@ const initialFormData: GameCreationFormState = {
   gameName: '',
   gameType: 'single',
   maxPlayers: 4,
-  mapSize: 'standard',
   nationSet: 'core',
   selectedNation: 'random',
   aiLevel: 'easy',

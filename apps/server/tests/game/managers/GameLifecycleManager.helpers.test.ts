@@ -82,6 +82,71 @@ describe('GameLifecycleManager helper behavior', () => {
     });
   });
 
+  test('treats single-player capacity as total seats for C2C3 AI fill', () => {
+    const manager = createManager();
+    const data = (manager as any).buildGameData(
+      {
+        name: 'single-player',
+        hostId: 'host',
+        gameType: 'single',
+        maxPlayers: 1,
+        mapSizingMode: 'player',
+        mapWidth: 40,
+        mapHeight: 25,
+      },
+      'civ2civ3'
+    );
+
+    expect(data.maxPlayers).toBe(6);
+    expect(data.mapWidth).toBe(80);
+    expect(data.mapHeight).toBe(50);
+    expect(data.gameState).toMatchObject({
+      mapSizingMode: 'player',
+      mapSizing: { aifill: 6, tilesPerPlayer: 100 },
+    });
+  });
+
+  test('requires dimensions for explicit fixed map sizing', () => {
+    const manager = createManager();
+
+    expect(() =>
+      (manager as any).buildGameData(
+        { name: 'fixed', hostId: 'host', mapSizingMode: 'fixed' },
+        'civ2civ3'
+      )
+    ).toThrow('Fixed map sizing requires a positive integer mapWidth');
+  });
+
+  test('resolves player-mode dimensions from the final roster before initialization', () => {
+    const manager = createManager();
+    const game = {
+      ruleset: 'civ2civ3',
+      mapWidth: 80,
+      mapHeight: 50,
+      players: Array.from({ length: 6 }, (_, index) => ({ id: `p${index + 1}` })),
+      gameState: {
+        mapSizingMode: 'player',
+        terrainSettings: {
+          generator: 'fractal',
+          landmass: 'normal',
+          huts: 15,
+          temperature: 60,
+          wetness: 50,
+          rivers: 50,
+          resources: 'normal',
+          topologyId: TopologyFlag.ISO | TopologyFlag.HEX,
+          wrapId: WrapFlag.X | WrapFlag.Y,
+        },
+      },
+    };
+
+    const metadata = (manager as any).prepareGameForStart(game);
+
+    expect(game).toMatchObject({ mapWidth: 32, mapHeight: 64 });
+    expect(metadata).toMatchObject({ playerCount: 6, width: 32, height: 64 });
+    expect((game.gameState as any).mapSizing).toEqual(metadata);
+  });
+
   /**
    * @evidence parity
    * @reference reference/freeciv/server/srv_main.c:3397-3419
@@ -253,6 +318,52 @@ describe('GameLifecycleManager helper behavior', () => {
     ).rejects.toThrow('map write failed');
   });
 
+  test('persists resolved map dimensions with the generated map', async () => {
+    const where = jest.fn().mockResolvedValue(undefined);
+    const set = jest.fn(() => ({ where }));
+    const stateManager = new GameStateManager(
+      { info: jest.fn(), error: jest.fn(), debug: jest.fn() },
+      {
+        getDatabase: () => ({
+          update: jest.fn(() => ({ set })),
+        }),
+      } as any
+    );
+
+    await stateManager.persistMapData(
+      'g1',
+      {
+        width: 32,
+        height: 64,
+        seed: 'resolved-seed',
+        generatedAt: new Date(0),
+        startingPositions: [],
+        tiles: [],
+      },
+      undefined,
+      {
+        mode: 'player',
+        mapsize: 'PLAYER',
+        tilesPerPlayer: 100,
+        aifill: 6,
+        playerCount: 6,
+        landmass: 'normal',
+        landPercent: 30,
+        requestedArea: 2000,
+        width: 32,
+        height: 64,
+      }
+    );
+
+    expect(set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mapWidth: 32,
+        mapHeight: 64,
+        mapSeed: 'resolved-seed',
+      })
+    );
+  });
+
   test('failed first-start initialization rolls generated state back to a retryable lobby', async () => {
     const where = jest.fn().mockResolvedValue(undefined);
     const transactionDatabase = {
@@ -292,9 +403,9 @@ describe('GameLifecycleManager helper behavior', () => {
     );
 
     expect(transaction).toHaveBeenCalledTimes(1);
-    expect(transactionDatabase.delete).toHaveBeenCalledTimes(5);
+    expect(transactionDatabase.delete).toHaveBeenCalledTimes(6);
     expect(transactionDatabase.update).toHaveBeenCalledTimes(2);
-    expect(where).toHaveBeenCalledTimes(7);
+    expect(where).toHaveBeenCalledTimes(8);
   });
 
   test('deleteGame permanently removes a host-owned game', async () => {

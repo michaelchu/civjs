@@ -177,6 +177,15 @@ export class GameInstanceRecoveryService extends BaseGameService {
       logger.warn('No map data found in database, cannot recover game instance', { gameId });
       return null;
     }
+    const persistedMap = game.mapData as { width?: unknown; height?: unknown };
+    if (persistedMap.width !== game.mapWidth || persistedMap.height !== game.mapHeight) {
+      logger.error('Persisted map dimensions do not match the game record', {
+        gameId,
+        recordSize: `${game.mapWidth}x${game.mapHeight}`,
+        mapDataSize: `${String(persistedMap.width)}x${String(persistedMap.height)}`,
+      });
+      return null;
+    }
     return game;
   }
 

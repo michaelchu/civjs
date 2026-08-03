@@ -49,7 +49,6 @@ export const GameCreationDialog: React.FC = () => {
     gameName,
     gameType,
     maxPlayers,
-    mapSize,
     nationSet,
     selectedNation,
     aiLevel = 'easy',
@@ -79,8 +78,7 @@ export const GameCreationDialog: React.FC = () => {
     updateFormData({
       gameName: gameName.trim(),
       gameType,
-      maxPlayers: gameType === 'single' ? 1 : maxPlayers,
-      mapSize,
+      maxPlayers: gameType === 'single' ? 6 : maxPlayers,
       nationSet,
       selectedNation,
       aiLevel,
@@ -90,11 +88,6 @@ export const GameCreationDialog: React.FC = () => {
     // Navigate to terrain settings
     navigate('/terrain-settings');
   };
-
-  const mapSizeOptions = [
-    { value: 'small', label: 'Small (40x25)' },
-    { value: 'standard', label: 'Standard (80x50)' },
-  ];
 
   const gameTypeOptions = [
     { value: 'single', label: 'Single Player' },
@@ -249,18 +242,10 @@ export const GameCreationDialog: React.FC = () => {
                 </div>
 
                 <div>
-                  <label
-                    htmlFor="mapSize"
-                    className="block text-sm font-medium text-foreground mb-2"
-                  >
-                    Map Size
-                  </label>
-                  <Combobox
-                    options={mapSizeOptions}
-                    value={mapSize}
-                    onValueChange={value => updateFormData({ mapSize: value })}
-                    placeholder="Select map size"
-                  />
+                  <div className="block text-sm font-medium text-foreground mb-2">Map Size</div>
+                  <p className="text-sm text-muted-foreground">
+                    Calculated at game start from players and landmass.
+                  </p>
                 </div>
 
                 {gameType === 'single' && (

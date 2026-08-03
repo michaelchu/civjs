@@ -1331,7 +1331,7 @@ export class GameClient {
     gameName: string;
     gameType?: 'single' | 'multiplayer';
     maxPlayers: number;
-    mapSize: string;
+    mapSizingMode?: 'player' | 'fixed';
     nationSet?: string;
     selectedNation: string;
     aiLevel?: 'restricted' | 'novice' | 'easy' | 'normal' | 'hard' | 'cheating';
@@ -1359,22 +1359,13 @@ export class GameClient {
         return;
       }
 
-      const mapSizes: Record<string, { width: number; height: number }> = {
-        small: { width: 40, height: 25 },
-        standard: { width: 80, height: 50 },
-        large: { width: 120, height: 75 },
-      };
-
-      const dimensions = mapSizes[gameData.mapSize] || mapSizes.standard;
-
       const createPacket: Packet = {
         type: PacketType.GAME_CREATE,
         data: {
           name: gameData.gameName,
           gameType: gameData.gameType || 'multiplayer',
           maxPlayers: gameData.maxPlayers,
-          mapWidth: dimensions.width,
-          mapHeight: dimensions.height,
+          mapSizingMode: gameData.mapSizingMode || 'player',
           ruleset: 'civ2civ3',
           nationSet: gameData.nationSet,
           selectedNation: gameData.selectedNation,

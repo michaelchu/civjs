@@ -24,7 +24,7 @@ export const DEFAULT_TERRAIN_SETTINGS: TerrainSettings = {
 
 type RulesetSetting = { name?: unknown; value?: unknown };
 
-function getRulesetSetting(
+export function getRulesetSetting(
   loader: RulesetLoader,
   rulesetName: string,
   settingName: string
@@ -32,6 +32,38 @@ function getRulesetSetting(
   const settings = loader.loadGameRulesRuleset(rulesetName).settings.set;
   if (!Array.isArray(settings)) return undefined;
   return (settings as RulesetSetting[]).find(setting => setting?.name === settingName)?.value;
+}
+
+export interface RulesetMapSettings {
+  mapsize: string;
+  tilesPerPlayer: number;
+  aiFill: number;
+}
+
+/** Read the map-sizing and AI-fill settings directly from the active ruleset. */
+export function resolveRulesetMapSettings(
+  rulesetName: string,
+  loader: RulesetLoader = rulesetLoader
+): RulesetMapSettings {
+  const mapsize = getRulesetSetting(loader, rulesetName, 'mapsize');
+  const tilesPerPlayer = getRulesetSetting(loader, rulesetName, 'tilesperplayer');
+  const aiFill = getRulesetSetting(loader, rulesetName, 'aifill');
+
+  if (typeof mapsize !== 'string' || mapsize.length === 0) {
+    throw new Error(`Ruleset '${rulesetName}' does not define mapsize`);
+  }
+  if (typeof tilesPerPlayer !== 'number' || !Number.isFinite(tilesPerPlayer)) {
+    throw new Error(`Ruleset '${rulesetName}' does not define a valid tilesperplayer`);
+  }
+  if (typeof aiFill !== 'number' || !Number.isFinite(aiFill)) {
+    throw new Error(`Ruleset '${rulesetName}' does not define a valid aifill`);
+  }
+
+  return {
+    mapsize: mapsize.toUpperCase(),
+    tilesPerPlayer,
+    aiFill,
+  };
 }
 
 function topologyFromSetting(value: unknown): number {

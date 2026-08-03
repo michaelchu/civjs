@@ -72,7 +72,7 @@ export const TerrainSettingsDialog: React.FC = () => {
         gameName: formData.gameName,
         gameType: formData.gameType,
         maxPlayers: formData.maxPlayers,
-        mapSize: formData.mapSize,
+        mapSizingMode: 'player',
         nationSet: formData.nationSet,
         selectedNation: formData.selectedNation,
         aiLevel: formData.aiLevel,

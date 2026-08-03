@@ -21,6 +21,7 @@ import type { SupportedRuleset } from '@shared/data/rulesets/defaultRuleset';
 
 export type GameState = 'waiting' | 'starting' | 'active' | 'paused' | 'ended';
 export type TurnPhase = 'movement' | 'production' | 'research' | 'diplomacy';
+export type MapSizingMode = 'player' | 'fixed';
 
 export interface TerrainSettings {
   generator: string;
@@ -41,6 +42,7 @@ export interface GameConfig {
   hostId: string;
   gameType?: 'single' | 'multiplayer';
   maxPlayers?: number;
+  mapSizingMode?: MapSizingMode;
   mapWidth?: number;
   mapHeight?: number;
   mapSeed?: string;

@@ -73,6 +73,7 @@ export class SimulationGameService {
       hostId,
       gameType: 'single',
       maxPlayers: config.aiPlayerCount,
+      mapSizingMode: 'fixed',
       mapWidth: config.mapWidth,
       mapHeight: config.mapHeight,
       mapSeed: config.mapSeed,

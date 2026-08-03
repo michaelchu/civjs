@@ -20,6 +20,7 @@ import type {
   GameConfig,
   GameInstance,
   GameState,
+  MapSizingMode,
   PlayerState,
   TerrainSettings,
   TurnPhase,
@@ -51,6 +52,11 @@ export function buildStoredGameConfig(
         (condition): condition is string => typeof condition === 'string'
       )
     : undefined;
+  const storedMapSizingMode = game.gameState?.mapSizingMode;
+  const mapSizingMode: MapSizingMode | undefined =
+    storedMapSizingMode === 'fixed' || storedMapSizingMode === 'player'
+      ? storedMapSizingMode
+      : undefined;
 
   return {
     name: game.name,
@@ -58,6 +64,7 @@ export function buildStoredGameConfig(
     gameType:
       game.gameType === 'single' || game.gameType === 'multiplayer' ? game.gameType : undefined,
     maxPlayers: game.maxPlayers ?? undefined,
+    mapSizingMode,
     mapWidth: game.mapWidth ?? undefined,
     mapHeight: game.mapHeight ?? undefined,
     mapSeed: game.mapSeed ?? undefined,

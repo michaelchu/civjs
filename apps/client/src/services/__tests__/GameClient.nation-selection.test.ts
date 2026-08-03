@@ -315,7 +315,6 @@ describe('GameClient - Nation Selection', () => {
         gameName: 'Test Game',
         gameType: 'single' as const,
         maxPlayers: 4,
-        mapSize: 'standard',
         nationSet: 'all',
         selectedNation: 'japanese',
         aiLevel: 'hard' as const,
@@ -368,9 +367,13 @@ describe('GameClient - Nation Selection', () => {
             nationSet: 'all',
             aiLevel: 'hard',
             researchPacing: { scienceBox: 150 },
+            mapSizingMode: 'player',
           }),
         })
       );
+      const createPacket = mockSocket.emit.mock.calls.find(call => call[0] === 'packet')?.[1];
+      expect(createPacket.data).not.toHaveProperty('mapWidth');
+      expect(createPacket.data).not.toHaveProperty('mapHeight');
 
       await expect(gameIdPromise).resolves.toBe('game-123');
       expect(useGameStore.getState().updateGameState).toHaveBeenCalledWith(

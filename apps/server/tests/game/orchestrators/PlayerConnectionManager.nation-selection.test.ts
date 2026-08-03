@@ -34,6 +34,7 @@ const mockNationsRuleset = {
 // Mock the RulesetLoader
 const mockRulesetLoader = {
   loadNationsRuleset: jest.fn(),
+  loadGameRulesRuleset: jest.fn(),
   getNationsForSet: jest.fn(),
 };
 
@@ -68,6 +69,15 @@ describe('PlayerConnectionManager - Nation Selection', () => {
 
     // Reset the mock to return our mock data
     mockRulesetLoader.loadNationsRuleset.mockReturnValue(mockNationsRuleset);
+    mockRulesetLoader.loadGameRulesRuleset.mockReturnValue({
+      settings: {
+        set: [
+          { name: 'mapsize', value: 'PLAYER' },
+          { name: 'tilesperplayer', value: 100 },
+          { name: 'aifill', value: 6 },
+        ],
+      },
+    });
     mockRulesetLoader.getNationsForSet.mockReturnValue(mockNationsRuleset.nations);
 
     // Mock database operations
@@ -85,6 +95,10 @@ describe('PlayerConnectionManager - Nation Selection', () => {
           returning: jest.fn(() => [{ id: 'new-player-id' }]),
         })),
       })),
+      update: jest.fn(() => ({
+        set: jest.fn(() => ({ where: jest.fn().mockResolvedValue(undefined) })),
+      })),
+      delete: jest.fn(() => ({ where: jest.fn().mockResolvedValue(undefined) })),
     };
 
     mockDatabaseProvider = {
@@ -499,6 +513,84 @@ describe('PlayerConnectionManager - Nation Selection', () => {
 
       expect(inserted.length).toBeGreaterThan(0);
       expect(inserted.every(player => player.aiLevel === 'easy')).toBe(true);
+    });
+  });
+
+  describe('final roster reconciliation', () => {
+    it('fills a single human game to the C2C3 six-player target', async () => {
+      const human = {
+        id: 'human-id',
+        userId: mockUserId,
+        playerNumber: 1,
+        civilization: 'american',
+        nation: 'american',
+        leaderName: 'Washington',
+        color: { r: 1, g: 1, b: 1 },
+        isAI: false,
+      };
+      const inserted: any[] = [];
+      mockDatabase.query.games.findFirst.mockResolvedValue({
+        id: mockGameId,
+        status: 'starting',
+        ruleset: 'civ2civ3',
+        maxPlayers: 6,
+        gameState: { mapSizingMode: 'player', nationSet: 'core' },
+        players: [human],
+      });
+      mockDatabase.insert.mockReturnValue({
+        values: jest.fn((value: any) => {
+          inserted.push(value);
+          return {
+            returning: jest.fn().mockResolvedValue([{ ...value, id: `ai-${inserted.length}` }]),
+          };
+        }),
+      });
+
+      await playerManager.reconcileFinalRoster(mockGameId);
+
+      expect(inserted).toHaveLength(5);
+      expect(inserted.map(player => player.playerNumber)).toEqual([2, 3, 4, 5, 6]);
+      expect(inserted.every(player => player.isAI)).toBe(true);
+    });
+
+    it('is idempotent when the target roster already exists', async () => {
+      const players = Object.values(mockNationsRuleset.nations).map((nation, index) => ({
+        id: `player-${index}`,
+        userId: index === 0 ? mockUserId : null,
+        playerNumber: index + 1,
+        civilization: nation.id,
+        nation: nation.id,
+        leaderName: `Leader ${index}`,
+        color: { r: index, g: index, b: index },
+        isAI: index > 0,
+      }));
+      mockDatabase.query.games.findFirst.mockResolvedValue({
+        id: mockGameId,
+        status: 'starting',
+        ruleset: 'civ2civ3',
+        maxPlayers: 6,
+        gameState: { mapSizingMode: 'player', nationSet: 'core' },
+        players,
+      });
+
+      await playerManager.reconcileFinalRoster(mockGameId);
+
+      expect(mockDatabase.insert).not.toHaveBeenCalled();
+    });
+
+    it('bypasses AI reconciliation for fixed-size games', async () => {
+      mockDatabase.query.games.findFirst.mockResolvedValue({
+        id: mockGameId,
+        status: 'starting',
+        ruleset: 'civ2civ3',
+        maxPlayers: 2,
+        gameState: { mapSizingMode: 'fixed' },
+        players: [],
+      });
+
+      await playerManager.reconcileFinalRoster(mockGameId);
+
+      expect(mockDatabase.insert).not.toHaveBeenCalled();
     });
   });
 });

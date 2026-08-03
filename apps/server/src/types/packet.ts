@@ -625,38 +625,57 @@ export const ThawClientSchema = z.object({
 });
 
 //Game management packets
-export const GameCreateSchema = z.object({
-  name: z.string().min(1).max(100),
-  gameType: z.enum(['single', 'multiplayer']).optional(),
-  maxPlayers: z.number().int().min(1).max(16).optional(),
-  mapWidth: z.number().int().min(40).max(200).optional(),
-  mapHeight: z.number().int().min(25).max(150).optional(),
-  ruleset: z.literal(DEFAULT_RULESET).optional(),
-  nationSet: z.string().trim().min(1).max(50).optional(),
-  selectedNation: z.string().min(1).optional(),
-  aiLevel: z.enum(['restricted', 'novice', 'easy', 'normal', 'hard', 'cheating']).optional(),
-  turnTimeLimit: z.number().int().min(0).max(86_400).optional(),
-  barbarianRate: z.number().int().min(0).max(4).optional(),
-  victoryConditions: z.array(z.string()).optional(),
-  terrainSettings: z
-    .object({
-      generator: z.string(),
-      landmass: z.string(),
-      huts: z.number().min(0).max(100),
-      temperature: z.number().min(0).max(100),
-      wetness: z.number().min(0).max(100),
-      rivers: z.number().min(0).max(100),
-      resources: z.string(),
-      startpos: z.number().optional(),
-      topologyId: z.number().int().min(0).max(3).optional(),
-      wrapId: z.number().int().min(0).max(3).optional(),
-      scenarioId: z
-        .string()
-        .regex(/^[a-zA-Z0-9_-]+$/)
-        .optional(),
-    })
-    .optional(),
-});
+export const GameCreateSchema = z
+  .object({
+    name: z.string().min(1).max(100),
+    gameType: z.enum(['single', 'multiplayer']).optional(),
+    maxPlayers: z.number().int().min(1).max(16).optional(),
+    mapSizingMode: z.enum(['player', 'fixed']).default('player'),
+    mapWidth: z.number().int().min(40).max(200).optional(),
+    mapHeight: z.number().int().min(25).max(150).optional(),
+    ruleset: z.literal(DEFAULT_RULESET).optional(),
+    nationSet: z.string().trim().min(1).max(50).optional(),
+    selectedNation: z.string().min(1).optional(),
+    aiLevel: z.enum(['restricted', 'novice', 'easy', 'normal', 'hard', 'cheating']).optional(),
+    turnTimeLimit: z.number().int().min(0).max(86_400).optional(),
+    barbarianRate: z.number().int().min(0).max(4).optional(),
+    victoryConditions: z.array(z.string()).optional(),
+    terrainSettings: z
+      .object({
+        generator: z.string(),
+        landmass: z.string(),
+        huts: z.number().min(0).max(100),
+        temperature: z.number().min(0).max(100),
+        wetness: z.number().min(0).max(100),
+        rivers: z.number().min(0).max(100),
+        resources: z.string(),
+        startpos: z.number().optional(),
+        topologyId: z.number().int().min(0).max(3).optional(),
+        wrapId: z.number().int().min(0).max(3).optional(),
+        scenarioId: z
+          .string()
+          .regex(/^[a-zA-Z0-9_-]+$/)
+          .optional(),
+      })
+      .optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.mapSizingMode !== 'fixed') return;
+    if (value.mapWidth === undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['mapWidth'],
+        message: 'Fixed map sizing requires mapWidth',
+      });
+    }
+    if (value.mapHeight === undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['mapHeight'],
+        message: 'Fixed map sizing requires mapHeight',
+      });
+    }
+  });
 
 export const GameCreateReplySchema = z.object({
   success: z.boolean(),

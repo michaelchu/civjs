@@ -155,6 +155,7 @@ describe('AI authoritative manager boundaries', () => {
       name: `AI manager boundary ${suffix}`,
       hostId: userIds[0]!,
       maxPlayers: playerCount,
+      mapSizingMode: 'fixed',
       mapWidth: 20,
       mapHeight: 20,
       ruleset: 'civ2civ3',

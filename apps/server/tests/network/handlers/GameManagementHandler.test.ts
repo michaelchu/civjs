@@ -79,6 +79,29 @@ describe('GameManagementHandler', () => {
     } as any;
   });
 
+  describe('map sizing contract', () => {
+    it('defaults game creation to player sizing and accepts no dimensions', () => {
+      const result = GameCreateSchema.safeParse({ name: 'Player-sized game' });
+
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.mapSizingMode).toBe('player');
+    });
+
+    it('requires both dimensions for fixed sizing', () => {
+      expect(
+        GameCreateSchema.safeParse({ name: 'Fixed game', mapSizingMode: 'fixed' }).success
+      ).toBe(false);
+      expect(
+        GameCreateSchema.safeParse({
+          name: 'Fixed game',
+          mapSizingMode: 'fixed',
+          mapWidth: 80,
+          mapHeight: 50,
+        }).success
+      ).toBe(true);
+    });
+  });
+
   describe('register', () => {
     it('should register all game management packet handlers', () => {
       handler.register(mockPacketHandler, mockIo, mockSocket);

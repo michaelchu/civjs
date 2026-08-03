@@ -40,8 +40,7 @@ export const HomePage: React.FC = () => {
       const gameData = {
         gameName: `test-${hash}`,
         gameType: 'single' as const,
-        maxPlayers: 4,
-        mapSize: 'small',
+        maxPlayers: 6,
         nationSet: 'core',
         selectedNation: 'random',
         barbarianRate: 1,

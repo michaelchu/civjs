@@ -23,6 +23,8 @@ import {
   randomInt,
   type RandomSource,
 } from '@game/random/FreecivRandom';
+import { resolveRulesetMapSettings } from '@game/services/RulesetTerrainDefaults';
+import { GameOperationLock } from '@game/runtime/GameOperationLock';
 // PlayerState type is used in comments and method parameters but imported from GameManager
 
 function configuredNationSet(gameState: unknown): string | undefined {
@@ -44,6 +46,7 @@ export interface PlayerConnectionService {
   }>;
   updatePlayerConnection(playerId: string, isConnected: boolean): Promise<void>;
   ensureMinimumPlayers(gameId: string, minimumPlayers?: number): Promise<void>;
+  reconcileFinalRoster(gameId: string): Promise<void>;
 }
 
 export class PlayerConnectionManager extends BaseGameService implements PlayerConnectionService {
@@ -51,16 +54,19 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
   private databaseProvider: DatabaseProvider;
   private onBroadcast?: (gameId: string, event: string, data: any) => void;
   private onAutoStartGame?: (gameId: string, hostId: string) => Promise<void>;
+  private operationLock: GameOperationLock;
 
   constructor(
     databaseProvider: DatabaseProvider,
     onBroadcast?: (gameId: string, event: string, data: any) => void,
-    onAutoStartGame?: (gameId: string, hostId: string) => Promise<void>
+    onAutoStartGame?: (gameId: string, hostId: string) => Promise<void>,
+    operationLock: GameOperationLock = new GameOperationLock()
   ) {
     super(logger);
     this.databaseProvider = databaseProvider;
     this.onBroadcast = onBroadcast;
     this.onAutoStartGame = onAutoStartGame;
+    this.operationLock = operationLock;
   }
 
   getServiceName(): string {
@@ -72,6 +78,23 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
    * @reference Original GameManager.ts:138-285 joinGame()
    */
   async joinGame(
+    gameId: string,
+    userId: string,
+    civilization?: string
+  ): Promise<{
+    playerId: string;
+    assignedNation: string;
+    assignedColor: PlayerColor;
+    leaderName: string;
+  }> {
+    const result = await this.operationLock.run(gameId, () =>
+      this.joinGameRecord(gameId, userId, civilization)
+    );
+    await this.handleAutoStart(gameId);
+    return result;
+  }
+
+  private async joinGameRecord(
     gameId: string,
     userId: string,
     civilization?: string
@@ -110,12 +133,16 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       throw new Error('Game is not accepting new players');
     }
 
+    if (game.gameType === 'single' && game.hostId !== userId) {
+      throw new Error('Single-player games are not accepting new players');
+    }
+
     if (game.players.length >= game.maxPlayers) {
       throw new Error('Game is full');
     }
 
     // Create player in database
-    const playerNumber = game.players.length + 1;
+    const playerNumber = this.getFirstAvailablePlayerNumber(game.players);
 
     // Validate and select nation
     const lobbyRandom = this.getLobbyRandom(game);
@@ -190,9 +217,6 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       civilization: playerData.civilization,
       playerCount: game.players.length + 1,
     });
-
-    // Handle auto-start logic
-    await this.handleAutoStart(gameId);
 
     const finalResult = {
       playerId: newPlayer.id,
@@ -313,9 +337,11 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       game.ruleset ?? DEFAULT_RULESET,
       configuredNationSet(game.gameState)
     );
+    const usedPlayerNumbers = new Set(game.players.map(player => player.playerNumber));
 
     for (let i = 0; i < aiPlayersNeeded && i < availableNations.length; i++) {
-      const playerNumber = game.players.length + i + 1;
+      const playerNumber = this.getFirstAvailablePlayerNumber(usedPlayerNumbers);
+      usedPlayerNumbers.add(playerNumber);
       const aiNation = availableNations[i];
 
       // Get next available color theme for AI player
@@ -394,6 +420,153 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
       }
     }
     if (addedAIPlayers) await this.persistLobbyRandomState(gameId, lobbyRandom);
+  }
+
+  /**
+   * Reconcile a normal player-mode lobby with the ruleset's aifill target.
+   * Fixed-size simulations and scenarios intentionally use their explicit AI
+   * roster and bypass this method.
+   *
+   * @reference reference/freeciv/server/srv_main.c:aifill():2511-2595
+   */
+  async reconcileFinalRoster(gameId: string): Promise<void> {
+    const game = await this.databaseProvider.getDatabase().query.games.findFirst({
+      where: eq(games.id, gameId),
+      with: { players: { with: { user: true } } },
+    });
+    if (!game) throw new Error('Game not found while reconciling players');
+
+    const mapSizingMode = (game.gameState as { mapSizingMode?: unknown } | null | undefined)
+      ?.mapSizingMode;
+    if (mapSizingMode === 'fixed') return;
+
+    const rulesetName = game.ruleset ?? DEFAULT_RULESET;
+    const mapSettings = resolveRulesetMapSettings(rulesetName, RulesetLoader.getInstance());
+    const configuredNations = RulesetLoader.getInstance().getNationsForSet(
+      rulesetName,
+      configuredNationSet(game.gameState)
+    );
+    const playableNationCount = Object.values(configuredNations ?? {}).filter(
+      nation => nation.is_playable !== false
+    ).length;
+    const targetPlayers = Math.min(
+      Math.max(1, Math.floor(mapSettings.aiFill)),
+      game.maxPlayers,
+      playableNationCount
+    );
+
+    let currentPlayers: any[] = [...game.players];
+    const removableAI = currentPlayers
+      .filter(player => player.isAI && !player.userId)
+      .sort((left, right) => right.playerNumber - left.playerNumber);
+    const removableCount = Math.max(0, currentPlayers.length - targetPlayers);
+    for (const player of removableAI.slice(0, removableCount)) {
+      await this.databaseProvider.getDatabase().delete(players).where(eq(players.id, player.id));
+      currentPlayers = currentPlayers.filter(current => current.id !== player.id);
+      this.onBroadcast?.(gameId, 'player-left', {
+        playerId: player.id,
+        playerNumber: player.playerNumber,
+        isAI: true,
+        playerCount: currentPlayers.length,
+      });
+    }
+
+    const aiPlayersNeeded = Math.max(0, targetPlayers - currentPlayers.length);
+    if (aiPlayersNeeded === 0) return;
+
+    const availableNations = await this.getAvailableNations(
+      currentPlayers,
+      rulesetName,
+      configuredNationSet(game.gameState)
+    );
+    const configuredAILevel = this.getConfiguredAILevel(game);
+    const lobbyRandom = this.getLobbyRandom(game);
+    const existingPlayers = currentPlayers.map(player => ({
+      leaderName: player.leaderName,
+      userId: player.userId,
+      username: player.user?.username,
+    }));
+    const usedPlayerNumbers = new Set(currentPlayers.map(player => player.playerNumber));
+    let addedAIPlayers = false;
+
+    for (let i = 0; i < aiPlayersNeeded && i < availableNations.length; i++) {
+      const playerNumber = this.getFirstAvailablePlayerNumber(usedPlayerNumbers);
+      usedPlayerNumbers.add(playerNumber);
+      const aiNation = availableNations[i];
+      const currentUsedThemes = currentPlayers
+        .map(player => ({
+          primary: player.color as PlayerColor,
+          secondary: { r: 255, g: 255, b: 255 },
+          tertiary: { r: 0, g: 0, b: 0 },
+          name: 'Legacy',
+        }))
+        .filter(theme => theme.primary);
+      const aiTheme = getNextPlayerColorTheme(currentUsedThemes);
+      const safeAiTheme = aiTheme || {
+        primary: { r: 64, g: 64, b: 64 },
+        secondary: { r: 255, g: 255, b: 255 },
+        tertiary: { r: 0, g: 0, b: 0 },
+        name: 'AI Fallback Gray',
+      };
+      const aiPlayerData = {
+        id: createOrderedUuid(playerNumber),
+        gameId,
+        userId: null,
+        playerNumber,
+        nation: aiNation,
+        civilization: aiNation,
+        leaderName: this.getLeaderName(
+          aiNation,
+          rulesetName,
+          existingPlayers,
+          lobbyRandom,
+          `AI Leader ${playerNumber}`
+        ),
+        color: safeAiTheme.primary,
+        connectionStatus: 'connected',
+        isAI: true,
+        aiLevel: configuredAILevel,
+        aiTraits: { expansionist: 50, trader: 50, aggressive: 50, builder: 50 },
+        aiState: createAIState(),
+        isReady: true,
+        taxRate: DEFAULT_TAX_RATES.tax,
+        luxuryRate: DEFAULT_TAX_RATES.luxury,
+        scienceRate: DEFAULT_TAX_RATES.science,
+      };
+      const [aiPlayer] = await this.databaseProvider
+        .getDatabase()
+        .insert(players)
+        .values(aiPlayerData)
+        .returning();
+      currentPlayers.push({ ...aiPlayerData, ...aiPlayer });
+      existingPlayers.push({
+        leaderName: aiPlayerData.leaderName,
+        userId: aiPlayerData.userId,
+        username: undefined,
+      });
+      addedAIPlayers = true;
+      this.onBroadcast?.(gameId, 'player-joined', {
+        playerId: aiPlayer.id,
+        playerNumber,
+        civilization: aiNation,
+        isAI: true,
+        playerCount: currentPlayers.length,
+      });
+    }
+
+    if (addedAIPlayers) await this.persistLobbyRandomState(gameId, lobbyRandom);
+  }
+
+  private getFirstAvailablePlayerNumber(
+    playersOrNumbers: Array<{ playerNumber: number }> | Set<number>
+  ): number {
+    const used =
+      playersOrNumbers instanceof Set
+        ? playersOrNumbers
+        : new Set(playersOrNumbers.map(player => player.playerNumber));
+    let playerNumber = 1;
+    while (used.has(playerNumber)) playerNumber += 1;
+    return playerNumber;
   }
 
   private getConfiguredAILevel(game: any): string {
@@ -630,7 +803,6 @@ export class PlayerConnectionManager extends BaseGameService implements PlayerCo
     });
     try {
       await new Promise(resolve => setTimeout(resolve, 200));
-      await this.ensureMinimumPlayers(gameId);
       await this.onAutoStartGame?.(gameId, updatedGame.hostId);
     } catch (error) {
       this.logger.error('Failed to auto-start game:', error);
