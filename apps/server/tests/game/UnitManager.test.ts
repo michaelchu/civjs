@@ -2521,17 +2521,24 @@ describe('UnitManager', () => {
     });
 
     it('charges the ruleset attack movement cost instead of clearing excess movement', async () => {
+      const map = {
+        getTile: jest.fn(() => ({ terrain: 'ocean' })),
+      };
       const manager = new UnitManager(
         gameId,
         mockDbProvider,
         mapWidth,
         mapHeight,
+        map as any,
         undefined,
-        undefined,
-        new EffectsManager('civ2civ3')
+        new EffectsManager('civ2civ3'),
+        () => 0.99
       );
-      const attacker = await manager.createUnit('player-123', 'warriors', 10, 10);
-      const defender = await manager.createUnit('player-456', 'warriors', 11, 10);
+      // A Cruiser has fifteen C2C3 movement fragments, so nine is a valid
+      // post-movement state rather than an impossible over-cap test fixture.
+      // @reference reference/freeciv/data/civ2civ3/units.ruleset:2062-2071
+      const attacker = await manager.createUnit('player-123', 'cruiser', 10, 10);
+      const defender = await manager.createUnit('player-456', 'cruiser', 11, 10);
       attacker.movementLeft = 9;
 
       await manager.attackUnit(attacker.id, defender.id);
