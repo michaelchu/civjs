@@ -1,4 +1,4 @@
-import { EffectsManager, EffectType } from '@game/managers/EffectsManager';
+import { EffectsManager, EffectType, OutputType } from '@game/managers/EffectsManager';
 import { DiplomacyManager } from '@game/managers/DiplomacyManager';
 import { loadRulesetTechnologies, ResearchManager } from '@game/managers/ResearchManager';
 import { UnitManager } from '@game/managers/UnitManager';
@@ -60,6 +60,55 @@ function civ2civ3VisibilityEffects(): Record<string, number> {
     }).value,
     city_vision_electricity: effects.calculateEffect(EffectType.CITY_VISION_RADIUS_SQ, {
       playerTechs: new Set(['electricity']),
+    }).value,
+  };
+}
+
+function civ2civ3CityTileEffects(): Record<string, number> {
+  const effects = new EffectsManager('civ2civ3');
+  const grasslandCenter = {
+    tileTerrain: 'grassland',
+    tileTerrainClass: 'Land',
+    tileTerrainAlterations: new Set(['CanIrrigate']),
+    tileExtras: new Set<string>(),
+    tileIsCityCenter: true,
+    cityBuildings: new Set<string>(),
+  };
+
+  return {
+    city_center_irrigation_pct: effects.calculateEffect(EffectType.IRRIGATION_PCT, {
+      ...grasslandCenter,
+      outputType: OutputType.FOOD,
+    }).value,
+    city_center_shield_add: effects.calculateEffect(EffectType.OUTPUT_ADD_TILE, {
+      ...grasslandCenter,
+      outputType: OutputType.SHIELD,
+    }).value,
+    grassland_tile_workable: effects.calculateEffect(EffectType.TILE_WORKABLE, grasslandCenter)
+      .value,
+    city_center_supermarket_food_pct: effects.calculateEffect(EffectType.OUTPUT_PER_TILE, {
+      ...grasslandCenter,
+      outputType: OutputType.FOOD,
+      cityBuildings: new Set(['supermarket']),
+    }).value,
+    city_center_pollution_punish_pct: effects.calculateEffect(EffectType.OUTPUT_TILE_PUNISH_PCT, {
+      ...grasslandCenter,
+      outputType: OutputType.FOOD,
+      cityBuildings: new Set(['supermarket']),
+      tileExtras: new Set(['pollution']),
+    }).value,
+    city_center_mining_pct: effects.calculateEffect(EffectType.MINING_PCT, {
+      ...grasslandCenter,
+      outputType: OutputType.SHIELD,
+      cityBuildings: new Set(['supermarket']),
+      tileExtras: new Set(['pollution', 'mine']),
+    }).value,
+    inaccessible_tile_workable: effects.calculateEffect(EffectType.TILE_WORKABLE, {
+      tileTerrain: 'inaccessible',
+      tileTerrainClass: 'Land',
+      tileExtras: new Set<string>(),
+      tileIsCityCenter: false,
+      cityBuildings: new Set(['supermarket']),
     }).value,
   };
 }
@@ -461,6 +510,28 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
 
   /**
    * @evidence parity
+   * @reference reference/freeciv/common/city.c:1281-1371
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2831-2857
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3803-3809
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3863-3974
+   * @assertion C2C3 evaluates automatic center irrigation and shields, Supermarket farmland output, pollution punishment, Mine output, and inaccessible-tile workability from the active city-and-tile context.
+   * @c2c3-surface city-economy
+   * @c2c3-surface-scenario normal, boundary
+   */
+  it('applies the c2c3 city-tile effect fixture', () => {
+    expect(civ2civ3CityTileEffects()).toEqual({
+      city_center_irrigation_pct: 100,
+      city_center_shield_add: 1,
+      grassland_tile_workable: 1,
+      city_center_supermarket_food_pct: 50,
+      city_center_pollution_punish_pct: 50,
+      city_center_mining_pct: 100,
+      inaccessible_tile_workable: 0,
+    });
+  });
+
+  /**
+   * @evidence parity
    * @reference reference/freeciv/common/tech.c:225-275
    * @reference reference/freeciv/common/tech.c:544-606
    * @reference reference/freeciv/data/civ2civ3/game.ruleset:308-339
@@ -495,6 +566,22 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
   const oracle = loadCiv2Civ3OracleResults();
 
   if (oracle) {
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/common/city.c:1281-1371
+     * @reference reference/freeciv/common/scriptcore/api_game_effects.c:116-179
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2831-2857
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3803-3809
+     * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3863-3974
+     * @assertion CivJS and the pinned Freeciv c2c3 server expose identical context-sensitive tile-output and workability effects.
+     * @c2c3-surface city-economy
+     * @c2c3-surface-scenario differential
+     */
+    it('matches the batched pinned Freeciv city-tile effects fixture', () => {
+      expect(oracle.baseline).toEqual(CIV2CIV3_ORACLE_BASELINE);
+      expect(oracle.results).toMatchObject(civ2civ3CityTileEffects());
+    });
+
     /**
      * @evidence parity
      * @reference reference/freeciv/data/civ2civ3/effects.ruleset:1861-1890
@@ -670,6 +757,8 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
       );
     });
   } else {
+    it.skip('matches the batched pinned Freeciv city-tile effects fixture when an oracle bundle exists', () =>
+      undefined);
     it.skip('matches the batched pinned Freeciv City Walls fixture when an oracle bundle exists', () =>
       undefined);
     it.skip('matches the batched pinned Freeciv Magellan Veteran_Combat fixture when an oracle bundle exists', () =>

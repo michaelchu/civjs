@@ -56,6 +56,11 @@ export enum EffectType {
   OUTPUT_INC_TILE = 'Output_Inc_Tile',
   OUTPUT_INC_TILE_CELEBRATE = 'Output_Inc_Tile_Celebrate',
   OUTPUT_PENALTY_TILE = 'Output_Penalty_Tile',
+  OUTPUT_PER_TILE = 'Output_Per_Tile',
+  OUTPUT_TILE_PUNISH_PCT = 'Output_Tile_Punish_Pct',
+  IRRIGATION_PCT = 'Irrigation_Pct',
+  MINING_PCT = 'Mining_Pct',
+  TILE_WORKABLE = 'Tile_Workable',
   SIZE_ADJ = 'Size_Adj',
   SIZE_UNLIMIT = 'Size_Unlimit',
   RAPTURE_GROW = 'Rapture_Grow',
@@ -163,6 +168,8 @@ export interface EffectContext {
   tileTerrain?: string;
   tileTerrainClass?: string;
   tileTerrainFlags?: Set<string>;
+  /** Terrain alterations that the tile's terrain can support. */
+  tileTerrainAlterations?: Set<string>;
   adjacentTerrainClasses?: Set<string>;
   adjacentTerrainFlags?: Set<string>;
   tileExtras?: Set<string>;
@@ -253,6 +260,7 @@ export interface EffectCoverage {
  */
 export class EffectsManager {
   private effectsCache = new Map<string, Record<string, Effect>>();
+  private effectTypeCache = new Map<string, Set<string>>();
   private rulesetName: string;
   private rulesetLoader: Pick<RulesetLoader, 'getEffects'>;
   private realDistanceProvider?: (x1: number, y1: number, x2: number, y2: number) => number;
@@ -300,6 +308,16 @@ export class EffectsManager {
       retainedForFutureRuntimeSupport: effects.length - runtimeSupported,
       unsupportedTypes,
     };
+  }
+
+  /** Whether this ruleset retains at least one definition of an effect type. */
+  public hasEffectType(effectType: EffectType | string): boolean {
+    let effectTypes = this.effectTypeCache.get(this.rulesetName);
+    if (!effectTypes) {
+      effectTypes = new Set(Object.values(this.getEffects()).map(effect => effect.type));
+      this.effectTypeCache.set(this.rulesetName, effectTypes);
+    }
+    return effectTypes.has(effectType);
   }
 
   /**
@@ -754,6 +772,13 @@ export class EffectsManager {
           ? this.setContains(context.adjacentTerrainFlags, req.name)
           : this.setContains(context.tileTerrainFlags, req.name)
       );
+    // @reference reference/freeciv/common/requirements.c:3815-3852
+    this.requirementHandlers['TerrainAlter'] = (req, context) =>
+      this.requirementResult(
+        'TerrainAlter',
+        req,
+        this.setContains(context.tileTerrainAlterations, req.name)
+      );
     this.requirementHandlers['AI'] = (req, context) =>
       this.requirementResult(
         'AI',
@@ -955,6 +980,7 @@ export class EffectsManager {
    */
   public clearCache(): void {
     this.effectsCache.clear();
+    this.effectTypeCache.clear();
   }
 
   /**

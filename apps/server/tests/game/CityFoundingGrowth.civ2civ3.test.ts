@@ -5,6 +5,16 @@ import { rulesetUnitsService } from '@game/services/RulesetUnitsService';
 import { createMockDatabaseProvider } from '../utils/mockDatabaseProvider';
 
 describe('civ2civ3 city founding and growth', () => {
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/common/city.c:1308-1371
+   * @reference reference/freeciv/server/cityturn.c:4704-4770
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2024-2050
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3890-3911
+   * @assertion C2C3's automatic city-center irrigation is carried through authoritative city-turn processing, so a grassland center plus one grassland worker produces a three-food surplus at size one; C2C3's free small-city granary retains ten food at each growth.
+   * @c2c3-surface city-economy
+   * @c2c3-surface-scenario turn
+   */
   it('founding a grassland city assigns a worker and creates food surplus for growth', async () => {
     const databaseProvider = createMockDatabaseProvider();
     const effectsManager = new EffectsManager('civ2civ3');
@@ -61,14 +71,15 @@ describe('civ2civ3 city founding and growth', () => {
         expect.objectContaining({ isCenter: false }),
       ])
     );
-    expect(city.foodPerTurn).toBe(2);
+    expect(city.foodPerTurn).toBe(3);
 
     for (let turn = 1; turn <= 10; turn++) {
       await cityManager.processCityTurn(city.id, turn);
     }
 
-    expect(city.population).toBe(2);
-    expect(city.size).toBe(2);
+    expect(city.population).toBe(3);
+    expect(city.size).toBe(3);
+    expect(city.foodStock).toBe(10);
   });
 
   it('allows a size-one city to queue a population-cost settler', async () => {

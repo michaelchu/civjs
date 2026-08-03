@@ -100,6 +100,19 @@ describe('EffectsManager classic requirement evaluation', () => {
     ).toBe(0);
   });
 
+  it('caches the declared effect-type lookup and invalidates it with the ruleset cache', () => {
+    const effects = new EffectsManager();
+
+    expect(effects.hasEffectType(EffectType.UNIT_VISION_RADIUS_SQ)).toBe(true);
+    expect(effects.hasEffectType(EffectType.IRRIGATION_PCT)).toBe(false);
+    expect(mockedRulesetLoader.getEffects).toHaveBeenCalledTimes(1);
+
+    effects.clearCache();
+
+    expect(effects.hasEffectType(EffectType.UNIT_VISION_RADIUS_SQ)).toBe(true);
+    expect(mockedRulesetLoader.getEffects).toHaveBeenCalledTimes(2);
+  });
+
   it('honours positive and negative city-tile, activity, and flag requirements', () => {
     const effects = new EffectsManager();
     const matching: EffectContext = {
@@ -281,6 +294,23 @@ describe('EffectsManager classic requirement evaluation', () => {
       }).value
     ).toBe(10);
     expect(effects.calculateEffect(EffectType.OUTPUT_BONUS, {}).value).toBe(0);
+  });
+
+  it('evaluates terrain-alteration requirements from the supplied tile context', () => {
+    const effects = new EffectsManager();
+    const requirement = [{ type: 'TerrainAlter', name: 'CanIrrigate', range: 'Tile' }];
+
+    expect(
+      effects.evaluateRequirements(requirement, {
+        tileTerrainAlterations: new Set(['CanIrrigate', 'CanMine']),
+      }).satisfied
+    ).toBe(true);
+    expect(
+      effects.evaluateRequirements(requirement, {
+        tileTerrainAlterations: new Set(['CanMine']),
+      }).satisfied
+    ).toBe(false);
+    expect(effects.evaluateRequirements(requirement, {}).satisfied).toBe(false);
   });
 
   it('does not activate a negative requirement when its context is absent', () => {

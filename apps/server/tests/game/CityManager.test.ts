@@ -490,7 +490,7 @@ describe('CityManager', () => {
       const tileAt = (x: number, y: number) => ({
         x,
         y,
-        terrain: x === 10 && y === 10 ? 'grassland' : 'mountains',
+        terrain: x === 10 && y === 10 ? 'hills' : 'mountains',
         resource: x === 9 && y === 10 ? 'Iron' : undefined,
         improvements: [],
         riverMask: 0,

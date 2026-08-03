@@ -5,7 +5,7 @@
  */
 import { CityDataService } from '@game/services/CityDataService';
 import { CityTileManagementService } from '@game/services/CityTileManagementService';
-import { EffectsManager, OutputType } from '@game/managers/EffectsManager';
+import { EffectsManager, EffectType, OutputType } from '@game/managers/EffectsManager';
 import { rulesetBuildingsService } from '@game/services/RulesetBuildingsService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { CityState } from '@game/managers/CityManager';
@@ -178,7 +178,7 @@ describe('ruleset-backed city values', () => {
     service.initializeWorkableTiles(cityState);
     const center = cityState.workableTiles!.find(tile => tile.isCenter)!;
 
-    expect(center.outputs).toEqual({ food: 6, shields: 2, trade: 1 });
+    expect(center.outputs).toEqual({ food: 5, shields: 2, trade: 1 });
     expect(service.calculateCityOutputs(cityState.id)).toEqual({
       food: 5,
       shields: 2,
@@ -193,11 +193,17 @@ describe('ruleset-backed city values', () => {
     const effects = {
       getRulesetName: () => 'classic',
       calculateEffect: jest.fn(
-        (_type: unknown, context: { outputType?: OutputType; tileTerrainFlags?: Set<string> }) => ({
+        (
+          type: EffectType,
+          context: { outputType?: OutputType; tileTerrainFlags?: Set<string> }
+        ) => ({
           value:
-            context.outputType === OutputType.FOOD && context.tileTerrainFlags?.has('CanHaveRiver')
+            type === EffectType.TILE_WORKABLE
               ? 1
-              : 0,
+              : context.outputType === OutputType.FOOD &&
+                  context.tileTerrainFlags?.has('CanHaveRiver')
+                ? 1
+                : 0,
         })
       ),
     } as any;
@@ -310,6 +316,126 @@ describe('ruleset-backed city values', () => {
 
     mapTile.improvements.push('irrigation');
     expect(service.calculateCityOutputs(cityState.id).food).toBe(3);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/common/city.c:1308-1329
+   * @reference reference/freeciv/common/city.c:1334-1371
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3890-3939
+   * @assertion A C2C3 desert city center on a river receives its automatic irrigation and Nile-flood effects, yielding two food from the center tile before city consumption.
+   * @c2c3-surface city-economy
+   * @c2c3-surface-scenario normal
+   */
+  it('applies C2C3 irrigation percentages and river-center bonuses in city output', () => {
+    const cityState = city({ population: 1 });
+    const cities = new Map([[cityState.id, cityState]]);
+    const map = mapFor('desert');
+    const mapTile = (map.getTile as jest.Mock)();
+    mapTile.riverMask = 1;
+    const service = new CityTileManagementService(
+      cities,
+      map,
+      5,
+      rulesetLoader,
+      new EffectsManager('civ2civ3')
+    );
+
+    service.initializeWorkableTiles(cityState);
+
+    expect(service.calculateCityOutputs(cityState.id)).toEqual({
+      food: 2,
+      shields: 2,
+      trade: 1,
+    });
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/common/city.c:1308-1329
+   * @reference reference/freeciv/common/city.c:1334-1371
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:2831-2857
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3941-3974
+   * @assertion On a C2C3 grassland center, Supermarket's automatic-farmland percentage is applied before Pollution's output punishment; a four-food center becomes two food.
+   * @c2c3-surface city-economy
+   * @c2c3-surface-scenario boundary
+   */
+  it('orders C2C3 Supermarket and pollution tile effects like Freeciv', () => {
+    const cityState = city({ population: 1, buildings: ['supermarket'] });
+    const cities = new Map([[cityState.id, cityState]]);
+    const map = mapFor('grassland');
+    const mapTile = (map.getTile as jest.Mock)();
+    mapTile.improvements = ['pollution'];
+    const service = new CityTileManagementService(
+      cities,
+      map,
+      5,
+      rulesetLoader,
+      new EffectsManager('civ2civ3')
+    );
+
+    service.initializeWorkableTiles(cityState);
+
+    expect(service.calculateCityOutputs(cityState.id)).toEqual({
+      food: 2,
+      shields: 1,
+      trade: 0,
+    });
+  });
+
+  it('uses mining percentages for C2C3 Mine extras rather than a hard-coded tile bonus', () => {
+    const cityState = city({ population: 1 });
+    const cities = new Map([[cityState.id, cityState]]);
+    const map = mapFor('hills');
+    const mapTile = (map.getTile as jest.Mock)();
+    mapTile.improvements = ['mine'];
+    const service = new CityTileManagementService(
+      cities,
+      map,
+      5,
+      rulesetLoader,
+      new EffectsManager('civ2civ3')
+    );
+
+    service.initializeWorkableTiles(cityState);
+
+    expect(service.calculateCityOutputs(cityState.id)).toEqual({
+      food: 1,
+      shields: 4,
+      trade: 0,
+    });
+  });
+
+  it('does not offer C2C3 Inaccessible terrain as a workable tile', async () => {
+    const cityState = city({ population: 1 });
+    const cities = new Map([[cityState.id, cityState]]);
+    const map = {
+      getMapData: jest.fn().mockReturnValue({ width: 20, height: 20, tiles: [] }),
+      isValidPosition: jest.fn(
+        (x: number, y: number) => (x === 5 && y === 5) || (x === 6 && y === 5)
+      ),
+      getTile: jest.fn((x: number, y: number) => ({
+        x,
+        y,
+        terrain: x === 6 && y === 5 ? 'inaccessible' : 'grassland',
+        improvements: [],
+        units: [],
+      })),
+    } as unknown as MapManager;
+    const service = new CityTileManagementService(
+      cities,
+      map,
+      5,
+      rulesetLoader,
+      new EffectsManager('civ2civ3')
+    );
+
+    service.initializeWorkableTiles(cityState);
+
+    expect(cityState.workableTiles).toEqual(
+      expect.arrayContaining([expect.objectContaining({ x: 6, y: 5, isBlocked: true })])
+    );
+    await expect(service.assignCitizenToTile(cityState.id, 6, 5)).resolves.toBe(false);
   });
 
   it('prevents two cities from working the same map tile', async () => {

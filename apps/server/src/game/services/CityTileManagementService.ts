@@ -9,7 +9,12 @@ import { SpecialistType } from '@game/constants/SpecialistDefinitions';
 import type { MapManager } from '@game/managers/MapManager';
 import { rulesetLoader, type RulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import type { TerrainType } from '@shared/data/rulesets/schemas';
-import { EffectsManager, EffectType, OutputType } from '@game/managers/EffectsManager';
+import {
+  EffectsManager,
+  EffectType,
+  OutputType,
+  type EffectContext,
+} from '@game/managers/EffectsManager';
 
 /**
  * CityTileManagementService - Manages city workable tiles and citizen assignments
@@ -144,11 +149,14 @@ export class CityTileManagementService extends BaseGameService {
         improvements: this.getMapTileImprovements(mapTile),
       };
 
-      // City center is always worked
-      if (workableTile.isCenter) {
-        workableTile.isWorked = true;
-        workableTile.outputs = this.applyCityCenterMinimums(workableTile.outputs);
-      }
+      workableTile.isBlocked =
+        !workableTile.isCenter && !this.isTileWorkableByRules(city, workableTile, mapTile);
+      // City center is always worked. Calculate its output through the same
+      // source-ordered path as every other tile so center-only effects such as
+      // C2C3's automatic irrigation and farmland are available before worker
+      // assignment ranks the surrounding tiles.
+      if (workableTile.isCenter) workableTile.isWorked = true;
+      workableTile.outputs = this.calculateWorkedTileOutputs(city, workableTile);
 
       city.workableTiles.push(workableTile);
     }
@@ -194,7 +202,8 @@ export class CityTileManagementService extends BaseGameService {
     if (!city.workableTiles) return false;
     let changed = false;
     for (const tile of city.workableTiles) {
-      const blocked = !tile.isCenter && this.tileOccupancyProvider(city, tile);
+      const mapTile = this.mapManager?.getTile(tile.x, tile.y);
+      const blocked = this.isTileBlocked(city, tile, mapTile);
       if (tile.isBlocked !== blocked) {
         tile.isBlocked = blocked;
         if (blocked && tile.isWorked) {
@@ -207,6 +216,13 @@ export class CityTileManagementService extends BaseGameService {
     }
     if (changed) this.citizenReconciliationRequested(city.id);
     return changed;
+  }
+
+  private isTileBlocked(city: CityState, tile: WorkableTile, mapTile?: any): boolean {
+    return (
+      !tile.isCenter &&
+      (this.tileOccupancyProvider(city, tile) || !this.isTileWorkableByRules(city, tile, mapTile))
+    );
   }
 
   /**
@@ -344,6 +360,16 @@ export class CityTileManagementService extends BaseGameService {
     const tile = city.workableTiles.find(t => t.x === tileX && t.y === tileY);
     if (!tile) {
       logger.warn('Cannot assign citizen to tile: tile not workable by this city', {
+        cityId,
+        tileX,
+        tileY,
+      });
+      return false;
+    }
+
+    this.refreshBlockedTiles(city);
+    if (tile.isBlocked) {
+      logger.warn('Cannot assign citizen to tile: tile is blocked by the current ruleset', {
         cityId,
         tileX,
         tileY,
@@ -491,7 +517,7 @@ export class CityTileManagementService extends BaseGameService {
     let outputs = this.getBaseTileOutputs(mapTile, tile);
     const terrain = mapTile?.terrain ?? tile.terrain ?? '';
     const rules = mapTile ? this.ruleset.getTerrain(mapTile.terrain, this.rulesetName) : undefined;
-    outputs = this.applyTileImprovements(outputs, mapTile, rules);
+    outputs = this.applyTileImprovements(city, tile, outputs, mapTile, rules, terrain);
     outputs = this.applyTileTradeBonuses(outputs, mapTile, terrain);
     const adjusted = this.applyRulesetTileEffects(city, tile, terrain, outputs);
     return tile.isCenter ? this.applyCityCenterMinimums(adjusted) : adjusted;
@@ -511,23 +537,64 @@ export class CityTileManagementService extends BaseGameService {
   }
 
   private applyTileImprovements(
+    city: CityState,
+    tile: WorkableTile,
     outputs: { food: number; shields: number; trade: number },
     mapTile: any,
-    rules: any
+    rules: any,
+    terrain: string
   ): { food: number; shields: number; trade: number } {
-    this.applyIrrigation(outputs, mapTile, rules);
-    this.applyMine(outputs, mapTile, rules);
+    this.applyIrrigation(city, tile, outputs, rules, terrain);
+    this.applyMine(city, tile, outputs, rules, terrain);
     this.applyRailroad(outputs, mapTile);
     return outputs;
   }
 
-  private applyIrrigation(outputs: any, mapTile: any, rules: any): void {
-    if (mapTile?.improvements?.includes('irrigation'))
-      outputs.food += rules?.irrigationFoodIncr ?? 0;
+  /**
+   * Freeciv uses the terrain increment and lets Irrigation_Pct determine
+   * whether the tile receives it. This is why C2C3 can model automatic
+   * irrigation on an eligible city center without adding an Irrigation extra.
+   * @reference reference/freeciv/common/city.c:1308-1329
+   */
+  private applyIrrigation(
+    city: CityState,
+    tile: WorkableTile,
+    outputs: { food: number; shields: number; trade: number },
+    rules: { irrigationFoodIncr?: number } | undefined,
+    terrain: string
+  ): void {
+    const increment = rules?.irrigationFoodIncr ?? 0;
+    if (increment === 0) return;
+    const percentage = this.hasConfiguredEffect(EffectType.IRRIGATION_PCT)
+      ? this.effectsManager.calculateEffect(
+          EffectType.IRRIGATION_PCT,
+          this.createTileEffectContext(city, tile, terrain, OutputType.FOOD)
+        ).value
+      : this.tileHasExtra(tile, 'Irrigation')
+        ? 100
+        : 0;
+    outputs.food += this.percentageOf(increment, percentage);
   }
 
-  private applyMine(outputs: any, mapTile: any, rules: any): void {
-    if (mapTile?.improvements?.includes('mine')) outputs.shields += rules?.miningShieldIncr ?? 0;
+  /** @reference reference/freeciv/common/city.c:1308-1329 */
+  private applyMine(
+    city: CityState,
+    tile: WorkableTile,
+    outputs: { food: number; shields: number; trade: number },
+    rules: { miningShieldIncr?: number } | undefined,
+    terrain: string
+  ): void {
+    const increment = rules?.miningShieldIncr ?? 0;
+    if (increment === 0) return;
+    const percentage = this.hasConfiguredEffect(EffectType.MINING_PCT)
+      ? this.effectsManager.calculateEffect(
+          EffectType.MINING_PCT,
+          this.createTileEffectContext(city, tile, terrain, OutputType.SHIELD)
+        ).value
+      : this.tileHasExtra(tile, 'Mine') || this.tileHasExtra(tile, 'Oil Well')
+        ? 100
+        : 0;
+    outputs.shields += this.percentageOf(increment, percentage);
   }
 
   private applyRailroad(outputs: any, mapTile: any): void {
@@ -558,12 +625,14 @@ export class CityTileManagementService extends BaseGameService {
     improvements?: string[];
     hasRoad?: boolean;
     hasRailroad?: boolean;
+    riverMask?: number;
   }): string[] {
     return [
       ...new Set([
         ...(mapTile.improvements ?? []),
         ...(mapTile.hasRoad ? ['road'] : []),
         ...(mapTile.hasRailroad ? ['railroad'] : []),
+        ...((mapTile.riverMask ?? 0) !== 0 ? ['river'] : []),
       ]),
     ];
   }
@@ -578,13 +647,79 @@ export class CityTileManagementService extends BaseGameService {
     terrain: string,
     outputs: { food: number; shields: number; trade: number }
   ): { food: number; shields: number; trade: number } {
-    const celebrating =
-      city.wasHappy === true &&
-      city.population >= 3 &&
-      city.happiness.unhappy === 0 &&
-      city.happiness.angry === 0 &&
-      city.happiness.happy >= Math.ceil(city.population / 2);
+    const celebrating = this.isCelebrating(city);
     const adjusted = { ...outputs };
+    const outputTypes = {
+      food: OutputType.FOOD,
+      shields: OutputType.SHIELD,
+      trade: OutputType.TRADE,
+    } as const;
+
+    for (const output of ['food', 'shields', 'trade'] as const) {
+      const context = this.createTileEffectContext(
+        city,
+        tile,
+        terrain,
+        outputTypes[output],
+        celebrating
+      );
+
+      adjusted[output] = this.applyOutputEffect(adjusted[output], context, celebrating);
+    }
+    return adjusted;
+  }
+
+  private applyOutputEffect(value: number, context: EffectContext, celebrating: boolean): number {
+    let adjusted =
+      value + this.effectsManager.calculateEffect(EffectType.OUTPUT_ADD_TILE, context).value;
+    if (adjusted > 0) {
+      const penaltyLimit = this.effectsManager.calculateEffect(
+        EffectType.OUTPUT_PENALTY_TILE,
+        context
+      ).value;
+      if (adjusted >= 1)
+        adjusted += this.effectsManager.calculateEffect(EffectType.OUTPUT_INC_TILE, context).value;
+      if (celebrating)
+        adjusted += this.effectsManager.calculateEffect(
+          EffectType.OUTPUT_INC_TILE_CELEBRATE,
+          context
+        ).value;
+      adjusted += this.percentageOf(
+        adjusted,
+        this.hasConfiguredEffect(EffectType.OUTPUT_PER_TILE)
+          ? this.effectsManager.calculateEffect(EffectType.OUTPUT_PER_TILE, context).value
+          : 0
+      );
+      if (penaltyLimit > 0 && adjusted > penaltyLimit) adjusted = adjusted <= 1 ? 0 : adjusted - 1;
+    }
+    adjusted -= this.percentageOf(
+      adjusted,
+      this.hasConfiguredEffect(EffectType.OUTPUT_TILE_PUNISH_PCT)
+        ? this.effectsManager.calculateEffect(EffectType.OUTPUT_TILE_PUNISH_PCT, context).value
+        : 0
+    );
+    return adjusted;
+  }
+
+  private isTileWorkableByRules(city: CityState, tile: WorkableTile, mapTile?: any): boolean {
+    const terrain = mapTile?.terrain ?? tile.terrain;
+    if (!terrain) return false;
+    if (!this.hasConfiguredEffect(EffectType.TILE_WORKABLE)) return true;
+    return (
+      this.effectsManager.calculateEffect(
+        EffectType.TILE_WORKABLE,
+        this.createTileEffectContext(city, tile, terrain)
+      ).value > 0
+    );
+  }
+
+  private createTileEffectContext(
+    city: CityState,
+    tile: WorkableTile,
+    terrain: string,
+    outputType?: OutputType,
+    celebrating: boolean = this.isCelebrating(city)
+  ): EffectContext {
     const terrainRules = this.ruleset.getTerrain(terrain as TerrainType, this.rulesetName);
     const rawTerrainFlags = (terrainRules as { flags?: unknown }).flags;
     const terrainFlags = new Set<string>(
@@ -595,52 +730,79 @@ export class CityTileManagementService extends BaseGameService {
           : []
     );
     const playerAI = this.playerAIProvider(city.playerId);
-    const terrainClass = terrainRules.properties?.MG_OCEAN_DEPTH !== undefined ? 'Oceanic' : 'Land';
-    const outputTypes = {
-      food: OutputType.FOOD,
-      shields: OutputType.SHIELD,
-      trade: OutputType.TRADE,
-    } as const;
-
-    for (const output of ['food', 'shields', 'trade'] as const) {
-      const context = {
-        playerId: city.playerId,
-        cityId: city.id,
-        tileX: tile.x,
-        tileY: tile.y,
-        government: this.playerGovernmentProvider(city.playerId),
-        playerIsAI: playerAI.isAI,
-        aiLevel: playerAI.aiLevel,
-        outputType: outputTypes[output],
-        tileTerrain: terrain,
-        tileTerrainClass: terrainClass,
-        tileTerrainFlags: terrainFlags,
-        tileIsCityCenter: tile.isCenter,
-        cityCelebrating: celebrating,
-        cityBuildings: new Set(city.buildings),
-      };
-
-      adjusted[output] = this.applyOutputEffect(adjusted[output], context, celebrating);
-    }
-    return adjusted;
+    return {
+      playerId: city.playerId,
+      cityId: city.id,
+      cityPopulation: city.population,
+      tileX: tile.x,
+      tileY: tile.y,
+      government: this.playerGovernmentProvider(city.playerId),
+      playerIsAI: playerAI.isAI,
+      aiLevel: playerAI.aiLevel,
+      outputType,
+      tileTerrain: terrain,
+      tileTerrainClass: terrainRules.properties?.MG_OCEAN_DEPTH !== undefined ? 'Oceanic' : 'Land',
+      tileTerrainFlags: terrainFlags,
+      tileTerrainAlterations: this.getTerrainAlterations(terrainRules),
+      tileExtras: new Set(tile.improvements ?? []),
+      tileIsCityCenter: tile.isCenter,
+      cityCelebrating: celebrating,
+      cityBuildings: new Set(city.buildings),
+    };
   }
 
-  private applyOutputEffect(value: number, context: any, celebrating: boolean): number {
-    let adjusted =
-      value + this.effectsManager.calculateEffect(EffectType.OUTPUT_ADD_TILE, context).value;
-    if (adjusted <= 0) return adjusted;
-    const penaltyLimit = this.effectsManager.calculateEffect(
-      EffectType.OUTPUT_PENALTY_TILE,
-      context
-    ).value;
-    adjusted += this.effectsManager.calculateEffect(EffectType.OUTPUT_INC_TILE, context).value;
-    if (celebrating)
-      adjusted += this.effectsManager.calculateEffect(
-        EffectType.OUTPUT_INC_TILE_CELEBRATE,
-        context
-      ).value;
-    if (penaltyLimit > 0 && adjusted > penaltyLimit) adjusted = adjusted <= 1 ? 0 : adjusted - 1;
-    return adjusted;
+  private getTerrainAlterations(rules: {
+    roadTime?: number;
+    irrigationTime?: number;
+    miningTime?: number;
+    cultivateTime?: number;
+    plantTime?: number;
+    transformTo?: string;
+  }): Set<string> {
+    const durationRules: ReadonlyArray<readonly [number | undefined, string]> = [
+      [rules.roadTime, 'CanRoad'],
+      [rules.irrigationTime, 'CanIrrigate'],
+      [rules.miningTime, 'CanMine'],
+      [rules.cultivateTime, 'CanCultivate'],
+      [rules.plantTime, 'CanPlant'],
+    ];
+    const alterations = new Set(
+      durationRules.filter(([duration]) => Number(duration) > 0).map(([, alteration]) => alteration)
+    );
+    if (this.isTransformable(rules.transformTo)) alterations.add('CanTransform');
+    return alterations;
+  }
+
+  private isTransformable(transformTo?: string): boolean {
+    return transformTo !== undefined && transformTo.toLowerCase() !== 'no';
+  }
+
+  private isCelebrating(city: CityState): boolean {
+    return (
+      city.wasHappy === true &&
+      city.population >= 3 &&
+      city.happiness.unhappy === 0 &&
+      city.happiness.angry === 0 &&
+      city.happiness.happy >= Math.ceil(city.population / 2)
+    );
+  }
+
+  private percentageOf(value: number, percentage: number): number {
+    return Math.trunc((value * percentage) / 100);
+  }
+
+  private hasConfiguredEffect(effectType: EffectType): boolean {
+    const manager = this.effectsManager as EffectsManager & {
+      hasEffectType?: (type: EffectType) => boolean;
+    };
+    return manager.hasEffectType?.(effectType) ?? true;
+  }
+
+  private tileHasExtra(tile: WorkableTile, expected: string): boolean {
+    const normalized = expected.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return (tile.improvements ?? []).some(
+      extra => extra.toLowerCase().replace(/[^a-z0-9]/g, '') === normalized
+    );
   }
 
   /**
