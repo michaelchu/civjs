@@ -47,6 +47,13 @@ const validationSeeds = Array.from(
   (_, index) => `ai-validation-${String(validationSeedOffset + index + 1).padStart(2, '0')}`
 );
 const validationMaxTurns = Math.max(4, Number(process.env.AI_VALIDATION_MAX_TURNS ?? 8));
+const aiTurnProcessingBudgetMs = 15_000;
+// A validation case runs a complete, persisted terminal game. Give the whole
+// case room for shared CI database contention while keeping each turn bounded.
+const aiValidationScenarioTimeoutMs = 90_000;
+// The paired oracle runs three seeds in both starting positions: six complete
+// 12-turn games. Its timeout must cover that entire deterministic matrix.
+const aiPairedBenchmarkTimeoutMs = 600_000;
 const recoveryTurnsBySeed: Record<string, number> = {
   'ai-validation-01': 1,
   'ai-validation-13': 2,
@@ -2034,7 +2041,7 @@ describe('AI authoritative manager boundaries', () => {
           const processingTurn = game.currentTurn;
           const startedAt = performance.now();
           await game.turnManager.processTurn();
-          expect(performance.now() - startedAt).toBeLessThan(15_000);
+          expect(performance.now() - startedAt).toBeLessThan(aiTurnProcessingBudgetMs);
           assertAIValidationInvariants(game);
           metrics.push(captureAIValidationMetrics(game));
           lastKnownGoodSnapshot = buildAIValidationReplayFingerprint(game);
@@ -2086,84 +2093,91 @@ describe('AI authoritative manager boundaries', () => {
       expect(metrics.every(point => point.players.every(player => player.units >= 0))).toBe(true);
       assertAIValidationMetricBaseline(metrics, aiValidationBaseline);
       assertAIValidationInvariants(game);
-    }
+    },
+    aiValidationScenarioTimeoutMs
   );
 
-  it('runs paired swapped-position AI benchmarks through authoritative terminal games', async () => {
-    async function runLeg(
-      mapSeed: string,
-      firstLevel: 'easy' | 'hard',
-      secondLevel: 'easy' | 'hard'
-    ) {
-      const scenario = await createActiveGame(2, {
-        maxTurns: aiPairedBenchmarkBaseline.maxTurns,
-        victoryConditions: ['max_turns'],
-        mapSeed,
-        randomSeed: 0xc1f0_0000 + Number(mapSeed.slice(-2)),
-      });
-      const [first, second] = scenario.players;
-      await gameManager.setPlayerAIControl(
-        scenario.gameId,
-        scenario.hostUserId,
-        first!.playerId,
-        true,
-        { aiLevel: firstLevel }
-      );
-      await gameManager.setPlayerAIControl(
-        scenario.gameId,
-        scenario.hostUserId,
-        second!.playerId,
-        true,
-        { aiLevel: secondLevel }
-      );
-      const metrics = [];
-      while (scenario.game.state === 'active') {
-        await scenario.game.turnManager.processTurn();
-        assertAIValidationInvariants(scenario.game);
-        metrics.push(captureAIValidationMetrics(scenario.game));
+  it(
+    'runs paired swapped-position AI benchmarks through authoritative terminal games',
+    async () => {
+      async function runLeg(
+        mapSeed: string,
+        firstLevel: 'easy' | 'hard',
+        secondLevel: 'easy' | 'hard'
+      ) {
+        const scenario = await createActiveGame(2, {
+          maxTurns: aiPairedBenchmarkBaseline.maxTurns,
+          victoryConditions: ['max_turns'],
+          mapSeed,
+          randomSeed: 0xc1f0_0000 + Number(mapSeed.slice(-2)),
+        });
+        const [first, second] = scenario.players;
+        await gameManager.setPlayerAIControl(
+          scenario.gameId,
+          scenario.hostUserId,
+          first!.playerId,
+          true,
+          { aiLevel: firstLevel }
+        );
+        await gameManager.setPlayerAIControl(
+          scenario.gameId,
+          scenario.hostUserId,
+          second!.playerId,
+          true,
+          { aiLevel: secondLevel }
+        );
+        const metrics = [];
+        while (scenario.game.state === 'active') {
+          const startedAt = performance.now();
+          await scenario.game.turnManager.processTurn();
+          expect(performance.now() - startedAt).toBeLessThan(aiTurnProcessingBudgetMs);
+          assertAIValidationInvariants(scenario.game);
+          metrics.push(captureAIValidationMetrics(scenario.game));
+        }
+        return {
+          first: scoreAIValidationPlayer(metrics, first!.playerId),
+          second: scoreAIValidationPlayer(metrics, second!.playerId),
+        };
       }
-      return {
-        first: scoreAIValidationPlayer(metrics, first!.playerId),
-        second: scoreAIValidationPlayer(metrics, second!.playerId),
-      };
-    }
 
-    const seeds = Array.from(
-      { length: aiPairedBenchmarkBaseline.seedCount },
-      (_, index) => `ai-paired-benchmark-${String(index + 1).padStart(2, '0')}`
-    );
-    let hardTotal = 0;
-    let easyTotal = 0;
-    let hardWins = 0;
-    for (const mapSeed of seeds) {
-      const firstLeg = await runLeg(mapSeed, 'hard', 'easy');
-      gameManager.clearAllGames();
-      (GameManager as any).instance = null;
-      gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
-      const secondLeg = await runLeg(mapSeed, 'easy', 'hard');
-      const hardScore = firstLeg.first.total + secondLeg.second.total;
-      const easyScore = firstLeg.second.total + secondLeg.first.total;
-      hardTotal += hardScore;
-      easyTotal += easyScore;
-      hardWins += Number(
-        pairedBenchmarkWinner([
-          { ...firstLeg.first, total: hardScore },
-          { ...firstLeg.second, total: easyScore },
-        ]) === 'first'
+      const seeds = Array.from(
+        { length: aiPairedBenchmarkBaseline.seedCount },
+        (_, index) => `ai-paired-benchmark-${String(index + 1).padStart(2, '0')}`
       );
-      gameManager.clearAllGames();
-      (GameManager as any).instance = null;
-      gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
-    }
-    expect({ hardTotal, easyTotal, hardWins }).toEqual({
-      hardTotal: aiPairedBenchmarkBaseline.hardTotal,
-      easyTotal: aiPairedBenchmarkBaseline.easyTotal,
-      hardWins: aiPairedBenchmarkBaseline.hardWins,
-    });
-    // The frozen position-swapped aggregate above is the regression oracle.
-    // This short tactical opening intentionally does not prescribe a global
-    // difficulty ordering; focused AI tests cover level-specific behavior.
-  }, 120_000);
+      let hardTotal = 0;
+      let easyTotal = 0;
+      let hardWins = 0;
+      for (const mapSeed of seeds) {
+        const firstLeg = await runLeg(mapSeed, 'hard', 'easy');
+        gameManager.clearAllGames();
+        (GameManager as any).instance = null;
+        gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
+        const secondLeg = await runLeg(mapSeed, 'easy', 'hard');
+        const hardScore = firstLeg.first.total + secondLeg.second.total;
+        const easyScore = firstLeg.second.total + secondLeg.first.total;
+        hardTotal += hardScore;
+        easyTotal += easyScore;
+        hardWins += Number(
+          pairedBenchmarkWinner([
+            { ...firstLeg.first, total: hardScore },
+            { ...firstLeg.second, total: easyScore },
+          ]) === 'first'
+        );
+        gameManager.clearAllGames();
+        (GameManager as any).instance = null;
+        gameManager = GameManager.getInstance(createMockSocketServer(), getTestDatabaseProvider());
+      }
+      expect({ hardTotal, easyTotal, hardWins }).toEqual({
+        hardTotal: aiPairedBenchmarkBaseline.hardTotal,
+        easyTotal: aiPairedBenchmarkBaseline.easyTotal,
+        hardWins: aiPairedBenchmarkBaseline.hardWins,
+      });
+      // The frozen position-swapped aggregate above is the regression oracle.
+      // This short tactical opening intentionally does not prescribe a global
+      // difficulty ordering; focused AI tests cover level-specific behavior.
+    },
+    aiPairedBenchmarkTimeoutMs
+  );
 
   it('replays the same seeded terminal configuration with the same authoritative outcome', async () => {
     async function runReplay(gameSeed: string): Promise<string> {
