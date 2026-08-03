@@ -1,8 +1,9 @@
 --
 -- Deterministic c2c3 fixture for embassy-based Technology Leakage.
--- This file sorts before the other fixtures, so it starts from one configured
--- AI player. The runner disables animals and this fixture adds a learner and
--- peer, fixing the Freeciv leakage denominator at three alive players.
+-- The runner prioritizes this bootstrap fixture before the other scenarios,
+-- so it starts from one configured AI player. The runner disables animals and
+-- this fixture adds a learner and peer, fixing the Freeciv leakage denominator
+-- at three alive players.
 --
 -- @reference reference/freeciv/common/research.c:941-1038
 -- @reference reference/freeciv/common/player.c:205-255

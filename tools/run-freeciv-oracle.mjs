@@ -54,9 +54,19 @@ function collectFiles(directory, relativeDirectory = '') {
   });
 }
 
+const bootstrapScenarioName = 'civ2civ3-bootstrap-tech-leakage';
+
+// Technology Leakage has a fixed three-player denominator. Run its bootstrap
+// fixture before any scenario that creates extra players, while retaining a
+// deterministic lexical order for every other fixture.
 const scenarios = readdirSync(scenariosDir)
   .filter(file => file.endsWith('.lua'))
-  .sort()
+  .sort((left, right) => {
+    const leftIsBootstrap = left === `${bootstrapScenarioName}.lua`;
+    const rightIsBootstrap = right === `${bootstrapScenarioName}.lua`;
+    if (leftIsBootstrap !== rightIsBootstrap) return leftIsBootstrap ? -1 : 1;
+    return left.localeCompare(right);
+  })
   .map(file => ({ name: basename(file, '.lua'), path: join(scenariosDir, file) }));
 
 if (argumentsList.includes('--list')) {
