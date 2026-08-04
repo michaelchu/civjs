@@ -23,6 +23,7 @@
     "test:ai-validation:long": "AI_VALIDATION_SEED_COUNT=25 AI_VALIDATION_MAX_TURNS=12 INTEGRATION_TEST_NAME_PATTERN='terminal turn limit' INTEGRATION_TEST_PATH=tests/integration/AIManagerBoundaries.integration.test.ts node tools/run-integration-tests.mjs",
     "simulation:run": "cd apps/server && npm run --silent simulation:run --",
     "simulation:run:scenarios": "node tools/run-simulation-scenarios.mjs",
+    "benchmark:ai-pathfinding": "cd apps/server && npm run --silent benchmark:ai-pathfinding",
     "test:integration:path": "cd apps/server && npm run test:integration:path --",
     "test:integration:watch": "cd apps/server && npm run test:integration:watch",
     "test:all": "npm run test:unit && npm run test:integration",

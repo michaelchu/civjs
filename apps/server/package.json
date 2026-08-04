@@ -23,6 +23,7 @@
     "test:integration:ci": "jest --config jest.integration.config.js --runInBand --forceExit",
     "test:integration:watch": "jest --config jest.integration.config.js --watch",
     "simulation:run": "LOG_ALL_TO_STDERR=1 tsx src/scripts/run-headless-simulation.ts",
+    "benchmark:ai-pathfinding": "tsx src/scripts/benchmark-ai-pathfinding.ts",
     "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" \"tests/**/*.ts\" --fix",
     "format": "../../node_modules/.bin/prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",

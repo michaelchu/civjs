@@ -20,6 +20,7 @@ export class MapAccessService {
   private width: number;
   private height: number;
   private mapData: MapData | null = null;
+  private revision = 0;
   private mapValidator: MapValidator;
   private topology: MapTopology;
 
@@ -35,6 +36,7 @@ export class MapAccessService {
    */
   public setMapData(mapData: MapData | null): void {
     this.mapData = mapData;
+    this.revision++;
     if (mapData) {
       this.width = mapData.width;
       this.height = mapData.height;
@@ -60,6 +62,11 @@ export class MapAccessService {
    */
   public getMapData(): MapData | null {
     return this.mapData;
+  }
+
+  /** Monotonic movement-relevant map revision used by scoped path caches. */
+  public getRevision(): number {
+    return this.revision;
   }
 
   /**
@@ -158,6 +165,7 @@ export class MapAccessService {
 
     const tile = this.mapData.tiles[position.x][position.y];
     (tile as any)[property] = value;
+    this.revision++;
 
     logger.debug('Updated tile property', {
       x: position.x,

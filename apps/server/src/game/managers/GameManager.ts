@@ -1823,10 +1823,14 @@ export class GameManager {
     });
     gameInstance.cityManager.setCallbacks({
       onCityDestroyed: async city => {
+        gameInstance.pathfindingManager.invalidateCache();
         this.aiOrchestrator.onCityInvalidated(gameId, gameInstance, city.id);
         await gameInstance.turnManager.evaluateEndGameNow();
       },
-      onCityCaptured: city => this.aiOrchestrator.onCityInvalidated(gameId, gameInstance, city.id),
+      onCityCaptured: city => {
+        gameInstance.pathfindingManager.invalidateCache();
+        this.aiOrchestrator.onCityInvalidated(gameId, gameInstance, city.id);
+      },
     });
     gameInstance.turnManager.setAIProcessor(async () => {
       const actions = await this.aiOrchestrator.processTurn(gameId, gameInstance);

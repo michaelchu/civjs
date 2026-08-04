@@ -6,6 +6,8 @@ import type { DatabaseProvider } from '@database';
 import { players } from '@database/schema';
 import { and, eq } from 'drizzle-orm';
 import type { ActionType } from '@app-types/shared/actions';
+import type { AIPlanningBudgetSnapshot } from '@game/ai/AIPlanningBudget';
+import type { PathfindingDiagnostics } from '@game/managers/PathfindingManager';
 
 export interface AIDiplomacyMemory {
   love: number;
@@ -43,6 +45,7 @@ export interface AIDecisionTrace {
   turn: number;
   label: string;
   actions: number;
+  durationMs?: number;
   input?: {
     cities: number;
     units: number;
@@ -57,6 +60,13 @@ export interface AIDecisionTrace {
   };
   outcome?: AIDecisionOutcome;
   error?: string;
+}
+
+export interface AIProcessingDiagnostics {
+  turn: number;
+  durationMs: number;
+  pathfinding: PathfindingDiagnostics;
+  budget: AIPlanningBudgetSnapshot;
 }
 
 export interface AIDecisionOutcome {
@@ -96,6 +106,7 @@ export interface FreecivAIState {
   treasuryGoal?: AITreasuryGoal;
   recentPlanSnapshot?: AIPlanSnapshot;
   recentDecisionTrace?: AIDecisionTrace[];
+  recentProcessingDiagnostics?: AIProcessingDiagnostics;
 }
 
 export interface AITreasuryGoal {
@@ -212,6 +223,7 @@ export function assertAIState(value: unknown): FreecivAIState {
   assertOptionalNumber(state.lastProcessedTurn, 'lastProcessedTurn');
   assertOptionalNumber(state.lastDecisionCount, 'lastDecisionCount');
   assertOptionalNumber(state.inProgressTurn, 'inProgressTurn');
+  assertProcessingDiagnostics(state.recentProcessingDiagnostics);
   if (state.recentPlanSnapshot !== undefined) assertPlanSnapshot(state.recentPlanSnapshot);
   assertDecisionTrace(state.recentDecisionTrace);
   if (state.treasuryGoal !== undefined && !isTreasuryGoal(state.treasuryGoal)) {
@@ -238,10 +250,51 @@ function assertDecisionTraceEntry(entry: unknown): void {
     typeof entry.turn !== 'number' ||
     typeof entry.label !== 'string' ||
     typeof entry.actions !== 'number' ||
+    (entry.durationMs !== undefined && typeof entry.durationMs !== 'number') ||
     (entry.error !== undefined && typeof entry.error !== 'string')
   )
     throw new Error('AI state decision trace entry is invalid');
   assertDecisionTraceDetails(entry);
+}
+
+function assertProcessingDiagnostics(value: unknown): void {
+  if (value === undefined) return;
+  if (!isRecord(value) || typeof value.turn !== 'number' || typeof value.durationMs !== 'number') {
+    throw new Error('AI processing diagnostics are invalid');
+  }
+  const pathfinding = value.pathfinding;
+  const budget = value.budget;
+  if (!isRecord(pathfinding) || !isRecord(budget)) {
+    throw new Error('AI processing diagnostics metrics are invalid');
+  }
+  const pathFields = [
+    'pathRequests',
+    'cacheHits',
+    'cacheMisses',
+    'searches',
+    'expandedNodes',
+    'budgetExhaustions',
+    'accessibleSearches',
+  ];
+  if (pathFields.some(field => typeof pathfinding[field] !== 'number')) {
+    throw new Error('AI processing pathfinding diagnostics are invalid');
+  }
+  const budgetFields = [
+    'elapsedMs',
+    'maxPlanningMs',
+    'pathQueries',
+    'maxPathQueries',
+    'searchNodes',
+    'maxSearchNodes',
+    'planningSteps',
+    'maxPlanningSteps',
+  ];
+  if (
+    budgetFields.some(field => typeof budget[field] !== 'number') ||
+    typeof budget.exhausted !== 'boolean'
+  ) {
+    throw new Error('AI processing budget diagnostics are invalid');
+  }
 }
 
 function assertDecisionTraceDetails(entry: Record<string, unknown>): void {

@@ -327,6 +327,7 @@ describe('FreecivAIOrchestrator', () => {
         expect.objectContaining({
           turn: 0,
           label: 'citizens',
+          durationMs: expect.any(Number),
           input: expect.objectContaining({ cities: 1, units: 4 }),
           economicDelta: expect.objectContaining({ production: expect.any(Number) }),
           outcome: expect.objectContaining({
@@ -351,6 +352,14 @@ describe('FreecivAIOrchestrator', () => {
       })
     );
     expect(trace.length).toBeLessThanOrEqual(50);
+    expect(state.recentProcessingDiagnostics).toEqual(
+      expect.objectContaining({
+        turn: 0,
+        durationMs: expect.any(Number),
+        pathfinding: expect.objectContaining({ pathRequests: expect.any(Number) }),
+        budget: expect.objectContaining({ maxPlanningMs: expect.any(Number) }),
+      })
+    );
   });
 
   it('covers expansion, economy, research, production, workers, combat, diplomacy, and action use', async () => {

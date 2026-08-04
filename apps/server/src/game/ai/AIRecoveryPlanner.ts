@@ -7,6 +7,7 @@ import type { CityState } from '@game/cities/CityTypes';
 import type { Unit } from '@game/units/UnitTypes';
 import type { PathfindingResult } from '@game/managers/PathfindingManager';
 import type { UnitType } from '@game/services/RulesetUnitsService';
+import type { AIPlanningBudgetLike } from '@game/ai/AIPlanningBudget';
 
 export interface RecoveryAssignment {
   unit: Unit;
@@ -22,6 +23,7 @@ export interface RecoveryPlanningContext {
   getType: (unitTypeId: string) => UnitType | undefined;
   findPath: (unit: Unit, targetX: number, targetY: number) => Promise<PathfindingResult>;
   hasAcceleratedRegeneration: (unit: Unit, city: CityState) => boolean;
+  budget?: AIPlanningBudgetLike;
 }
 
 function isSpecializedMilitary(type: UnitType): boolean {
@@ -65,20 +67,21 @@ export async function planMilitaryRecovery(context: RecoveryPlanningContext): Pr
   const tasks: Record<string, AIUnitTask> = {};
 
   for (const unit of context.units.slice().sort((left, right) => left.id.localeCompare(right.id))) {
+    if (context.budget && !context.budget.consumePlanningStep()) break;
     const wasRecovering = context.existingTasks[unit.id]?.role === 'recover';
     if (!isOrdinaryMilitary(unit, context.getType(unit.unitTypeId))) continue;
     if ((!wasRecovering && unit.health >= 25) || unit.health >= 100) continue;
 
-    const candidates = await Promise.all(
-      context.cities.map(async city => {
-        const path = await context.findPath(unit, city.x, city.y);
-        return {
-          city,
-          path,
-          score: path.totalCost * (context.hasAcceleratedRegeneration(unit, city) ? 1 : 3),
-        };
-      })
-    );
+    const candidates = [];
+    for (const city of context.cities) {
+      if (context.budget && !context.budget.consumePlanningStep()) break;
+      const path = await context.findPath(unit, city.x, city.y);
+      candidates.push({
+        city,
+        path,
+        score: path.totalCost * (context.hasAcceleratedRegeneration(unit, city) ? 1 : 3),
+      });
+    }
     const chosen = candidates
       .filter(candidate => candidate.path.valid)
       .sort(

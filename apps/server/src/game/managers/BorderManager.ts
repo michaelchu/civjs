@@ -332,7 +332,14 @@ export class BorderManager {
   private updateTileOwnership(x: number, y: number, ownerId: string | null): void {
     const tile = this.mapManager.getTile(x, y);
     if (tile) {
-      tile.owner = ownerId || undefined;
+      const owner = ownerId || undefined;
+      if (typeof this.mapManager.updateTileProperty === 'function') {
+        // Route movement-relevant ownership changes through MapAccessService
+        // so scoped path caches observe a new map revision.
+        this.mapManager.updateTileProperty(x, y, 'owner', owner);
+      } else {
+        tile.owner = owner;
+      }
     }
   }
 
