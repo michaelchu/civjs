@@ -13,9 +13,9 @@ import { HudPanel } from './HudPanel';
 import { isMinimapMarkerVisible } from './minimapVisibility';
 import {
   getMinimapLayout,
+  getMinimapTileOrigins,
   getMinimapViewportPolygons,
   minimapPointToMapTile,
-  nativeToMinimapPixelPosition,
   VIEWPORT_OUTLINE_COLOR,
   VIEWPORT_OUTLINE_WIDTH,
 } from './minimapGeometry';
@@ -85,31 +85,37 @@ export const Minimap: React.FC = () => {
 
     const tiles = Object.values(map.tiles);
     const tilesByCoordinate = new Map(tiles.map(tile => [`${tile.x},${tile.y}`, tile]));
-    const markerPosition = (x: number, y: number) =>
-      nativeToMinimapPixelPosition(x, y, nativeWidth, nativeHeight, topologyId, layout);
     const isIso = isIsometricTopology(topologyId);
     const displayedTileWidth = isIso ? layout.scaleX * 2 : layout.scaleX;
+    const markerPositions = (x: number, y: number) =>
+      getMinimapTileOrigins(x, y, nativeWidth, nativeHeight, topologyId, wrapId, layout).map(
+        origin => ({
+          x: origin.x + displayedTileWidth / 2,
+          y: origin.y + layout.scaleY / 2,
+        })
+      );
 
     for (const tile of tiles) {
       if (!tile.known) continue;
-      const position = nativeToMinimapPixelPosition(
+      const origins = getMinimapTileOrigins(
         tile.x,
         tile.y,
         nativeWidth,
         nativeHeight,
         topologyId,
+        wrapId,
         layout
       );
-      const originX = position.x - (isIso ? layout.scaleX : layout.scaleX / 2);
-      const originY = position.y - layout.scaleY / 2;
-      context.globalAlpha = tile.visible ? 1 : 0.55;
-      context.fillStyle = terrainColor(tile.terrain);
-      context.fillRect(originX, originY, displayedTileWidth + 0.5, layout.scaleY + 0.5);
+      for (const origin of origins) {
+        context.globalAlpha = tile.visible ? 1 : 0.55;
+        context.fillStyle = terrainColor(tile.terrain);
+        context.fillRect(origin.x, origin.y, displayedTileWidth + 0.5, layout.scaleY + 0.5);
 
-      if (tile.owner) {
-        context.globalAlpha = tile.visible ? 0.42 : 0.22;
-        context.fillStyle = playerColor(players[tile.owner]?.color, '#94a3b8');
-        context.fillRect(originX, originY, displayedTileWidth + 0.5, layout.scaleY + 0.5);
+        if (tile.owner) {
+          context.globalAlpha = tile.visible ? 0.42 : 0.22;
+          context.fillStyle = playerColor(players[tile.owner]?.color, '#94a3b8');
+          context.fillRect(origin.x, origin.y, displayedTileWidth + 0.5, layout.scaleY + 0.5);
+        }
       }
     }
     context.globalAlpha = 1;
@@ -117,42 +123,46 @@ export const Minimap: React.FC = () => {
     for (const city of Object.values(cities)) {
       const tile = tilesByCoordinate.get(`${city.x},${city.y}`);
       if (!isMinimapMarkerVisible(tile, city.playerId, currentPlayerId, false)) continue;
-      const { x, y } = markerPosition(city.x, city.y);
-      context.fillStyle = playerColor(players[city.playerId]?.color, '#f8fafc');
-      context.fillRect(x - 2, y - 2, 4, 4);
-      if (city.playerId === currentPlayerId) {
-        context.strokeStyle = '#f8fafc';
-        context.lineWidth = 1;
-        context.strokeRect(x - 3, y - 3, 6, 6);
+      for (const { x, y } of markerPositions(city.x, city.y)) {
+        context.fillStyle = playerColor(players[city.playerId]?.color, '#f8fafc');
+        context.fillRect(x - 2, y - 2, 4, 4);
+        if (city.playerId === currentPlayerId) {
+          context.strokeStyle = '#f8fafc';
+          context.lineWidth = 1;
+          context.strokeRect(x - 3, y - 3, 6, 6);
+        }
       }
     }
 
     for (const unit of Object.values(units)) {
       const tile = tilesByCoordinate.get(`${unit.x},${unit.y}`);
       if (!isMinimapMarkerVisible(tile, unit.playerId, currentPlayerId, true)) continue;
-      const { x, y } = markerPosition(unit.x, unit.y);
-      context.fillStyle = unit.playerId === currentPlayerId ? '#67e8f9' : '#e2e8f0';
-      context.beginPath();
-      context.arc(x, y, unit.playerId === currentPlayerId ? 2 : 1.5, 0, 2 * Math.PI);
-      context.fill();
+      for (const { x, y } of markerPositions(unit.x, unit.y)) {
+        context.fillStyle = unit.playerId === currentPlayerId ? '#67e8f9' : '#e2e8f0';
+        context.beginPath();
+        context.arc(x, y, unit.playerId === currentPlayerId ? 2 : 1.5, 0, 2 * Math.PI);
+        context.fill();
+      }
     }
 
     const selectedCity = selectedCityId ? cities[selectedCityId] : undefined;
     if (selectedCity) {
-      const { x, y } = markerPosition(selectedCity.x, selectedCity.y);
-      context.strokeStyle = '#f8fafc';
-      context.lineWidth = 2;
-      context.strokeRect(x - 4, y - 4, 8, 8);
+      for (const { x, y } of markerPositions(selectedCity.x, selectedCity.y)) {
+        context.strokeStyle = '#f8fafc';
+        context.lineWidth = 2;
+        context.strokeRect(x - 4, y - 4, 8, 8);
+      }
     }
 
     const selectedUnit = selectedUnitId ? units[selectedUnitId] : undefined;
     if (selectedUnit) {
-      const { x, y } = markerPosition(selectedUnit.x, selectedUnit.y);
-      context.strokeStyle = '#67e8f9';
-      context.lineWidth = 2;
-      context.beginPath();
-      context.arc(x, y, 4.5, 0, 2 * Math.PI);
-      context.stroke();
+      for (const { x, y } of markerPositions(selectedUnit.x, selectedUnit.y)) {
+        context.strokeStyle = '#67e8f9';
+        context.lineWidth = 2;
+        context.beginPath();
+        context.arc(x, y, 4.5, 0, 2 * Math.PI);
+        context.stroke();
+      }
     }
   }, [
     cities,
@@ -165,6 +175,7 @@ export const Minimap: React.FC = () => {
     selectedCityId,
     selectedUnitId,
     topologyId,
+    wrapId,
     units,
   ]);
 

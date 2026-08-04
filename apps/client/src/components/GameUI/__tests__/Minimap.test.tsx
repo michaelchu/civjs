@@ -5,6 +5,7 @@ import { Minimap } from '../Minimap';
 import { isMinimapMarkerVisible } from '../minimapVisibility';
 import {
   getMinimapLayout,
+  getMinimapTileOrigins,
   getMinimapViewportPolygons,
   guiToMapPos,
   minimapPointToMapTile,
@@ -49,7 +50,7 @@ describe('Minimap', () => {
     expect(screen.queryByText('Overview')).not.toBeInTheDocument();
   });
 
-  it('renders a 32x64 ISO map in a centered landscape overview', () => {
+  it('renders a 32x64 ISO map in a centered square-tile overview', () => {
     useGameStore.setState({
       map: {
         width: 32,
@@ -64,8 +65,8 @@ describe('Minimap', () => {
 
     render(<Minimap />);
     const canvas = screen.getByLabelText('Minimap overview');
-    expect(canvas).toHaveAttribute('width', '256');
-    expect(canvas).toHaveAttribute('height', '128');
+    expect(canvas).toHaveAttribute('width', '150');
+    expect(canvas).toHaveAttribute('height', '300');
   });
 
   it('dispatches a map-centering request when clicked', () => {
@@ -171,13 +172,13 @@ describe('Minimap', () => {
     expect(isMinimapMarkerVisible(unknown, 'player-1', 'player-1', true)).toBe(true);
   });
 
-  it('uses natural/display dimensions and a landscape layout for ISO maps', () => {
+  it('uses natural/display dimensions with square ISO tile footprints', () => {
     expect(getMinimapLayout(32, 64, 12)).toEqual({
-      tileSize: 4,
-      width: 256,
-      height: 128,
-      scaleX: 4,
-      scaleY: 2,
+      tileSize: 4.6875,
+      width: 150,
+      height: 300,
+      scaleX: 2.34375,
+      scaleY: 4.6875,
       coordinateWidth: 64,
       coordinateHeight: 64,
     });
@@ -191,14 +192,26 @@ describe('Minimap', () => {
       coordinateHeight: 50,
     });
     expect(getMinimapLayout(100, 400, 12)).toEqual({
-      tileSize: 1,
-      width: 200,
-      height: 200,
-      scaleX: 1,
-      scaleY: 0.5,
+      tileSize: 0.75,
+      width: 75,
+      height: 300,
+      scaleX: 0.375,
+      scaleY: 0.75,
       coordinateWidth: 200,
       coordinateHeight: 400,
     });
+
+    expect(getMinimapLayout(80, 50, 12)).toMatchObject({
+      width: 240,
+      height: 150,
+      scaleX: 1.5,
+      scaleY: 3,
+      coordinateWidth: 160,
+      coordinateHeight: 50,
+    });
+
+    const isoLayout = getMinimapLayout(32, 64, 12);
+    expect(isoLayout.scaleX * 2).toBe(isoLayout.scaleY);
   });
 
   it('maps natural/display overview clicks back to native ISO tile storage', () => {
@@ -259,6 +272,14 @@ describe('Minimap', () => {
     });
   });
 
+  it('draws wrapped ISO tiles and markers across the natural horizontal seam', () => {
+    const layout = getMinimapLayout(4, 4, 12);
+    const origins = getMinimapTileOrigins(3, 1, 4, 4, 12, 3, layout);
+
+    expect(origins).toContainEqual({ x: -25, y: 50 });
+    expect(origins).toContainEqual({ x: 175, y: 50 });
+  });
+
   it('projects GUI coordinates with the active tileset half-tile origin', () => {
     expect(guiToMapPos(48, 0, 96, 48)).toEqual({ x: 0, y: 0 });
     expect(guiToMapPos(0, 0, 96, 48)).toEqual({ x: -1, y: 0 });
@@ -279,7 +300,7 @@ describe('Minimap', () => {
     expect(polygons).toHaveLength(9);
   });
 
-  it('projects an ISO viewport through the shared natural/display geometry', () => {
+  it('projects an ISO viewport as a rotated diamond', () => {
     const layout = getMinimapLayout(32, 64, 12);
     const polygons = getMinimapViewportPolygons(
       { x: -432, y: 1296, width: 960, height: 480 },
@@ -293,10 +314,10 @@ describe('Minimap', () => {
     );
 
     expect(polygons[0]).toEqual([
-      { x: 88, y: 44 },
-      { x: 168, y: 44 },
-      { x: 168, y: 84 },
-      { x: 88, y: 84 },
+      { x: 75, y: 56.25 },
+      { x: 98.4375, y: 150 },
+      { x: 75, y: 243.75 },
+      { x: 51.5625, y: 150 },
     ]);
     expect(polygons).toHaveLength(9);
   });
