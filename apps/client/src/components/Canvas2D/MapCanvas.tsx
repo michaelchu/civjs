@@ -1072,6 +1072,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       const unitsAtTile = getUnitsAtTile(units, tileX, tileY);
       const cityAtTile = findCityAtTile(cities, tileX, tileY);
 
+      // AI city clicks are intentionally inert; players cannot inspect their
+      // city panel through either the normal click or the unit-stack shortcut.
+      if (cityAtTile && players[cityAtTile.playerId]?.isHuman === false) {
+        return;
+      }
+
       // City clicks have priority over the visual unit stack. A movable
       // friendly unit exposes a context menu (which includes Show City),
       // while a blocked/foreign stack falls through to the city dialog.
@@ -1080,9 +1086,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         if (cityUnit) {
           if (showContextMenuOnCityUnit && position) {
             openUnitContextMenu(cityUnit, position, cityAtTile);
+            renderLatestSnapshot(undefined, true);
           } else {
             selectUnit(cityUnit.id);
             setSelectedUnit(cityUnit);
+            renderLatestSnapshot(undefined, true);
           }
           return;
         }
@@ -1109,6 +1117,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
             if (unit) {
               selectUnit(unit.id);
               setSelectedUnit(unit);
+              renderLatestSnapshot(undefined, true);
             }
           } else {
             // A visible foreign stack is not an actionable selection. Keep
@@ -1131,6 +1140,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       focusedUnits,
       openCityInfo,
       openUnitContextMenu,
+      players,
+      renderLatestSnapshot,
       selectUnit,
       toggleUnitsAndMirror,
       units,
@@ -1144,6 +1155,14 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
       const unitsAtTile = getUnitsAtTile(units, mapTile.x, mapTile.y);
       const cityAtTile = findCityAtTile(cities, mapTile.x, mapTile.y);
+
+      // Right-clicking an AI city is intentionally inert. In particular, do
+      // not expose the city panel through an owned unit that happens to share
+      // the tile.
+      if (cityAtTile && players[cityAtTile.playerId]?.isHuman === false) {
+        return;
+      }
+
       const ownUnit = unitsAtTile.find(unit => unit.playerId === currentPlayerId);
 
       if (ownUnit) {
@@ -1167,6 +1186,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       openCityInfo,
       openTileInfo,
       openUnitContextMenu,
+      players,
       units,
     ]
   );

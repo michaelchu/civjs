@@ -142,8 +142,13 @@ describe('MapCanvas Go To feedback', () => {
       doneMoving: false,
       transportedBy: undefined,
     });
+    state.selectedUnitId = null;
+    state.focusedUnits = ['unit-1'];
     for (const cityId of Object.keys(state.cities as Record<string, unknown>)) {
       delete (state.cities as Record<string, unknown>)[cityId];
+    }
+    for (const playerId of Object.keys(state.players as Record<string, unknown>)) {
+      delete (state.players as Record<string, unknown>)[playerId];
     }
     state.diplomacy.nations.length = 0;
     Object.assign(state.map, { wrap_id: 0 });
@@ -342,12 +347,34 @@ describe('MapCanvas Go To feedback', () => {
     expect(cityOverlayProps.current?.isOpen).toBe(true);
   });
 
-  it('selects the owned unit on a normal left click', async () => {
-    Object.assign(state.units['unit-1'], { x: 1, y: 1, playerId: 'player-1' });
+  it('redraws the selected unit when left-clicking an actionable unit in a city', async () => {
+    Object.assign(state.cities, {
+      'city-1': {
+        id: 'city-1',
+        name: 'Rome',
+        playerId: 'player-1',
+        x: 1,
+        y: 1,
+      },
+    });
+    Object.assign(state.units['unit-1'], { x: 1, y: 1, movesLeft: 3 });
+    state.selectedUnitId = null;
+    state.focusedUnits = [];
+    state.selectUnit.mockImplementationOnce((unitId: string | null) => {
+      Object.assign(state, {
+        selectedUnitId: unitId,
+        focusedUnits: unitId ? [unitId] : [],
+      });
+    });
 
     render(<MapCanvas width={100} height={100} />);
     const canvas = screen.getByLabelText('World map');
     state.selectUnit.mockClear();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    mapRendererRender.mockClear();
     await act(async () => {
       fireEvent.mouseDown(canvas, { clientX: 1, clientY: 1, button: 0 });
       fireEvent.mouseUp(canvas, { clientX: 1, clientY: 1, button: 0 });
@@ -355,6 +382,43 @@ describe('MapCanvas Go To feedback', () => {
     });
 
     expect(state.selectUnit).toHaveBeenCalledWith('unit-1');
+    const renderedState = mapRendererRender.mock.calls.at(-1)?.[0] as
+      { selectedUnitId?: string | null; focusedUnits?: string[] } | undefined;
+    expect(renderedState?.selectedUnitId).toBe('unit-1');
+    expect(renderedState?.focusedUnits).toEqual(['unit-1']);
+  });
+
+  it('selects the owned unit and redraws its selection on a normal left click', async () => {
+    Object.assign(state.units['unit-1'], { x: 1, y: 1, playerId: 'player-1' });
+    state.selectedUnitId = null;
+    state.focusedUnits = [];
+    state.selectUnit.mockImplementationOnce((unitId: string | null) => {
+      Object.assign(state, {
+        selectedUnitId: unitId,
+        focusedUnits: unitId ? [unitId] : [],
+      });
+    });
+
+    render(<MapCanvas width={100} height={100} />);
+    const canvas = screen.getByLabelText('World map');
+    state.selectUnit.mockClear();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    mapRendererRender.mockClear();
+    await act(async () => {
+      fireEvent.mouseDown(canvas, { clientX: 1, clientY: 1, button: 0 });
+      fireEvent.mouseUp(canvas, { clientX: 1, clientY: 1, button: 0 });
+      await Promise.resolve();
+    });
+
+    expect(state.selectUnit).toHaveBeenCalledWith('unit-1');
+    expect(mapRendererRender).toHaveBeenCalled();
+    const renderedState = mapRendererRender.mock.calls.at(-1)?.[0] as
+      { selectedUnitId?: string | null; focusedUnits?: string[] } | undefined;
+    expect(renderedState?.selectedUnitId).toBe('unit-1');
+    expect(renderedState?.focusedUnits).toEqual(['unit-1']);
   });
 
   it('does not turn a foreign-only tile into the local selection', async () => {
@@ -449,6 +513,59 @@ describe('MapCanvas Go To feedback', () => {
     expect(dispatchSpy).not.toHaveBeenCalledWith(
       expect.objectContaining({ type: 'center-map-on-tile' })
     );
+  });
+
+  it('does nothing when right-clicking an AI city', async () => {
+    Object.assign(state.players, {
+      'player-ai': { isHuman: false },
+    });
+    Object.assign(state.cities, {
+      'city-1': {
+        id: 'city-1',
+        name: 'Rome',
+        playerId: 'player-ai',
+        x: 1,
+        y: 1,
+      },
+    });
+
+    render(<MapCanvas width={100} height={100} />);
+    const canvas = screen.getByLabelText('World map');
+    await act(async () => {
+      fireEvent.contextMenu(canvas, { clientX: 1, clientY: 1, button: 2 });
+      await Promise.resolve();
+    });
+
+    expect(contextMenuProps.current).toBeNull();
+    expect(cityOverlayProps.current?.isOpen).toBe(false);
+    expect(tileInfoProps.current).toBeNull();
+  });
+
+  it('does nothing when left-clicking an AI city', async () => {
+    Object.assign(state.players, {
+      'player-ai': { isHuman: false },
+    });
+    Object.assign(state.cities, {
+      'city-1': {
+        id: 'city-1',
+        name: 'Rome',
+        playerId: 'player-ai',
+        x: 1,
+        y: 1,
+      },
+    });
+
+    render(<MapCanvas width={100} height={100} />);
+    const canvas = screen.getByLabelText('World map');
+    await act(async () => {
+      fireEvent.mouseDown(canvas, { clientX: 1, clientY: 1, button: 0 });
+      fireEvent.mouseUp(canvas, { clientX: 1, clientY: 1, button: 0 });
+      await Promise.resolve();
+    });
+
+    expect(contextMenuProps.current).toBeNull();
+    expect(cityOverlayProps.current?.isOpen).toBe(false);
+    expect(tileInfoProps.current).toBeNull();
   });
 
   /**
