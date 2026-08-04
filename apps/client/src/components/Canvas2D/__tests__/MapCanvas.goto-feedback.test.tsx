@@ -438,6 +438,53 @@ describe('MapCanvas Go To feedback', () => {
     });
   });
 
+  it('coalesces minimap drag panning without sliding or creating markers', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+
+    render(<MapCanvas width={100} height={100} />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    state.setViewport.mockClear();
+    state.updateGameState.mockClear();
+    setMapviewOrigin.mockClear();
+
+    await act(async () => {
+      document.dispatchEvent(
+        new CustomEvent('center-map-on-tile', {
+          detail: { x: 1, y: 1, source: 'minimap-drag' },
+        })
+      );
+      document.dispatchEvent(
+        new CustomEvent('center-map-on-tile', {
+          detail: { x: 2, y: 2, source: 'minimap-drag' },
+        })
+      );
+      await Promise.resolve();
+    });
+
+    expect(frames).toHaveLength(1);
+    expect(state.updateGameState).not.toHaveBeenCalled();
+
+    await act(async () => {
+      frames.shift()?.(16);
+    });
+
+    expect(setMapviewOrigin).toHaveBeenCalledTimes(2);
+    expect(state.setViewport).toHaveBeenCalledWith({
+      x: 60,
+      y: 40,
+      width: 100,
+      height: 100,
+    });
+  });
+
   it('preserves the requested center period on a wrapped map', async () => {
     const frames: FrameRequestCallback[] = [];
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {

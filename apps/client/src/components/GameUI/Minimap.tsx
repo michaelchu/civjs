@@ -49,6 +49,8 @@ export const Minimap: React.FC = () => {
   const baseCanvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const draggingRef = useRef(false);
+  const dragMovedRef = useRef(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
   const baseFrameRef = useRef<number | null>(null);
   const overlayFrameRef = useRef<number | null>(null);
   const map = useGameStore(state => state.map);
@@ -235,7 +237,11 @@ export const Minimap: React.FC = () => {
     };
   }, [drawOverlay]);
 
-  const centerFromPointer = (clientX: number, clientY: number) => {
+  const centerFromPointer = (
+    clientX: number,
+    clientY: number,
+    source: 'minimap-click' | 'minimap-drag'
+  ) => {
     const canvas = overlayCanvasRef.current;
     if (!canvas || !mapWidth || !mapHeight || !layout.width || !layout.height) return;
     if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return;
@@ -256,6 +262,7 @@ export const Minimap: React.FC = () => {
         detail: {
           x: Math.max(0, Math.min(mapWidth - 1, point.x)),
           y: Math.max(0, Math.min(mapHeight - 1, point.y)),
+          source,
         },
       })
     );
@@ -263,13 +270,28 @@ export const Minimap: React.FC = () => {
 
   const handlePointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
     draggingRef.current = true;
+    dragMovedRef.current = false;
+    dragStartRef.current = { x: event.clientX, y: event.clientY };
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    centerFromPointer(event.clientX, event.clientY);
   };
   const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (draggingRef.current) centerFromPointer(event.clientX, event.clientY);
+    if (!draggingRef.current) return;
+
+    if (
+      !dragMovedRef.current &&
+      Math.hypot(event.clientX - dragStartRef.current.x, event.clientY - dragStartRef.current.y) <=
+        2
+    ) {
+      return;
+    }
+
+    dragMovedRef.current = true;
+    centerFromPointer(event.clientX, event.clientY, 'minimap-drag');
   };
   const handlePointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (draggingRef.current && dragMovedRef.current) {
+      centerFromPointer(event.clientX, event.clientY, 'minimap-drag');
+    }
     draggingRef.current = false;
     event.currentTarget.releasePointerCapture?.(event.pointerId);
   };
@@ -298,7 +320,16 @@ export const Minimap: React.FC = () => {
           ref={overlayCanvasRef}
           width={layout.width}
           height={layout.height}
-          onClick={event => centerFromPointer(event.clientX, event.clientY)}
+          onClick={event => {
+            // Pointer dragging already sent the final drag position on
+            // pointerup. Browsers still synthesize a click afterward; do not
+            // turn that release into a second discrete center action.
+            if (dragMovedRef.current) {
+              dragMovedRef.current = false;
+              return;
+            }
+            centerFromPointer(event.clientX, event.clientY, 'minimap-click');
+          }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}

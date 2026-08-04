@@ -3,6 +3,7 @@
  * Implements the Fog Renderer canvas rendering stage.
  */
 import { BaseRenderer, type RenderState } from './BaseRenderer';
+import { mapToNativePosition } from '../mapTopologyGeometry';
 
 const TILE_UNKNOWN = 0;
 const TILE_KNOWN_UNSEEN = 1;
@@ -39,7 +40,9 @@ export class FogRenderer extends BaseRenderer {
     const mapWidth = state.map.xsize ?? state.map.width;
     const mapHeight = state.map.ysize ?? state.map.height;
     if (!mapWidth || !mapHeight) return;
+    this.setMapGeometry(state.map);
     this.currentWrapId = state.map.wrap_id ?? 0;
+    const isIsometric = ((state.map.topology_id ?? 0) & 4) !== 0;
 
     const knowledgeByCoordinate = new Map<string, Knowledge>();
     for (const rawTile of Object.values(state.map.tiles)) {
@@ -55,10 +58,31 @@ export class FogRenderer extends BaseRenderer {
     for (let mapY = bounds.minY; mapY <= bounds.maxY; mapY++) {
       for (let mapX = bounds.minX; mapX <= bounds.maxX; mapX++) {
         const states = [
-          this.getKnowledge(mapX, mapY, mapWidth, mapHeight, knowledgeByCoordinate),
-          this.getKnowledge(mapX + 1, mapY, mapWidth, mapHeight, knowledgeByCoordinate),
-          this.getKnowledge(mapX + 1, mapY + 1, mapWidth, mapHeight, knowledgeByCoordinate),
-          this.getKnowledge(mapX, mapY + 1, mapWidth, mapHeight, knowledgeByCoordinate),
+          this.getKnowledge(mapX, mapY, mapWidth, mapHeight, isIsometric, knowledgeByCoordinate),
+          this.getKnowledge(
+            mapX + 1,
+            mapY,
+            mapWidth,
+            mapHeight,
+            isIsometric,
+            knowledgeByCoordinate
+          ),
+          this.getKnowledge(
+            mapX + 1,
+            mapY + 1,
+            mapWidth,
+            mapHeight,
+            isIsometric,
+            knowledgeByCoordinate
+          ),
+          this.getKnowledge(
+            mapX,
+            mapY + 1,
+            mapWidth,
+            mapHeight,
+            isIsometric,
+            knowledgeByCoordinate
+          ),
         ];
 
         if (
@@ -117,8 +141,12 @@ export class FogRenderer extends BaseRenderer {
     y: number,
     mapWidth: number,
     mapHeight: number,
+    isIsometric: boolean,
     knowledgeByCoordinate: Map<string, Knowledge>
   ): Knowledge {
+    const native = mapToNativePosition(x, y, mapWidth, isIsometric);
+    x = native.x;
+    y = native.y;
     const wrapId = this.currentWrapId;
     if ((wrapId & 1) !== 0) x = ((x % mapWidth) + mapWidth) % mapWidth;
     if ((wrapId & 2) !== 0) y = ((y % mapHeight) + mapHeight) % mapHeight;
@@ -146,7 +174,14 @@ export class FogRenderer extends BaseRenderer {
     mapY: number,
     state: RenderState
   ): { x: number; y: number } {
-    const tileOrigin = this.mapToScreen(mapX, mapY, state.viewport);
+    const mapWidth = state.map.xsize ?? state.map.width;
+    const isIsometric = ((state.map.topology_id ?? 0) & 4) !== 0;
+    // Fog corners are enumerated in logical map space, while BaseRenderer's
+    // projection consumes the authoritative native tile coordinates. Convert
+    // the corner back through the same reference MAP_TO_NATIVE_POS path used
+    // for fog knowledge lookups before projecting it to the canvas.
+    const native = mapToNativePosition(mapX, mapY, mapWidth, isIsometric);
+    const tileOrigin = this.mapToScreen(native.x, native.y, state.viewport);
     return {
       x: tileOrigin.x,
       y: tileOrigin.y + this.tileHeight / 2,

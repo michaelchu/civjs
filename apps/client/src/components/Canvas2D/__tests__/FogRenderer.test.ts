@@ -125,4 +125,40 @@ describe('FogRenderer', () => {
 
     expect(pannedAnchor).toEqual({ x: anchor.x - 37, y: anchor.y - 19 });
   });
+
+  it('converts logical fog corners through native ISO coordinates', () => {
+    const context = {
+      drawImage: vi.fn(),
+      fillRect: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+    const renderer = new FogRenderer(context, { getSprite: () => null } as never, 96, 48);
+    const state: RenderState = {
+      viewport: { x: 0, y: 0, width: 300, height: 200 },
+      map: {
+        width: 4,
+        height: 4,
+        xsize: 4,
+        ysize: 4,
+        topology_id: 12,
+        wrap_id: 0,
+        tiles: {},
+      },
+      units: {},
+      cities: {},
+      players: {},
+    };
+
+    renderer.setMapGeometry(state.map);
+    const anchor = (
+      renderer as unknown as {
+        mapCornerToScreen: (
+          x: number,
+          y: number,
+          renderState: typeof state
+        ) => { x: number; y: number };
+      }
+    ).mapCornerToScreen(2, 3, state);
+
+    expect(anchor).toEqual({ x: -48, y: 144 });
+  });
 });

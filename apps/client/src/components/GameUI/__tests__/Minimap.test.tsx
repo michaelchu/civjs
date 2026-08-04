@@ -71,8 +71,27 @@ describe('Minimap', () => {
     render(<Minimap />);
     fireEvent.click(screen.getByLabelText('Minimap overview'), { clientX: 80, clientY: 50 });
     expect(dispatchSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'center-map-on-tile' })
+      expect.objectContaining({
+        type: 'center-map-on-tile',
+        detail: expect.objectContaining({ source: 'minimap-click' }),
+      })
     );
+  });
+
+  it('centers once for a click after the pointer lifecycle', () => {
+    const dispatchSpy = vi.spyOn(document, 'dispatchEvent');
+    render(<Minimap />);
+    const minimap = screen.getByLabelText('Minimap overview');
+
+    fireEvent.pointerDown(minimap, { clientX: 80, clientY: 50, pointerId: 1 });
+    fireEvent.pointerUp(minimap, { clientX: 80, clientY: 50, pointerId: 1 });
+    fireEvent.click(minimap, { clientX: 80, clientY: 50 });
+
+    const centerEvents = dispatchSpy.mock.calls.filter(
+      ([event]) => (event as CustomEvent).type === 'center-map-on-tile'
+    );
+    expect(centerEvents).toHaveLength(1);
+    expect((centerEvents[0]?.[0] as CustomEvent).detail.source).toBe('minimap-click');
   });
 
   it('repositions the main map while dragging the overview', () => {
@@ -96,10 +115,15 @@ describe('Minimap', () => {
     const centerEvents = dispatchSpy.mock.calls.filter(
       ([event]) => (event as CustomEvent).type === 'center-map-on-tile'
     );
-    expect(centerEvents.length).toBeGreaterThanOrEqual(2);
+    expect(centerEvents).toHaveLength(2);
+    expect(
+      centerEvents.every(
+        ([event]) => (event as CustomEvent<{ source: string }>).detail.source === 'minimap-drag'
+      )
+    ).toBe(true);
     const lastCenterEvent = centerEvents.at(-1)?.[0] as CustomEvent<{ x: number; y: number }>;
     expect(lastCenterEvent.type).toBe('center-map-on-tile');
-    expect(lastCenterEvent.detail).toEqual({ x: 2, y: 1 });
+    expect(lastCenterEvent.detail).toEqual({ x: 2, y: 1, source: 'minimap-drag' });
   });
 
   it('exposes the selected unit in the minimap context', () => {

@@ -40,6 +40,7 @@ interface MapCanvasProps {
 }
 
 type SelectionDragMode = 'left' | 'right' | null;
+type CenterMapSource = 'map' | 'minimap-click' | 'minimap-drag';
 interface SelectionRect {
   left: number;
   top: number;
@@ -428,6 +429,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
   const cameraSlideFrame = useRef<number | null>(null);
   const cameraSlideViewport = useRef<MapViewport | null>(null);
+  const minimapPanFrame = useRef<number | null>(null);
+  const minimapPanViewport = useRef<MapViewport | null>(null);
   const storeRenderFrame = useRef<number | null>(null);
 
   const cancelCameraSlide = useCallback(
@@ -444,18 +447,47 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     [setViewport]
   );
 
-  useEffect(() => {
-    const handleCenterMap = (event: Event) => {
-      const detail = (event as CustomEvent<{ x?: number; y?: number }>).detail;
-      if (detail.x === undefined || detail.y === undefined || !rendererRef.current) return;
+  const cancelMinimapPan = useCallback(
+    (commitLatest = true): MapViewport | null => {
+      if (minimapPanFrame.current !== null) {
+        cancelAnimationFrame(minimapPanFrame.current);
+        minimapPanFrame.current = null;
+      }
+      const latestViewport = minimapPanViewport.current;
+      minimapPanViewport.current = null;
+      if (commitLatest && latestViewport) setViewport(latestViewport);
+      return latestViewport;
+    },
+    [setViewport]
+  );
 
-      cancelCameraSlide();
-      const centered = rendererRef.current.getViewportPositionForTile(
-        detail.x,
-        detail.y,
-        width,
-        height
-      );
+  const scheduleMinimapPan = useCallback(
+    (nextViewport: MapViewport) => {
+      minimapPanViewport.current = nextViewport;
+      if (minimapPanFrame.current !== null) return;
+
+      minimapPanFrame.current = requestAnimationFrame(() => {
+        minimapPanFrame.current = null;
+        const latestViewport = minimapPanViewport.current;
+        minimapPanViewport.current = null;
+        if (!latestViewport) return;
+
+        // Commit the viewport and paint the same snapshot immediately. The
+        // direct paint prevents the normal store-render RAF from exposing a
+        // cleared frame while the minimap pointer is still moving.
+        setViewport(latestViewport);
+        renderLatestSnapshot(latestViewport, true);
+      });
+    },
+    [renderLatestSnapshot, setViewport]
+  );
+
+  const getCenteredViewport = useCallback(
+    (tileX: number, tileY: number): MapViewport | null => {
+      const renderer = rendererRef.current;
+      if (!renderer) return null;
+
+      const centered = renderer.getViewportPositionForTile(tileX, tileY, width, height);
       const state = useGameStore.getState();
       // A centered origin is already valid on a wrapped map. It may be
       // negative when centering on tile 0, and drag-release normalization can
@@ -464,13 +496,54 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       const constrained =
         (state.map.wrap_id ?? 0) !== 0
           ? centered
-          : rendererRef.current.setMapviewOrigin(centered.x, centered.y, width, height);
-      const target = { ...constrained, width, height };
+          : renderer.setMapviewOrigin(centered.x, centered.y, width, height);
+      return { ...constrained, width, height };
+    },
+    [height, width]
+  );
+
+  useEffect(
+    () => () => {
+      cancelMinimapPan(false);
+    },
+    [cancelMinimapPan]
+  );
+
+  useEffect(() => {
+    const handleCenterMap = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{
+          x?: number;
+          y?: number;
+          source?: CenterMapSource;
+        }>
+      ).detail;
+      if (detail.x === undefined || detail.y === undefined || !rendererRef.current) return;
+
+      const source = detail.source ?? 'map';
+      if (source === 'minimap-drag') {
+        // A minimap drag is continuous panning, not a sequence of reference
+        // center_tile_mapcanvas() actions. Cancel any click slide and paint
+        // the latest centered viewport once per animation frame.
+        cancelCameraSlide(false);
+        const target = getCenteredViewport(detail.x, detail.y);
+        if (target) scheduleMinimapPan(target);
+        return;
+      }
+
+      cancelMinimapPan(false);
+      cancelCameraSlide();
+      const target = getCenteredViewport(detail.x, detail.y);
+      if (!target) return;
+      const state = useGameStore.getState();
       const current = state.viewport;
       const dx = target.x - current.x;
       const dy = target.y - current.y;
 
-      if (!Object.values(state.units).some(unit => unit.x === detail.x && unit.y === detail.y)) {
+      if (
+        source === 'map' &&
+        !Object.values(state.units).some(unit => unit.x === detail.x && unit.y === detail.y)
+      ) {
         const marker = {
           id: `marker:${detail.x}:${detail.y}:${Date.now()}`,
           type: 'marker' as const,
@@ -523,7 +596,17 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       document.removeEventListener('center-map-on-tile', handleCenterMap);
       cancelCameraSlide(false);
     };
-  }, [cancelCameraSlide, height, reducedMotion, renderLatestSnapshot, setViewport, width]);
+  }, [
+    cancelCameraSlide,
+    cancelMinimapPan,
+    getCenteredViewport,
+    height,
+    reducedMotion,
+    renderLatestSnapshot,
+    scheduleMinimapPan,
+    setViewport,
+    width,
+  ]);
 
   // Update canvas size
   useEffect(() => {
@@ -1097,8 +1180,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
       if (event.button !== 0 && event.button !== 2) return;
 
+      const panViewport = cancelMinimapPan();
       const slideViewport = cancelCameraSlide();
-      const interactionViewport = slideViewport ?? viewport;
+      const interactionViewport = slideViewport ?? panViewport ?? viewport;
 
       const rect = canvas.getBoundingClientRect();
       const canvasX = event.clientX - rect.left;
@@ -1124,7 +1208,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
       // Don't immediately set dragging - wait for actual movement
     },
-    [cancelCameraSlide, openTileInfo, viewport]
+    [cancelCameraSlide, cancelMinimapPan, openTileInfo, viewport]
   );
 
   const handleMouseMove = useCallback(
