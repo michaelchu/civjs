@@ -38,7 +38,7 @@ const wrap = (value: number, range: number): number => ((value % range) + range)
 
 const isIsometricTopology = (topologyId: number): boolean => (topologyId & 4) !== 0;
 
-/** Size a centered logical overview, transposed for ISO landscape display. */
+/** Size a centered overview with ISO maps rotated clockwise into a landscape display. */
 export const getMinimapLayout = (
   mapWidth: number,
   mapHeight: number,
@@ -67,14 +67,16 @@ export const getMinimapLayout = (
     MAX_OVERVIEW_WIDTH / coordinateWidth,
     MAX_OVERVIEW_HEIGHT / coordinateHeight
   );
-  const width = Math.floor(scale * coordinateWidth);
-  const height = Math.floor(scale * coordinateHeight);
+  const scaleX = scale;
+  const scaleY = scale;
+  const width = Math.floor(scaleX * coordinateWidth);
+  const height = Math.floor(scaleY * coordinateHeight);
   return {
     tileSize: scale,
     width,
     height,
-    scaleX: scale,
-    scaleY: scale,
+    scaleX,
+    scaleY,
     coordinateWidth,
     coordinateHeight,
   };
@@ -146,7 +148,7 @@ const overviewPointToDisplay = (
     ? { x: mapHeight - overviewY, y: overviewX }
     : { x: overviewX, y: overviewY };
 
-/** Place one native tile in the centered, displayed overview orientation. */
+/** Place one native tile in the centered, clockwise ISO overview orientation. */
 export const nativeToMinimapPosition = (
   nativeX: number,
   nativeY: number,
@@ -165,6 +167,23 @@ export const nativeToMinimapPosition = (
     }
   }
   return overviewCellToDisplay(logical.x - origin.x, logical.y - origin.y, mapHeight, topologyId);
+};
+
+/** Return the pixel center of the displayed overview cell for a native tile. */
+export const nativeToMinimapPixelPosition = (
+  nativeX: number,
+  nativeY: number,
+  mapWidth: number,
+  mapHeight: number,
+  topologyId: number,
+  wrapId: number,
+  layout: MinimapLayout
+): MinimapPoint => {
+  const cell = nativeToMinimapPosition(nativeX, nativeY, mapWidth, mapHeight, topologyId, wrapId);
+  return {
+    x: (cell.x + 0.5) * layout.scaleX,
+    y: (cell.y + 0.5) * layout.scaleY,
+  };
 };
 
 /** Resolve a displayed overview position back to CivJS native tile storage. */

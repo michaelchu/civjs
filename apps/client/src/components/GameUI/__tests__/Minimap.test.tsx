@@ -8,10 +8,13 @@ import {
   getMinimapViewportPolygons,
   guiToMapPos,
   minimapPointToMapTile,
+  minimapPositionToNative,
+  nativeToMinimapPixelPosition,
   nativeToMinimapPosition,
   VIEWPORT_OUTLINE_COLOR,
   VIEWPORT_OUTLINE_WIDTH,
 } from '../minimapGeometry';
+import { stepNativeMapPosition } from '../../Canvas2D/mapTopologyGeometry';
 
 describe('Minimap', () => {
   afterEach(() => {
@@ -169,7 +172,7 @@ describe('Minimap', () => {
     expect(isMinimapMarkerVisible(unknown, 'player-1', 'player-1', true)).toBe(true);
   });
 
-  it('uses a centered transposed ISO layout without stretching cells', () => {
+  it('uses a centered clockwise landscape layout for ISO maps', () => {
     expect(getMinimapLayout(32, 64, 12)).toEqual({
       tileSize: 4,
       width: 256,
@@ -199,19 +202,24 @@ describe('Minimap', () => {
     });
   });
 
-  it('maps centered landscape overview clicks back to native ISO tile storage', () => {
+  it('maps clockwise landscape overview clicks back to native ISO tile storage', () => {
     const layout = getMinimapLayout(32, 64, 12);
-    expect(minimapPointToMapTile(128, 64, 32, 64, layout, 12, 3)).toEqual({
-      x: 16,
-      y: 31,
-    });
-    expect(minimapPointToMapTile(2, 62, 32, 64, layout, 12, 3)).toEqual({
-      x: 0,
-      y: 62,
-    });
+    const native = { x: 16, y: 32 };
+    const display = nativeToMinimapPosition(native.x, native.y, 32, 64, 12, 3);
+    expect(
+      minimapPointToMapTile(
+        (display.x + 0.5) * layout.scaleX,
+        (display.y + 0.5) * layout.scaleY,
+        32,
+        64,
+        layout,
+        12,
+        3
+      )
+    ).toEqual(native);
   });
 
-  it('places native ISO tiles in horizontally mirrored landscape coordinates', () => {
+  it('places native ISO tiles in clockwise landscape coordinates', () => {
     expect(nativeToMinimapPosition(0, 0, 32, 64, 12, 3)).toEqual({ x: 63, y: 16 });
     expect(nativeToMinimapPosition(0, 1, 32, 64, 12, 3)).toEqual({ x: 63, y: 17 });
     expect(nativeToMinimapPosition(0, 2, 32, 64, 12, 3)).toEqual({ x: 62, y: 17 });
@@ -219,21 +227,42 @@ describe('Minimap', () => {
     expect(nativeToMinimapPosition(31, 63, 32, 64, 12, 3)).toEqual({ x: 63, y: 15 });
   });
 
-  it('maps every native ISO tile to exactly one displayed overview position', () => {
+  it('rotates ISO logical east down and south left for a clockwise display', () => {
+    const base = minimapPositionToNative(40, 10, 32, 64, 12, 3);
+    const east = minimapPositionToNative(40, 11, 32, 64, 12, 3);
+    const south = minimapPositionToNative(39, 10, 32, 64, 12, 3);
+
+    expect(east).toEqual(stepNativeMapPosition(base.x, base.y, 1, 0, 32, 64, 12, 3));
+    expect(south).toEqual(stepNativeMapPosition(base.x, base.y, 0, 1, 32, 64, 12, 3));
+  });
+
+  it('maps every native ISO tile to exactly one displayed overview position and back', () => {
+    const layout = getMinimapLayout(32, 64, 12);
     const positions = new Set<string>();
 
     for (let y = 0; y < 64; y += 1) {
       for (let x = 0; x < 32; x += 1) {
         const position = nativeToMinimapPosition(x, y, 32, 64, 12, 3);
         expect(position.x).toBeGreaterThanOrEqual(0);
-        expect(position.x).toBeLessThan(64);
+        expect(position.x).toBeLessThan(layout.coordinateWidth);
         expect(position.y).toBeGreaterThanOrEqual(0);
-        expect(position.y).toBeLessThan(32);
+        expect(position.y).toBeLessThan(layout.coordinateHeight);
         positions.add(`${position.x},${position.y}`);
+        expect(minimapPositionToNative(position.x, position.y, 32, 64, 12, 3)).toEqual({ x, y });
       }
     }
 
     expect(positions.size).toBe(32 * 64);
+  });
+
+  it('centers ISO markers in the same displayed cells as their terrain', () => {
+    const layout = getMinimapLayout(32, 64, 12);
+    const cell = nativeToMinimapPosition(16, 32, 32, 64, 12, 3);
+
+    expect(nativeToMinimapPixelPosition(16, 32, 32, 64, 12, 3, layout)).toEqual({
+      x: (cell.x + 0.5) * layout.scaleX,
+      y: (cell.y + 0.5) * layout.scaleY,
+    });
   });
 
   it('projects GUI coordinates with the active tileset half-tile origin', () => {
@@ -256,7 +285,7 @@ describe('Minimap', () => {
     expect(polygons).toHaveLength(9);
   });
 
-  it('projects an ISO viewport as a centered diamond without stretching', () => {
+  it('projects an ISO viewport as a clockwise landscape diamond', () => {
     const layout = getMinimapLayout(32, 64, 12);
     const polygons = getMinimapViewportPolygons(
       { x: -432, y: 1296, width: 960, height: 480 },

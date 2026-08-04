@@ -15,7 +15,7 @@ import {
   getMinimapViewportPolygons,
   minimapPointToMapTile,
   minimapPositionToNative,
-  nativeToMinimapPosition,
+  nativeToMinimapPixelPosition,
   VIEWPORT_OUTLINE_COLOR,
   VIEWPORT_OUTLINE_WIDTH,
 } from './minimapGeometry';
@@ -85,13 +85,8 @@ export const Minimap: React.FC = () => {
 
     const tiles = Object.values(map.tiles);
     const tilesByCoordinate = new Map(tiles.map(tile => [`${tile.x},${tile.y}`, tile]));
-    const markerPosition = (x: number, y: number) => {
-      const origin = nativeToMinimapPosition(x, y, mapWidth, mapHeight, topologyId, wrapId);
-      return {
-        x: (origin.x + 0.5) * layout.scaleX,
-        y: (origin.y + 0.5) * layout.scaleY,
-      };
-    };
+    const markerPosition = (x: number, y: number) =>
+      nativeToMinimapPixelPosition(x, y, mapWidth, mapHeight, topologyId, wrapId, layout);
     for (let overviewY = 0; overviewY < layout.coordinateHeight; overviewY += 1) {
       for (let overviewX = 0; overviewX < layout.coordinateWidth; overviewX += 1) {
         const native = minimapPositionToNative(
