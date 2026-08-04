@@ -14,6 +14,8 @@ import type { DiplomacyEvent, DiplomacyManager } from '@game/managers/DiplomacyM
 import type { GameInstance } from '@game/runtime/GameTypes';
 import type { UnitLifecycleEvent } from '@game/units/UnitTypes';
 import { DiplomacyHostilityPolicy } from '@game/services/DiplomacyHostilityPolicy';
+import { AIPlanningBudget } from '@game/ai/AIPlanningBudget';
+import type { PathfindingDiagnostics } from '@game/managers/PathfindingManager';
 import { logger } from '@utils/logger';
 
 /**
@@ -37,6 +39,8 @@ export class FreecivAIOrchestrator {
   async processTurn(gameId: string, game: GameInstance): Promise<number> {
     if (game.state !== 'active') return 0;
 
+    game.pathfindingManager.beginTurn?.(game.currentTurn);
+    game.pathfindingManager.resetDiagnostics?.();
     let actions = 0;
     for (const player of game.players.values()) {
       if (!player.isAI) continue;
@@ -55,14 +59,42 @@ export class FreecivAIOrchestrator {
       state.inProgressTurn = game.currentTurn;
       await this.stateStore.save(gameId, player.id, state);
       game.visibilityManager.updatePlayerVisibility(player.id);
-      const playerActions = await this.playerController.processPlayer(
+      const playerStartedAt = Date.now();
+      const budget = new AIPlanningBudget();
+      const pathfindingBefore = game.pathfindingManager.getDiagnostics?.();
+      let playerActions = 0;
+      game.pathfindingManager.setPlanningBudget?.(budget);
+      try {
+        playerActions = await this.playerController.processPlayer(
+          gameId,
+          game,
+          player.id,
+          state,
+          (label, decision) =>
+            this.attempt(state, game, player.id, game.currentTurn ?? 0, label, decision)
+        );
+      } finally {
+        game.pathfindingManager.setPlanningBudget?.();
+      }
+      const durationMs = Date.now() - playerStartedAt;
+      const pathfindingAfter = game.pathfindingManager.getDiagnostics?.();
+      const pathfinding = this.diagnosticsDelta(pathfindingBefore, pathfindingAfter);
+      const budgetSnapshot = budget.snapshot();
+      state.recentProcessingDiagnostics = {
+        turn: game.currentTurn ?? 0,
+        durationMs,
+        pathfinding,
+        budget: budgetSnapshot,
+      };
+      logger.info('CivJS AI player turn completed', {
         gameId,
-        game,
-        player.id,
-        state,
-        (label, decision) =>
-          this.attempt(state, game, player.id, game.currentTurn ?? 0, label, decision)
-      );
+        playerId: player.id,
+        turn: game.currentTurn ?? 0,
+        durationMs,
+        actions: playerActions,
+        pathfinding,
+        budget: budgetSnapshot,
+      });
       actions += playerActions;
       state.recentPlanSnapshot = {
         turn: game.currentTurn ?? 0,
@@ -144,6 +176,7 @@ export class FreecivAIOrchestrator {
   onDiplomacyEvent(gameId: string, game: GameInstance, event: DiplomacyEvent): void {
     if (event.type !== 'incident' && event.type !== 'war_declared') return;
     if (event.type === 'war_declared' && event.justified) return;
+    game.pathfindingManager.invalidateCache?.();
     const offenderId = event.offenderId ?? event.playerIds[0];
     const victimId = event.victimId ?? event.playerIds[1];
 
@@ -242,32 +275,41 @@ export class FreecivAIOrchestrator {
     decision: () => Promise<number>
   ): Promise<number> {
     const before = this.traceSnapshot(game, playerId, state);
+    const startedAt = Date.now();
     try {
       const actions = await decision();
+      const durationMs = Date.now() - startedAt;
       const after = this.traceSnapshot(game, playerId, state);
       this.recordDecision(state, {
         turn,
         label,
         actions,
+        durationMs,
         input: before.input,
         economicDelta: this.economicDelta(before.economy, after.economy),
         outcome: this.outcome(before, after, actions),
       });
+      logger.debug('CivJS AI decision completed', { playerId, turn, decision: label, durationMs });
       return actions;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      const durationMs = Date.now() - startedAt;
       const after = this.traceSnapshot(game, playerId, state);
       this.recordDecision(state, {
         turn,
         label,
         actions: 0,
+        durationMs,
         input: before.input,
         economicDelta: this.economicDelta(before.economy, after.economy),
         outcome: this.outcome(before, after, 0),
         error: message,
       });
       logger.warn('CivJS AI decision failed', {
+        playerId,
+        turn,
         decision: label,
+        durationMs,
         error: message,
       });
       return 0;
@@ -427,5 +469,30 @@ export class FreecivAIOrchestrator {
     entry: NonNullable<FreecivAIState['recentDecisionTrace']>[number]
   ): void {
     state.recentDecisionTrace = [...(state.recentDecisionTrace ?? []), entry].slice(-50);
+  }
+
+  private diagnosticsDelta(
+    before: PathfindingDiagnostics | undefined,
+    after: PathfindingDiagnostics | undefined
+  ): PathfindingDiagnostics {
+    const empty: PathfindingDiagnostics = {
+      pathRequests: 0,
+      cacheHits: 0,
+      cacheMisses: 0,
+      searches: 0,
+      expandedNodes: 0,
+      budgetExhaustions: 0,
+      accessibleSearches: 0,
+    };
+    if (!before || !after) return empty;
+    return {
+      pathRequests: after.pathRequests - before.pathRequests,
+      cacheHits: after.cacheHits - before.cacheHits,
+      cacheMisses: after.cacheMisses - before.cacheMisses,
+      searches: after.searches - before.searches,
+      expandedNodes: after.expandedNodes - before.expandedNodes,
+      budgetExhaustions: after.budgetExhaustions - before.budgetExhaustions,
+      accessibleSearches: after.accessibleSearches - before.accessibleSearches,
+    };
   }
 }

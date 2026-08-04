@@ -22,6 +22,7 @@ export function bindGameRuntimeEvents(
   game.cityManager.setGameplayEventObserver(event => {
     switch (event.type) {
       case 'founded':
+        game.pathfindingManager.invalidateCache();
         gameEvents.recordCityFounded(event.city);
         break;
       case 'growth':
@@ -45,6 +46,10 @@ export function bindGameRuntimeEvents(
     if (event.type === 'created' || event.type === 'moved' || event.type === 'owner_changed') {
       void game.unitManager.wakeSentriesForUnit(event.unit);
     }
+    // Unit occupancy, ownership, and transport relationships are part of the
+    // authoritative movement policy. Any lifecycle change invalidates the
+    // current turn's route/reachability reuse scope.
+    game.pathfindingManager.invalidateCache();
     onUnitLifecycle(event);
   });
 }

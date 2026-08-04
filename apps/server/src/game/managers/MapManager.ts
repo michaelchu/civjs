@@ -271,6 +271,11 @@ export class MapManager {
     return this.mapAccessService.getMapData();
   }
 
+  /** Monotonic movement-relevant map revision used by scoped path caches. */
+  public getRevision(): number {
+    return this.mapAccessService.getRevision();
+  }
+
   public getTopology(): MapTopology {
     return this.mapAccessService.getTopology();
   }

@@ -45,6 +45,7 @@ import { buildCityThreatTravelTimes, cityThreatTravelKey } from '@game/ai/AICity
 import { GAME_DEFAULT_CITYMINDIST } from '@game/managers/CityManager';
 import type { CityState } from '@game/cities/CityTypes';
 import { planDefenderAirlift } from '@game/ai/AIAirliftPlanner';
+import type { AIPlanningBudgetLike } from '@game/ai/AIPlanningBudget';
 
 function unitAttack(type: UnitType): number {
   return type.attack ?? type.combat ?? 0;
@@ -113,7 +114,15 @@ function isAvailableExplorer(
  * through authoritative unit and city managers.
  */
 export class FreecivAIUnitController {
+  private planningInvocation = 0;
+
   constructor(private readonly hostilityPolicy: DiplomacyHostilityPolicy) {}
+
+  private planningBudget(game: GameInstance): AIPlanningBudgetLike {
+    return {
+      consumePlanningStep: () => game.pathfindingManager.consumePlanningStep?.() ?? true,
+    };
+  }
 
   private isBarbarianLeader(game: GameInstance, unit: Unit): boolean {
     return Boolean(
@@ -665,6 +674,7 @@ export class FreecivAIUnitController {
       getNeighbors: (x, y) => game.mapManager.getNeighbors(x, y),
       findPath: (unit, targetX, targetY) =>
         game.pathfindingManager.findPath(unit, targetX, targetY),
+      budget: this.planningBudget(game),
     });
     const campaign = planMilitaryCampaign({
       attackers,
@@ -842,6 +852,7 @@ export class FreecivAIUnitController {
       getType: unitTypeId => game.unitManager.getUnitType(unitTypeId),
       findPath: (unit, targetX, targetY) =>
         game.pathfindingManager.findPath(unit, targetX, targetY),
+      budget: this.planningBudget(game),
       hasAcceleratedRegeneration: (unit, city) =>
         game.unitManager.calculateUnitHitpointRecovery(unit, city.x, city.y).regeneration > 0,
     });
@@ -895,6 +906,7 @@ export class FreecivAIUnitController {
       distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
       findPath: (unit, targetX, targetY) =>
         game.pathfindingManager.findPath(unit, targetX, targetY),
+      budget: this.planningBudget(game),
     });
     const plan = planCityGuards({
       turn: game.currentTurn,
@@ -953,6 +965,7 @@ export class FreecivAIUnitController {
       distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
       findPath: (unit, targetX, targetY) =>
         game.pathfindingManager.findPath(unit, targetX, targetY),
+      budget: this.planningBudget(game),
     });
     const guardPlan = planCityGuards({
       turn: game.currentTurn,
@@ -1333,6 +1346,7 @@ export class FreecivAIUnitController {
         return relations.hostile.has(tile.owner);
       },
     };
+    const explorationCacheKey = `exploration:${game.id}:${playerId}:${game.currentTurn}:${this.planningInvocation++}`;
     const plan = await planExploration({
       turn: game.currentTurn,
       playerId,
@@ -1344,9 +1358,11 @@ export class FreecivAIUnitController {
         game.mapManager.getTopology().squaredDistance(fromX, fromY, toX, toY),
       findPath: (unit, targetX, targetY) =>
         game.pathfindingManager.findPath(unit, targetX, targetY, {
+          cacheKey: explorationCacheKey,
           additionalStepCost: (actor, _fromX, _fromY, toX, toY) =>
             explorationAdditionalStepCost(routeContext, actor, toX, toY),
         }),
+      budget: this.planningBudget(game),
       knowsHuts: !profile.handicaps.has('huts'),
     });
     this.replaceExplorationTasks(state, plan);

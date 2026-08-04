@@ -8,6 +8,7 @@ import type { GameInstance } from '@game/runtime/GameTypes';
 import type { Unit } from '@game/units/UnitTypes';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 import { getVeteranLevel } from '@game/units/UnitVeterancy';
+import type { AIPlanningBudgetLike } from '@game/ai/AIPlanningBudget';
 
 export interface CityDangerAssessment {
   city: CityState;
@@ -41,6 +42,7 @@ export interface CityThreatTravelPlanningContext {
     targetX: number,
     targetY: number
   ) => Promise<{ valid: boolean; estimatedTurns: number }>;
+  budget?: AIPlanningBudgetLike;
 }
 
 function healthPoints(unit: Unit, type: UnitType): number {
@@ -96,41 +98,50 @@ export async function buildCityThreatTravelTimes(
   context: CityThreatTravelPlanningContext
 ): Promise<Map<string, number>> {
   const travelTimes = new Map<string, number>();
-  await Promise.all(
-    context.threateningUnits.flatMap(unit =>
-      context.cities.map(async city => {
-        const type = context.getType(unit.unitTypeId);
-        if (!type) return;
-        const candidates: number[] = [];
+  const pathMemo = new Map<string, Promise<{ valid: boolean; estimatedTurns: number }>>();
+  const findMemoizedPath = (unit: Unit, city: CityState) => {
+    const key = `${unit.id}:${city.id}:${city.x},${city.y}`;
+    const existing = pathMemo.get(key);
+    if (existing) return existing;
+    const path = context.findPath(unit, city.x, city.y);
+    pathMemo.set(key, path);
+    return path;
+  };
 
-        if (type.paratroopersRange > 0) {
-          candidates.push(
-            Math.floor(context.distance(unit.x, unit.y, city.x, city.y) / type.paratroopersRange)
-          );
-        }
+  for (const unit of context.threateningUnits) {
+    for (const city of context.cities) {
+      if (context.budget && !context.budget.consumePlanningStep()) return travelTimes;
+      const type = context.getType(unit.unitTypeId);
+      if (!type) continue;
+      const candidates: number[] = [];
 
-        const path = await context.findPath(unit, city.x, city.y);
-        if (path.valid) candidates.push(path.estimatedTurns);
+      if (type.paratroopersRange > 0) {
+        candidates.push(
+          Math.floor(context.distance(unit.x, unit.y, city.x, city.y) / type.paratroopersRange)
+        );
+      }
 
-        if (unit.transportedBy) {
-          const carrier = context.getUnit(unit.transportedBy);
-          if (carrier) {
-            const carrierPath = await context.findPath(carrier, city.x, city.y);
-            if (carrierPath.valid) {
-              const canAttackFromTransport =
-                type.flags?.includes('Marines') === true ||
-                type.rulesetUnitClassFlags?.includes('AttFromNonNative') === true;
-              candidates.push(carrierPath.estimatedTurns + (canAttackFromTransport ? 0 : 1));
-            }
+      const path = await findMemoizedPath(unit, city);
+      if (path.valid) candidates.push(path.estimatedTurns);
+
+      if (unit.transportedBy) {
+        const carrier = context.getUnit(unit.transportedBy);
+        if (carrier) {
+          const carrierPath = await findMemoizedPath(carrier, city);
+          if (carrierPath.valid) {
+            const canAttackFromTransport =
+              type.flags?.includes('Marines') === true ||
+              type.rulesetUnitClassFlags?.includes('AttFromNonNative') === true;
+            candidates.push(carrierPath.estimatedTurns + (canAttackFromTransport ? 0 : 1));
           }
         }
+      }
 
-        if (candidates.length > 0) {
-          travelTimes.set(cityThreatTravelKey(unit.id, city.id), Math.min(...candidates));
-        }
-      })
-    )
-  );
+      if (candidates.length > 0) {
+        travelTimes.set(cityThreatTravelKey(unit.id, city.id), Math.min(...candidates));
+      }
+    }
+  }
   return travelTimes;
 }
 

@@ -7,6 +7,7 @@ import type { MapData, MapTile } from '@game/managers/MapManager';
 import type { PathfindingResult } from '@game/managers/PathfindingManager';
 import type { Unit } from '@game/units/UnitTypes';
 import type { UnitType } from '@game/services/RulesetUnitsService';
+import type { AIPlanningBudgetLike } from '@game/ai/AIPlanningBudget';
 
 const DISTANCE_FACTOR = 0.6;
 const SAME_TERRAIN_SCORE = 21;
@@ -44,6 +45,7 @@ export interface ExplorerPlanningContext {
   distance: (fromX: number, fromY: number, toX: number, toY: number) => number;
   squaredDistance: (fromX: number, fromY: number, toX: number, toY: number) => number;
   findPath: (unit: Unit, targetX: number, targetY: number) => Promise<PathfindingResult>;
+  budget?: AIPlanningBudgetLike;
   mayExploreTile: (unit: Unit, tile: MapTile) => boolean;
   knowsHuts: boolean;
 }
@@ -222,8 +224,10 @@ function initialCandidateWant(
 async function rankedAssignmentsForUnit(
   context: ExplorerPlanningContext,
   unit: Unit,
-  reserved: ReadonlySet<string>
+  reserved: ReadonlySet<string>,
+  pathMemo: Map<string, Promise<PathfindingResult>>
 ): Promise<ExplorerAssignment[]> {
+  if (context.budget && !context.budget.consumePlanningStep()) return [];
   const existing = context.existingTasks[unit.id];
   const candidates = context.map.tiles
     .flat()
@@ -244,12 +248,20 @@ async function rankedAssignmentsForUnit(
   );
   if (previous && !shortlisted.includes(previous)) shortlisted.push(previous);
 
-  const reached = await Promise.all(
-    shortlisted.map(async candidate => ({
+  const reached: Array<(typeof shortlisted)[number] & { path: PathfindingResult }> = [];
+  for (const candidate of shortlisted) {
+    if (context.budget && !context.budget.consumePlanningStep()) break;
+    const pathKey = `${unit.id}:${unit.x},${unit.y}:${unit.movementLeft}:${candidate.tile.x},${candidate.tile.y}`;
+    let pathPromise = pathMemo.get(pathKey);
+    if (!pathPromise) {
+      pathPromise = context.findPath(unit, candidate.tile.x, candidate.tile.y);
+      pathMemo.set(pathKey, pathPromise);
+    }
+    reached.push({
       ...candidate,
-      path: await context.findPath(unit, candidate.tile.x, candidate.tile.y),
-    }))
-  );
+      path: await pathPromise,
+    });
+  }
   return reached
     .filter(candidate => candidate.path.valid && candidate.path.path.length > 1)
     .filter(candidate => pathUsesKnownLegalTiles(context, candidate.path, unit))
@@ -284,8 +296,10 @@ export async function planExploration(context: ExplorerPlanningContext): Promise
   const assignments: ExplorerAssignment[] = [];
   const tasks: Record<string, AIUnitTask> = {};
   const reserved = new Set<string>();
+  const pathMemo = new Map<string, Promise<PathfindingResult>>();
   for (const unit of context.units.slice().sort((a, b) => a.id.localeCompare(b.id))) {
-    const assignment = (await rankedAssignmentsForUnit(context, unit, reserved))[0];
+    if (context.budget && !context.budget.consumePlanningStep()) break;
+    const assignment = (await rankedAssignmentsForUnit(context, unit, reserved, pathMemo))[0];
     if (!assignment) continue;
     assignments.push(assignment);
     reserved.add(tileKey(assignment.tile.x, assignment.tile.y));

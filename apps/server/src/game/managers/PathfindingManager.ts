@@ -20,6 +20,7 @@ export interface PathfindingResult {
   estimatedTurns: number;
   valid: boolean;
   weightedCost?: number;
+  budgetExceeded?: boolean;
 }
 
 export interface PathfindingOptions {
@@ -34,6 +35,16 @@ export interface PathfindingOptions {
     toX: number,
     toY: number
   ) => number;
+  /**
+   * Stable identity for an additive planning policy. Paths using a callback
+   * are cached only when the caller supplies this key because function
+   * identity alone cannot prove that two closures have the same policy.
+   */
+  cacheKey?: string;
+  /** Maximum nodes this individual search may expand. */
+  maxIterations?: number;
+  /** Optional cooperative budget for this search. */
+  budget?: PathfindingBudget;
 }
 
 export interface AccessibleTile {
@@ -50,6 +61,116 @@ interface AStarNode {
   fCost: number; // Total cost (g + h)
   parent: AStarNode | null;
   moveCost: number; // Cost to move to this tile
+  queueOrder: number;
+}
+
+interface AccessibleQueueEntry {
+  tile: AccessibleTile;
+  order: number;
+}
+
+interface AStarSearchResult {
+  path: AStarNode[] | null;
+  budgetExceeded: boolean;
+}
+
+export interface PathfindingBudget {
+  canStartSearch(): boolean;
+  consumeSearchNode(): boolean;
+  consumePlanningStep?(): boolean;
+}
+
+export interface PathfindingDiagnostics {
+  pathRequests: number;
+  cacheHits: number;
+  cacheMisses: number;
+  searches: number;
+  expandedNodes: number;
+  budgetExhaustions: number;
+  accessibleSearches: number;
+}
+
+/**
+ * Small binary min-heap used by pathfinding's open sets. The position map
+ * makes decrease-key updates O(log n) while retaining stable insertion-order
+ * tie breaking in the A* comparator.
+ */
+export class BinaryMinHeap<T> {
+  private readonly items: T[] = [];
+  private readonly positions = new Map<T, number>();
+
+  constructor(private readonly compare: (left: T, right: T) => number) {}
+
+  get size(): number {
+    return this.items.length;
+  }
+
+  push(item: T): void {
+    if (this.positions.has(item)) {
+      throw new Error('BinaryMinHeap cannot contain the same item twice');
+    }
+    this.positions.set(item, this.items.length);
+    this.items.push(item);
+    this.siftUp(this.items.length - 1);
+  }
+
+  pop(): T | undefined {
+    const root = this.items[0];
+    if (root === undefined) return undefined;
+    const last = this.items.pop()!;
+    this.positions.delete(root);
+    if (this.items.length > 0) {
+      this.items[0] = last;
+      this.positions.set(last, 0);
+      this.siftDown(0);
+    }
+    return root;
+  }
+
+  /** Re-establishes heap order after an item's priority changes. */
+  update(item: T): void {
+    const index = this.positions.get(item);
+    if (index === undefined) return;
+    this.siftUp(index);
+    this.siftDown(this.positions.get(item)!);
+  }
+
+  private siftUp(start: number): void {
+    let index = start;
+    while (index > 0) {
+      const parent = Math.floor((index - 1) / 2);
+      if (this.compare(this.items[index], this.items[parent]) >= 0) break;
+      this.swap(index, parent);
+      index = parent;
+    }
+  }
+
+  private siftDown(start: number): void {
+    let index = start;
+    while (true) {
+      const left = index * 2 + 1;
+      const right = left + 1;
+      let smallest = index;
+      if (left < this.items.length && this.compare(this.items[left], this.items[smallest]) < 0) {
+        smallest = left;
+      }
+      if (right < this.items.length && this.compare(this.items[right], this.items[smallest]) < 0) {
+        smallest = right;
+      }
+      if (smallest === index) return;
+      this.swap(index, smallest);
+      index = smallest;
+    }
+  }
+
+  private swap(left: number, right: number): void {
+    const leftItem = this.items[left];
+    const rightItem = this.items[right];
+    this.items[left] = rightItem;
+    this.items[right] = leftItem;
+    this.positions.set(leftItem, right);
+    this.positions.set(rightItem, left);
+  }
 }
 
 export interface PathfindingMovementPolicy {
@@ -80,6 +201,13 @@ export class PathfindingManager {
   private mapManager: any; // MapManager instance for terrain access
   private topology: MapTopology;
   private movementPolicy?: PathfindingMovementPolicy;
+  private activeBudget?: PathfindingBudget;
+  private cacheTurn?: number;
+  private cacheVersion = 0;
+  private readonly pathCache = new Map<string, PathfindingResult>();
+  private readonly accessibleCache = new Map<string, AccessibleTile[]>();
+  private readonly maxCacheEntries = 4_096;
+  private diagnostics: PathfindingDiagnostics = this.emptyDiagnostics();
 
   constructor(
     mapWidth: number,
@@ -92,6 +220,39 @@ export class PathfindingManager {
     this.mapManager = mapManager;
     this.topology = mapManager?.getTopology?.() ?? new MapTopology(mapWidth, mapHeight);
     this.movementPolicy = movementPolicy;
+  }
+
+  /** Starts a bounded path-cache scope for a single authoritative turn. */
+  beginTurn(turn: number): void {
+    this.cacheTurn = turn;
+    this.invalidateCache();
+  }
+
+  /** Invalidates all cached route/reachability results after world changes. */
+  invalidateCache(): void {
+    this.cacheVersion++;
+    this.pathCache.clear();
+    this.accessibleCache.clear();
+  }
+
+  setPlanningBudget(budget?: PathfindingBudget): void {
+    this.activeBudget = budget;
+  }
+
+  consumePlanningStep(): boolean {
+    return this.activeBudget?.consumePlanningStep?.() ?? true;
+  }
+
+  getDiagnostics(): PathfindingDiagnostics {
+    return { ...this.diagnostics };
+  }
+
+  resetDiagnostics(): void {
+    this.diagnostics = this.emptyDiagnostics();
+  }
+
+  getCacheSizes(): { paths: number; accessible: number } {
+    return { paths: this.pathCache.size, accessible: this.accessibleCache.size };
   }
 
   /**
@@ -109,6 +270,7 @@ export class PathfindingManager {
     options: PathfindingOptions = {}
   ): Promise<PathfindingResult> {
     const startTime = Date.now();
+    this.diagnostics.pathRequests++;
 
     logger.debug('PathfindingManager.findPath called', {
       unitId: unit.id,
@@ -127,12 +289,7 @@ export class PathfindingManager {
           targetY,
           mapSize: `${this.mapWidth}x${this.mapHeight}`,
         });
-        return {
-          path: [],
-          totalCost: 0,
-          estimatedTurns: 0,
-          valid: false,
-        };
+        return this.invalidResult();
       }
 
       // Check if already at target
@@ -145,22 +302,48 @@ export class PathfindingManager {
         };
       }
 
-      // Run A* pathfinding
-      const path = this.aStar({ x: unit.x, y: unit.y }, { x: targetX, y: targetY }, unit, options);
-
-      if (!path || path.length === 0) {
-        return {
-          path: [],
-          totalCost: 0,
-          estimatedTurns: 0,
-          valid: false,
-        };
+      const cacheKey = this.pathCacheKey(unit, targetX, targetY, options);
+      if (cacheKey !== undefined) {
+        const cached = this.pathCache.get(cacheKey);
+        if (cached) {
+          this.diagnostics.cacheHits++;
+          return this.clonePathResult(cached);
+        }
+        this.diagnostics.cacheMisses++;
       }
 
-      const result = this.buildSuccessfulResult(path, unit, options);
+      const budget = options.budget ?? this.activeBudget;
+      if (budget && !budget.canStartSearch()) {
+        this.diagnostics.budgetExhaustions++;
+        return this.invalidResult(true);
+      }
+      this.diagnostics.searches++;
+
+      // Run A* pathfinding
+      const search = this.aStar(
+        { x: unit.x, y: unit.y },
+        { x: targetX, y: targetY },
+        unit,
+        options,
+        budget
+      );
+
+      if (search.budgetExceeded) {
+        this.diagnostics.budgetExhaustions++;
+        return this.invalidResult(true);
+      }
+
+      if (!search.path || search.path.length === 0) {
+        const result = this.invalidResult();
+        if (cacheKey !== undefined) this.cachePathResult(cacheKey, result);
+        return result;
+      }
+
+      const result = this.buildSuccessfulResult(search.path, unit, options);
+      if (cacheKey !== undefined) this.cachePathResult(cacheKey, result);
 
       const duration = Date.now() - startTime;
-      logger.info('Pathfinding completed', {
+      logger.debug('Pathfinding completed', {
         unitId: unit.id,
         from: { x: unit.x, y: unit.y },
         to: { x: targetX, y: targetY },
@@ -179,12 +362,7 @@ export class PathfindingManager {
         error: error instanceof Error ? error.message : String(error),
       });
 
-      return {
-        path: [],
-        totalCost: 0,
-        estimatedTurns: 0,
-        valid: false,
-      };
+      return this.invalidResult();
     }
   }
 
@@ -214,25 +392,49 @@ export class PathfindingManager {
   findAccessibleTiles(unit: Unit, availableMovement: number = unit.movementLeft): AccessibleTile[] {
     if (!this.movementPolicy || availableMovement < 0) return [];
 
+    const cacheKey = this.accessibleCacheKey(unit, availableMovement);
+    const cached = cacheKey === undefined ? undefined : this.accessibleCache.get(cacheKey);
+    if (cached) {
+      this.diagnostics.cacheHits++;
+      return cached.map(tile => ({ ...tile }));
+    }
+    if (cacheKey !== undefined) this.diagnostics.cacheMisses++;
+    const budget = this.activeBudget;
+    if (budget && !budget.canStartSearch()) {
+      this.diagnostics.budgetExhaustions++;
+      return [];
+    }
+    this.diagnostics.accessibleSearches++;
+
     const bestRemaining = new Map<string, number>();
-    const queue: AccessibleTile[] = [
-      { x: unit.x, y: unit.y, remainingMovement: availableMovement },
-    ];
+    const queue = new BinaryMinHeap<AccessibleQueueEntry>((left, right) => {
+      return right.tile.remainingMovement - left.tile.remainingMovement || left.order - right.order;
+    });
+    let nextOrder = 0;
+    queue.push({
+      tile: { x: unit.x, y: unit.y, remainingMovement: availableMovement },
+      order: nextOrder++,
+    });
     bestRemaining.set(`${unit.x},${unit.y}`, availableMovement);
 
-    while (queue.length > 0) {
-      queue.sort((left, right) => right.remainingMovement - left.remainingMovement);
-      const current = queue.shift()!;
+    while (queue.size > 0) {
+      if (budget && !budget.consumeSearchNode()) {
+        this.diagnostics.budgetExhaustions++;
+        return [];
+      }
+      const current = queue.pop()!.tile;
       const currentKey = `${current.x},${current.y}`;
       if (current.remainingMovement < (bestRemaining.get(currentKey) ?? -1)) continue;
       if (!this.canExpandAccessibleTile(unit, current)) continue;
-      this.enqueueAccessibleNeighbors(unit, current, bestRemaining, queue);
+      this.enqueueAccessibleNeighbors(unit, current, bestRemaining, queue, () => nextOrder++);
     }
 
-    return [...bestRemaining.entries()].map(([key, remainingMovement]) => {
+    const result = [...bestRemaining.entries()].map(([key, remainingMovement]) => {
       const [x, y] = key.split(',').map(Number);
       return { x, y, remainingMovement };
     });
+    if (cacheKey !== undefined) this.cacheAccessibleResult(cacheKey, result);
+    return result.map(tile => ({ ...tile }));
   }
 
   private canExpandAccessibleTile(unit: Unit, tile: AccessibleTile): boolean {
@@ -247,7 +449,8 @@ export class PathfindingManager {
     unit: Unit,
     current: AccessibleTile,
     bestRemaining: Map<string, number>,
-    queue: AccessibleTile[]
+    queue: BinaryMinHeap<AccessibleQueueEntry>,
+    nextOrder: () => number
   ): void {
     for (const neighbor of this.getNeighbors(current.x, current.y)) {
       const moveCost = this.movementPolicy!.getPathStepCost(
@@ -266,7 +469,7 @@ export class PathfindingManager {
       const key = `${neighbor.x},${neighbor.y}`;
       if (remainingMovement <= (bestRemaining.get(key) ?? -1)) continue;
       bestRemaining.set(key, remainingMovement);
-      queue.push({ ...neighbor, remainingMovement });
+      queue.push({ tile: { ...neighbor, remainingMovement }, order: nextOrder() });
     }
   }
 
@@ -278,20 +481,28 @@ export class PathfindingManager {
     start: { x: number; y: number },
     goal: { x: number; y: number },
     unit: Unit,
-    options: PathfindingOptions
-  ): AStarNode[] | null {
+    options: PathfindingOptions,
+    budget?: PathfindingBudget
+  ): AStarSearchResult {
     const { openSet, closedSet, nodes } = this.initializeAStarSearch(start, goal);
 
     let iterations = 0;
-    const maxIterations = this.mapWidth * this.mapHeight;
+    const maxIterations = Math.min(
+      this.mapWidth * this.mapHeight,
+      Math.max(0, options.maxIterations ?? this.mapWidth * this.mapHeight)
+    );
 
-    while (openSet.length > 0 && iterations < maxIterations) {
+    while (openSet.size > 0 && iterations < maxIterations) {
+      if (budget && !budget.consumeSearchNode()) {
+        return { path: null, budgetExceeded: true };
+      }
       iterations++;
+      this.diagnostics.expandedNodes++;
 
       const current = this.processCurrentNode(openSet, closedSet);
 
       if (current.x === goal.x && current.y === goal.y) {
-        return this.reconstructPath(current);
+        return { path: this.reconstructPath(current), budgetExceeded: false };
       }
 
       this.processNeighbors(current, goal, unit, options, openSet, closedSet, nodes);
@@ -306,14 +517,18 @@ export class PathfindingManager {
       maxIterations,
     });
 
-    return null;
+    return { path: null, budgetExceeded: false };
   }
 
   /**
    * Initialize A* search data structures
    */
   private initializeAStarSearch(start: { x: number; y: number }, goal: { x: number; y: number }) {
-    const openSet: AStarNode[] = [];
+    const openSet = new BinaryMinHeap<AStarNode>((left, right) => {
+      return (
+        left.fCost - right.fCost || left.hCost - right.hCost || left.queueOrder - right.queueOrder
+      );
+    });
     const closedSet = new Set<string>();
     const nodes = new Map<string, AStarNode>();
 
@@ -325,6 +540,7 @@ export class PathfindingManager {
       fCost: 0,
       parent: null,
       moveCost: 0,
+      queueOrder: 0,
     };
     startNode.fCost = startNode.gCost + startNode.hCost;
 
@@ -337,10 +553,8 @@ export class PathfindingManager {
   /**
    * Process current node in A* algorithm
    */
-  private processCurrentNode(openSet: AStarNode[], closedSet: Set<string>): AStarNode {
-    const current = this.getLowestFCostNode(openSet);
-    const currentIndex = openSet.indexOf(current);
-    openSet.splice(currentIndex, 1);
+  private processCurrentNode(openSet: BinaryMinHeap<AStarNode>, closedSet: Set<string>): AStarNode {
+    const current = openSet.pop()!;
     closedSet.add(`${current.x},${current.y}`);
     return current;
   }
@@ -353,7 +567,7 @@ export class PathfindingManager {
     goal: { x: number; y: number },
     unit: Unit,
     options: PathfindingOptions,
-    openSet: AStarNode[],
+    openSet: BinaryMinHeap<AStarNode>,
     closedSet: Set<string>,
     nodes: Map<string, AStarNode>
   ) {
@@ -373,7 +587,7 @@ export class PathfindingManager {
     goal: { x: number; y: number },
     unit: Unit,
     options: PathfindingOptions,
-    openSet: AStarNode[],
+    openSet: BinaryMinHeap<AStarNode>,
     closedSet: Set<string>,
     nodes: Map<string, AStarNode>
   ) {
@@ -403,7 +617,14 @@ export class PathfindingManager {
     let neighborNode = nodes.get(neighborKey);
 
     if (!neighborNode) {
-      neighborNode = this.createNeighborNode(neighbor, tentativeGCost, goal, current, moveCost);
+      neighborNode = this.createNeighborNode(
+        neighbor,
+        tentativeGCost,
+        goal,
+        current,
+        moveCost,
+        nodes.size
+      );
       nodes.set(neighborKey, neighborNode);
       openSet.push(neighborNode);
     } else if (tentativeGCost < neighborNode.gCost) {
@@ -419,7 +640,8 @@ export class PathfindingManager {
     gCost: number,
     goal: { x: number; y: number },
     parent: AStarNode,
-    moveCost: number
+    moveCost: number,
+    queueOrder: number
   ): AStarNode {
     const neighborNode: AStarNode = {
       x: neighbor.x,
@@ -429,6 +651,7 @@ export class PathfindingManager {
       fCost: 0,
       parent,
       moveCost,
+      queueOrder,
     };
     neighborNode.fCost = neighborNode.gCost + neighborNode.hCost;
     return neighborNode;
@@ -442,16 +665,14 @@ export class PathfindingManager {
     gCost: number,
     parent: AStarNode,
     moveCost: number,
-    openSet: AStarNode[]
+    openSet: BinaryMinHeap<AStarNode>
   ) {
     neighborNode.gCost = gCost;
     neighborNode.fCost = neighborNode.gCost + neighborNode.hCost;
     neighborNode.parent = parent;
     neighborNode.moveCost = moveCost;
 
-    if (!openSet.includes(neighborNode)) {
-      openSet.push(neighborNode);
-    }
+    openSet.update(neighborNode);
   }
 
   /**
@@ -467,22 +688,6 @@ export class PathfindingManager {
     }
 
     return path;
-  }
-
-  /**
-   * Find node with lowest fCost in open set
-   */
-  private getLowestFCostNode(openSet: AStarNode[]): AStarNode {
-    let lowest = openSet[0];
-
-    for (let i = 1; i < openSet.length; i++) {
-      const node = openSet[i];
-      if (node.fCost < lowest.fCost || (node.fCost === lowest.fCost && node.hCost < lowest.hCost)) {
-        lowest = node;
-      }
-    }
-
-    return lowest;
   }
 
   /**
@@ -622,5 +827,114 @@ export class PathfindingManager {
       this.movementPolicy?.getUnitMaxMovement(unit.unitTypeId) || unit.movementLeft || 3;
 
     return Math.ceil(totalCost / movementPerTurn);
+  }
+
+  private emptyDiagnostics(): PathfindingDiagnostics {
+    return {
+      pathRequests: 0,
+      cacheHits: 0,
+      cacheMisses: 0,
+      searches: 0,
+      expandedNodes: 0,
+      budgetExhaustions: 0,
+      accessibleSearches: 0,
+    };
+  }
+
+  private invalidResult(budgetExceeded = false): PathfindingResult {
+    return {
+      path: [],
+      totalCost: 0,
+      estimatedTurns: 0,
+      valid: false,
+      ...(budgetExceeded ? { budgetExceeded: true } : {}),
+    };
+  }
+
+  private clonePathResult(result: PathfindingResult): PathfindingResult {
+    return {
+      ...result,
+      path: result.path.map(tile => ({ ...tile })),
+    };
+  }
+
+  private pathCacheKey(
+    unit: Unit,
+    targetX: number,
+    targetY: number,
+    options: PathfindingOptions
+  ): string | undefined {
+    if (options.additionalStepCost && options.cacheKey === undefined) return undefined;
+    const mapRevision = this.getMapRevision();
+    if (mapRevision === undefined) return undefined;
+    const policy = options.additionalStepCost ? `additional:${options.cacheKey}` : 'authoritative';
+    return [
+      this.cacheTurn ?? 'unscoped',
+      this.cacheVersion,
+      mapRevision,
+      policy,
+      this.unitCacheKey(unit),
+      targetX,
+      targetY,
+      options.maxIterations ?? 'default',
+    ].join('|');
+  }
+
+  private accessibleCacheKey(unit: Unit, availableMovement: number): string | undefined {
+    const mapRevision = this.getMapRevision();
+    if (mapRevision === undefined) return undefined;
+    return [
+      this.cacheTurn ?? 'unscoped',
+      this.cacheVersion,
+      mapRevision,
+      'accessible',
+      this.unitCacheKey(unit),
+      availableMovement,
+    ].join('|');
+  }
+
+  private unitCacheKey(unit: Unit): string {
+    return [
+      unit.id,
+      unit.playerId,
+      unit.unitTypeId,
+      unit.x,
+      unit.y,
+      unit.movementLeft,
+      unit.health,
+      unit.veteranLevel,
+      unit.experience,
+      unit.transportedBy ?? '',
+      unit.fortified ? 1 : 0,
+      unit.sentryUntil ?? '',
+      unit.cargoUnits?.join(',') ?? '',
+    ].join(',');
+  }
+
+  private getMapRevision(): number | undefined {
+    if (typeof this.mapManager?.getRevision !== 'function') return undefined;
+    const revision = this.mapManager?.getRevision?.();
+    return typeof revision === 'number' && Number.isFinite(revision) ? revision : 0;
+  }
+
+  private cachePathResult(key: string, result: PathfindingResult): void {
+    this.pathCache.set(key, this.clonePathResult(result));
+    this.trimCache(this.pathCache);
+  }
+
+  private cacheAccessibleResult(key: string, result: AccessibleTile[]): void {
+    this.accessibleCache.set(
+      key,
+      result.map(tile => ({ ...tile }))
+    );
+    this.trimCache(this.accessibleCache);
+  }
+
+  private trimCache<T>(cache: Map<string, T>): void {
+    while (cache.size > this.maxCacheEntries) {
+      const oldest = cache.keys().next().value as string | undefined;
+      if (oldest === undefined) return;
+      cache.delete(oldest);
+    }
   }
 }

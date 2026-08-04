@@ -6,6 +6,7 @@ import { amortize } from '@game/ai/AIPlanner';
 import type { CityState } from '@game/cities/CityTypes';
 import type { Unit } from '@game/units/UnitTypes';
 import type { UnitType } from '@game/services/RulesetUnitsService';
+import type { AIPlanningBudgetLike } from '@game/ai/AIPlanningBudget';
 
 const SHIELD_WEIGHTING = 17;
 const TRADE_WEIGHTING = 18;
@@ -88,6 +89,7 @@ export interface MilitaryTravelPlanningContext {
     targetX: number,
     targetY: number
   ) => Promise<{ valid: boolean; estimatedTurns: number }>;
+  budget?: AIPlanningBudgetLike;
 }
 
 export function militaryTravelKey(unitId: string, x: number, y: number): string {
@@ -101,22 +103,45 @@ export async function buildMilitaryTravelTimes(
   const targets = new Map(
     context.targets.map(target => [`${target.x},${target.y}`, target] as const)
   );
-  await Promise.all(
-    context.attackers.flatMap(attacker =>
-      [...targets.values()].map(async target => {
-        const destinations = [target, ...context.getNeighbors(target.x, target.y)];
-        const paths = await Promise.all(
-          destinations.map(destination => context.findPath(attacker, destination.x, destination.y))
-        );
-        const validTurns = paths
-          .filter(path => path.valid)
-          .map(path => Math.max(0, path.estimatedTurns));
-        if (validTurns.length > 0) {
-          times.set(militaryTravelKey(attacker.id, target.x, target.y), Math.min(...validTurns));
-        }
-      })
-    )
-  );
+  for (const attacker of context.attackers) {
+    if (context.budget && !context.budget.consumePlanningStep()) break;
+
+    // A target's own tile is also a neighbor of another target surprisingly
+    // often on crowded maps. Resolve each attacker/destination pair once and
+    // fan the result back out to every objective that needs it.
+    const destinationsByTarget = new Map<string, string[]>();
+    const uniqueDestinations = new Map<string, { x: number; y: number }>();
+    for (const target of targets.values()) {
+      const destinationKeys: string[] = [];
+      for (const destination of [target, ...context.getNeighbors(target.x, target.y)]) {
+        const key = `${destination.x},${destination.y}`;
+        if (!uniqueDestinations.has(key)) uniqueDestinations.set(key, destination);
+        if (!destinationKeys.includes(key)) destinationKeys.push(key);
+      }
+      destinationsByTarget.set(`${target.x},${target.y}`, destinationKeys);
+    }
+
+    const pathByDestination = new Map<
+      string,
+      Promise<{ valid: boolean; estimatedTurns: number }>
+    >();
+    for (const [key, destination] of uniqueDestinations) {
+      if (context.budget && !context.budget.consumePlanningStep()) break;
+      pathByDestination.set(key, context.findPath(attacker, destination.x, destination.y));
+    }
+    const resolvedPaths = new Map<string, { valid: boolean; estimatedTurns: number }>();
+    for (const [key, path] of pathByDestination) resolvedPaths.set(key, await path);
+
+    for (const target of targets.values()) {
+      const validTurns = (destinationsByTarget.get(`${target.x},${target.y}`) ?? [])
+        .map(key => resolvedPaths.get(key))
+        .filter((path): path is { valid: boolean; estimatedTurns: number } => Boolean(path?.valid))
+        .map(path => Math.max(0, path.estimatedTurns));
+      if (validTurns.length > 0) {
+        times.set(militaryTravelKey(attacker.id, target.x, target.y), Math.min(...validTurns));
+      }
+    }
+  }
   return times;
 }
 
