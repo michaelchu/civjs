@@ -108,6 +108,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     targetTile: null,
     currentPath: null,
   });
+  const gotoPreviewRequestIdRef = useRef(0);
   const [targetActionMode, setTargetActionMode] = useState<{
     unit: Unit;
     action: ActionType;
@@ -201,6 +202,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     const handleActivateGoto = (event: CustomEvent) => {
       const { unit } = event.detail;
       if (unit && unit.playerId === currentPlayerId && focusedUnits.includes(unit.id)) {
+        gotoPreviewRequestIdRef.current += 1;
         setGotoMode({
           active: true,
           unit,
@@ -823,6 +825,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
   // Deactivate goto mode
   const deactivateGotoMode = useCallback(() => {
+    gotoPreviewRequestIdRef.current += 1;
+
     // Clear the goto state
     setGotoMode({
       active: false,
@@ -843,42 +847,41 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     async (targetX: number, targetY: number) => {
       if (!gotoMode.unit) return;
 
-      console.log(`Requesting path for unit ${gotoMode.unit.id} to (${targetX}, ${targetY})`);
+      const unitId = gotoMode.unit.id;
+      const requestId = ++gotoPreviewRequestIdRef.current;
+      console.log(`Requesting path for unit ${unitId} to (${targetX}, ${targetY})`);
 
       try {
-        const pathResult = await pathfindingService.requestPathResult(
-          gotoMode.unit.id,
-          targetX,
-          targetY
-        );
+        const pathResult = await pathfindingService.requestPathResult(unitId, targetX, targetY);
+        if (requestId !== gotoPreviewRequestIdRef.current) return;
+
         const path = pathResult.path;
 
         if (path) {
-          setGotoMode(prev => ({
-            ...prev,
-            targetTile: { x: targetX, y: targetY },
-            currentPath: path,
-          }));
+          setGotoMode(prev => {
+            if (!prev.active || prev.unit?.id !== unitId) return prev;
+            return { ...prev, targetTile: { x: targetX, y: targetY }, currentPath: path };
+          });
           console.log('Path received:', path);
         } else {
           const message = pathResult.error ?? 'No valid path found';
           console.warn(message);
           setActionFeedback({ success: false, message });
-          setGotoMode(prev => ({
-            ...prev,
-            targetTile: { x: targetX, y: targetY },
-            currentPath: null,
-          }));
+          setGotoMode(prev => {
+            if (!prev.active || prev.unit?.id !== unitId) return prev;
+            return { ...prev, targetTile: { x: targetX, y: targetY }, currentPath: null };
+          });
         }
       } catch (error) {
+        if (requestId !== gotoPreviewRequestIdRef.current) return;
+
         const message = error instanceof Error ? error.message : 'Unable to request a Go To path';
         console.error('Error requesting path:', error);
         setActionFeedback({ success: false, message });
-        setGotoMode(prev => ({
-          ...prev,
-          targetTile: { x: targetX, y: targetY },
-          currentPath: null,
-        }));
+        setGotoMode(prev => {
+          if (!prev.active || prev.unit?.id !== unitId) return prev;
+          return { ...prev, targetTile: { x: targetX, y: targetY }, currentPath: null };
+        });
       }
     },
     [gotoMode.unit]
@@ -910,11 +913,19 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         if (!confirmed) return;
       }
 
-      console.log(`Executing goto for unit ${gotoMode.unit.id} to (${targetX}, ${targetY})`);
+      const unitId = gotoMode.unit.id;
+      console.log(`Executing goto for unit ${unitId} to (${targetX}, ${targetY})`);
+
+      // Hide the preview as soon as the target is committed. This also
+      // invalidates any in-flight hover request that could otherwise restore
+      // the old path after this interaction completes.
+      deactivateGotoMode();
+      selectUnit(null);
+      setSelectedUnit(null);
 
       try {
         const result = await gameClient.executeUnitAction(
-          gotoMode.unit.id,
+          unitId,
           ActionType.GOTO,
           targetX,
           targetY,
@@ -931,12 +942,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           success: false,
           message: error instanceof Error ? error.message : 'Go To failed',
         });
-      } finally {
-        // Always deactivate goto mode after execution attempt (clears path immediately)
-        deactivateGotoMode();
-        // Deselect the unit after goto destination is clicked
-        selectUnit(null);
-        setSelectedUnit(null);
       }
     },
     [cities, currentPlayerId, diplomacy, gotoMode.unit, deactivateGotoMode, selectUnit]
@@ -1721,6 +1726,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       // Special handling for GOTO action - enter interactive mode
       if (action === ActionType.GOTO) {
         console.log(`Activating goto mode for unit ${selectedUnit.id}`);
+        gotoPreviewRequestIdRef.current += 1;
         setGotoMode({
           active: true,
           unit: selectedUnit,

@@ -3,16 +3,23 @@ import { PathRenderer } from '../renderers/PathRenderer';
 
 describe('PathRenderer', () => {
   it('marks the destination of an active goto path', () => {
+    const strokeStyles: string[] = [];
     const context = {
       canvas: { width: 800, height: 600 },
       beginPath: vi.fn(),
       moveTo: vi.fn(),
       lineTo: vi.fn(),
       arc: vi.fn(),
+      ellipse: vi.fn(),
       fill: vi.fn(),
       stroke: vi.fn(),
       fillText: vi.fn(),
     } as unknown as CanvasRenderingContext2D;
+    Object.defineProperty(context, 'strokeStyle', {
+      configurable: true,
+      get: () => strokeStyles[strokeStyles.length - 1],
+      set: (value: string) => strokeStyles.push(value),
+    });
     const renderer = new PathRenderer(context, {} as never, 96, 48);
 
     renderer.renderPaths({
@@ -29,9 +36,11 @@ describe('PathRenderer', () => {
       },
     } as never);
 
-    expect(context.arc).toHaveBeenCalledWith(96, 48, 8, 0, 2 * Math.PI);
+    expect(context.ellipse).toHaveBeenCalledWith(96, 48, 8, 4, 0, 0, 2 * Math.PI);
     expect(context.fill).toHaveBeenCalled();
     expect(context.stroke).toHaveBeenCalled();
+    expect(strokeStyles).toContain('#ffffff');
+    expect(context.lineWidth).toBe(2);
   });
 
   it('does not render reachable movement tiles or their turn labels', () => {

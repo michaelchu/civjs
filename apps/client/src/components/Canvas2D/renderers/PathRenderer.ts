@@ -31,17 +31,15 @@ export class PathRenderer extends BaseRenderer {
   }
 
   /**
-   * Render goto path exactly like freeciv-web: individual directional segments from each tile
-   * Each tile draws one line segment in the direction of the next tile
-   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:382-397
-   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:3276 - ptile['goto_dir'] = dir
+   * Render goto path using freeciv-web's individual directional segments from each tile.
+   * @reference reference/freeciv-web/javascript/2dcanvas/mapview.js:849-888
    */
   private renderGotoPath(gotoPath: GotoPath, viewport: MapViewport): void {
     if (!gotoPath.tiles || gotoPath.tiles.length < 2) return;
 
-    // Set consistent style for all path segments (matching freeciv-web)
-    this.ctx.strokeStyle = gotoPath.valid ? 'rgba(0,168,255,0.9)' : 'rgba(255,68,68,0.9)';
-    this.ctx.lineWidth = 10; // Exact freeciv-web line width
+    // Keep the path preview unobtrusive so the map remains readable.
+    this.ctx.strokeStyle = '#ffffff';
+    this.ctx.lineWidth = 2;
     this.ctx.lineCap = 'round';
 
     // Draw individual directional segments connecting each tile to the next
@@ -88,7 +86,16 @@ export class PathRenderer extends BaseRenderer {
     this.ctx.strokeStyle = valid ? '#67e8f9' : '#fb7185';
     this.ctx.lineWidth = 2;
     this.ctx.beginPath();
-    this.ctx.arc(centerX, centerY, 8, 0, 2 * Math.PI);
+    // Keep the marker on the same flattened ground plane as the selection overlay.
+    this.ctx.ellipse(
+      centerX,
+      centerY,
+      this.tileWidth / 12,
+      this.tileHeight / 12,
+      0,
+      0,
+      2 * Math.PI
+    );
     this.ctx.fill();
     this.ctx.stroke();
   }

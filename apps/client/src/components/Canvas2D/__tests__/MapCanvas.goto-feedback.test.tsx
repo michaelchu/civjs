@@ -5,6 +5,7 @@ const requestPathResult = vi.hoisted(() => vi.fn());
 const executeUnitAction = vi.hoisted(() => vi.fn());
 const setDebugVisibility = vi.hoisted(() => vi.fn());
 const mapRendererConstructed = vi.hoisted(() => vi.fn());
+const mapRendererRender = vi.hoisted(() => vi.fn());
 const setMapviewOrigin = vi.hoisted(() => vi.fn());
 const getViewportPositionForTile = vi.hoisted(() => vi.fn());
 const contextMenuProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
@@ -59,7 +60,9 @@ vi.mock('../MapRenderer', () => ({
     }
     async initialize() {}
     cleanup() {}
-    render() {}
+    render(...args: unknown[]) {
+      mapRendererRender(...args);
+    }
     setFogOfWarEnabled() {}
     canvasToMap() {
       return { mapX: 1, mapY: 1 };
@@ -124,6 +127,7 @@ describe('MapCanvas Go To feedback', () => {
     setDebugVisibility.mockReset();
     setDebugVisibility.mockResolvedValue(undefined);
     mapRendererConstructed.mockClear();
+    mapRendererRender.mockClear();
     setMapviewOrigin.mockReset();
     setMapviewOrigin.mockReturnValue({ x: 60, y: 40, width: 100, height: 100 });
     getViewportPositionForTile.mockReset();
@@ -204,6 +208,58 @@ describe('MapCanvas Go To feedback', () => {
     );
     expect(executeUnitAction).toHaveBeenCalledWith('unit-1', 'goto', 1, 1, true);
     confirm.mockRestore();
+  });
+
+  it('does not restore a stale path when a hover request resolves after selecting a target', async () => {
+    let resolvePath: ((value: unknown) => void) | undefined;
+    requestPathResult.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          resolvePath = resolve;
+        })
+    );
+
+    render(<MapCanvas width={100} height={100} />);
+    const canvas = screen.getByLabelText('World map');
+    await act(async () => {
+      document.dispatchEvent(
+        new CustomEvent('activate-goto-mode', { detail: { unit: state.units['unit-1'] } })
+      );
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      fireEvent.mouseMove(canvas, { clientX: 1, clientY: 1 });
+      await Promise.resolve();
+    });
+    expect(requestPathResult).toHaveBeenCalledWith('unit-1', 1, 1);
+
+    await act(async () => {
+      fireEvent.mouseDown(canvas, { clientX: 1, clientY: 1, button: 0 });
+      fireEvent.mouseUp(canvas, { clientX: 1, clientY: 1, button: 0 });
+      await Promise.resolve();
+    });
+    expect(executeUnitAction).toHaveBeenCalledWith('unit-1', 'goto', 1, 1, false);
+
+    await act(async () => {
+      resolvePath?.({
+        path: {
+          unitId: 'unit-1',
+          tiles: [
+            { x: 0, y: 0, moveCost: 0 },
+            { x: 1, y: 1, moveCost: 1 },
+          ],
+          totalCost: 1,
+          estimatedTurns: 1,
+          valid: true,
+        },
+      });
+      await Promise.resolve();
+    });
+
+    const lastRenderState = mapRendererRender.mock.calls.at(-1)?.[0] as
+      { gotoPath?: unknown } | undefined;
+    expect(lastRenderState?.gotoPath).toBeNull();
   });
 
   it('keeps the renderer alive when an action context menu opens', async () => {
