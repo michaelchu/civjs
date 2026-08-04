@@ -395,11 +395,10 @@ describe('MapCanvas Go To feedback', () => {
   });
 
   /**
-   * @evidence parity
-   * @reference reference/freeciv-web/javascript/2dcanvas/mapctrl.js:519-551
-   * @assertion Right-clicking a foreign or empty tile recenters the map instead of opening an own-unit menu.
+   * @assertion Right-clicking a foreign or empty tile opens tile information
+   * without moving the camera.
    */
-  it('does not open a foreign-unit action menu on right-click', async () => {
+  it('opens tile info on a foreign or empty tile instead of recentering', async () => {
     Object.assign(state.units['unit-1'], {
       x: 1,
       y: 1,
@@ -415,11 +414,40 @@ describe('MapCanvas Go To feedback', () => {
     });
 
     expect(contextMenuProps.current).toBeNull();
-    expect(dispatchSpy).toHaveBeenCalledWith(
+    expect(tileInfoProps.current?.isOpen).toBe(true);
+    expect(tileInfoProps.current?.x).toBe(1);
+    expect(tileInfoProps.current?.y).toBe(1);
+    expect(dispatchSpy).not.toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'center-map-on-tile',
-        detail: { x: 1, y: 1, source: 'map-right-click' },
       })
+    );
+  });
+
+  it('opens city info on a city tile instead of recentering', async () => {
+    Object.assign(state.cities, {
+      'city-1': {
+        id: 'city-1',
+        name: 'Rome',
+        playerId: 'player-1',
+        x: 1,
+        y: 1,
+      },
+    });
+
+    render(<MapCanvas width={100} height={100} />);
+    const canvas = screen.getByLabelText('World map');
+    const dispatchSpy = vi.spyOn(document, 'dispatchEvent');
+    await act(async () => {
+      fireEvent.contextMenu(canvas, { clientX: 1, clientY: 1, button: 2 });
+      await Promise.resolve();
+    });
+
+    expect((cityOverlayProps.current?.city as { id?: string })?.id).toBe('city-1');
+    expect(cityOverlayProps.current?.isOpen).toBe(true);
+    expect(tileInfoProps.current).toBeNull();
+    expect(dispatchSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'center-map-on-tile' })
     );
   });
 
@@ -550,68 +578,7 @@ describe('MapCanvas Go To feedback', () => {
     });
   });
 
-  it('commits and paints right-click recentering atomically', async () => {
-    const frames: FrameRequestCallback[] = [];
-    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
-      frames.push(callback);
-      return frames.length;
-    });
-    vi.stubGlobal('cancelAnimationFrame', vi.fn());
-
-    render(<MapCanvas width={100} height={100} />);
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    state.setViewport.mockClear();
-
-    await act(async () => {
-      document.dispatchEvent(
-        new CustomEvent('center-map-on-tile', {
-          detail: { x: 2, y: 2, source: 'map-right-click' },
-        })
-      );
-      await Promise.resolve();
-    });
-
-    expect(frames).toHaveLength(0);
-    expect(state.setViewport).toHaveBeenCalledWith({
-      x: 60,
-      y: 40,
-      width: 100,
-      height: 100,
-    });
-  });
-
-  it('does not center on an out-of-bounds right-click tile', async () => {
-    const frames: FrameRequestCallback[] = [];
-    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
-      frames.push(callback);
-      return frames.length;
-    });
-    vi.stubGlobal('cancelAnimationFrame', vi.fn());
-
-    render(<MapCanvas width={100} height={100} />);
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    state.setViewport.mockClear();
-
-    await act(async () => {
-      document.dispatchEvent(
-        new CustomEvent('center-map-on-tile', {
-          detail: { x: -1, y: 1, source: 'map-right-click' },
-        })
-      );
-      await Promise.resolve();
-    });
-
-    expect(frames).toHaveLength(0);
-    expect(state.setViewport).not.toHaveBeenCalled();
-  });
-
-  it('keeps discrete recentering away from finite-map polar edges', async () => {
+  it('keeps programmatic recentering away from finite-map polar edges', async () => {
     Object.assign(state.map, { width: 40, height: 40, xsize: 40, ysize: 40, wrap_id: 0 });
     const frames: FrameRequestCallback[] = [];
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
@@ -630,7 +597,7 @@ describe('MapCanvas Go To feedback', () => {
     await act(async () => {
       document.dispatchEvent(
         new CustomEvent('center-map-on-tile', {
-          detail: { x: 5, y: 0, source: 'map-right-click' },
+          detail: { x: 5, y: 0 },
         })
       );
       await Promise.resolve();
@@ -673,38 +640,6 @@ describe('MapCanvas Go To feedback', () => {
     expect(state.setViewport).toHaveBeenCalledWith({
       x: 60,
       y: 40,
-      width: 100,
-      height: 100,
-    });
-  });
-
-  it('normalizes a wrapped right-click center before painting', async () => {
-    vi.stubGlobal('requestAnimationFrame', vi.fn());
-    vi.stubGlobal('cancelAnimationFrame', vi.fn());
-    Object.assign(state.map, { wrap_id: 3 });
-    setMapviewOrigin.mockReturnValue({ x: 20, y: 30, width: 100, height: 100 });
-
-    render(<MapCanvas width={100} height={100} />);
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    setMapviewOrigin.mockClear();
-    state.setViewport.mockClear();
-
-    await act(async () => {
-      document.dispatchEvent(
-        new CustomEvent('center-map-on-tile', {
-          detail: { x: 0, y: 0, source: 'map-right-click' },
-        })
-      );
-      await Promise.resolve();
-    });
-
-    expect(setMapviewOrigin).toHaveBeenCalledWith(60, 40, 100, 100);
-    expect(state.setViewport).toHaveBeenCalledWith({
-      x: 20,
-      y: 30,
       width: 100,
       height: 100,
     });

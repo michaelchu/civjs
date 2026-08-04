@@ -40,7 +40,7 @@ interface MapCanvasProps {
 }
 
 type SelectionDragMode = 'left' | 'right' | null;
-type CenterMapSource = 'map' | 'map-right-click' | 'minimap-click' | 'minimap-drag';
+type CenterMapSource = 'map' | 'minimap-click' | 'minimap-drag';
 interface SelectionRect {
   left: number;
   top: number;
@@ -484,7 +484,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   );
 
   const getCenteredViewport = useCallback(
-    (tileX: number, tileY: number, normalizeWrappedOrigin = false): MapViewport | null => {
+    (tileX: number, tileY: number): MapViewport | null => {
       const renderer = rendererRef.current;
       if (!renderer) return null;
 
@@ -505,7 +505,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
       const centered = renderer.getViewportPositionForTile(centerTile.x, centerY, width, height);
       const constrained =
-        (state.map.wrap_id ?? 0) !== 0 && !normalizeWrappedOrigin
+        (state.map.wrap_id ?? 0) !== 0
           ? centered
           : renderer.setMapviewOrigin(centered.x, centered.y, width, height);
       return { ...constrained, width, height };
@@ -533,7 +533,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
       const source = detail.source ?? 'map';
       const isMinimapDrag = source === 'minimap-drag';
-      const isImmediatePan = isMinimapDrag || source === 'map-right-click';
       if (isMinimapDrag) {
         // A minimap drag is continuous panning, not a sequence of reference
         // center_tile_mapcanvas() actions. Cancel any click slide and paint
@@ -541,12 +540,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         cancelCameraSlide(false);
       } else {
         cancelMinimapPan(false);
-        // Right-click recentering shares the minimap's direct, integer-origin
-        // path. Other center requests retain the reference-style slide.
-        cancelCameraSlide(!isImmediatePan);
+        // Minimap dragging is continuous panning. Other center requests retain
+        // the reference-style slide.
+        cancelCameraSlide(true);
       }
 
-      const target = getCenteredViewport(detail.x, detail.y, source === 'map-right-click');
+      const target = getCenteredViewport(detail.x, detail.y);
       if (!target) return;
       const state = useGameStore.getState();
       const current = state.viewport;
@@ -554,7 +553,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       const dy = target.y - current.y;
 
       if (
-        (source === 'map' || source === 'map-right-click') &&
+        source === 'map' &&
         !Object.values(state.units).some(unit => unit.x === detail.x && unit.y === detail.y)
       ) {
         const marker = {
@@ -568,15 +567,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         state.updateGameState({
           presentationEffects: [...(state.presentationEffects ?? []), marker].slice(-64),
         });
-      }
-
-      if (source === 'map-right-click') {
-        // A discrete right-click does not need a pointer-frame queue. Commit
-        // and paint the destination together so no intermediate store frame
-        // can clear the canvas before the new terrain snapshot is visible.
-        setViewport(target);
-        renderLatestSnapshot(target, true);
-        return;
       }
 
       if (isMinimapDrag) {
@@ -1161,16 +1151,24 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         return;
       }
 
-      // Reference behavior: right-clicking an empty or foreign tile recenters
-      // the map rather than opening an actionable foreign-unit menu.
-      setContextMenu(null);
-      document.dispatchEvent(
-        new CustomEvent('center-map-on-tile', {
-          detail: { x: mapTile.x, y: mapTile.y, source: 'map-right-click' },
-        })
-      );
+      if (cityAtTile) {
+        openCityInfo(cityAtTile);
+        return;
+      }
+
+      // Right-clicking an empty or foreign tile shows its information rather
+      // than moving the camera.
+      openTileInfo(mapTile.x, mapTile.y);
     },
-    [cities, currentPlayerId, normalizeMapTile, openUnitContextMenu, units]
+    [
+      cities,
+      currentPlayerId,
+      normalizeMapTile,
+      openCityInfo,
+      openTileInfo,
+      openUnitContextMenu,
+      units,
+    ]
   );
 
   const handleRightClickAtCanvasPosition = useCallback(
