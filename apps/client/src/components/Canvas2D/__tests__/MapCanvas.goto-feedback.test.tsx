@@ -6,6 +6,7 @@ const executeUnitAction = vi.hoisted(() => vi.fn());
 const setDebugVisibility = vi.hoisted(() => vi.fn());
 const mapRendererConstructed = vi.hoisted(() => vi.fn());
 const setMapviewOrigin = vi.hoisted(() => vi.fn());
+const getViewportPositionForTile = vi.hoisted(() => vi.fn());
 const contextMenuProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
 const cityOverlayProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
 const tileInfoProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
@@ -63,11 +64,12 @@ vi.mock('../MapRenderer', () => ({
     canvasToMap() {
       return { mapX: 1, mapY: 1 };
     }
-    getViewportPositionForTile() {
+    getViewportPositionForTile(...args: unknown[]) {
+      getViewportPositionForTile(...args);
       return { x: 60, y: 40 };
     }
-    setMapviewOrigin() {
-      return setMapviewOrigin();
+    setMapviewOrigin(...args: unknown[]) {
+      return setMapviewOrigin(...args);
     }
   },
 }));
@@ -125,6 +127,7 @@ describe('MapCanvas Go To feedback', () => {
     mapRendererConstructed.mockClear();
     setMapviewOrigin.mockReset();
     setMapviewOrigin.mockReturnValue({ x: 60, y: 40, width: 100, height: 100 });
+    getViewportPositionForTile.mockReset();
     contextMenuProps.current = null;
     cityOverlayProps.current = null;
     tileInfoProps.current = null;
@@ -350,12 +353,19 @@ describe('MapCanvas Go To feedback', () => {
 
     render(<MapCanvas width={100} height={100} />);
     const canvas = screen.getByLabelText('World map');
+    const dispatchSpy = vi.spyOn(document, 'dispatchEvent');
     await act(async () => {
       fireEvent.contextMenu(canvas, { clientX: 1, clientY: 1, button: 2 });
       await Promise.resolve();
     });
 
     expect(contextMenuProps.current).toBeNull();
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'center-map-on-tile',
+        detail: { x: 1, y: 1, source: 'map-right-click' },
+      })
+    );
   });
 
   /**
@@ -485,6 +495,97 @@ describe('MapCanvas Go To feedback', () => {
     });
   });
 
+  it('commits and paints right-click recentering atomically', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+
+    render(<MapCanvas width={100} height={100} />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    state.setViewport.mockClear();
+
+    await act(async () => {
+      document.dispatchEvent(
+        new CustomEvent('center-map-on-tile', {
+          detail: { x: 2, y: 2, source: 'map-right-click' },
+        })
+      );
+      await Promise.resolve();
+    });
+
+    expect(frames).toHaveLength(0);
+    expect(state.setViewport).toHaveBeenCalledWith({
+      x: 60,
+      y: 40,
+      width: 100,
+      height: 100,
+    });
+  });
+
+  it('does not center on an out-of-bounds right-click tile', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+
+    render(<MapCanvas width={100} height={100} />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    state.setViewport.mockClear();
+
+    await act(async () => {
+      document.dispatchEvent(
+        new CustomEvent('center-map-on-tile', {
+          detail: { x: -1, y: 1, source: 'map-right-click' },
+        })
+      );
+      await Promise.resolve();
+    });
+
+    expect(frames).toHaveLength(0);
+    expect(state.setViewport).not.toHaveBeenCalled();
+  });
+
+  it('keeps discrete recentering away from finite-map polar edges', async () => {
+    Object.assign(state.map, { width: 40, height: 40, xsize: 40, ysize: 40, wrap_id: 0 });
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+
+    render(<MapCanvas width={100} height={100} />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    getViewportPositionForTile.mockClear();
+
+    await act(async () => {
+      document.dispatchEvent(
+        new CustomEvent('center-map-on-tile', {
+          detail: { x: 5, y: 0, source: 'map-right-click' },
+        })
+      );
+      await Promise.resolve();
+    });
+
+    expect(getViewportPositionForTile).toHaveBeenCalledWith(5, 9, 100, 100);
+
+    Object.assign(state.map, { width: 10, height: 10, xsize: 10, ysize: 10 });
+  });
+
   it('preserves the requested center period on a wrapped map', async () => {
     const frames: FrameRequestCallback[] = [];
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
@@ -522,6 +623,38 @@ describe('MapCanvas Go To feedback', () => {
     });
   });
 
+  it('normalizes a wrapped right-click center before painting', async () => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn());
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    Object.assign(state.map, { wrap_id: 3 });
+    setMapviewOrigin.mockReturnValue({ x: 20, y: 30, width: 100, height: 100 });
+
+    render(<MapCanvas width={100} height={100} />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    setMapviewOrigin.mockClear();
+    state.setViewport.mockClear();
+
+    await act(async () => {
+      document.dispatchEvent(
+        new CustomEvent('center-map-on-tile', {
+          detail: { x: 0, y: 0, source: 'map-right-click' },
+        })
+      );
+      await Promise.resolve();
+    });
+
+    expect(setMapviewOrigin).toHaveBeenCalledWith(60, 40, 100, 100);
+    expect(state.setViewport).toHaveBeenCalledWith({
+      x: 20,
+      y: 30,
+      width: 100,
+      height: 100,
+    });
+  });
+
   it('commits the latest slide viewport before a drag begins', async () => {
     const frames: FrameRequestCallback[] = [];
     const cancelFrame = vi.fn();
@@ -552,7 +685,7 @@ describe('MapCanvas Go To feedback', () => {
 
     expect(cancelFrame).toHaveBeenCalled();
     expect(state.setViewport).toHaveBeenCalledWith({
-      x: 52.5,
+      x: 53,
       y: 35,
       width: 100,
       height: 100,

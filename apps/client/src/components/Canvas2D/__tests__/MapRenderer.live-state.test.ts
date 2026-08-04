@@ -149,6 +149,61 @@ describe('MapRenderer live-state updates', () => {
     );
   });
 
+  it('renders every wrapped copy while a presentation effect is active', () => {
+    const renderTerrain = vi.fn();
+    const renderSpecials = vi.fn();
+    const renderPresentationEffect = vi.fn().mockReturnValue(true);
+    const requestFrame = vi.fn();
+    vi.stubGlobal('requestAnimationFrame', requestFrame);
+
+    const renderer = new MapRenderer(createContext());
+    const state = createRenderState();
+    const firstViewport = { x: 0, y: 0, width: 800, height: 600 };
+    const secondViewport = { x: 7680, y: 0, width: 800, height: 600 };
+    const tile = Object.values(state.map.tiles)[0];
+
+    Object.assign(renderer as unknown as Record<string, unknown>, {
+      isInitialized: true,
+      terrainRenderer: {
+        setMapGeometry: vi.fn(),
+        renderTerrain,
+        renderSpecials,
+      },
+      borderRenderer: {
+        setMapGeometry: vi.fn(),
+        render: vi.fn(),
+        hasActiveAnimation: () => false,
+      },
+      cityRenderer: { setMapGeometry: vi.fn(), renderCities: vi.fn() },
+      unitRenderer: {
+        setMapGeometry: vi.fn(),
+        renderUnits: vi.fn(),
+        renderUnitSelection: vi.fn(),
+        renderSelectedUnit: vi.fn(),
+        hasActiveMovementAnimations: () => false,
+      },
+      presentationEffectRenderer: {
+        setMapGeometry: vi.fn(),
+        getUnitOverrides: () => ({}),
+        render: renderPresentationEffect,
+      },
+      fogRenderer: { setMapGeometry: vi.fn(), render: vi.fn() },
+      pathRenderer: { setMapGeometry: vi.fn(), renderPaths: vi.fn() },
+      getWrappedRenderViews: () => [
+        { viewport: firstViewport, visibleTiles: [tile] },
+        { viewport: secondViewport, visibleTiles: [tile] },
+      ],
+      checkViewportBounds: () => false,
+    });
+
+    renderer.render({ ...state, viewport: firstViewport }, true);
+
+    expect(renderTerrain).toHaveBeenCalledTimes(2);
+    expect(renderSpecials).toHaveBeenCalledTimes(2);
+    expect(renderPresentationEffect).toHaveBeenCalledTimes(2);
+    expect(requestFrame).toHaveBeenCalledTimes(1);
+  });
+
   it('coalesces throttled packet bursts and renders the latest state', () => {
     vi.useFakeTimers();
     vi.setSystemTime(1000);

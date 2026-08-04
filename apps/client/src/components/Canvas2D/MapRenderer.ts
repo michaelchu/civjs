@@ -273,7 +273,15 @@ export class MapRenderer {
         renderView.viewport === state.viewport
           ? state
           : { ...state, viewport: renderView.viewport };
-      hasActivePresentationEffects ||= this.renderMapLayers(renderState, renderView.visibleTiles);
+      // Always render every wrapped copy. `||=` would short-circuit the
+      // renderMapLayers call after the first copy reports an active marker or
+      // combat effect, leaving the remaining terrain copies undrawn.
+      const viewHasActivePresentationEffects = this.renderMapLayers(
+        renderState,
+        renderView.visibleTiles
+      );
+      hasActivePresentationEffects =
+        hasActivePresentationEffects || viewHasActivePresentationEffects;
     }
     const hasActiveBorderAnimation =
       this.borderRenderer.hasActiveAnimation?.(state.reducedMotion) ?? false;

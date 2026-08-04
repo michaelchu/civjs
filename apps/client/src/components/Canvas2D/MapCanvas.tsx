@@ -40,7 +40,7 @@ interface MapCanvasProps {
 }
 
 type SelectionDragMode = 'left' | 'right' | null;
-type CenterMapSource = 'map' | 'minimap-click' | 'minimap-drag';
+type CenterMapSource = 'map' | 'map-right-click' | 'minimap-click' | 'minimap-drag';
 interface SelectionRect {
   left: number;
   top: number;
@@ -433,6 +433,31 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const minimapPanViewport = useRef<MapViewport | null>(null);
   const storeRenderFrame = useRef<number | null>(null);
 
+  const normalizeMapTile = useCallback((tileX: number, tileY: number) => {
+    const state = useGameStore.getState();
+    const mapWidth = state.map.xsize ?? state.map.width;
+    const mapHeight = state.map.ysize ?? state.map.height;
+    if (
+      !Number.isInteger(tileX) ||
+      !Number.isInteger(tileY) ||
+      !Number.isInteger(mapWidth) ||
+      !Number.isInteger(mapHeight) ||
+      mapWidth <= 0 ||
+      mapHeight <= 0
+    ) {
+      return null;
+    }
+
+    const wrapId = state.map.wrap_id ?? 0;
+    const normalizedX = (wrapId & 1) !== 0 ? ((tileX % mapWidth) + mapWidth) % mapWidth : tileX;
+    const normalizedY = (wrapId & 2) !== 0 ? ((tileY % mapHeight) + mapHeight) % mapHeight : tileY;
+    if (normalizedX < 0 || normalizedX >= mapWidth || normalizedY < 0 || normalizedY >= mapHeight) {
+      return null;
+    }
+
+    return { x: normalizedX, y: normalizedY };
+  }, []);
+
   const cancelCameraSlide = useCallback(
     (commitLatest = true): MapViewport | null => {
       if (cameraSlideFrame.current !== null) {
@@ -483,23 +508,33 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   );
 
   const getCenteredViewport = useCallback(
-    (tileX: number, tileY: number): MapViewport | null => {
+    (tileX: number, tileY: number, normalizeWrappedOrigin = false): MapViewport | null => {
       const renderer = rendererRef.current;
       if (!renderer) return null;
 
-      const centered = renderer.getViewportPositionForTile(tileX, tileY, width, height);
       const state = useGameStore.getState();
-      // A centered origin is already valid on a wrapped map. It may be
-      // negative when centering on tile 0, and drag-release normalization can
-      // move that target into a different GUI period. Wrapped rendering
-      // supplies the periodic copy, so preserve the requested center.
+      const centerTile = normalizeMapTile(tileX, tileY);
+      if (!centerTile) return null;
+
+      let centerY = centerTile.y;
+      const mapHeight = state.map.ysize ?? state.map.height;
+      const isWrappedY = (state.map.wrap_id ?? 0) & 2;
+      // Freeciv keeps discrete recentering away from the polar edge so the
+      // destination viewport does not become mostly empty map padding.
+      // @reference reference/freeciv-web/javascript/2dcanvas/mapview_common.js:64-94
+      const polarBuffer = 9;
+      if (!isWrappedY && mapHeight > polarBuffer * 2 + 1) {
+        centerY = Math.max(polarBuffer, Math.min(mapHeight - 1 - polarBuffer, centerY));
+      }
+
+      const centered = renderer.getViewportPositionForTile(centerTile.x, centerY, width, height);
       const constrained =
-        (state.map.wrap_id ?? 0) !== 0
+        (state.map.wrap_id ?? 0) !== 0 && !normalizeWrappedOrigin
           ? centered
           : renderer.setMapviewOrigin(centered.x, centered.y, width, height);
       return { ...constrained, width, height };
     },
-    [height, width]
+    [height, normalizeMapTile, width]
   );
 
   useEffect(
@@ -521,19 +556,21 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       if (detail.x === undefined || detail.y === undefined || !rendererRef.current) return;
 
       const source = detail.source ?? 'map';
-      if (source === 'minimap-drag') {
+      const isMinimapDrag = source === 'minimap-drag';
+      const isImmediatePan = isMinimapDrag || source === 'map-right-click';
+      if (isMinimapDrag) {
         // A minimap drag is continuous panning, not a sequence of reference
         // center_tile_mapcanvas() actions. Cancel any click slide and paint
         // the latest centered viewport once per animation frame.
         cancelCameraSlide(false);
-        const target = getCenteredViewport(detail.x, detail.y);
-        if (target) scheduleMinimapPan(target);
-        return;
+      } else {
+        cancelMinimapPan(false);
+        // Right-click recentering shares the minimap's direct, integer-origin
+        // path. Other center requests retain the reference-style slide.
+        cancelCameraSlide(!isImmediatePan);
       }
 
-      cancelMinimapPan(false);
-      cancelCameraSlide();
-      const target = getCenteredViewport(detail.x, detail.y);
+      const target = getCenteredViewport(detail.x, detail.y, source === 'map-right-click');
       if (!target) return;
       const state = useGameStore.getState();
       const current = state.viewport;
@@ -541,7 +578,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       const dy = target.y - current.y;
 
       if (
-        source === 'map' &&
+        (source === 'map' || source === 'map-right-click') &&
         !Object.values(state.units).some(unit => unit.x === detail.x && unit.y === detail.y)
       ) {
         const marker = {
@@ -555,6 +592,20 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         state.updateGameState({
           presentationEffects: [...(state.presentationEffects ?? []), marker].slice(-64),
         });
+      }
+
+      if (source === 'map-right-click') {
+        // A discrete right-click does not need a pointer-frame queue. Commit
+        // and paint the destination together so no intermediate store frame
+        // can clear the canvas before the new terrain snapshot is visible.
+        setViewport(target);
+        renderLatestSnapshot(target, true);
+        return;
+      }
+
+      if (isMinimapDrag) {
+        scheduleMinimapPan(target);
+        return;
       }
 
       if (reducedMotion || Math.hypot(dx, dy) < 1) {
@@ -573,8 +624,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           ...current,
           width,
           height,
-          x: current.x + dx * eased,
-          y: current.y + dy * eased,
+          // Keep every intermediate origin on a device pixel. The terrain
+          // renderer intentionally relies on integer-aligned sprite origins;
+          // fractional slide positions expose dark seams and jagged gaps.
+          x: Math.round(current.x + dx * eased),
+          y: Math.round(current.y + dy * eased),
         };
         cameraSlideViewport.current = viewportOverride;
         renderLatestSnapshot(viewportOverride, true);
@@ -1116,8 +1170,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
   const handleRightClickTile = useCallback(
     (tileX: number, tileY: number, position: { x: number; y: number }) => {
-      const unitsAtTile = getUnitsAtTile(units, tileX, tileY);
-      const cityAtTile = findCityAtTile(cities, tileX, tileY);
+      const mapTile = normalizeMapTile(tileX, tileY);
+      if (!mapTile) return;
+
+      const unitsAtTile = getUnitsAtTile(units, mapTile.x, mapTile.y);
+      const cityAtTile = findCityAtTile(cities, mapTile.x, mapTile.y);
       const ownUnit = unitsAtTile.find(unit => unit.playerId === currentPlayerId);
 
       if (ownUnit) {
@@ -1129,10 +1186,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       // the map rather than opening an actionable foreign-unit menu.
       setContextMenu(null);
       document.dispatchEvent(
-        new CustomEvent('center-map-on-tile', { detail: { x: tileX, y: tileY } })
+        new CustomEvent('center-map-on-tile', {
+          detail: { x: mapTile.x, y: mapTile.y, source: 'map-right-click' },
+        })
       );
     },
-    [cities, currentPlayerId, openUnitContextMenu, units]
+    [cities, currentPlayerId, normalizeMapTile, openUnitContextMenu, units]
   );
 
   const handleRightClickAtCanvasPosition = useCallback(
@@ -1172,7 +1231,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         const rect = canvas.getBoundingClientRect();
         const canvasX = event.clientX - rect.left;
         const canvasY = event.clientY - rect.top;
-        const mapPos = rendererRef.current?.canvasToMap(canvasX, canvasY, viewport);
+        const mapPos = rendererRef.current?.canvasToMap(
+          canvasX,
+          canvasY,
+          useGameStore.getState().viewport
+        );
         if (mapPos) openTileInfo(Math.floor(mapPos.mapX), Math.floor(mapPos.mapY));
         event.preventDefault();
         return;
@@ -1182,7 +1245,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
       const panViewport = cancelMinimapPan();
       const slideViewport = cancelCameraSlide();
-      const interactionViewport = slideViewport ?? panViewport ?? viewport;
+      // The canvas can already be painted with a just-committed interaction
+      // viewport while React is still holding the previous selector value.
+      // Resolve the fallback from Zustand so right-click tile conversion uses
+      // the same origin that the renderer is displaying.
+      const interactionViewport = slideViewport ?? panViewport ?? useGameStore.getState().viewport;
 
       const rect = canvas.getBoundingClientRect();
       const canvasX = event.clientX - rect.left;
@@ -1208,7 +1275,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
       // Don't immediately set dragging - wait for actual movement
     },
-    [cancelCameraSlide, cancelMinimapPan, openTileInfo, viewport]
+    [cancelCameraSlide, cancelMinimapPan, openTileInfo]
   );
 
   const handleMouseMove = useCallback(
@@ -1666,10 +1733,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         canvasX,
         canvasY,
         { x: event.clientX, y: event.clientY },
-        viewport
+        useGameStore.getState().viewport
       );
     },
-    [handleRightClickAtCanvasPosition, viewport]
+    [handleRightClickAtCanvasPosition]
   );
 
   // Handle unit action selection
