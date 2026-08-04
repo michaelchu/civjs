@@ -5,7 +5,12 @@
 import type { MapViewport, Unit, City, GameState, PresentationEffect } from '../../../types';
 import type { GotoPath } from '../../../services/PathfindingService';
 import type { TilesetProvider } from '../tilesets/TilesetProvider';
-import { nativeToMapPosition } from '../mapTopologyGeometry';
+import {
+  createMapGeometry,
+  mapToGuiPosition,
+  nativeToGuiPosition,
+  type MapGeometry,
+} from '../mapTopologyGeometry';
 
 export interface RenderState {
   viewport: MapViewport;
@@ -34,8 +39,7 @@ export abstract class BaseRenderer {
   protected tileWidth: number;
   protected tileHeight: number;
   private terrainGraphics: Record<string, string> = {};
-  private projectionMapWidth = 0;
-  private projectionIsIsometric = false;
+  private projection: MapGeometry = createMapGeometry(0, 0);
 
   constructor(
     ctx: CanvasRenderingContext2D,
@@ -53,32 +57,34 @@ export abstract class BaseRenderer {
    * Convert map coordinates to GUI (isometric) coordinates.
    */
   protected mapToGuiVector(mapDx: number, mapDy: number): { guiDx: number; guiDy: number } {
-    const guiDx = ((mapDx - mapDy) * this.tileWidth) >> 1;
-    const guiDy = ((mapDx + mapDy) * this.tileHeight) >> 1;
-    return { guiDx, guiDy };
+    const position = mapToGuiPosition(mapDx, mapDy, this.tileWidth, this.tileHeight);
+    return { guiDx: position.x, guiDy: position.y };
   }
 
   /**
    * Convert map coordinates to screen coordinates.
    */
   protected mapToScreen(mapX: number, mapY: number, viewport: MapViewport) {
-    const logical = nativeToMapPosition(
+    const guiVector = nativeToGuiPosition(
       mapX,
       mapY,
-      this.projectionMapWidth,
-      this.projectionIsIsometric
+      this.projection,
+      this.tileWidth,
+      this.tileHeight
     );
-    const guiVector = this.mapToGuiVector(logical.x, logical.y);
     return {
-      x: guiVector.guiDx - viewport.x,
-      y: guiVector.guiDy - viewport.y,
+      x: guiVector.x - viewport.x,
+      y: guiVector.y - viewport.y,
     };
   }
 
   /** Configure the authoritative native-coordinate projection for this frame. */
   setMapGeometry(map: GameState['map']): void {
-    this.projectionMapWidth = map.xsize ?? map.width;
-    this.projectionIsIsometric = ((map.topology_id ?? 0) & 4) !== 0;
+    this.projection = createMapGeometry(
+      map.xsize ?? map.width,
+      map.ysize ?? map.height,
+      map.topology_id ?? 0
+    );
   }
 
   /**

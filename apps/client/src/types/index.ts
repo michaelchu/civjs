@@ -451,6 +451,7 @@ export interface GameState {
   players: Record<string, Player>;
   currentPlayerId: string;
   map: {
+    /** Native packet dimensions. ISO/HEX display width is derived in map geometry. */
     width: number;
     height: number;
     tiles: Record<string, Tile>;

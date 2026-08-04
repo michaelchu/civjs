@@ -1,16 +1,24 @@
 /**
  * @module client/components/GameUI/minimapGeometry
- * Freeciv-web-compatible overview sizing and camera-outline geometry.
+ * Overview sizing and camera-outline geometry using the shared map projection.
  *
- * @reference reference/freeciv-web/javascript/overview.js:20-24,50-119,233-320,459-474
- * @reference reference/freeciv-web/javascript/2dcanvas/mapview_common.js:253-293,608-613
- * @reference reference/freeciv/client/overview_common.c:324-374,408-483
+ * The minimap consumes Freeciv natural/display coordinates directly.  It does
+ * not rotate ISO coordinates independently from the main canvas: native tiles
+ * are projected once, then scaled into the overview surface.
+ *
+ * @reference reference/freeciv/client/overview_common.c:52-111,322-374,450-483
+ * @reference reference/freeciv/common/world_object.h:52-60
  */
 import type { MapViewport } from '../../types';
 import {
-  mapToNativePosition,
-  nativeAxisMapPeriod,
-  nativeToMapPosition,
+  createMapGeometry,
+  displayToNativePosition,
+  guiToDisplayPosition,
+  guiToMapPosition,
+  isIsometricTopology,
+  nativeAxisDisplayPeriod,
+  nativeToDisplayPosition,
+  type MapGeometry,
 } from '../Canvas2D/mapTopologyGeometry';
 
 export const MIN_OVERVIEW_WIDTH = 200;
@@ -20,11 +28,13 @@ export const VIEWPORT_OUTLINE_COLOR = 'rgb(200,200,255)';
 export const VIEWPORT_OUTLINE_WIDTH = 1;
 
 export interface MinimapLayout {
+  /** Horizontal natural/display scale used by the overview canvas. */
   tileSize: number;
   width: number;
   height: number;
   scaleX: number;
   scaleY: number;
+  /** Natural/display coordinate dimensions, never native packet dimensions. */
   coordinateWidth: number;
   coordinateHeight: number;
 }
@@ -36,15 +46,23 @@ export interface MinimapPoint {
 
 const wrap = (value: number, range: number): number => ((value % range) + range) % range;
 
-const isIsometricTopology = (topologyId: number): boolean => (topologyId & 4) !== 0;
+const axisOffsets = (enabled: boolean): number[] => (enabled ? [0, 1, -1] : [0]);
 
-/** Size a centered overview with ISO maps rotated clockwise into a landscape display. */
+/**
+ * Size an overview in natural/display coordinates.
+ *
+ * ISO natural coordinates have a 2:1 GUI aspect between their horizontal and
+ * vertical axes, so the overview uses separate scales while retaining the
+ * landscape projection used by the main canvas. Non-ISO maps retain the
+ * existing square-cell sizing.
+ */
 export const getMinimapLayout = (
-  mapWidth: number,
-  mapHeight: number,
+  nativeWidth: number,
+  nativeHeight: number,
   topologyId = 0
 ): MinimapLayout => {
-  if (mapWidth <= 0 || mapHeight <= 0) {
+  const geometry = createMapGeometry(nativeWidth, nativeHeight, topologyId);
+  if (nativeWidth <= 0 || nativeHeight <= 0) {
     return {
       tileSize: 0,
       width: 0,
@@ -56,19 +74,19 @@ export const getMinimapLayout = (
     };
   }
 
-  const isIsometric = isIsometricTopology(topologyId);
-  const coordinateWidth = isIsometric ? mapHeight : mapWidth;
-  const coordinateHeight = isIsometric ? mapWidth : mapHeight;
+  const coordinateWidth = geometry.displayWidth;
+  const coordinateHeight = geometry.displayHeight;
+  const verticalAspect = geometry.isIsometric ? 0.5 : 1;
   let tileSize = 1;
   while (tileSize * coordinateWidth < MIN_OVERVIEW_WIDTH) tileSize += 1;
 
   const scale = Math.min(
     tileSize,
     MAX_OVERVIEW_WIDTH / coordinateWidth,
-    MAX_OVERVIEW_HEIGHT / coordinateHeight
+    MAX_OVERVIEW_HEIGHT / (coordinateHeight * verticalAspect)
   );
   const scaleX = scale;
-  const scaleY = scale;
+  const scaleY = scale * verticalAspect;
   const width = Math.floor(scaleX * coordinateWidth);
   const height = Math.floor(scaleY * coordinateHeight);
   return {
@@ -82,16 +100,9 @@ export const getMinimapLayout = (
   };
 };
 
-const axisOffsets = (enabled: boolean): number[] => (enabled ? [0, 1, -1] : [0]);
-
-const getLogicalWrapTranslations = (
-  mapWidth: number,
-  mapHeight: number,
-  topologyId: number,
-  wrapId: number
-): MinimapPoint[] => {
-  const xPeriod = nativeAxisMapPeriod('x', mapWidth, mapHeight, topologyId);
-  const yPeriod = nativeAxisMapPeriod('y', mapWidth, mapHeight, topologyId);
+const getDisplayWrapTranslations = (geometry: MapGeometry, wrapId: number): MinimapPoint[] => {
+  const xPeriod = nativeAxisDisplayPeriod('x', geometry);
+  const yPeriod = nativeAxisDisplayPeriod('y', geometry);
   return axisOffsets((wrapId & 1) !== 0).flatMap(xOffset =>
     axisOffsets((wrapId & 2) !== 0).map(yOffset => ({
       x: xOffset * xPeriod.x + yOffset * yPeriod.x,
@@ -100,120 +111,55 @@ const getLogicalWrapTranslations = (
   );
 };
 
-const getLogicalOverviewOrigin = (
-  mapWidth: number,
-  mapHeight: number,
-  topologyId: number
-): MinimapPoint => {
-  if (!isIsometricTopology(topologyId)) return { x: 0, y: 0 };
-  const nativeCenter = nativeToMapPosition(
-    Math.floor(mapWidth / 2),
-    Math.floor(mapHeight / 2),
-    mapWidth,
-    true
-  );
-  return {
-    x: nativeCenter.x - Math.floor(mapWidth / 2),
-    y: nativeCenter.y - Math.floor(mapHeight / 2),
-  };
-};
-
-const overviewCellToDisplay = (
-  overviewX: number,
-  overviewY: number,
-  mapHeight: number,
-  topologyId: number
-): MinimapPoint =>
-  isIsometricTopology(topologyId)
-    ? { x: mapHeight - 1 - overviewY, y: overviewX }
-    : { x: overviewX, y: overviewY };
-
-const displayCellToOverview = (
-  displayX: number,
-  displayY: number,
-  mapHeight: number,
-  topologyId: number
-): MinimapPoint =>
-  isIsometricTopology(topologyId)
-    ? { x: displayY, y: mapHeight - 1 - displayX }
-    : { x: displayX, y: displayY };
-
-const overviewPointToDisplay = (
-  overviewX: number,
-  overviewY: number,
-  mapHeight: number,
-  topologyId: number
-): MinimapPoint =>
-  isIsometricTopology(topologyId)
-    ? { x: mapHeight - overviewY, y: overviewX }
-    : { x: overviewX, y: overviewY };
-
-/** Place one native tile in the centered, clockwise ISO overview orientation. */
+/** Place one native tile in the shared natural/display overview coordinates. */
 export const nativeToMinimapPosition = (
   nativeX: number,
   nativeY: number,
-  mapWidth: number,
-  mapHeight: number,
-  topologyId: number,
-  wrapId: number
-): MinimapPoint => {
-  const logical = nativeToMapPosition(nativeX, nativeY, mapWidth, isIsometricTopology(topologyId));
-  const origin = getLogicalOverviewOrigin(mapWidth, mapHeight, topologyId);
-  for (const translation of getLogicalWrapTranslations(mapWidth, mapHeight, topologyId, wrapId)) {
-    const x = logical.x + translation.x - origin.x;
-    const y = logical.y + translation.y - origin.y;
-    if (x >= 0 && x < mapWidth && y >= 0 && y < mapHeight) {
-      return overviewCellToDisplay(x, y, mapHeight, topologyId);
-    }
-  }
-  return overviewCellToDisplay(logical.x - origin.x, logical.y - origin.y, mapHeight, topologyId);
-};
+  nativeWidth: number,
+  nativeHeight: number,
+  topologyId: number
+): MinimapPoint =>
+  nativeToDisplayPosition(
+    nativeX,
+    nativeY,
+    createMapGeometry(nativeWidth, nativeHeight, topologyId)
+  );
 
 /** Return the pixel center of the displayed overview cell for a native tile. */
 export const nativeToMinimapPixelPosition = (
   nativeX: number,
   nativeY: number,
-  mapWidth: number,
-  mapHeight: number,
+  nativeWidth: number,
+  nativeHeight: number,
   topologyId: number,
-  wrapId: number,
   layout: MinimapLayout
 ): MinimapPoint => {
-  const cell = nativeToMinimapPosition(nativeX, nativeY, mapWidth, mapHeight, topologyId, wrapId);
+  const cell = nativeToMinimapPosition(nativeX, nativeY, nativeWidth, nativeHeight, topologyId);
   return {
-    x: (cell.x + 0.5) * layout.scaleX,
+    // A native ISO tile spans two natural x coordinates. The marker belongs
+    // at the center of that span; non-ISO tiles occupy one coordinate cell.
+    x: (cell.x + (isIsometricTopology(topologyId) ? 1 : 0.5)) * layout.scaleX,
     y: (cell.y + 0.5) * layout.scaleY,
   };
 };
 
-/** Resolve a displayed overview position back to CivJS native tile storage. */
+/** Resolve a natural/display overview position back to native tile storage. */
 export const minimapPositionToNative = (
   overviewX: number,
   overviewY: number,
-  mapWidth: number,
-  mapHeight: number,
+  nativeWidth: number,
+  nativeHeight: number,
   topologyId: number,
   wrapId: number
 ): MinimapPoint => {
-  const overview = displayCellToOverview(
-    Math.floor(overviewX),
-    Math.floor(overviewY),
-    mapHeight,
-    topologyId
-  );
-  const origin = getLogicalOverviewOrigin(mapWidth, mapHeight, topologyId);
-  const native = mapToNativePosition(
-    overview.x + origin.x,
-    overview.y + origin.y,
-    mapWidth,
-    isIsometricTopology(topologyId)
-  );
+  const geometry = createMapGeometry(nativeWidth, nativeHeight, topologyId);
+  const native = displayToNativePosition(overviewX, overviewY, geometry);
   let { x, y } = native;
-  if ((wrapId & 1) !== 0) x = wrap(x, mapWidth);
-  if ((wrapId & 2) !== 0) y = wrap(y, mapHeight);
+  if ((wrapId & 1) !== 0) x = wrap(x, nativeWidth);
+  if ((wrapId & 2) !== 0) y = wrap(y, nativeHeight);
   return {
-    x: Math.max(0, Math.min(mapWidth - 1, x)),
-    y: Math.max(0, Math.min(mapHeight - 1, y)),
+    x: Math.max(0, Math.min(nativeWidth - 1, x)),
+    y: Math.max(0, Math.min(nativeHeight - 1, y)),
   };
 };
 
@@ -221,8 +167,8 @@ export const minimapPositionToNative = (
 export const minimapPointToMapTile = (
   x: number,
   y: number,
-  mapWidth: number,
-  mapHeight: number,
+  nativeWidth: number,
+  nativeHeight: number,
   layout: MinimapLayout,
   topologyId = 0,
   wrapId = 0
@@ -230,8 +176,8 @@ export const minimapPointToMapTile = (
   minimapPositionToNative(
     (x * layout.coordinateWidth) / layout.width,
     (y * layout.coordinateHeight) / layout.height,
-    mapWidth,
-    mapHeight,
+    nativeWidth,
+    nativeHeight,
     topologyId,
     wrapId
   );
@@ -242,50 +188,42 @@ export const guiToMapPos = (
   guiY: number,
   tileWidth: number,
   tileHeight: number
-): MinimapPoint => {
-  const adjustedX = guiX - (tileWidth >> 1);
-  return {
-    x: Math.floor((adjustedX * tileHeight + guiY * tileWidth) / (tileWidth * tileHeight)),
-    y: Math.floor((guiY * tileWidth - adjustedX * tileHeight) / (tileWidth * tileHeight)),
-  };
-};
+): MinimapPoint => guiToMapPosition(guiX, guiY, tileWidth, tileHeight);
 
 /**
  * Return the base viewport footprint plus Freeciv's explicit +/- map copies.
- * The browser canvas clips copies outside the overview bounds.
+ * The canvas clips copies outside the overview bounds.
  */
 export const getMinimapViewportPolygons = (
   viewport: MapViewport,
-  mapWidth: number,
-  mapHeight: number,
+  nativeWidth: number,
+  nativeHeight: number,
   wrapId: number,
   layout: MinimapLayout,
   tileWidth: number,
   tileHeight: number,
   topologyId = 0
 ): MinimapPoint[][] => {
-  if (!mapWidth || !mapHeight || !layout.width || !layout.height) return [];
+  if (!nativeWidth || !nativeHeight || !layout.width || !layout.height) return [];
 
-  const mapCorners = [
-    guiToMapPos(viewport.x, viewport.y, tileWidth, tileHeight),
-    guiToMapPos(viewport.x + viewport.width, viewport.y, tileWidth, tileHeight),
-    guiToMapPos(viewport.x + viewport.width, viewport.y + viewport.height, tileWidth, tileHeight),
-    guiToMapPos(viewport.x, viewport.y + viewport.height, tileWidth, tileHeight),
+  const geometry = createMapGeometry(nativeWidth, nativeHeight, topologyId);
+  const displayCorners = [
+    guiToDisplayPosition(viewport.x, viewport.y, geometry, tileWidth, tileHeight),
+    guiToDisplayPosition(viewport.x + viewport.width, viewport.y, geometry, tileWidth, tileHeight),
+    guiToDisplayPosition(
+      viewport.x + viewport.width,
+      viewport.y + viewport.height,
+      geometry,
+      tileWidth,
+      tileHeight
+    ),
+    guiToDisplayPosition(viewport.x, viewport.y + viewport.height, geometry, tileWidth, tileHeight),
   ];
-  const origin = getLogicalOverviewOrigin(mapWidth, mapHeight, topologyId);
 
-  return getLogicalWrapTranslations(mapWidth, mapHeight, topologyId, wrapId).map(translation =>
-    mapCorners.map(point => {
-      const display = overviewPointToDisplay(
-        point.x + translation.x - origin.x,
-        point.y + translation.y - origin.y,
-        mapHeight,
-        topologyId
-      );
-      return {
-        x: display.x * layout.scaleX,
-        y: display.y * layout.scaleY,
-      };
-    })
+  return getDisplayWrapTranslations(geometry, wrapId).map(translation =>
+    displayCorners.map(point => ({
+      x: (point.x + translation.x) * layout.scaleX,
+      y: (point.y + translation.y) * layout.scaleY,
+    }))
   );
 };

@@ -3,7 +3,7 @@
  * Implements the Fog Renderer canvas rendering stage.
  */
 import { BaseRenderer, type RenderState } from './BaseRenderer';
-import { mapToNativePosition } from '../mapTopologyGeometry';
+import { isIsometricTopology, mapToNativePosition } from '../mapTopologyGeometry';
 
 const TILE_UNKNOWN = 0;
 const TILE_KNOWN_UNSEEN = 1;
@@ -42,7 +42,7 @@ export class FogRenderer extends BaseRenderer {
     if (!mapWidth || !mapHeight) return;
     this.setMapGeometry(state.map);
     this.currentWrapId = state.map.wrap_id ?? 0;
-    const isIsometric = ((state.map.topology_id ?? 0) & 4) !== 0;
+    const isIsometric = isIsometricTopology(state.map.topology_id ?? 0);
 
     const knowledgeByCoordinate = new Map<string, Knowledge>();
     for (const rawTile of Object.values(state.map.tiles)) {
@@ -175,7 +175,7 @@ export class FogRenderer extends BaseRenderer {
     state: RenderState
   ): { x: number; y: number } {
     const mapWidth = state.map.xsize ?? state.map.width;
-    const isIsometric = ((state.map.topology_id ?? 0) & 4) !== 0;
+    const isIsometric = isIsometricTopology(state.map.topology_id ?? 0);
     // Fog corners are enumerated in logical map space, while BaseRenderer's
     // projection consumes the authoritative native tile coordinates. Convert
     // the corner back through the same reference MAP_TO_NATIVE_POS path used

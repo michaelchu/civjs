@@ -160,7 +160,9 @@ export interface MapTile {
 }
 
 export interface MapData {
+  /** Freeciv native xsize; client display width may differ for ISO/HEX maps. */
   width: number;
+  /** Freeciv native ysize; retained unchanged for packet and save parity. */
   height: number;
   topologyId?: number;
   wrapId?: number;

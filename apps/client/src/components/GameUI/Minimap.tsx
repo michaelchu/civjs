@@ -8,13 +8,13 @@
 import React, { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { getMapRenderTileSize, subscribeMapRenderTileSize } from '../Canvas2D/mapRenderMetrics';
+import { isIsometricTopology } from '../Canvas2D/mapTopologyGeometry';
 import { HudPanel } from './HudPanel';
 import { isMinimapMarkerVisible } from './minimapVisibility';
 import {
   getMinimapLayout,
   getMinimapViewportPolygons,
   minimapPointToMapTile,
-  minimapPositionToNative,
   nativeToMinimapPixelPosition,
   VIEWPORT_OUTLINE_COLOR,
   VIEWPORT_OUTLINE_WIDTH,
@@ -66,11 +66,11 @@ export const Minimap: React.FC = () => {
     getMapRenderTileSize,
     getMapRenderTileSize
   );
-  const mapWidth = map.xsize ?? map.width;
-  const mapHeight = map.ysize ?? map.height;
+  const nativeWidth = map.xsize ?? map.width;
+  const nativeHeight = map.ysize ?? map.height;
   const topologyId = map.topology_id ?? 0;
   const wrapId = map.wrap_id ?? 0;
-  const layout = getMinimapLayout(mapWidth ?? 0, mapHeight ?? 0, topologyId);
+  const layout = getMinimapLayout(nativeWidth ?? 0, nativeHeight ?? 0, topologyId);
 
   const drawBase = useCallback(() => {
     const canvas = baseCanvasRef.current;
@@ -81,43 +81,35 @@ export const Minimap: React.FC = () => {
     context.clearRect(0, 0, layout.width, layout.height);
     context.fillStyle = '#000000';
     context.fillRect(0, 0, layout.width, layout.height);
-    if (!mapWidth || !mapHeight) return;
+    if (!nativeWidth || !nativeHeight) return;
 
     const tiles = Object.values(map.tiles);
     const tilesByCoordinate = new Map(tiles.map(tile => [`${tile.x},${tile.y}`, tile]));
     const markerPosition = (x: number, y: number) =>
-      nativeToMinimapPixelPosition(x, y, mapWidth, mapHeight, topologyId, wrapId, layout);
-    for (let overviewY = 0; overviewY < layout.coordinateHeight; overviewY += 1) {
-      for (let overviewX = 0; overviewX < layout.coordinateWidth; overviewX += 1) {
-        const native = minimapPositionToNative(
-          overviewX,
-          overviewY,
-          mapWidth,
-          mapHeight,
-          topologyId,
-          wrapId
-        );
-        const tile = tilesByCoordinate.get(`${native.x},${native.y}`);
-        if (!tile?.known) continue;
-        context.globalAlpha = tile.visible ? 1 : 0.55;
-        context.fillStyle = terrainColor(tile.terrain);
-        context.fillRect(
-          overviewX * layout.scaleX,
-          overviewY * layout.scaleY,
-          layout.scaleX + 0.5,
-          layout.scaleY + 0.5
-        );
+      nativeToMinimapPixelPosition(x, y, nativeWidth, nativeHeight, topologyId, layout);
+    const isIso = isIsometricTopology(topologyId);
+    const displayedTileWidth = isIso ? layout.scaleX * 2 : layout.scaleX;
 
-        if (tile.owner) {
-          context.globalAlpha = tile.visible ? 0.42 : 0.22;
-          context.fillStyle = playerColor(players[tile.owner]?.color, '#94a3b8');
-          context.fillRect(
-            overviewX * layout.scaleX,
-            overviewY * layout.scaleY,
-            layout.scaleX + 0.5,
-            layout.scaleY + 0.5
-          );
-        }
+    for (const tile of tiles) {
+      if (!tile.known) continue;
+      const position = nativeToMinimapPixelPosition(
+        tile.x,
+        tile.y,
+        nativeWidth,
+        nativeHeight,
+        topologyId,
+        layout
+      );
+      const originX = position.x - (isIso ? layout.scaleX : layout.scaleX / 2);
+      const originY = position.y - layout.scaleY / 2;
+      context.globalAlpha = tile.visible ? 1 : 0.55;
+      context.fillStyle = terrainColor(tile.terrain);
+      context.fillRect(originX, originY, displayedTileWidth + 0.5, layout.scaleY + 0.5);
+
+      if (tile.owner) {
+        context.globalAlpha = tile.visible ? 0.42 : 0.22;
+        context.fillStyle = playerColor(players[tile.owner]?.color, '#94a3b8');
+        context.fillRect(originX, originY, displayedTileWidth + 0.5, layout.scaleY + 0.5);
       }
     }
     context.globalAlpha = 1;
@@ -167,13 +159,12 @@ export const Minimap: React.FC = () => {
     currentPlayerId,
     layout,
     map.tiles,
-    mapHeight,
-    mapWidth,
+    nativeHeight,
+    nativeWidth,
     players,
     selectedCityId,
     selectedUnitId,
     topologyId,
-    wrapId,
     units,
   ]);
 
@@ -184,11 +175,11 @@ export const Minimap: React.FC = () => {
     if (!context) return;
 
     context.clearRect(0, 0, layout.width, layout.height);
-    if (!mapWidth || !mapHeight) return;
+    if (!nativeWidth || !nativeHeight) return;
     const polygons = getMinimapViewportPolygons(
       viewport,
-      mapWidth,
-      mapHeight,
+      nativeWidth,
+      nativeHeight,
       wrapId,
       layout,
       tileSize.width,
@@ -206,7 +197,16 @@ export const Minimap: React.FC = () => {
       context.lineTo(polygon[0].x, polygon[0].y);
     }
     context.stroke();
-  }, [layout, mapHeight, mapWidth, tileSize.height, tileSize.width, topologyId, viewport, wrapId]);
+  }, [
+    layout,
+    nativeHeight,
+    nativeWidth,
+    tileSize.height,
+    tileSize.width,
+    topologyId,
+    viewport,
+    wrapId,
+  ]);
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
@@ -238,7 +238,7 @@ export const Minimap: React.FC = () => {
     source: 'minimap-click' | 'minimap-drag'
   ) => {
     const canvas = overlayCanvasRef.current;
-    if (!canvas || !mapWidth || !mapHeight || !layout.width || !layout.height) return;
+    if (!canvas || !nativeWidth || !nativeHeight || !layout.width || !layout.height) return;
     if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return;
     const rect = canvas.getBoundingClientRect();
     const localX = ((clientX - rect.left) / (rect.width || layout.width)) * layout.width;
@@ -246,8 +246,8 @@ export const Minimap: React.FC = () => {
     const point = minimapPointToMapTile(
       localX,
       localY,
-      mapWidth,
-      mapHeight,
+      nativeWidth,
+      nativeHeight,
       layout,
       topologyId,
       wrapId
@@ -255,8 +255,8 @@ export const Minimap: React.FC = () => {
     document.dispatchEvent(
       new CustomEvent('center-map-on-tile', {
         detail: {
-          x: Math.max(0, Math.min(mapWidth - 1, point.x)),
-          y: Math.max(0, Math.min(mapHeight - 1, point.y)),
+          x: Math.max(0, Math.min(nativeWidth - 1, point.x)),
+          y: Math.max(0, Math.min(nativeHeight - 1, point.y)),
           source,
         },
       })

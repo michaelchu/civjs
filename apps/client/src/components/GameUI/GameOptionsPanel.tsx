@@ -11,6 +11,7 @@ import {
   saveUserPreferences,
   type UserPreferences,
 } from '../../services/UserPreferences';
+import { createMapGeometry } from '../Canvas2D/mapTopologyGeometry';
 
 type TaxRates = { tax: number; luxury: number; science: number };
 type HostControls = { isHost: boolean; paused: boolean; turnTimeLimit: number };
@@ -28,6 +29,11 @@ export const GameOptionsPanel: React.FC = () => {
   const [adviceLoading, setAdviceLoading] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferences>(loadUserPreferences);
   const total = rates.tax + rates.luxury + rates.science;
+  const geometry = createMapGeometry(
+    map.xsize ?? map.width,
+    map.ysize ?? map.height,
+    map.topology_id ?? 0
+  );
 
   useEffect(() => {
     saveUserPreferences(preferences);
@@ -103,7 +109,14 @@ export const GameOptionsPanel: React.FC = () => {
         <Info label="Game ID" value={currentGameId || '—'} />
         <Info label="Turn" value={String(turn)} />
         <Info label="Year" value={year === undefined ? '—' : String(year)} />
-        <Info label="Map size" value={`${map.width} × ${map.height}`} />
+        <Info
+          label="Native map size"
+          value={`${geometry.nativeWidth} × ${geometry.nativeHeight} tiles`}
+        />
+        <Info
+          label="Display footprint"
+          value={`${geometry.displayWidth} × ${geometry.displayHeight} natural units`}
+        />
       </dl>
 
       <div className="mt-8 max-w-3xl rounded-lg border border-gray-700 bg-gray-800 p-5">

@@ -17,10 +17,16 @@ import { rulesetService } from '../../services/RulesetService';
 import { resolveGraphic } from '../../services/PresentationResolver';
 import type { RenderState } from './renderers/BaseRenderer';
 import {
-  mapToNativePosition,
-  nativeAxisMapPeriod,
-  nativeToMapPosition,
+  createMapGeometry,
+  guiToMapPosition,
+  guiToNativePosition,
+  getProjectedMapBounds,
+  isIsometricTopology,
+  mapToGuiPosition,
+  nativeAxisGuiPeriod,
+  nativeToGuiPosition,
   normalizeMapPosition,
+  type MapGeometry,
 } from './mapTopologyGeometry';
 
 declare global {
@@ -65,6 +71,7 @@ export class MapRenderer {
   private presentationEffectRenderer: PresentationEffectRenderer;
   private fogOfWarEnabled = true;
   private currentMap: GameState['map'] = { width: 0, height: 0, tiles: {} };
+  private currentGeometry: MapGeometry = createMapGeometry(0, 0);
 
   /**
    * Creates the renderer and its layer-specific stages.
@@ -226,6 +233,8 @@ export class MapRenderer {
       this.renderEmptyMap();
       return;
     }
+
+    this.currentGeometry = createMapGeometry(mapWidth, mapHeight, state.map.topology_id ?? 0);
 
     this.terrainRenderer.setMapGeometry?.(state.map);
     this.borderRenderer.setMapGeometry?.(state.map);
@@ -424,43 +433,24 @@ export class MapRenderer {
    * @returns GUI coordinates object with guiDx and guiDy
    */
   mapToGuiVector(mapDx: number, mapDy: number): { guiDx: number; guiDy: number } {
-    const guiDx = ((mapDx - mapDy) * this.tileWidth) >> 1;
-    const guiDy = ((mapDx + mapDy) * this.tileHeight) >> 1;
-    return { guiDx, guiDy };
+    const position = mapToGuiPosition(mapDx, mapDy, this.tileWidth, this.tileHeight);
+    return { guiDx: position.x, guiDy: position.y };
   }
 
   private guiToMapPos(guiX: number, guiY: number): { mapX: number; mapY: number } {
-    const W = this.tileWidth;
-    const H = this.tileHeight;
-
-    guiX -= W >> 1;
-
-    const numeratorX = guiX * H + guiY * W;
-    const numeratorY = guiY * W - guiX * H;
-    const denominator = W * H;
-
-    const mapX = this.divide(numeratorX, denominator);
-    const mapY = this.divide(numeratorY, denominator);
-
-    return { mapX, mapY };
-  }
-
-  private divide(n: number, d: number): number {
-    if (d === 0) return 0;
-
-    const result = Math.floor(n / d);
-    return result;
+    const position = guiToMapPosition(guiX, guiY, this.tileWidth, this.tileHeight);
+    return { mapX: position.x, mapY: position.y };
   }
 
   canvasToMap(canvasX: number, canvasY: number, viewport: MapViewport) {
     const guiX = canvasX + viewport.x;
     const guiY = canvasY + viewport.y;
-    const result = this.guiToMapPos(guiX, guiY);
-    const native = mapToNativePosition(
-      result.mapX,
-      result.mapY,
-      this.currentMap.xsize ?? this.currentMap.width,
-      ((this.currentMap.topology_id ?? 0) & 4) !== 0
+    const native = guiToNativePosition(
+      guiX,
+      guiY,
+      this.getCurrentGeometry(),
+      this.tileWidth,
+      this.tileHeight
     );
     return { mapX: native.x, mapY: native.y };
   }
@@ -571,16 +561,13 @@ export class MapRenderer {
    * for adding one map width/height to that coordinate.
    */
   private getGuiWrapPeriod(axis: 'x' | 'y'): { x: number; y: number } {
-    const mapWidth = this.currentMap.xsize ?? this.currentMap.width;
-    const mapHeight = this.currentMap.ysize ?? this.currentMap.height;
-    const mapPeriod = nativeAxisMapPeriod(
+    const period = nativeAxisGuiPeriod(
       axis,
-      mapWidth,
-      mapHeight,
-      this.currentMap.topology_id ?? 0
+      this.getCurrentGeometry(),
+      this.tileWidth,
+      this.tileHeight
     );
-    const period = this.mapToGuiVector(mapPeriod.x, mapPeriod.y);
-    return { x: period.guiDx, y: period.guiDy };
+    return { x: period.x, y: period.y };
   }
 
   private getWrapOffsets(period: { x: number; y: number }, viewport: MapViewport): number[] {
@@ -719,8 +706,12 @@ export class MapRenderer {
     // For non-wrapping maps, apply very generous boundary constraints
     // Allow panning to see the entire map with reasonable padding
     if ((this.currentMap.wrap_id ?? 0) === 0) {
-      const mapWidthGui = mapWidth * this.tileWidth;
-      const mapHeightGui = mapHeight * this.tileHeight;
+      const geometry = this.getCurrentGeometry();
+      const projectedBounds = getProjectedMapBounds(geometry, this.tileWidth, this.tileHeight);
+      const mapWidthGui = geometry.isIsometric ? projectedBounds.width : mapWidth * this.tileWidth;
+      const mapHeightGui = geometry.isIsometric
+        ? projectedBounds.height
+        : mapHeight * this.tileHeight;
 
       // Very generous bounds - allow seeing entire map plus lots of padding
       // This matches freeciv-web's behavior which is quite permissive
@@ -882,12 +873,27 @@ export class MapRenderer {
   }
 
   private nativeToGuiPosition(nativeX: number, nativeY: number): { guiDx: number; guiDy: number } {
-    const logical = nativeToMapPosition(
+    const position = nativeToGuiPosition(
       nativeX,
       nativeY,
-      this.currentMap.xsize ?? this.currentMap.width,
-      ((this.currentMap.topology_id ?? 0) & 4) !== 0
+      this.getCurrentGeometry(),
+      this.tileWidth,
+      this.tileHeight
     );
-    return this.mapToGuiVector(logical.x, logical.y);
+    return { guiDx: position.x, guiDy: position.y };
+  }
+
+  private getCurrentGeometry(): MapGeometry {
+    const nativeWidth = this.currentMap.xsize ?? this.currentMap.width;
+    const nativeHeight = this.currentMap.ysize ?? this.currentMap.height;
+    const topologyId = this.currentMap.topology_id ?? 0;
+    if (
+      this.currentGeometry.nativeWidth !== nativeWidth ||
+      this.currentGeometry.nativeHeight !== nativeHeight ||
+      this.currentGeometry.isIsometric !== isIsometricTopology(topologyId)
+    ) {
+      this.currentGeometry = createMapGeometry(nativeWidth, nativeHeight, topologyId);
+    }
+    return this.currentGeometry;
   }
 }

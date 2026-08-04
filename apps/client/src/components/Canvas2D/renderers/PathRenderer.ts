@@ -134,9 +134,9 @@ export class PathRenderer extends BaseRenderer {
         accumulatedCost >= movementPerTurn * turnNumber &&
         this.isInViewport(tile.x, tile.y, viewport)
       ) {
-        const screenPos = this.mapToGuiVector(tile.x, tile.y);
-        const canvasX = screenPos.guiDx - viewport.x + this.tileWidth / 2;
-        const canvasY = screenPos.guiDy - viewport.y + this.tileHeight / 2;
+        const screenPos = this.mapToScreen(tile.x, tile.y, viewport);
+        const canvasX = screenPos.x + this.tileWidth / 2;
+        const canvasY = screenPos.y + this.tileHeight / 2;
 
         // Draw turn number circle
         this.ctx.fillStyle = 'rgba(255,255,255,0.8)';

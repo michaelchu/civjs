@@ -185,7 +185,7 @@ export const createGameColumns = (
   },
   {
     accessorKey: 'mapSize',
-    header: 'Map Size',
+    header: 'Native Map Size',
     cell: ({ row }) => <div className="capitalize">{row.getValue('mapSize')}</div>,
   },
   {
