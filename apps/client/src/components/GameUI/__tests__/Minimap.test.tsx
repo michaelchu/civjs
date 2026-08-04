@@ -14,7 +14,6 @@ import {
   VIEWPORT_OUTLINE_COLOR,
   VIEWPORT_OUTLINE_WIDTH,
 } from '../minimapGeometry';
-import { stepNativeMapPosition } from '../../Canvas2D/mapTopologyGeometry';
 
 describe('Minimap', () => {
   afterEach(() => {
@@ -172,15 +171,15 @@ describe('Minimap', () => {
     expect(isMinimapMarkerVisible(unknown, 'player-1', 'player-1', true)).toBe(true);
   });
 
-  it('uses a centered clockwise landscape layout for ISO maps', () => {
+  it('uses natural/display dimensions and a landscape layout for ISO maps', () => {
     expect(getMinimapLayout(32, 64, 12)).toEqual({
       tileSize: 4,
       width: 256,
       height: 128,
       scaleX: 4,
-      scaleY: 4,
+      scaleY: 2,
       coordinateWidth: 64,
-      coordinateHeight: 32,
+      coordinateHeight: 64,
     });
     expect(getMinimapLayout(80, 50)).toEqual({
       tileSize: 3,
@@ -192,48 +191,40 @@ describe('Minimap', () => {
       coordinateHeight: 50,
     });
     expect(getMinimapLayout(100, 400, 12)).toEqual({
-      tileSize: 0.75,
-      width: 300,
-      height: 75,
-      scaleX: 0.75,
-      scaleY: 0.75,
-      coordinateWidth: 400,
-      coordinateHeight: 100,
+      tileSize: 1,
+      width: 200,
+      height: 200,
+      scaleX: 1,
+      scaleY: 0.5,
+      coordinateWidth: 200,
+      coordinateHeight: 400,
     });
   });
 
-  it('maps clockwise landscape overview clicks back to native ISO tile storage', () => {
+  it('maps natural/display overview clicks back to native ISO tile storage', () => {
     const layout = getMinimapLayout(32, 64, 12);
     const native = { x: 16, y: 32 };
-    const display = nativeToMinimapPosition(native.x, native.y, 32, 64, 12, 3);
-    expect(
-      minimapPointToMapTile(
-        (display.x + 0.5) * layout.scaleX,
-        (display.y + 0.5) * layout.scaleY,
-        32,
-        64,
-        layout,
-        12,
-        3
-      )
-    ).toEqual(native);
+    const display = nativeToMinimapPosition(native.x, native.y, 32, 64, 12);
+    const pixel = nativeToMinimapPixelPosition(16, 32, 32, 64, 12, layout);
+    expect(minimapPointToMapTile(pixel.x, pixel.y, 32, 64, layout, 12, 3)).toEqual(native);
+    expect(display).toEqual({ x: 32, y: 32 });
   });
 
-  it('places native ISO tiles in clockwise landscape coordinates', () => {
-    expect(nativeToMinimapPosition(0, 0, 32, 64, 12, 3)).toEqual({ x: 63, y: 16 });
-    expect(nativeToMinimapPosition(0, 1, 32, 64, 12, 3)).toEqual({ x: 63, y: 17 });
-    expect(nativeToMinimapPosition(0, 2, 32, 64, 12, 3)).toEqual({ x: 62, y: 17 });
-    expect(nativeToMinimapPosition(16, 32, 32, 64, 12, 3)).toEqual({ x: 31, y: 16 });
-    expect(nativeToMinimapPosition(31, 63, 32, 64, 12, 3)).toEqual({ x: 63, y: 15 });
+  it('places native ISO tiles in natural/display coordinates', () => {
+    expect(nativeToMinimapPosition(0, 0, 32, 64, 12)).toEqual({ x: 0, y: 0 });
+    expect(nativeToMinimapPosition(0, 1, 32, 64, 12)).toEqual({ x: 1, y: 1 });
+    expect(nativeToMinimapPosition(0, 2, 32, 64, 12)).toEqual({ x: 0, y: 2 });
+    expect(nativeToMinimapPosition(16, 32, 32, 64, 12)).toEqual({ x: 32, y: 32 });
+    expect(nativeToMinimapPosition(31, 63, 32, 64, 12)).toEqual({ x: 63, y: 63 });
   });
 
-  it('rotates ISO logical east down and south left for a clockwise display', () => {
-    const base = minimapPositionToNative(40, 10, 32, 64, 12, 3);
-    const east = minimapPositionToNative(40, 11, 32, 64, 12, 3);
-    const south = minimapPositionToNative(39, 10, 32, 64, 12, 3);
+  it('keeps native ISO east and south adjacent in natural/display coordinates', () => {
+    const base = nativeToMinimapPosition(10, 20, 32, 64, 12);
+    const east = nativeToMinimapPosition(11, 20, 32, 64, 12);
+    const south = nativeToMinimapPosition(10, 21, 32, 64, 12);
 
-    expect(east).toEqual(stepNativeMapPosition(base.x, base.y, 1, 0, 32, 64, 12, 3));
-    expect(south).toEqual(stepNativeMapPosition(base.x, base.y, 0, 1, 32, 64, 12, 3));
+    expect(east).toEqual({ x: base.x + 2, y: base.y });
+    expect(south).toEqual({ x: base.x + 1, y: base.y + 1 });
   });
 
   it('maps every native ISO tile to exactly one displayed overview position and back', () => {
@@ -242,13 +233,16 @@ describe('Minimap', () => {
 
     for (let y = 0; y < 64; y += 1) {
       for (let x = 0; x < 32; x += 1) {
-        const position = nativeToMinimapPosition(x, y, 32, 64, 12, 3);
+        const position = nativeToMinimapPosition(x, y, 32, 64, 12);
         expect(position.x).toBeGreaterThanOrEqual(0);
         expect(position.x).toBeLessThan(layout.coordinateWidth);
         expect(position.y).toBeGreaterThanOrEqual(0);
         expect(position.y).toBeLessThan(layout.coordinateHeight);
         positions.add(`${position.x},${position.y}`);
-        expect(minimapPositionToNative(position.x, position.y, 32, 64, 12, 3)).toEqual({ x, y });
+        expect(minimapPositionToNative(position.x, position.y, 32, 64, 12, 3)).toEqual({
+          x,
+          y,
+        });
       }
     }
 
@@ -257,10 +251,10 @@ describe('Minimap', () => {
 
   it('centers ISO markers in the same displayed cells as their terrain', () => {
     const layout = getMinimapLayout(32, 64, 12);
-    const cell = nativeToMinimapPosition(16, 32, 32, 64, 12, 3);
+    const cell = nativeToMinimapPosition(16, 32, 32, 64, 12);
 
-    expect(nativeToMinimapPixelPosition(16, 32, 32, 64, 12, 3, layout)).toEqual({
-      x: (cell.x + 0.5) * layout.scaleX,
+    expect(nativeToMinimapPixelPosition(16, 32, 32, 64, 12, layout)).toEqual({
+      x: (cell.x + 1) * layout.scaleX,
       y: (cell.y + 0.5) * layout.scaleY,
     });
   });
@@ -285,7 +279,7 @@ describe('Minimap', () => {
     expect(polygons).toHaveLength(9);
   });
 
-  it('projects an ISO viewport as a clockwise landscape diamond', () => {
+  it('projects an ISO viewport through the shared natural/display geometry', () => {
     const layout = getMinimapLayout(32, 64, 12);
     const polygons = getMinimapViewportPolygons(
       { x: -432, y: 1296, width: 960, height: 480 },
@@ -299,10 +293,10 @@ describe('Minimap', () => {
     );
 
     expect(polygons[0]).toEqual([
-      { x: 128, y: 24 },
-      { x: 168, y: 64 },
-      { x: 128, y: 104 },
-      { x: 88, y: 64 },
+      { x: 88, y: 44 },
+      { x: 168, y: 44 },
+      { x: 168, y: 84 },
+      { x: 88, y: 84 },
     ]);
     expect(polygons).toHaveLength(9);
   });

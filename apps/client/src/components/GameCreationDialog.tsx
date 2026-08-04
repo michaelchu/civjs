@@ -242,7 +242,7 @@ export const GameCreationDialog: React.FC = () => {
                 </div>
 
                 <div>
-                  <div className="block text-sm font-medium text-foreground mb-2">Map Size</div>
+                  <div className="block text-sm font-medium text-foreground mb-2">Map sizing</div>
                   <p className="text-sm text-muted-foreground">
                     Calculated at game start from players and landmass.
                   </p>
