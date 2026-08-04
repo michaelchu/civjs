@@ -3,7 +3,7 @@
  * Implements the Base Renderer canvas rendering stage.
  */
 import type { MapViewport, Unit, City, GameState, PresentationEffect } from '../../../types';
-import type { AccessibleTile, GotoPath } from '../../../services/PathfindingService';
+import type { GotoPath } from '../../../services/PathfindingService';
 import type { TilesetProvider } from '../tilesets/TilesetProvider';
 import { nativeToMapPosition } from '../mapTopologyGeometry';
 
@@ -20,8 +20,6 @@ export interface RenderState {
   focusedUnits?: string[];
   urgentFocusQueue?: string[];
   gotoPath?: GotoPath | null;
-  movementRange?: AccessibleTile[];
-  movementRangeOrigin?: { x: number; y: number };
   currentPlayerId?: string;
   researchedTechs?: ReadonlySet<string>;
   presentationEffects?: PresentationEffect[];

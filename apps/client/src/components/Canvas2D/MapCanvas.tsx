@@ -66,9 +66,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<MapRenderer | null>(null);
   const [rendererReady, setRendererReady] = useState(false);
-  const [movementRange, setMovementRange] = useState<
-    import('../../services/PathfindingService').AccessibleTile[]
-  >([]);
   const [fogOfWarEnabled, setFogOfWarEnabled] = useState(
     () => !loadUserPreferences().disableFogOfWar
   );
@@ -198,23 +195,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     },
     [currentPlayerId, selectUnit]
   );
-
-  useEffect(() => {
-    const unit = selectedUnitId ? units[selectedUnitId] : undefined;
-    if (!unit || unit.playerId !== currentPlayerId || unit.movesLeft <= 0 || unit.doneMoving) {
-      setMovementRange([]);
-      return;
-    }
-
-    let active = true;
-    setMovementRange([]);
-    pathfindingService.requestMovementRange(unit.id).then(tiles => {
-      if (active) setMovementRange(tiles ?? []);
-    });
-    return () => {
-      active = false;
-    };
-  }, [currentPlayerId, selectedUnitId, units]);
 
   // Handle keyboard-triggered actions
   useEffect(() => {
@@ -411,12 +391,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           focusedUnits: state.focusedUnits,
           urgentFocusQueue: state.urgentFocusQueue,
           gotoPath: gotoMode.currentPath,
-          movementRange,
-          movementRangeOrigin: state.selectedUnitId
-            ? state.units[state.selectedUnitId]
-              ? { x: state.units[state.selectedUnitId].x, y: state.units[state.selectedUnitId].y }
-              : undefined
-            : undefined,
           currentPlayerId: state.currentPlayerId,
           researchedTechs: state.research?.researchedTechs,
           reducedMotion,
@@ -424,7 +398,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         immediate
       );
     },
-    [contextMenu?.unit.id, gotoMode.currentPath, movementRange, reducedMotion]
+    [contextMenu?.unit.id, gotoMode.currentPath, reducedMotion]
   );
 
   const cameraSlideFrame = useRef<number | null>(null);

@@ -2,7 +2,7 @@
  * @module client/components/Canvas2D/renderers/PathRenderer
  * Implements the Path Renderer canvas rendering stage.
  */
-import type { AccessibleTile, GotoPath, PathTile } from '../../../services/PathfindingService';
+import type { GotoPath, PathTile } from '../../../services/PathfindingService';
 import type { MapViewport } from '../../../types';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
 
@@ -14,10 +14,6 @@ export class PathRenderer extends BaseRenderer {
    * Render goto path and debug overlays.
    */
   renderPaths(state: RenderState): void {
-    if (state.movementRange && state.movementRange.length > 1) {
-      this.renderMovementRange(state.movementRange, state.viewport, state.movementRangeOrigin);
-    }
-
     // Render goto path if available (similar to freeciv-web's path rendering)
     if (state.gotoPath && state.gotoPath.tiles.length > 1) {
       if (import.meta.env.DEV) {
@@ -32,50 +28,6 @@ export class PathRenderer extends BaseRenderer {
       // Uncomment to see the diamond grid overlay
       // this.debugRenderGrid(state.viewport, true);
     }
-  }
-
-  private renderMovementRange(
-    tiles: AccessibleTile[],
-    viewport: MapViewport,
-    origin?: { x: number; y: number }
-  ): void {
-    this.ctx.save();
-
-    for (const tile of tiles) {
-      if (!this.isInViewport(tile.x, tile.y, viewport)) continue;
-      const screenPos = this.mapToScreen(tile.x, tile.y, viewport);
-      const centerX = screenPos.x + this.tileWidth / 2;
-      const centerY = screenPos.y + this.tileHeight / 2;
-      const isOrigin = tile.x === origin?.x && tile.y === origin?.y;
-      this.ctx.fillStyle = isOrigin ? 'rgba(103, 232, 249, 0.2)' : 'rgba(34, 211, 238, 0.12)';
-      this.ctx.strokeStyle = isOrigin ? 'rgba(224, 242, 254, 0.85)' : 'rgba(103, 232, 249, 0.42)';
-      this.ctx.lineWidth = isOrigin ? 2 : 1;
-      this.ctx.beginPath();
-      this.ctx.moveTo(centerX, centerY - this.tileHeight / 2);
-      this.ctx.lineTo(centerX + this.tileWidth / 2, centerY);
-      this.ctx.lineTo(centerX, centerY + this.tileHeight / 2);
-      this.ctx.lineTo(centerX - this.tileWidth / 2, centerY);
-      this.ctx.closePath();
-      this.ctx.fill();
-      this.ctx.stroke();
-
-      if (!isOrigin) {
-        const remainingMovement = Math.ceil(Math.max(0, tile.remainingMovement) / 3);
-        if (remainingMovement === 0) continue;
-
-        this.ctx.fillStyle = 'rgba(8, 47, 73, 0.86)';
-        this.ctx.beginPath();
-        this.ctx.arc(centerX, centerY, 8, 0, 2 * Math.PI);
-        this.ctx.fill();
-        this.ctx.fillStyle = '#ecfeff';
-        this.ctx.font = '600 9px system-ui, sans-serif';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-        this.ctx.fillText(String(remainingMovement), centerX, centerY);
-      }
-    }
-
-    this.ctx.restore();
   }
 
   /**

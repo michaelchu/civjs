@@ -76,7 +76,6 @@ vi.mock('../MapRenderer', () => ({
 
 vi.mock('../../../services/PathfindingService', () => ({
   pathfindingService: {
-    requestMovementRange: vi.fn().mockResolvedValue([]),
     requestPathResult,
   },
 }));
