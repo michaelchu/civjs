@@ -7,7 +7,7 @@
  * and proper game mechanics implementation.
  *
  * @reference freeciv/server/srv_main.c - begin_turn() phase processing
- * @reference freeciv-web/javascript/packhand.js - turn phase handling
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js - turn phase handling
  */
 
 import { logger } from '@utils/logger';

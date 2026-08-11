@@ -36,7 +36,7 @@ interface ProductionOption {
 
 /**
  * CityProductionHandler - Handles city production-related socket events
- * @reference freeciv-web/javascript/city.js production system
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/city.js production system
  *
  * Provides endpoints for:
  * - Getting available productions for a city
@@ -74,7 +74,7 @@ export class CityProductionHandler {
 
   /**
    * Get available production options for a city
-   * @reference freeciv-web/javascript/city.js getAvailableProductions logic
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/city.js getAvailableProductions logic
    */
   public async getAvailableProductions(
     socket: Socket,
@@ -167,7 +167,7 @@ export class CityProductionHandler {
 
   /**
    * Change city production
-   * @reference freeciv-web/javascript/city.js city_change_production()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/city.js city_change_production()
    */
   public async changeProduction(
     socket: Socket,

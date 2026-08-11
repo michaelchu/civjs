@@ -5,7 +5,7 @@
  * Manages the core economic mechanic of converting trade points into
  * gold, luxury, and science based on player-set tax rates.
  *
- * @reference freeciv-web/javascript/rates.js - tax rate system implementation
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/rates.js - tax rate system implementation
  * @reference freeciv/common/city.c - trade distribution calculations
  */
 

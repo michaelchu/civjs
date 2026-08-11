@@ -5,7 +5,7 @@ import { mapTileFromWire } from '../MapTileReducer';
 describe('map snapshot boundaries', () => {
   /**
    * @evidence parity
-   * @reference reference/freeciv-web/javascript/map.js:35-38
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:35-38
    * @assertion The client preserves Freeciv's ISO|HEX topology value 12 and separate WrapX|WrapY value 3 from MAP_INFO.
    * @c2c3-surface map-generation
    * @c2c3-surface-scenario normal

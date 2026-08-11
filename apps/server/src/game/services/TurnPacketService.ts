@@ -5,8 +5,8 @@
  * This service abstracts all turn-related packet sending operations to match
  * the freeciv-web protocol, including NEW_YEAR, BEGIN_TURN, and END_TURN packets.
  *
- * @reference freeciv-web/javascript/packhand.js packet handling
- * @reference freeciv-web/javascript/packhand_gen.js packet types
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js packet handling
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand_gen.js packet types
  */
 
 import { logger } from '@utils/logger';
@@ -40,8 +40,8 @@ export class TurnPacketService {
 
   /**
    * Send NEW_YEAR packet to all players
-   * @reference freeciv-web/javascript/packhand.js handle_new_year()
-   * @reference freeciv-web/javascript/packhand_gen.js case 127
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js handle_new_year()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand_gen.js case 127
    */
   sendNewYearPacket(turn: number, year: number, fragments: number = 0): void {
     const packetData = {
@@ -74,8 +74,8 @@ export class TurnPacketService {
 
   /**
    * Send BEGIN_TURN packet to all players
-   * @reference freeciv-web/javascript/packhand.js handle_begin_turn()
-   * @reference freeciv-web/javascript/packhand_gen.js case 128
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js handle_begin_turn()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand_gen.js case 128
    */
   sendBeginTurnPacket(turn: number, year: number): void {
     const packetData: TurnPacketData = {
@@ -107,8 +107,8 @@ export class TurnPacketService {
 
   /**
    * Send END_TURN packet to all players
-   * @reference freeciv-web/javascript/packhand.js handle_end_turn()
-   * @reference freeciv-web/javascript/packhand_gen.js case 129
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js handle_end_turn()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand_gen.js case 129
    */
   sendEndTurnPacket(turn: number, year: number): void {
     const packetData: TurnPacketData = {
@@ -198,7 +198,7 @@ export class TurnPacketService {
 
   /**
    * Send FREEZE_CLIENT packet to temporarily disable client interactions
-   * @reference freeciv-web/javascript/packhand.js handle_freeze_client()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js handle_freeze_client()
    */
   sendFreezeClientPacket(reason?: string): void {
     const packetData = {
@@ -221,7 +221,7 @@ export class TurnPacketService {
 
   /**
    * Send THAW_CLIENT packet to re-enable client interactions
-   * @reference freeciv-web/javascript/packhand.js handle_thaw_client()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js handle_thaw_client()
    */
   sendThawClientPacket(message?: string): void {
     const packetData = {

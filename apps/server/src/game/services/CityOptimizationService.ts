@@ -11,7 +11,7 @@
  * - Integration with tile management and citizen management systems
  *
  * @reference freeciv/common/city.c - citizen assignment
- * @reference freeciv-web/javascript/city.js - citizen management
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/city.js - citizen management
  */
 
 import { logger } from '@utils/logger';

@@ -11,7 +11,7 @@
  * - Random unit movements
  *
  * @reference freeciv/server/srv_main.c - begin_turn() random event processing (lines 1394-1793)
- * @reference freeciv-web/javascript/packhand.js - random event packet handling
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js - random event packet handling
  */
 
 import { logger } from '@utils/logger';

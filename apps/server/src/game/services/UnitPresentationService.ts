@@ -30,7 +30,7 @@ interface ReferenceUnitAdjustment {
   vy?: number;
 }
 
-// Values from reference/freeciv-web/javascript/2dcanvas/tileset_config_amplio2.js.
+// Values from reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tileset_config_amplio2.js.
 const UNIT_OFFSET_X = 25;
 const UNIT_OFFSET_Y = 18;
 const UNIT_OFFSET_ADJ_X = -9;
@@ -40,7 +40,7 @@ const UNIT_FLAG_OFFSET_Y = 16;
 const UNIT_ACTIVITY_OFFSET_X = 55;
 const UNIT_ACTIVITY_OFFSET_Y = 25;
 
-// Deltas from reference/freeciv-web/javascript/2dcanvas/tilespec.js.
+// Deltas from reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js.
 const REFERENCE_ADJUSTMENTS: Record<string, ReferenceUnitAdjustment> = {
   'aegis cruiser': { dx: -2, dy: -7, vx: -11, vy: 8 },
   'alpine troops': { dx: -3, dy: -1, vx: -4, vy: -4 },

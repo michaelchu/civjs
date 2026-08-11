@@ -127,7 +127,7 @@ export interface AirliftAvailability {
 
 /**
  * Freeciv Value Universal Type codes used by production selections.
- * @reference freeciv-web/javascript/city.js production system
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/city.js production system
  */
 export const VUT_UTYPE = 0;
 export const VUT_IMPROVEMENT = 1;
@@ -144,7 +144,7 @@ export function productionKindToVut(kind: 'unit' | 'building'): number {
 /**
  * Ordered Freeciv happiness feeling stages, from the base state through the
  * final wonder effects.
- * @reference freeciv-web/javascript/city.js:92-97
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/city.js:92-97
  */
 export const FEELING_BASE = 0;
 export const FEELING_LUXURY = 1;
@@ -2925,7 +2925,7 @@ export class CityManager {
    *
    * The client needs both pieces of information to mirror freeciv-web: an
    * endpoint can be airlift-capable but still have no capacity left this turn.
-   * @reference reference/freeciv-web/javascript/control.js:2086-2094
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:2086-2094
    * @reference reference/freeciv/server/unittools.c:3088-3095
    */
   public getAirliftAvailability(

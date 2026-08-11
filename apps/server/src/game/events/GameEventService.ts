@@ -7,7 +7,7 @@
  * RandomEventsManager by handling structured events and achievements.
  *
  * @reference freeciv/server/srv_main.c - script_server_signal_emit("turn_begin")
- * @reference freeciv-web/javascript/packhand.js - event processing and notifications
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js - event processing and notifications
  */
 
 import { logger } from '@utils/logger';

@@ -2,7 +2,7 @@
  * @module client/utils/mapInteraction
  * Map Interaction Utilities
  * Handles mouse/touch interaction logic for unit selection and focus
- * @reference freeciv-web/javascript/control.js click events and unit selection
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js click events and unit selection
  */
 
 import type { City, Unit } from '../types';
@@ -56,7 +56,7 @@ export function findCityAtTile(
 
 /**
  * Determine what action should be taken based on map click
- * @reference freeciv-web/javascript/control.js mouse click handling logic
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js mouse click handling logic
  */
 export function determineMapClickAction(
   tileX: number,
@@ -110,7 +110,7 @@ export function determineMapClickAction(
 
 /**
  * Determine which unit to select when clicking on a tile with multiple units
- * @reference freeciv-web/javascript/control.js unit cycling logic
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js unit cycling logic
  */
 function determineUnitToSelect(
   unitsAtTile: Unit[],
@@ -151,7 +151,11 @@ export function getUnitsAtTile(units: Record<string, Unit>, tileX: number, tileY
 
 /**
  * Check if click should be ignored (too close to previous click, etc.)
- * @reference freeciv-web/javascript/control.js GOTO_CLICK_COOLDOWN logic
+ *
+ * The repeated-click cooldown is a CivJS interaction contract. The current
+ * Freeciv-web client has related same-tile GOTO handling in
+ * reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:1716-1726,
+ * but does not define this exact cooldown.
  */
 export function shouldIgnoreClick(
   lastClickTime: number,

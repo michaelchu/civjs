@@ -3,7 +3,7 @@
  * Calendar service implementing freeciv-compliant calendar system with fragments support
  *
  * @reference freeciv/common/calendar.c game_next_year() and calendar_text()
- * @reference freeciv-web/javascript/packhand.js handle_new_year()
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js handle_new_year()
  */
 
 export interface CalendarServiceConfig {

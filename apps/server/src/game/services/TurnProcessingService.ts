@@ -207,7 +207,7 @@ export class TurnProcessingService {
 
   /**
    * Process all queued player actions from the current turn
-   * @reference freeciv-web/javascript/packhand.js handle_begin_turn()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js handle_begin_turn()
    */
   async processQueuedPlayerActions(): Promise<TurnProcessingResult> {
     const result: TurnProcessingResult = {

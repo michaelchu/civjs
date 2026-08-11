@@ -3,8 +3,8 @@
  * BorderRenderer - Renders national borders on the canvas
  * Ported from freeciv-web to modern TypeScript
  *
- * @reference freeciv-web/javascript/2dcanvas/mapview.js:705-820 - Border line rendering
- * @reference freeciv-web/javascript/2dcanvas/tilespec.js:1208-1226 - Border sprite generation
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:705-820 - Border line rendering
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:1208-1226 - Border sprite generation
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -15,7 +15,7 @@ import type { Tile } from '../../../types';
 import { stepNativeMapPosition } from '../mapTopologyGeometry';
 
 // Direction constants from freeciv
-// @reference freeciv-web/javascript/fc_types.js
+// @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/fc_types.js
 enum Direction {
   DIR8_NORTH = 0,
   DIR8_NORTHEAST = 1,
@@ -172,7 +172,7 @@ export class BorderRenderer extends BaseRenderer {
 
   /**
    * Get the neighbor tile in a given direction
-   * @reference freeciv-web/javascript/mapctrl.js - mapstep function
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/mapctrl.js - mapstep function
    */
   private getNeighborTile(tile: Tile, dir: Direction, map: any): Tile | null {
     let dx = 0;
@@ -213,7 +213,7 @@ export class BorderRenderer extends BaseRenderer {
 
   /**
    * Generate border sprites for a tile - EXACTLY matches freeciv-web logic
-   * @reference freeciv-web/javascript/2dcanvas/tilespec.js:1208-1226 get_border_line_sprites
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:1208-1226 get_border_line_sprites
    */
   private getBorderLineSprites(
     tile: Tile,
@@ -256,7 +256,7 @@ export class BorderRenderer extends BaseRenderer {
 
   /**
    * Draw a border line on the canvas
-   * @reference freeciv-web/javascript/2dcanvas/mapview.js:705-820 mapview_put_border_line
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:705-820 mapview_put_border_line
    */
   private drawBorderLine(
     dir: Direction,
@@ -274,7 +274,7 @@ export class BorderRenderer extends BaseRenderer {
     ctx.save();
 
     // Use exact freeciv-web coordinates (canvas_x + 47, canvas_y + 3)
-    // @reference freeciv-web/javascript/2dcanvas/mapview.js:707-708
+    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:707-708
     const x = canvasX + 47; // Fixed offset matching freeciv-web
     const y = canvasY + 3;
 
@@ -303,7 +303,7 @@ export class BorderRenderer extends BaseRenderer {
     ctx.beginPath();
 
     // Draw the border line based on direction using exact freeciv-web coordinates
-    // @reference freeciv-web/javascript/2dcanvas/mapview.js:738-820
+    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:738-820
     switch (dir) {
       case Direction.DIR8_NORTH:
         // @reference freeciv-web line 741-742: exact coordinates
@@ -405,7 +405,7 @@ export class BorderRenderer extends BaseRenderer {
 
   /**
    * Fill territory with nation color - EXACT freeciv-web coordinates
-   * @reference freeciv-web/javascript/2dcanvas/mapview.js:825-840 mapview_territory_fill
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:825-840 mapview_territory_fill
    */
   private drawTerritoryFill(color: string, canvasX: number, canvasY: number): void {
     const ctx = this.ctx;
@@ -436,7 +436,7 @@ export class BorderRenderer extends BaseRenderer {
 
   /**
    * Main render method for borders - follows freeciv-web mapview pattern
-   * @reference freeciv-web/javascript/2dcanvas/mapview.js calling pattern
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js calling pattern
    */
   public render(state: RenderState): void {
     if (!this.options.drawBorders) {

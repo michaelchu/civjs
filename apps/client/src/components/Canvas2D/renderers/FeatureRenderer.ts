@@ -73,7 +73,7 @@ export class FeatureRenderer extends BaseRenderer {
   /**
    * Calculate river sprite for a tile based on its riverMask connections.
    * Port of freeciv-web's get_tile_river_sprite() function.
-   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:get_tile_river_sprite()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:get_tile_river_sprite()
    * @param tile - The tile to calculate river sprite for
    * @returns Sprite info with key for river rendering, or null if no river
    */
@@ -105,7 +105,7 @@ export class FeatureRenderer extends BaseRenderer {
   /**
    * Calculate resource sprite for a tile based on its resource type.
    * Port of freeciv-web's resource rendering functionality.
-   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js (resource handling)
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js (resource handling)
    * @param tile - The tile to calculate resource sprite for
    * @returns Sprite info with key for resource rendering, or null if no resource
    */

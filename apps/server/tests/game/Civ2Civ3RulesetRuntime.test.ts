@@ -78,7 +78,7 @@ describe('Civ2Civ3 ruleset runtime routing', () => {
     expect(rulesetBuildingsService.getPlayableBuildingTypes('civ2civ3').city_walls.cost).toBe(30);
 
     const effectCoverage = new EffectsManager('civ2civ3').getEffectCoverage();
-    expect(effectCoverage.total).toBe(505);
+    expect(effectCoverage.total).toBe(506);
     expect(effectCoverage.unsupportedTypes).not.toContain('Airlift');
     expect(effectCoverage.unsupportedTypes).not.toContain('Incite_Cost_Pct');
     expect(effectCoverage.unsupportedTypes).not.toContain('Tech_Leakage');
@@ -91,6 +91,8 @@ describe('Civ2Civ3 ruleset runtime routing', () => {
     expect(effectCoverage.unsupportedTypes).not.toContain('SS_Component');
     expect(effectCoverage.unsupportedTypes).not.toContain('SS_Module');
     expect(effectCoverage.unsupportedTypes).not.toContain('SS_Structural');
+    expect(effectCoverage.unsupportedTypes).not.toContain('Shield2Gold_Pct');
+    expect(effectCoverage.unsupportedTypes).not.toContain('Tech_Cost_Pct');
     expect(
       new EffectsManager('civ2civ3').calculateEffect(EffectType.AIRLIFT, {
         cityBuildings: new Set(['airport']),

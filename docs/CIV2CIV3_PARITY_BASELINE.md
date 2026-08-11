@@ -1,28 +1,27 @@
 # Civ2Civ3 Parity Baseline
 
 The gameplay-parity target is Freeciv's `civ2civ3` ruleset. This document
-pins the reference snapshot that source-backed tests and generated data must
-use.
+records the Freeciv submodule pin that source-backed tests and generated data
+must use.
 
-## Pinned reference
+## Pinned Freeciv reference
 
 - **Reference path:** `reference/freeciv`
-- **Freeciv version:** `3.3.90.5-dev` (`reference/freeciv/fc_version`)
-- **Reference tree object:** `bb555d7fe91b147d4ec504cf933bcc372b7debc8`
-  (`git rev-parse HEAD:reference/freeciv` when this baseline was recorded)
-- **Upstream Freeciv commit:** `440b3c9650d3052792296868cb15591bd40612ea`
-  (Freeciv `main`, 2025-08-28)
+- **Upstream repository:** `https://github.com/freeciv/freeciv.git`
+- **Upstream branch:** `main`
+- **Freeciv version:** `3.3.90.14-dev` (`reference/freeciv/fc_version`)
+- **Submodule commit:** `eb8c7033aa6a70dfcd4aee828c3ac1ba33092afc`
+  (committed 2026-08-11)
 - **Default CivJS ruleset:** `civ2civ3`
 
-The tree object identifies the exact checked-in Freeciv source used for this
+The submodule commit identifies the exact Freeciv source used for this
 baseline. It is a source pin, not a claim that CivJS has complete parity yet.
 
-The bundled reference is intentionally source-only. A path-for-path comparison
-against the upstream commit above found no differences in the bundled gameplay
-paths (`ai/`, `common/`, `server/`, and `data/civ2civ3/`). Upstream-only asset
-files are not part of the gameplay oracle. The pinned upstream commit can
-therefore be built to run source-mapped differential scenarios without
-silently switching rulesets.
+The submodule contains the complete upstream Freeciv repository, including its
+build system and non-gameplay clients. The CivJS gameplay oracle remains scoped
+to `ai/`, `common/`, `server/`, and `data/civ2civ3/`; the other upstream content
+is read-only reference material. The pinned commit can therefore be built to
+run source-mapped differential scenarios without silently switching rulesets.
 
 ## Executable baseline checks
 
@@ -74,9 +73,11 @@ action and gameplay-surface scenarios rather than being silently treated as
 converted data. `docs/CIV2CIV3_PARITY_SCRIPT_HOOKS.json` inventories every
 active signal connection and the audit rejects an unaccounted source hook.
 
-When updating `reference/freeciv`, update this document's tree object and
-Freeciv version, regenerate any affected converted data deliberately, and add
-or update source-mapped parity scenarios before accepting the new baseline.
+When updating `reference/freeciv`, advance the submodule deliberately, then
+update this document's commit and version, regenerate any affected converted
+data, and add or update source-mapped parity scenarios before accepting the new
+baseline. The browser-client reference has its own pin and update procedure in
+[Freeciv-web Reference Baseline](FREECIV_WEB_REFERENCE_BASELINE.md).
 
 ## Differential oracle
 
@@ -91,9 +92,10 @@ FREECIV_ORACLE_BIN=/path/to/freeciv-server \
 npm run check:civ2civ3-oracle
 ```
 
-The runner checks the bundled reference tree, every bundled gameplay source
-file, the upstream source commit, and the binary version before it runs. It
-keeps saves in an isolated temporary directory and emits structured results.
+The runner checks the Freeciv submodule gitlink and checked-out submodule,
+every bundled gameplay source file, the upstream source commit, and the binary
+version before it runs. It keeps saves in an isolated temporary directory and
+emits structured results.
 CI invokes it once without a scenario filter. The runner validates the pinned
 source and binary once, starts a fresh Freeciv server session for each
 deterministic fixture, and merges the results into one JSON bundle. This keeps

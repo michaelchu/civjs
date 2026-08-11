@@ -6,7 +6,7 @@
  * is complete, including border recalculation, visibility updates, and UI state management.
  *
  * @reference freeciv/server/srv_main.c - end_turn() and map_calculate_borders()
- * @reference freeciv-web/javascript/packhand.js - handle_begin_turn() UI updates
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js - handle_begin_turn() UI updates
  */
 
 import { logger } from '@utils/logger';
@@ -135,7 +135,7 @@ export class TurnCoordinationService {
 
   /**
    * Update visibility and fog of war for all players
-   * @reference freeciv-web/javascript/packhand.js visibility updates
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js visibility updates
    */
   async updateVisibility(playerIds: string[]): Promise<void> {
     logger.debug('Updating visibility and fog of war', {
@@ -174,7 +174,7 @@ export class TurnCoordinationService {
 
   /**
    * Reset UI state for the beginning of a new turn
-   * @reference freeciv-web/javascript/packhand.js handle_begin_turn()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js handle_begin_turn()
    */
   async resetUIState(playerIds: string[]): Promise<void> {
     logger.debug('Resetting UI state for new turn', {
@@ -215,8 +215,8 @@ export class TurnCoordinationService {
 
   /**
    * Reset waiting units list for a player
-   * @reference freeciv-web/javascript/packhand.js waiting_units_list = []
-   * @reference freeciv-web/javascript/control.js advance_focus_inactive_units()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js waiting_units_list = []
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js advance_focus_inactive_units()
    */
   private async resetWaitingUnitsList(playerId: string): Promise<void> {
     // In freeciv-web, this completely clears the waiting_units_list array
@@ -253,8 +253,8 @@ export class TurnCoordinationService {
 
   /**
    * Update unit focus management for new turn
-   * @reference freeciv-web/javascript/control.js update_unit_focus()
-   * @reference freeciv-web/javascript/control.js advance_unit_focus()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js update_unit_focus()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js advance_unit_focus()
    */
   private async updateUnitFocus(playerId: string): Promise<void> {
     // Implement freeciv-web's unit focus logic:
@@ -306,7 +306,7 @@ export class TurnCoordinationService {
 
   /**
    * Reset turn-specific flags and state
-   * @reference freeciv-web/javascript/packhand.js handle_begin_turn()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js handle_begin_turn()
    */
   private async resetTurnFlags(playerId: string): Promise<void> {
     // Reset turn-specific flags that need to be cleared at the start of each turn
@@ -375,8 +375,8 @@ export class TurnCoordinationService {
 
   /**
    * Clear animation state for end of turn
-   * @reference freeciv-web/javascript/unit.js reset_unit_anim_list()
-   * @reference freeciv-web/javascript/packhand.js handle_end_turn()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/unit.js reset_unit_anim_list()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js handle_end_turn()
    */
   async clearAnimationState(): Promise<void> {
     logger.debug('Clearing animation state', { gameId: this.gameId });

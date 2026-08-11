@@ -12,7 +12,7 @@
  * - Overall happiness state evaluation
  *
  * @reference freeciv/common/city.c - city happiness calculations
- * @reference freeciv-web/javascript/city.js - happiness and luxury effects
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/city.js - happiness and luxury effects
  */
 
 import { logger } from '@utils/logger';

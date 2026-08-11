@@ -101,6 +101,7 @@ export enum EffectType {
   RETIRE_PCT = 'Retire_Pct',
   TECH_UPKEEP_FREE = 'Tech_Upkeep_Free',
   TECH_COST_FACTOR = 'Tech_Cost_Factor',
+  TECH_COST_PCT = 'Tech_Cost_Pct',
   TECH_LEAKAGE = 'Tech_Leakage',
   HAVE_CONTACTS = 'Have_Contacts',
   HAVE_EMBASSIES = 'Have_Embassies',
@@ -177,6 +178,7 @@ export interface EffectContext {
   action?: string;
   buildingGenus?: string;
   government?: string;
+  governmentFlags?: Set<string>;
   outputType?: OutputType;
   specialist?: string;
   unitType?: string;
@@ -770,6 +772,15 @@ export class EffectsManager {
 
     this.requirementHandlers['Player'] = (req, context) =>
       this.requirementResult('Player', req, this.matches(context.playerId, req.name));
+    this.requirementHandlers['GovFlag'] = (req, context) =>
+      this.requirementResult(
+        'GovFlag',
+        req,
+        this.setContains(
+          context.governmentFlags ?? this.getGovernmentFlags(context.government),
+          req.name
+        )
+      );
 
     this.requirementHandlers['UnitClass'] = (req, context) =>
       this.requirementResult('UnitClass', req, this.matches(context.unitClass, req.name));
@@ -905,6 +916,16 @@ export class EffectsManager {
             : undefined;
       return this.requirementResult('CityStatus', req, actual);
     };
+  }
+
+  private getGovernmentFlags(government?: string): Set<string> | undefined {
+    if (!government) return undefined;
+
+    try {
+      return new Set(rulesetLoader.getGovernment(government, this.rulesetName).flags ?? []);
+    } catch {
+      return undefined;
+    }
   }
 
   private requirementResult(

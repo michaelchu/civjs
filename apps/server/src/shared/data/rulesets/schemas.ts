@@ -518,6 +518,7 @@ export const EffectRequirementTypeSchema = z.enum([
   'Extra',
   'ExtraFlag',
   'Gov',
+  'GovFlag',
   'MaxDistanceSq',
   'MaxRegionTiles',
   'MaxUnitsOnTile',

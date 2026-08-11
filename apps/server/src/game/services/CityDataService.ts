@@ -10,7 +10,7 @@ import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
  * with calculated production, surplus, citizens, and other required data.
  *
  * Follows freeciv-web patterns with pcity['prod'], pcity['surplus'] structure
- * @reference freeciv-web/javascript/city.js
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/city.js
  */
 
 import type { CityState } from '@game/cities/CityTypes';

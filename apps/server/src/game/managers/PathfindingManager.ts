@@ -192,7 +192,7 @@ export interface PathfindingMovementPolicy {
  *
  * @reference freeciv/common/aicore/path_finding.h - Core pathfinding definitions
  * @reference freeciv/common/aicore/path_finding.c - PF algorithm implementation
- * @reference freeciv-web/freeciv/patches/goto_fcweb.patch - Server-side goto handling
+ * @reference reference/freeciv-web/freeciv/patches/goto_fcweb.patch - Server-side goto handling
  * @compliance Implements A* algorithm with move cost calculations as per freeciv standards
  */
 export class PathfindingManager {

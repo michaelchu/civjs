@@ -10,7 +10,7 @@ import {
 describe('MapTopology', () => {
   /**
    * @evidence parity
-   * @reference reference/freeciv-web/javascript/map.js:35-38
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:35-38
    * @assertion CivJS uses Freeciv's serialized ISO and HEX flag positions in MAP_INFO, while preserving maps written with its former internal positions.
    * @c2c3-surface map-generation
    * @c2c3-surface-scenario boundary

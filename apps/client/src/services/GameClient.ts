@@ -329,7 +329,7 @@ export class GameClient {
 
       case PacketType.NEW_YEAR:
         // Update game state with new year and turn information
-        // @reference freeciv-web/javascript/packhand.js handle_new_year()
+        // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js handle_new_year()
         useGameStore.getState().updateGameState({
           turn: packet.data.turn,
           year: packet.data.year,

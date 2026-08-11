@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 
 export const CIV2CIV3_ORACLE_BASELINE = {
-  version: '3.3.90.5-dev',
-  commit: '440b3c9650d3052792296868cb15591bd40612ea',
+  version: '3.3.90.14-dev',
+  commit: 'eb8c7033aa6a70dfcd4aee828c3ac1ba33092afc',
 } as const;
 
 export interface Civ2Civ3OracleResults {

@@ -4,7 +4,7 @@
  * Core interfaces and types for the economic game system
  *
  * @reference freeciv/common/city.h - economic calculations
- * @reference freeciv-web/javascript/rates.js - tax rate system
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/rates.js - tax rate system
  */
 
 // OutputType from GameConstants is available for future use

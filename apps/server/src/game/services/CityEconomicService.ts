@@ -12,7 +12,7 @@
  * avoiding bloating CityManager.ts (already 1,977 lines).
  *
  * @reference freeciv/common/city.c - city economic calculations
- * @reference freeciv-web/javascript/city.js - city production system
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/city.js - city production system
  */
 
 import { logger } from '@utils/logger';
@@ -124,7 +124,7 @@ export class CityEconomicService extends BaseGameService {
     const buildingUpkeep = this.calculateBuildingUpkeep(city);
 
     // Calculate unit upkeep costs (if city pays)
-    const unitUpkeep = this.calculateUnitUpkeep(supportedUnits, goldUpkeepStyle);
+    const unitUpkeep = this.calculateUnitUpkeep(supportedUnits, goldUpkeepStyle, params.government);
 
     return {
       cityId: city.id,
@@ -165,7 +165,7 @@ export class CityEconomicService extends BaseGameService {
     // Calculate detailed cost breakdown
     const costBreakdown = {
       buildings: this.getBuildingUpkeepBreakdown(city),
-      units: this.getUnitUpkeepBreakdown(supportedUnits, goldUpkeepStyle),
+      units: this.getUnitUpkeepBreakdown(supportedUnits, goldUpkeepStyle, params.government),
     };
 
     // Calculate corruption details
@@ -302,7 +302,8 @@ export class CityEconomicService extends BaseGameService {
    */
   private calculateUnitUpkeep(
     supportedUnits: UnitSupportData[],
-    goldUpkeepStyle: GoldUpkeepStyle
+    goldUpkeepStyle: GoldUpkeepStyle,
+    government: string
   ): number {
     // Only calculate if city pays for unit upkeep
     if (goldUpkeepStyle === GOLD_UPKEEP_STYLES.NATION) {
@@ -316,7 +317,7 @@ export class CityEconomicService extends BaseGameService {
     // CITY style - city pays for both units and buildings
     let totalUpkeep = 0;
     for (const unit of supportedUnits) {
-      totalUpkeep += unit.upkeep.gold;
+      totalUpkeep += this.getEffectiveUnitGoldUpkeep(unit, government);
     }
 
     return totalUpkeep;
@@ -357,7 +358,8 @@ export class CityEconomicService extends BaseGameService {
    */
   private getUnitUpkeepBreakdown(
     supportedUnits: UnitSupportData[],
-    goldUpkeepStyle: GoldUpkeepStyle
+    goldUpkeepStyle: GoldUpkeepStyle,
+    government: string
   ): Array<{
     unitId: string;
     unitType: string;
@@ -368,17 +370,31 @@ export class CityEconomicService extends BaseGameService {
     // Only include units if city pays for them
     if (goldUpkeepStyle === GOLD_UPKEEP_STYLES.CITY) {
       for (const unit of supportedUnits) {
-        if (unit.upkeep.gold > 0) {
+        const goldUpkeep = this.getEffectiveUnitGoldUpkeep(unit, government);
+        if (goldUpkeep > 0) {
           breakdown.push({
             unitId: unit.unitId,
             unitType: unit.unitType,
-            goldUpkeep: unit.upkeep.gold,
+            goldUpkeep,
           });
         }
       }
     }
 
     return breakdown;
+  }
+
+  private getEffectiveUnitGoldUpkeep(unit: UnitSupportData, government: string): number {
+    const shieldToGoldPct = this.effectsManager.calculateEffect(EffectType.SHIELD2GOLD_PCT, {
+      government,
+      unitType: unit.unitType,
+      unitTypeFlags: new Set(unit.unitTypeFlags ?? []),
+    }).value;
+
+    return (
+      unit.upkeep.gold +
+      (shieldToGoldPct > 0 ? Math.ceil((shieldToGoldPct * unit.upkeep.shield) / 100) : 0)
+    );
   }
 
   /**

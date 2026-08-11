@@ -4,7 +4,7 @@
  * Game balance constants for the economic system
  *
  * @reference reference/freeciv/data/civ2civ3/game.ruleset - economic settings
- * @reference freeciv-web/javascript/rates.js - tax rate constants
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/rates.js - tax rate constants
  */
 
 import type { TaxRates, TaxRateConstraints } from '../types/EconomicTypes';

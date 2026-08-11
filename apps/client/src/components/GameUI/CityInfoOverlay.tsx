@@ -116,7 +116,7 @@ interface CityInfoOverlayProps {
  * CityInfoOverlay displays comprehensive city information with tabbed interface.
  *
  * Based on freeciv-web's show_city_dialog functionality:
- * @reference freeciv-web/javascript/city.js:277-990
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/city.js:277-990
  * - Tabbed interface (Main, Production, Happy)
  * - Detailed resource breakdown with surplus/deficit indicators
  * - Population details (grain storage, growth time)

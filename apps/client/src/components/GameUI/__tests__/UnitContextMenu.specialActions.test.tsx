@@ -294,8 +294,8 @@ describe('UnitContextMenu special actions', () => {
 
   /**
    * @evidence parity
-   * @reference reference/freeciv-web/javascript/control.js:1627-1632
-   * @reference reference/freeciv-web/javascript/control.js:2301-2307
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:1627-1632
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:2301-2307
    * @assertion The unit tile menu exposes tile information and whole-stack selection commands alongside unit actions.
    */
   it('exposes city, tile-info, and stack selection commands from a unit tile', () => {

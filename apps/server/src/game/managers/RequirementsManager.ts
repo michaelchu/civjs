@@ -7,8 +7,8 @@
  *
  * Reference files:
  * - /reference/freeciv/common/requirements.c (VUT_MINCULTURE handling)
- * - /reference/freeciv-web/javascript/fc_types.js (VUT_MINCULTURE = 29)
- * - /reference/freeciv-web/javascript/requirements.js (requirement evaluation)
+ * - /reference/freeciv-web/freeciv-web/src/main/webapp/javascript/fc_types.js (VUT_MINCULTURE = 29)
+ * - /reference/freeciv-web/freeciv-web/src/main/webapp/javascript/requirements.js (requirement evaluation)
  */
 
 import { logger } from '@utils/logger';

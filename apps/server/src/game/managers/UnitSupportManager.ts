@@ -333,10 +333,11 @@ export class UnitSupportManager {
     let militaryUnhappiness = 0;
 
     for (const unit of effectiveUnits) {
+      const upkeep = this.getEffectiveUnitUpkeep(unit, context);
       const hasNoUpkeep = this.hasFanaticNoUpkeep(unit, context);
-      if (!hasNoUpkeep && unit.upkeep.shield > 0) shieldUnitsRequiringSupport++;
-      if (!hasNoUpkeep && unit.upkeep.food > 0) foodUnitsRequiringSupport++;
-      if (!hasNoUpkeep && unit.upkeep.gold > 0 && cityPaysGold) goldUnitsRequiringSupport++;
+      if (!hasNoUpkeep && upkeep.shield > 0) shieldUnitsRequiringSupport++;
+      if (!hasNoUpkeep && upkeep.food > 0) foodUnitsRequiringSupport++;
+      if (!hasNoUpkeep && upkeep.gold > 0 && cityPaysGold) goldUnitsRequiringSupport++;
       if (unit.isMilitaryUnit && (unit.isAwayFromHome || unit.isFieldUnit)) {
         militaryUnhappiness += this.calculateMilitaryUnhappiness(context, unit.unitType);
       }
@@ -369,6 +370,28 @@ export class UnitSupportManager {
         unitTypeFlags: new Set(unit.unitTypeFlags),
       }).value ?? 0) > 0
     );
+  }
+
+  /**
+   * Resolve the unit upkeep after ruleset effects convert shield upkeep to
+   * gold. Freeciv applies this conversion before city/national support counts.
+   * @reference reference/freeciv/common/unittype.c:136-186 utype_upkeep_cost()
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:744-751
+   */
+  private getEffectiveUnitUpkeep(unit: UnitSupportData, context: EffectContext): UnitUpkeep {
+    const shieldToGoldPct = this.effectsManager?.calculateEffect(EffectType.SHIELD2GOLD_PCT, {
+      ...context,
+      unitType: unit.unitType,
+      unitTypeFlags: new Set(unit.unitTypeFlags ?? []),
+    });
+
+    if (!shieldToGoldPct?.value || unit.upkeep.shield <= 0) return { ...unit.upkeep };
+
+    return {
+      ...unit.upkeep,
+      shield: 0,
+      gold: unit.upkeep.gold + Math.ceil((shieldToGoldPct.value * unit.upkeep.shield) / 100),
+    };
   }
 
   private applyFreeSupportCounts(
@@ -409,7 +432,7 @@ export class UnitSupportManager {
     ) {
       for (const unit of allPlayerUnits) {
         if (!this.hasFanaticNoUpkeep(unit, context)) {
-          nationalCosts.gold += unit.upkeep.gold;
+          nationalCosts.gold += this.getEffectiveUnitUpkeep(unit, context).gold;
         }
       }
 

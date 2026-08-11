@@ -248,7 +248,7 @@ describe('GameBroadcastManager visibility sync', () => {
   /**
    * @evidence parity
    * @reference reference/freeciv/data/civ2civ3/game.ruleset:810-815
-   * @reference reference/freeciv-web/javascript/map.js:35-38
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:35-38
    * @assertion The live-map snapshot carries Civ2Civ3's independent ISO|HEX (12) and WrapX|WrapY (3) Freeciv packet flags to every player.
    * @c2c3-surface map-generation
    * @c2c3-surface-scenario normal

@@ -138,7 +138,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
 
     // Settler actions. The reference only exposes Found City off a city tile;
     // the unit-type capability alone is not enough.
-    // @reference reference/freeciv-web/javascript/control.js:1578-1589
+    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:1578-1589
     if (unit.capabilities?.canFoundCity && !city) {
       actions.push(
         { separator: true },
@@ -243,7 +243,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
     // showing Pillage for every unit type that has the coarse capability.
     // The client tile model does not expose per-extra pillage rules yet, so a
     // known improvement is the conservative presentation-level projection.
-    // @reference reference/freeciv-web/javascript/control.js:1838-1847
+    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:1838-1847
     const canPillageTile =
       (tile?.improvements?.length ?? 0) > 0 && (!city || city.playerId !== unit.playerId);
     if (unit.capabilities?.canPillage && canPillageTile) {
@@ -307,7 +307,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
         icon: Hammer,
       });
     }
-    // @reference reference/freeciv-web/javascript/control.js:1578-1589
+    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:1578-1589
     if (unitActions.has(ActionType.JOIN_CITY) && city) {
       specialActions.push({
         action: ActionType.JOIN_CITY,
@@ -315,7 +315,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
         icon: Home,
       });
     }
-    // @reference reference/freeciv-web/javascript/control.js:2078-2084
+    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:2078-2084
     if (
       unitActions.has(ActionType.CHANGE_HOME_CITY) &&
       city?.playerId === unit.playerId &&
@@ -330,7 +330,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
     }
     // The server resolves the complete obsolete_by chain against the player's
     // researched technologies and sends the final target/cost to the owner.
-    // @reference reference/freeciv-web/javascript/control.js:2096-2124
+    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:2096-2124
     const upgradeTarget = unit.capabilities?.upgradeTarget;
     if (
       unitActions.has(ActionType.UPGRADE_UNIT) &&
@@ -346,7 +346,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
     // Paradrop is not directly tech-gated in the reference menu. The
     // coarse Paratroopers capability is combined with the current movement
     // check here.
-    // @reference reference/freeciv-web/javascript/control.js:2071-2076
+    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:2071-2076
     if (unitActions.has(ActionType.PARADROP) && unit.movesLeft > 0) {
       specialActions.push({
         action: ActionType.PARADROP,
@@ -384,7 +384,7 @@ export const UnitContextMenu: React.FC<UnitContextMenuProps> = ({
     }
     // The server projects both the endpoint capability and this turn's
     // remaining capacity, matching the reference's city airlift check.
-    // @reference reference/freeciv-web/javascript/control.js:2086-2094
+    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:2086-2094
     const canAirliftFromCity =
       unitActions.has(ActionType.AIRLIFT) &&
       city?.playerId === unit.playerId &&

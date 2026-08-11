@@ -475,7 +475,7 @@ describe('ResearchManager', () => {
      * @evidence parity
      * @reference reference/freeciv/common/research.c:872-1050
      * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3794-3796
-     * @assertion A c2c3 root technology completes exactly when accumulated bulbs reach its base cost after the global Tech_Cost_Factor has been applied.
+     * @assertion A c2c3 root technology completes exactly when accumulated bulbs reach its base cost after the global Tech_Cost_Pct effect has been applied.
      * @c2c3-surface research-government
      * @c2c3-surface-scenario turn
      */

@@ -161,7 +161,7 @@ export class UnitRenderer extends BaseRenderer {
     const screenPos = this.mapToScreen(unit.x, unit.y, viewport);
 
     // Get unit animation offset for smooth movement
-    // @reference freeciv-web/.../unit.js:get_unit_anim_offset()
+    // @reference reference/freeciv-web/.../unit.js:get_unit_anim_offset()
     const animOffset = this.getUnitAnimOffset(unit, viewport, state.reducedMotion);
 
     // Sprite offsets are relative to the tile origin, matching the reference
@@ -174,7 +174,7 @@ export class UnitRenderer extends BaseRenderer {
     const unitY = originY + offsets.unitY;
 
     // Render unit sprites using freeciv-web approach
-    // @reference freeciv-web/.../tilespec.js:fill_unit_sprite_array()
+    // @reference reference/freeciv-web/.../tilespec.js:fill_unit_sprite_array()
     const nationShield = this.getUnitNationFlagSprite(state.players[unit.playerId], offsets);
     const unitSprites = this.fillUnitSpriteArray(
       unit,
@@ -274,7 +274,7 @@ export class UnitRenderer extends BaseRenderer {
 
   /**
    * Get unit animation offset for smooth movement
-   * @reference freeciv-web/.../unit.js:get_unit_anim_offset()
+   * @reference reference/freeciv-web/.../unit.js:get_unit_anim_offset()
    */
   private getUnitAnimOffset(
     unit: Unit,
@@ -311,7 +311,7 @@ export class UnitRenderer extends BaseRenderer {
 
   /**
    * Fill unit sprite array based on freeciv-web implementation
-   * @reference freeciv-web/.../tilespec.js:fill_unit_sprite_array()
+   * @reference reference/freeciv-web/.../tilespec.js:fill_unit_sprite_array()
    */
   private fillUnitSpriteArray(
     unit: Unit,
@@ -494,7 +494,7 @@ export class UnitRenderer extends BaseRenderer {
       return definition.graphic;
     }
     // Handle special case mappings between common unit type names and sprite names
-    // @reference freeciv-web/javascript/2dcanvas/tileset_spec_amplio2.js
+    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tileset_spec_amplio2.js
     const specialMappings: Record<string, string> = {
       warrior: 'warriors',
       settler: 'settlers',

@@ -725,7 +725,7 @@ export class ActionSystem {
 
   /**
    * Check if unit can build a road
-   * @reference freeciv-web/javascript/unit.js unit activity validation
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/unit.js unit activity validation
    */
   private canBuildRoad(unit: Unit): boolean {
     const tile = this.mapManager?.getTile(unit.x, unit.y);
@@ -821,7 +821,7 @@ export class ActionSystem {
 
   /**
    * Check if unit can pillage
-   * @reference freeciv-web/javascript/unit.js get_what_can_unit_pillage_from()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/unit.js get_what_can_unit_pillage_from()
    */
   private canPillage(unit: Unit): boolean {
     if (unit.movementLeft <= 0) {
@@ -1089,8 +1089,8 @@ export class ActionSystem {
    * Execute goto command for a unit - moves unit along pathfinding path
    * Implements freeciv-web style goto with server-side pathfinding
    *
-   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:do_map_click() - Client goto execution
-   * @reference freeciv-web/freeciv/patches/goto_fcweb.patch:handle_web_goto_path_req() - Server goto handling
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:do_map_click() - Client goto execution
+   * @reference reference/freeciv-web/freeciv/patches/goto_fcweb.patch:handle_web_goto_path_req() - Server goto handling
    * @reference freeciv/server/unithand.c:handle_unit_move_query() - Unit movement validation
    * @compliance Uses pathfinding results and movement cost deduction as per freeciv standards
    */

@@ -1273,6 +1273,23 @@
         }
       ]
     },
+    "upkeep_shield2gold": {
+      "id": "upkeep_shield2gold",
+      "type": "Shield2Gold_Pct",
+      "value": 100,
+      "reqs": [
+        {
+          "type": "UnitTypeFlag",
+          "name": "ShieldToGold",
+          "range": "Local"
+        },
+        {
+          "type": "GovFlag",
+          "name": "ShieldToGold",
+          "range": "Player"
+        }
+      ]
+    },
     "base_unit_upkeep_gold_1": {
       "id": "base_unit_upkeep_gold_1",
       "type": "Upkeep_Pct",
@@ -7392,8 +7409,8 @@
     },
     "tech_cost_base": {
       "id": "tech_cost_base",
-      "type": "Tech_Cost_Factor",
-      "value": 3
+      "type": "Tech_Cost_Pct",
+      "value": 300
     },
     "tech_leakage": {
       "id": "tech_leakage",

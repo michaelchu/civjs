@@ -678,7 +678,7 @@ describe('Civ2Civ3 Freeciv oracle parity', () => {
    * @reference reference/freeciv/common/player.c:205-255
    * @reference reference/freeciv/data/civ2civ3/game.ruleset:340-352
    * @reference reference/freeciv/data/civ2civ3/effects.ruleset:3794-3800
-   * @assertion With one known Alphabet held by a player with a real embassy, c2c3 subtracts one third of the Tech_Cost_Factor-adjusted cost from a three-player research game.
+   * @assertion With one known Alphabet held by a player with a real embassy, c2c3 subtracts one third of the Tech_Cost_Pct-adjusted cost from a three-player research game.
    * @c2c3-surface research-government
    * @c2c3-surface-scenario normal
    */

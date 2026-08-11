@@ -18,7 +18,7 @@ import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
  * - Database persistence
  *
  * @reference freeciv/common/city.c - city turn processing
- * @reference freeciv-web/javascript/city.js - city management
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/city.js - city management
  */
 
 import { logger } from '@utils/logger';

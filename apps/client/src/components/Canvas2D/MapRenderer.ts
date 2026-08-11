@@ -51,7 +51,7 @@ export class MapRenderer {
 
   /**
    * Frame-timing state compatible with the Freeciv-web map renderer.
-   * @reference freeciv-web/javascript/2dcanvas/mapview_common.js:27-36
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:27-36
    */
   private lastRedrawTime = 0;
   private MAPVIEW_REFRESH_INTERVAL = 35;
@@ -75,7 +75,7 @@ export class MapRenderer {
 
   /**
    * Creates the renderer and its layer-specific stages.
-   * @reference freeciv-web/javascript/2dcanvas/mapview.js:3796
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:3796
    */
   constructor(
     ctx: CanvasRenderingContext2D,
@@ -185,7 +185,7 @@ export class MapRenderer {
   /**
    * Renders a map snapshot in Freeciv layer order, throttling ordinary frames
    * while allowing interaction feedback to request an immediate redraw.
-   * @reference freeciv-web/javascript/2dcanvas/mapview_common.js:522-540,688-700
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:522-540,688-700
    */
   render(state: RenderState, immediate = false) {
     if (this.isDisposed) return;
@@ -247,7 +247,7 @@ export class MapRenderer {
     /**
      * Implement freeciv-web's map boundary handling to fix diamond-shaped map edges.
      *
-     * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:282-291
+     * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:282-291
      *   The original boundary detection and background filling logic that prevents
      *   diamond-shaped map edges by filling out-of-bounds areas with background color.
      */
@@ -357,7 +357,7 @@ export class MapRenderer {
      * Freeciv draws terrain and specials before borders, cities, units, fog,
      * and interaction overlays. Keep that order so each layer occludes only
      * the information it is permitted to hide.
-     * @reference freeciv-web/javascript/2dcanvas/mapview.js:580-720
+     * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:580-720
      */
     this.terrainRenderer.renderTerrain(state, visibleTiles);
 
@@ -462,7 +462,7 @@ export class MapRenderer {
    * map edges issue. When the viewport extends beyond map bounds, we need to render ocean
    * tiles in the out-of-bounds areas to create a rectangular world appearance.
    *
-   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:282-291
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:282-291
    * @param viewport - The current viewport containing x, y, width, height
    * @returns true if any part of the viewport extends beyond map boundaries
    */
@@ -494,14 +494,14 @@ export class MapRenderer {
 
   /**
    * Map wrapping flags from freeciv-web map.js
-   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:35-36
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:35-36
    */
   private static readonly WRAP_X = 1;
   private static readonly WRAP_Y = 2;
 
   /**
    * Check if the map has a specific wrapping flag enabled.
-   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:77-80
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:77-80
    * @param flag - The wrapping flag to check (WRAP_X or WRAP_Y)
    * @returns true if the map has this wrapping enabled
    */
@@ -518,7 +518,7 @@ export class MapRenderer {
 
   /**
    * Normalize a mapview origin through Freeciv's native rectangular axes.
-   * @reference reference/freeciv-web/javascript/2dcanvas/mapview_common.js:195-239
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:195-239
    */
   private normalizeGuiPos(guiX: number, guiY: number): { guiX: number; guiY: number } {
     const mapWidth = this.currentMap.xsize ?? this.currentMap.width;
@@ -672,7 +672,7 @@ export class MapRenderer {
   /**
    * Change the mapview origin, clip it, and apply boundary constraints.
    * This is the main function for handling viewport movement and boundary enforcement.
-   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:103-111
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:103-111
    * @param guiX0 - Proposed GUI X coordinate for viewport origin
    * @param guiY0 - Proposed GUI Y coordinate for viewport origin
    * @param viewportWidth - Width of the viewport in pixels (default: 800)
@@ -774,7 +774,7 @@ export class MapRenderer {
   }
 
   /**
-   * @reference freeciv-web/javascript/2dcanvas/mapview_common.js:696-700
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:696-700
    * Start the requestAnimationFrame-based render loop like freeciv-web
    */
   private animationFrameId: number | null = null;
@@ -798,7 +798,7 @@ export class MapRenderer {
   }
 
   private updateMapCanvasCheck = () => {
-    // @reference freeciv-web/javascript/2dcanvas/mapview_common.js:688-700
+    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:688-700
     // requestAnimationFrame-based render loop from freeciv-web
     try {
       if (this.renderState && typeof window.requestAnimationFrame === 'function') {

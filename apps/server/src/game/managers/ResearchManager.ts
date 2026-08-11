@@ -85,7 +85,7 @@ function technologyRequirementCount(
 
 /**
  * Derive C2C3's precomputed technology cost before player-specific modifiers
- * (Tech_Cost_Factor, leakage, AI science cost, and sciencebox).
+ * (Tech_Cost_Pct, leakage, AI science cost, and sciencebox).
  *
  * @reference reference/freeciv/common/tech.c:225-275
  * @reference reference/freeciv/data/civ2civ3/game.ruleset:308-339
@@ -658,6 +658,12 @@ export class ResearchManager {
     playerResearch: PlayerResearch | undefined,
     playerBuildings: ReadonlySet<string> = this.playerBuildingsProvider(playerId)
   ): number {
+    const percentage = this.effectsManager.calculateEffect(
+      EffectType.TECH_COST_PCT,
+      this.getResearchEffectContext(playerId, playerResearch, playerBuildings)
+    );
+    if (percentage.effects.length > 0) return percentage.value / 100;
+
     const result = this.effectsManager.calculateEffect(
       EffectType.TECH_COST_FACTOR,
       this.getResearchEffectContext(playerId, playerResearch, playerBuildings)

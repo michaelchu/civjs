@@ -16,7 +16,7 @@
  * legacy WrapX/WrapY topology values, so ISO and HEX start at bits two and
  * three on the wire.
  *
- * @reference reference/freeciv-web/javascript/map.js:35-38
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:35-38
  * @reference reference/freeciv/common/fc_types.h:452-465
  */
 export const TopologyFlag = {

@@ -2,7 +2,7 @@
  * @module client/services/KeyboardController
  * Keyboard Controller Service
  * Handles global keyboard events and maps them to unit actions
- * @reference freeciv-web/javascript/control.js map_handle_key(), global_keyboard_listener()
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js map_handle_key(), global_keyboard_listener()
  */
 
 import { ActionType } from '../types/shared/actions';
@@ -22,7 +22,7 @@ export interface KeyBinding {
 
 /**
  * Keyboard Controller for handling global game hotkeys
- * @reference freeciv-web/javascript/control.js keyboard handling system
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js keyboard handling system
  */
 export class KeyboardController {
   private isActive = false;
@@ -34,7 +34,7 @@ export class KeyboardController {
 
   /**
    * Initialize key bindings from freeciv-web control.js
-   * @reference freeciv-web/javascript/control.js map_handle_key() switch cases
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js map_handle_key() switch cases
    */
   private initializeKeyBindings(): void {
     // Basic unit actions
@@ -253,7 +253,7 @@ export class KeyboardController {
 
   /**
    * Handle keydown events
-   * @reference freeciv-web/javascript/control.js global_keyboard_listener()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js global_keyboard_listener()
    */
   private handleKeyDown = (event: KeyboardEvent): void => {
     // Skip if not in game state or if typing in input field
@@ -295,7 +295,7 @@ export class KeyboardController {
 
   /**
    * Check if keyboard event should be ignored
-   * @reference freeciv-web/javascript/control.js global_keyboard_listener() input checks
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js global_keyboard_listener() input checks
    */
   private shouldIgnoreEvent(event: KeyboardEvent): boolean {
     // Ignore if meta key is pressed (OS/browser shortcuts)

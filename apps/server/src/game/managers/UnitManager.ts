@@ -3414,7 +3414,7 @@ export class UnitManager {
    * Return the final researched upgrade target and authoritative upgrade cost
    * for an owner-visible unit menu.
    *
-   * @reference reference/freeciv-web/javascript/control.js:2096-2124
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:2096-2124
    */
   getUnitUpgradeInfo(
     unitId: string
@@ -6059,7 +6059,7 @@ export class UnitManager {
 
   /**
    * Process a single unit's pending order
-   * @reference freeciv-web/javascript/unit.js unit order processing
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/unit.js unit order processing
    */
   private async processUnitOrder(unit: Unit, playerId: string): Promise<void> {
     // Early return if unit doesn't belong to player or has no valid orders
@@ -6735,7 +6735,7 @@ export class UnitManager {
 
   /**
    * Get transport capacity remaining for a unit
-   * @reference freeciv-web/javascript/unit.js unit_cargo_room()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/unit.js unit_cargo_room()
    */
   getTransportCapacityRemaining(transportId: string): number {
     const transport = this.units.get(transportId);
@@ -6754,7 +6754,7 @@ export class UnitManager {
 
   /**
    * Check if unit has cargo
-   * @reference freeciv-web/javascript/unit.js unit_has_cargo()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/unit.js unit_has_cargo()
    */
   unitHasCargo(unitId: string): boolean {
     const unit = this.units.get(unitId);
@@ -6763,7 +6763,7 @@ export class UnitManager {
 
   /**
    * Check if a unit can deboard (unload) from its transport
-   * @reference freeciv-web/javascript/unit.js unit_can_deboard()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/unit.js unit_can_deboard()
    */
   canUnloadUnit(unitId: string, targetX?: number, targetY?: number): boolean {
     const unit = this.units.get(unitId);
@@ -6823,7 +6823,7 @@ export class UnitManager {
 
   /**
    * Check if transport and cargo combination is valid
-   * @reference freeciv-web/javascript/unit.js unit_could_possibly_load()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/unit.js unit_could_possibly_load()
    */
   private isValidTransportCombination(transportType: string, cargoType: string): boolean {
     const transport = this.unitTypes[transportType];

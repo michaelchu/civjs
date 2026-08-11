@@ -18,7 +18,7 @@ import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
  * making them easy to test and reason about.
  *
  * @reference freeciv/common/city.c - city output calculations
- * @reference freeciv-web/javascript/city.js - specialist and trade conversions
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/city.js - specialist and trade conversions
  */
 
 import { logger } from '@utils/logger';

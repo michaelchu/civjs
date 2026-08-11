@@ -32,7 +32,7 @@ export class PathRenderer extends BaseRenderer {
 
   /**
    * Render goto path using freeciv-web's individual directional segments from each tile.
-   * @reference reference/freeciv-web/javascript/2dcanvas/mapview.js:849-888
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:849-888
    */
   private renderGotoPath(gotoPath: GotoPath, viewport: MapViewport): void {
     if (!gotoPath.tiles || gotoPath.tiles.length < 2) return;

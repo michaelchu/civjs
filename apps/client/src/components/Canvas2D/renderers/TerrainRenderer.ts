@@ -79,7 +79,7 @@ export class TerrainRenderer extends BaseRenderer {
 
   /**
    * Render ocean tiles beyond map boundaries to create seamless infinite world appearance.
-   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:305-380
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:305-380
    */
   renderOceanPadding(state: RenderState): void {
     const mapWidth = state.map.xsize ?? state.map.width;
@@ -716,7 +716,7 @@ export class TerrainRenderer extends BaseRenderer {
         // Freeciv extends the current terrain into unknown/off-map neighbors.
         // Treating the "unknown" sentinel as a real terrain selects incomplete
         // corner cells and exposes the blue map background at the fog edge.
-        // @reference reference/freeciv-web/javascript/terrain.js:46-63
+        // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/terrain.js:46-63
         neighborTerrain = { graphic_str: this.mapTerrainName(tile.terrain) };
       }
 
@@ -807,7 +807,7 @@ export class TerrainRenderer extends BaseRenderer {
   /**
    * Calculate river sprite for a tile based on its riverMask connections.
    * Port of freeciv-web's get_tile_river_sprite() function.
-   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:get_tile_river_sprite()
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:get_tile_river_sprite()
    * @param tile - The tile to calculate river sprite for
    * @returns Sprite info with key for river rendering, or null if no river
    */
@@ -839,7 +839,7 @@ export class TerrainRenderer extends BaseRenderer {
   /**
    * Calculate resource sprite for a tile based on its resource type.
    * Port of freeciv-web's resource rendering functionality.
-   * @reference freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js (resource handling)
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js (resource handling)
    * @param tile - The tile to calculate resource sprite for
    * @returns Sprite info with key for resource rendering, or null if no resource
    */

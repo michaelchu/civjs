@@ -80,7 +80,7 @@ const defaultGovernor = {
 /**
  * Sortable, filterable and batch-manageable empire report.
  * @reference reference/freeciv/client/cityrepdata.c
- * @reference reference/freeciv-web/javascript/city.js:4176-5077
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/city.js:4176-5077
  */
 export const CitiesPanel: React.FC = () => {
   const cities = useGameStore(state => state.cities);

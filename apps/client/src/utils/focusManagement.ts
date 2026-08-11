@@ -2,7 +2,7 @@
  * @module client/utils/focusManagement
  * Focus Management Utilities
  * Handles multi-unit selection and focus advancement logic
- * @reference freeciv-web/javascript/control.js advance_unit_focus(), set_unit_focus()
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js advance_unit_focus(), set_unit_focus()
  */
 
 import type { Unit } from '../types';
@@ -21,7 +21,7 @@ export interface FocusCandidate {
 
 /**
  * Find the best unit to focus on next
- * @reference freeciv-web/javascript/control.js find_best_focus_candidate()
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js find_best_focus_candidate()
  */
 export function findBestFocusCandidate(
   units: Record<string, Unit>,
@@ -97,7 +97,7 @@ function getPriorityReason(_unit: Unit, priority: number): FocusCandidate['reaso
 
 /**
  * Add unit to focus list with proper validation
- * @reference freeciv-web/javascript/control.js click_unit_in_panel()
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js click_unit_in_panel()
  */
 export function addUnitToFocus(
   currentFocus: string[],
@@ -122,7 +122,7 @@ export function addUnitToFocus(
 
 /**
  * Remove unit from focus when it's destroyed or becomes invalid
- * @reference freeciv-web/javascript/control.js control_unit_killed()
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js control_unit_killed()
  */
 export function removeUnitFromFocus(
   currentFocus: string[],
@@ -137,7 +137,7 @@ export function removeUnitFromFocus(
 
 /**
  * Add unit to urgent focus queue
- * @reference freeciv-web/javascript/control.js unit_focus_urgent()
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js unit_focus_urgent()
  */
 export function addToUrgentFocus(urgentQueue: string[], unitId: string): string[] {
   if (!urgentQueue.includes(unitId)) {

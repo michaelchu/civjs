@@ -10,8 +10,8 @@
  *
  * @reference reference/freeciv/common/map.h:170-190
  * @reference reference/freeciv/common/world_object.h:52-60
- * @reference reference/freeciv-web/javascript/map.js:231-276
- * @reference reference/freeciv-web/javascript/2dcanvas/mapview_common.js:132-158,247-309
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:231-276
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:132-158,247-309
  */
 export interface MapPoint {
   x: number;
@@ -287,7 +287,7 @@ export const normalizeMapPosition = (
 
 /**
  * Apply one logical Freeciv map direction to CivJS's native rectangular tile storage.
- * @reference reference/freeciv-web/javascript/map.js:360-369
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:360-369
  */
 export const stepNativeMapPosition = (
   nativeX: number,

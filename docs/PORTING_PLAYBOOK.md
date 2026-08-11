@@ -31,7 +31,7 @@ For each feature or correction:
      freeciv-web packet handling;
    - client interaction: freeciv-web `game.js`, `packhand.js`, `city.js`,
      `unit.js`, and `map.js`;
-   - 2D rendering and controls: `reference/freeciv-web/javascript/2dcanvas/`.
+   - 2D rendering and controls: `reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/`.
 3. Port the smallest vertical slice:
    data/rules → server action → packet → client state → visible UI.
 4. Add focused unit tests and proportional integration/browser coverage.

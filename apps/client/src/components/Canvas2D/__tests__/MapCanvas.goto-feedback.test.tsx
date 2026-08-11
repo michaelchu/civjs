@@ -287,7 +287,7 @@ describe('MapCanvas Go To feedback', () => {
 
   /**
    * @evidence parity
-   * @reference reference/freeciv-web/javascript/control.js:3473-3504
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:3473-3504
    * @assertion A city remains openable when a non-actionable unit occupies its tile.
    */
   it('opens city info when a spent unit is sitting on the city tile', async () => {
@@ -316,7 +316,7 @@ describe('MapCanvas Go To feedback', () => {
 
   /**
    * @evidence parity
-   * @reference reference/freeciv-web/javascript/control.js:3473-3492
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:3473-3492
    * @assertion An actionable friendly city occupant exposes the unit context path, which can then show the city.
    */
   it('offers Show City when an actionable friendly unit covers the city', async () => {
@@ -570,7 +570,7 @@ describe('MapCanvas Go To feedback', () => {
 
   /**
    * @evidence parity
-   * @reference reference/freeciv-web/javascript/2dcanvas/mapctrl.js:234-238
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapctrl.js:234-238
    * @assertion Middle-click opens tile information without selecting a unit action.
    */
   it('opens tile info with middle-click', async () => {
@@ -588,7 +588,7 @@ describe('MapCanvas Go To feedback', () => {
 
   /**
    * @evidence parity
-   * @reference reference/freeciv-web/javascript/2dcanvas/mapctrl.js:477-513
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapctrl.js:250-286
    * @assertion Rectangle selection collects only owned units from the tiles sampled inside the drag area.
    */
   it('selects owned units with an Alt-drag rectangle', async () => {

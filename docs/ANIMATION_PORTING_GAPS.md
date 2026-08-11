@@ -14,7 +14,7 @@ Amplio2 sprite provider and server-authoritative game state.
 
 **Reference baselines:**
 
-- reference/freeciv-web/javascript: browser client behavior and player-visible
+- reference/freeciv-web/freeciv-web/src/main/webapp/javascript: browser client behavior and player-visible
   2D canvas behavior.
 - reference/freeciv/client: native client animation model and timing semantics.
 
@@ -121,12 +121,12 @@ where the implementation still differs from the reference.
 ### Unit movement
 
 The web reference detects a unit packet whose tile changed in
-reference/freeciv-web/javascript/unit.js:936, stores source and destination
+reference/freeciv-web/freeciv-web/src/main/webapp/javascript/unit.js:936, stores source and destination
 tiles, and computes a pixel offset in get_unit_anim_offset at line 987. The
 offset is consumed while building the unit sprite array in
-reference/freeciv-web/javascript/2dcanvas/tilespec.js:821. The canvas refresh
+reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:821. The canvas refresh
 loop advances this animation through repeated redraws in
-reference/freeciv-web/javascript/2dcanvas/mapview_common.js:688.
+reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:688.
 
 This is a translation animation. The reference does not use a separate walking
 sprite sheet for each unit type in this path.
@@ -140,9 +140,9 @@ by smooth_move_unit_msec in reference/freeciv/client/options.c:2240.
 The web reference receives combat results and starts a transient animation on
 the affected tile. When a unit is destroyed, it selects either a swords
 sequence or explosion sequence in
-reference/freeciv-web/javascript/packhand.js:1665. The frame counter is
+reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js:1665. The frame counter is
 decremented and the corresponding sprite is drawn in
-reference/freeciv-web/javascript/2dcanvas/tilespec.js:485.
+reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:485.
 
 Amplio2 already defines these frames in the reference atlas:
 
@@ -171,10 +171,10 @@ The web reference has a continuously refreshed map canvas and uses it to
 advance transient effects. It also has:
 
 - map recentering slide state and a 700 ms slide in
-  reference/freeciv-web/javascript/2dcanvas/mapview_common.js:27;
+  reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:27;
 - sliding-frame rendering in mapview_common.js:706;
 - map slide initialization in
-  reference/freeciv-web/javascript/2dcanvas/mapview.js:1041;
+  reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:1041;
 - transient tile markers and explosion counters in mapview_common.js:118;
 - animated border line dash progression in mapview.js:733.
 
@@ -295,8 +295,8 @@ Preserve the current visible behavior first, then close these gaps:
 
 Reference evidence:
 
-- reference/freeciv-web/javascript/unit.js:936;
-- reference/freeciv-web/javascript/unit.js:987;
+- reference/freeciv-web/freeciv-web/src/main/webapp/javascript/unit.js:936;
+- reference/freeciv-web/freeciv-web/src/main/webapp/javascript/unit.js:987;
 - apps/client/src/components/Canvas2D/renderers/UnitRenderer.ts:20;
 - apps/client/src/components/Canvas2D/renderers/UnitRenderer.ts:214.
 
@@ -394,10 +394,10 @@ particular unit types.
 
 Reference behavior:
 
-- `reference/freeciv-web/javascript/2dcanvas/tilespec.js:821-875` calls
+- `reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:821-875` calls
   `get_unit_nation_flag_sprite(punit, unit_offset)` while building every unit's
   sprite list.
-- `reference/freeciv-web/javascript/2dcanvas/tilespec.js:1231-1249` resolves
+- `reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:1231-1249` resolves
   the unit owner through `players[punit.owner]`, then resolves that player's
   nation and returns the shield sprite with the movement offset attached.
 - The reference chooses `f.shield.<graphic_str>` at normal scale and
@@ -509,7 +509,7 @@ reference per-unit placement offsets; the server-side action-decision protocol
 is not part of the current action-dialog model
 
 The flag/shield is only one member of the reference unit overlay stack. The
-reference builds the stack in `reference/freeciv-web/javascript/2dcanvas/tilespec.js:821-934`.
+reference builds the stack in `reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:821-934`.
 The active renderer must preserve the same layering and must attach every
 overlay to the interpolated unit origin:
 
@@ -708,7 +708,7 @@ multi-tile draw count, and a nuclear-action integration path.
 **Status:** Implemented for programmatic recentering; wrapping/polar-edge parity remains a follow-up verification item
 
 The web client initializes a 700 ms map slide in
-reference/freeciv-web/javascript/2dcanvas/mapview.js:1041 and renders it in
+reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:1041 and renders it in
 mapview_common.js:710.
 
 The active UX animates programmatic recentering (focus, reports, and unit
@@ -738,7 +738,7 @@ Acceptance criteria:
 **Status:** Implemented in the active path, with moving borders option-gated and disabled by default
 
 The web renderer advances animated border dash offsets in
-reference/freeciv-web/javascript/2dcanvas/mapview.js:733. It also uses a
+reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:733. It also uses a
 short-lived marker/explosion counter for clicked or recentered tiles in
 mapview_common.js:118.
 

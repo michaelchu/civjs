@@ -54,6 +54,29 @@ describe('UnitSupportManager.calculateCityUnitSupport', () => {
     expect(res.upkeepCosts.gold).toBe(0);
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/common/unittype.c:136-186
+   * @reference reference/freeciv/data/civ2civ3/effects.ruleset:744-751
+   * @assertion C2C3 converts ShieldToGold unit shield upkeep to gold under a government carrying the ShieldToGold flag.
+   */
+  test('C2C3 converts ShieldToGold unit upkeep before city support', () => {
+    const mgr = new UnitSupportManager('g1', new EffectsManager('civ2civ3'));
+    mgr.setGoldUpkeepStyle(GoldUpkeepStyle.CITY);
+    const units = Array.from({ length: 3 }, (_, index) =>
+      makeUnit({
+        unitId: `shield-to-gold-${index}`,
+        unitTypeFlags: new Set(['ShieldToGold']),
+        upkeep: { food: 0, shield: 1, gold: 0 },
+      })
+    );
+
+    const res = mgr.calculateCityUnitSupport('city-shield-to-gold', 'p1', 'despotism', 1, units);
+
+    expect(res.upkeepCosts.shield).toBe(0);
+    expect(res.upkeepCosts.gold).toBe(1);
+  });
+
   test('C2C3 adds a free food support slot at city size five', () => {
     const mgr = new UnitSupportManager('g1');
     const units = Array.from({ length: 5 }, (_, index) =>

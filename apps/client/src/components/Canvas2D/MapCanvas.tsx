@@ -96,7 +96,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   });
 
   // Goto mode state (similar to freeciv-web's goto_active)
-  // @reference freeciv-web/freeciv-web/src/main/webapp/javascript/control.js - goto_active variable
+  // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js - goto_active variable
   const [gotoMode, setGotoMode] = useState<{
     active: boolean;
     unit: Unit | null;
@@ -497,7 +497,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       const isWrappedY = (state.map.wrap_id ?? 0) & 2;
       // Freeciv keeps discrete recentering away from the polar edge so the
       // destination viewport does not become mostly empty map padding.
-      // @reference reference/freeciv-web/javascript/2dcanvas/mapview_common.js:64-94
+      // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:64-94
       const polarBuffer = 9;
       if (!isWrappedY && mapHeight > polarBuffer * 2 + 1) {
         centerY = Math.max(polarBuffer, Math.min(mapHeight - 1 - polarBuffer, centerY));

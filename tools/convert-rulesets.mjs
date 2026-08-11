@@ -698,6 +698,7 @@ function convertGovernments() {
             id,
             name: government.name,
             reqs: government.reqs ?? [],
+            flags: asArray(government.flags).filter(Boolean),
             helptext: government.helptext ?? '',
           },
         ];

@@ -3,10 +3,10 @@
 /**
  * Runs deterministic c2c3 scenarios against a pinned Freeciv server build.
  *
- * The bundled reference tree intentionally omits the upstream build system,
- * so callers provide a locally built server and its complete upstream source
- * checkout. The script refuses an unpinned checkout: a result from a different
- * Freeciv revision must not be mistaken for c2c3 parity evidence.
+ * The reference source is pinned as a full Git submodule, while callers still
+ * provide a locally built server and its source checkout for the native run.
+ * The script refuses an unpinned checkout: a result from a different Freeciv
+ * revision must not be mistaken for c2c3 parity evidence.
  */
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -16,9 +16,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const scenariosDir = join(root, 'tools/freeciv-oracle/scenarios');
-const pinnedVersion = '3.3.90.5-dev';
-const pinnedCommit = '440b3c9650d3052792296868cb15591bd40612ea';
-const pinnedReferenceTree = 'bb555d7fe91b147d4ec504cf933bcc372b7debc8';
+const pinnedVersion = '3.3.90.14-dev';
+const pinnedCommit = 'eb8c7033aa6a70dfcd4aee828c3ac1ba33092afc';
 const gameplaySourcePaths = ['ai', 'common', 'server', 'data/civ2civ3'];
 const argumentsList = process.argv.slice(2);
 
@@ -106,12 +105,28 @@ if (revision.stdout.trim() !== pinnedCommit) {
   fail(`source revision is ${revision.stdout.trim()}, expected pinned commit ${pinnedCommit}.`);
 }
 
-const referenceTree = spawnSync('git', ['-C', root, 'rev-parse', 'HEAD:reference/freeciv'], {
-  encoding: 'utf8',
-});
-if (referenceTree.status !== 0 || referenceTree.stdout.trim() !== pinnedReferenceTree) {
+const referenceIndex = spawnSync(
+  'git',
+  ['-C', root, 'ls-files', '--stage', '--', 'reference/freeciv'],
+  {
+    encoding: 'utf8',
+  }
+);
+const [referenceMode, referenceCommit] = referenceIndex.stdout.trim().split(/\s+/);
+if (referenceIndex.status !== 0 || referenceMode !== '160000' || referenceCommit !== pinnedCommit) {
   fail(
-    `bundled reference tree is ${referenceTree.stdout.trim() || 'unavailable'}, expected ${pinnedReferenceTree}.`
+    `bundled reference is ${referenceCommit || 'unavailable'}, expected git submodule ${pinnedCommit}.`
+  );
+}
+
+const referenceRevision = spawnSync(
+  'git',
+  ['-C', join(root, 'reference/freeciv'), 'rev-parse', 'HEAD'],
+  { encoding: 'utf8' }
+);
+if (referenceRevision.status !== 0 || referenceRevision.stdout.trim() !== pinnedCommit) {
+  fail(
+    `checked-out reference submodule is ${referenceRevision.stdout.trim() || 'unavailable'}, expected ${pinnedCommit}.`
   );
 }
 

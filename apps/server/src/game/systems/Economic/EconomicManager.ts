@@ -12,7 +12,7 @@
  * TurnManager, etc. Orchestrates services rather than containing business logic.
  *
  * @reference freeciv/server/cityturn.c - economic turn processing
- * @reference freeciv-web/javascript/rates.js - economic UI interactions
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/rates.js - economic UI interactions
  */
 
 import { logger } from '@utils/logger';

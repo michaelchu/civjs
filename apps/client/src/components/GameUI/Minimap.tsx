@@ -2,7 +2,7 @@
  * @module client/components/GameUI/Minimap
  * Freeciv-web-compatible overview map with an independently refreshed viewport overlay.
  *
- * @reference reference/freeciv-web/javascript/overview.js:20-24,50-119,233-320,459-474
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/overview.js:20-24,50-119,233-320,459-474
  * @reference reference/freeciv/client/overview_common.c:324-374,408-483
  */
 import React, { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';

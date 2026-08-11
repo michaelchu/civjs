@@ -28,7 +28,7 @@ describe('mapInteraction', () => {
 
   /**
    * @evidence parity
-   * @reference reference/freeciv-web/javascript/control.js:3473-3504
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:3473-3504
    * @assertion A city click falls through to the city when the occupying stack has no selectable idle unit.
    */
   it('keeps a city reachable when a non-actionable stack occupies it', () => {
@@ -40,7 +40,7 @@ describe('mapInteraction', () => {
 
   /**
    * @evidence parity
-   * @reference reference/freeciv-web/javascript/control.js:3473-3492
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:3473-3492
    * @assertion An idle owned unit with movement in a city receives the unit context-menu path.
    */
   it('returns an actionable friendly city occupant for the context-menu path', () => {
@@ -52,7 +52,7 @@ describe('mapInteraction', () => {
 
   /**
    * @evidence parity
-   * @reference reference/freeciv-web/javascript/control.js:2301-2307
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:2301-2307
    * @assertion A multi-unit tile exposes whole-stack and same-type selection rather than selecting only the first unit.
    */
   it('returns every friendly unit for shift-click stack selection', () => {
@@ -76,9 +76,8 @@ describe('mapInteraction', () => {
   });
 
   /**
-   * @evidence parity
-   * @reference reference/freeciv-web/javascript/2dcanvas/mapctrl.js:555-569
-   * @assertion A repeated interaction cooldown is scoped to the same previously targeted tile.
+   * @evidence stack
+   * @contract CivJS scopes the repeated-click cooldown to the same previously targeted tile.
    */
   it('only applies the click cooldown to the same tile', () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_000);

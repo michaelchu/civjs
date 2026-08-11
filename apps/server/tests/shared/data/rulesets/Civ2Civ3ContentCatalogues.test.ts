@@ -65,7 +65,7 @@ describe('Freeciv Civ2Civ3 content catalogue', () => {
       defense: 4,
       firepower: 1,
       vision_radius_sq: 8,
-      flags: ['AirAttacker', 'HasNoZOC'],
+      flags: ['AirAttacker', 'HasNoZOC', 'ShieldToGold'],
     });
 
     // @reference reference/freeciv/data/civ2civ3/buildings.ruleset

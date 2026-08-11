@@ -51,7 +51,6 @@
       "transform_time": 0,
       "placing_time": 0,
       "pillage_time": 0,
-      "animal": "None",
       "warmer_wetter_result": "no",
       "warmer_drier_result": "no",
       "cooler_wetter_result": "no",
@@ -119,7 +118,6 @@
           "removal_time": 3
         }
       ],
-      "animal": "None",
       "warmer_wetter_result": "Swamp",
       "warmer_drier_result": "no",
       "cooler_wetter_result": "Glacier",
@@ -192,7 +190,7 @@
           "removal_time": 3
         }
       ],
-      "animal": "Storm",
+      "animals": "Storm",
       "warmer_wetter_result": "no",
       "warmer_drier_result": "no",
       "cooler_wetter_result": "Glacier",
@@ -264,7 +262,7 @@
           "removal_time": 3
         }
       ],
-      "animal": "Storm",
+      "animals": "Storm",
       "warmer_wetter_result": "no",
       "warmer_drier_result": "no",
       "cooler_wetter_result": "no",
@@ -336,7 +334,6 @@
           "removal_time": 3
         }
       ],
-      "animal": "None",
       "warmer_wetter_result": "Lake",
       "warmer_drier_result": "Tundra",
       "cooler_wetter_result": "no",
@@ -409,7 +406,6 @@
           "removal_time": 3
         }
       ],
-      "animal": "None",
       "warmer_wetter_result": "Swamp",
       "warmer_drier_result": "no",
       "cooler_wetter_result": "Tundra",
@@ -490,7 +486,6 @@
           "removal_time": 3
         }
       ],
-      "animal": "None",
       "warmer_wetter_result": "Jungle",
       "warmer_drier_result": "no",
       "cooler_wetter_result": "no",
@@ -571,7 +566,6 @@
           "removal_time": 3
         }
       ],
-      "animal": "None",
       "warmer_wetter_result": "Swamp",
       "warmer_drier_result": "Swamp",
       "cooler_wetter_result": "Swamp",
@@ -647,7 +641,6 @@
           "removal_time": 3
         }
       ],
-      "animal": "None",
       "warmer_wetter_result": "no",
       "warmer_drier_result": "no",
       "cooler_wetter_result": "no",
@@ -725,7 +718,6 @@
           "removal_time": 3
         }
       ],
-      "animal": "None",
       "warmer_wetter_result": "no",
       "warmer_drier_result": "no",
       "cooler_wetter_result": "no",
@@ -803,7 +795,6 @@
           "removal_time": 3
         }
       ],
-      "animal": "None",
       "warmer_wetter_result": "no",
       "warmer_drier_result": "no",
       "cooler_wetter_result": "no",
@@ -879,7 +870,6 @@
           "removal_time": 3
         }
       ],
-      "animal": "None",
       "warmer_wetter_result": "Swamp",
       "warmer_drier_result": "Desert",
       "cooler_wetter_result": "Desert",
@@ -955,7 +945,6 @@
           "removal_time": 3
         }
       ],
-      "animal": "None",
       "warmer_wetter_result": "Desert",
       "warmer_drier_result": "no",
       "cooler_wetter_result": "Tundra",
@@ -1034,7 +1023,6 @@
           "removal_time": 3
         }
       ],
-      "animal": "None",
       "warmer_wetter_result": "Swamp",
       "warmer_drier_result": "Swamp",
       "cooler_wetter_result": "Glacier",

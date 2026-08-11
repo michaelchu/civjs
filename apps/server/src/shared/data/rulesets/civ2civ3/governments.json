@@ -26,7 +26,8 @@
           "* Buildings and technologies do not require any upkeep.\n* Each worked tile that gives more than 2 Food, Shield, or Trade willsuffer a -1 penalty, unless the city working it is celebrating.(Cities below size 3 will not celebrate.)\n* Each city can support up to 2 units for free; further units each cost1 shield per turn.\n* Military units do not cause unhappiness even when deployed aggressively.\n* Military units impose martial law. Up to 3 military units inside a citywill each force 1 unhappy citizen to become content.\n* You have no control over tax rates. All trade income isconverted to luxuries.\n* Half of the luxuries, including those converted from othertrade income, are wasted.\n* Conventional corruption increases with distance from the capital(half as fast with knowledge of The Corporation).\n* Base production waste is 30%. This increases with distance from thecapital (half as fast with knowledge of Trade)."
         ],
         "id": "anarchy",
-        "reqs": []
+        "reqs": [],
+        "flags": []
       },
       "tribal": {
         "name": "Tribal",
@@ -44,7 +45,8 @@
           "* Increases by half the chance of land units getting the next veteran levelafter a battle.\n* Each worked tile that gives more than 2 Food, Shield, or Trade willsuffer a -1 penalty, unless the city working it is celebrating.(Cities below size 3 will not celebrate.)\n* Each city gets 1 extra content citizen.\n* Each city can support up to 2 units for free; further units each cost1 shield per turn.\n* Unlike later governments, military units do not cause unhappiness evenwhen deployed aggressively.\n* Base corruption is 30% (the highest under any government). Thisincreases with distance from the capital (half as fast with knowledgeof The Corporation).\n* There is no base level of production waste, but an increasing amountwith distance from the capital (half as fast with knowledge of Trade)."
         ],
         "id": "tribal",
-        "reqs": []
+        "reqs": [],
+        "flags": []
       },
       "despotism": {
         "name": "Despotism",
@@ -56,6 +58,7 @@
         "ai_better": "Monarchy",
         "ruler_male_title": "Chief %s",
         "ruler_female_title": "Chief %s",
+        "flags": ["ShieldToGold"],
         "helptext": [
           "Under Despotism, you are the absolute ruler of your people.  Yourcontrol over your citizens is maintained largely by martial law.",
           "Compared to Tribalism, a Despotic economy is more trade-oriented.",
@@ -80,6 +83,7 @@
         "sound_alt2": "-",
         "ruler_male_title": "King %s",
         "ruler_female_title": "Queen %s",
+        "flags": ["ShieldToGold"],
         "helptext": [
           "Under Monarchy, a king or queen serves as a hereditary figureheadfor your government.",
           "Monarchy gives low unit upkeep costs.",
@@ -108,7 +112,8 @@
           "Communism is a good government for maximizing shield production, andfor large empires.",
           "* City improvements which would normally have an upkeep of 1 gold arefree of upkeep.\n* Cancels the bonus from Mysticism and Theology (to Temples and Cathedrals).\n* Each city can support up to 3 units for free (the maximum possible);further units each cost 1 shield per turn.\n* Each city tolerates up to 3 aggressively deployed military units;each further unit causes 1 unhappy citizen.\n* Military units impose martial law. Up to 3 military units inside a citywill each force 2 unhappy citizens to become content (the maximumpossible).\n* Base corruption is 30%, but is not affected by distance to the capital.\n* There is no production waste."
         ],
-        "id": "communism"
+        "id": "communism",
+        "flags": []
       },
       "fundamentalism": {
         "name": "Fundamentalism",
@@ -126,6 +131,7 @@
         "sound_alt2": "-",
         "ruler_male_title": "High Priest %s",
         "ruler_female_title": "High Priestess %s",
+        "flags": ["ShieldToGold"],
         "helptext": [
           "Fundamentalism is a form of government organized around a centralset of beliefs. The beliefs, usually religious in nature, forma rigid guideline for actions and reactions of both the rulersand the people.",
           "In a fundamentalist society, the people and the rulers are entirelydevoted to their beliefs, and are usually willing to die topreserve them.",
@@ -151,6 +157,7 @@
         "sound_alt2": "-",
         "ruler_male_title": "Consul %s",
         "ruler_female_title": "Consul %s",
+        "flags": ["ShieldToGold"],
         "helptext": [
           "Federalism is a system in which the power to govern is shared betweennational and provincial governments. This decentralization minimizes the corruption and waste caused by distanceto capital, and avoids separatist movements.",
           "* Each city gets 2 extra luxury points.\n* Celebrating cities produce one extra trade point for every tile which isalready producing trade. (Cities below size 3 will not celebrate.)\n* Each city can support up to 2 units for free; further units each cost2 gold per turn.\n* Each city tolerates up to 2 aggressively deployed military units;each further unit causes 1 unhappy citizen.\n* There is no base level of corruption, but an increasing amountwith distance from the capital (half as much as with most othergovernments). Knowledge of The Corporation eliminates this corruption.\n* Base production waste is 30%, but is not affected by distance to thecapital.\n* Has a senate that may prevent declaration of war."
@@ -177,7 +184,8 @@
           "Under a Republican government, citizens hold an election to select arepresentative who will govern them; since elected leaders mustremain popular to remain in control, citizens are given a greaterdegree of freedom.  Citizens under the Republic become unhappyeasily, but the self-sufficiency of your citizens allows high levelsof trade.",
           "* Cities produce an extra trade point for every worked land tile that isalready producing trade.\n* Celebrating cities produce a further trade point for every worked tile(land or water) which is already producing trade. (Cities below size 3will not celebrate.)\n* Each city can support one unit for free; further units each cost1 shield per turn.\n* Each city tolerates a single aggressively deployed military unit;each further unit causes 1 unhappy citizen.\n* Base corruption is 25%. This increases with distance from the capital(half as fast with knowledge of The Corporation).\n* Base production waste is 5%. This increases with distance from thecapital (half as fast with knowledge of Trade)."
         ],
-        "id": "republic"
+        "id": "republic",
+        "flags": []
       },
       "democracy": {
         "name": "Democracy",
@@ -195,6 +203,7 @@
         "sound_alt2": "-",
         "ruler_male_title": "Prime Minister %s",
         "ruler_female_title": "Prime Minister %s",
+        "flags": ["ShieldToGold"],
         "helptext": [
           "Under Democracy, citizens govern directly by voting on issues.Democracy offers the highest possible level of trade, but alsooffers the most potential for unhappiness; citizens become veryupset during wars.",
           "* Cities produce an extra trade point for every worked land tile that isalready producing trade.\n* Celebrating cities produce a further trade point for every worked tile(land or water) which is already producing trade. (Cities below size 3will not celebrate.)\n* Each city can support one unit for free; further units each cost2 gold per turn.\n* Each city tolerates a single aggressively deployed military unit;each further unit causes 2 unhappy citizens.\n* Base corruption is 5%. This increases with distance from the capital(half as fast with knowledge of The Corporation).\n* Base production waste is 25%. This increases with distance from thecapital (half as fast with knowledge of Trade).\n* Has a senate that may prevent declaration of war."

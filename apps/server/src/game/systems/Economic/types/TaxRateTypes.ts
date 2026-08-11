@@ -3,7 +3,7 @@
  * Tax Rate System Types
  * Specific types for tax rate allocation and validation
  *
- * @reference freeciv-web/javascript/rates.js - tax rate slider system
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/rates.js - tax rate slider system
  */
 
 /**

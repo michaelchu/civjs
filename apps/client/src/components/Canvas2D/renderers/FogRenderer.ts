@@ -29,9 +29,9 @@ interface FogTile {
  * covers them; drawing their overlapping sprites can obscure remembered
  * terrain at the edge of explored space.
  *
- * @reference reference/freeciv-web/javascript/2dcanvas/mapview.js:160-179
- * @reference reference/freeciv-web/javascript/2dcanvas/mapview_common.js:372-443
- * @reference reference/freeciv-web/javascript/2dcanvas/tilespec.js:1881-1911
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:160-179
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:372-443
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:1881-1911
  */
 export class FogRenderer extends BaseRenderer {
   private currentWrapId = 0;

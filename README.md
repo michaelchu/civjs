@@ -21,9 +21,16 @@ saved games can be resumed later.
 Clone the repository and install dependencies:
 
 ```bash
-git clone git@github.com:michaelchu/civjs.git
+git clone --recurse-submodules git@github.com:michaelchu/civjs.git
 cd civjs
 npm install
+```
+
+The gameplay and browser-client references are pinned Git submodules. If the
+repository was cloned without them, initialize both with:
+
+```bash
+git submodule update --init --recursive
 ```
 
 For a fresh Codex worktree, the checked-in local environment at

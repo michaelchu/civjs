@@ -1,0 +1,8 @@
+[submodule "reference/freeciv"]
+	path = reference/freeciv
+	url = https://github.com/freeciv/freeciv.git
+	branch = main
+[submodule "reference/freeciv-web"]
+	path = reference/freeciv-web
+	url = https://github.com/freeciv/freeciv-web.git
+	branch = develop
