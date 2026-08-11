@@ -144,4 +144,75 @@ describe('BorderRenderer player colors', () => {
 
     expect(sprites).toEqual([]);
   });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:352-377
+   * @assertion Border rendering uses the reference outline style, optional
+   * territory fill, and dashed/thick settings without leaking through unknown
+   * tiles.
+   */
+  it('renders configured border lines and territory fill for owned boundaries', () => {
+    const context = {
+      canvas: { width: 800, height: 600 },
+      strokeStyle: '',
+      fillStyle: '',
+      lineWidth: 1,
+      save: vi.fn(),
+      restore: vi.fn(),
+      setLineDash: vi.fn(),
+      beginPath: vi.fn(),
+      closePath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+      fill: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+    const renderer = new BorderRenderer(context, {} as never, 96, 48, {
+      drawDashedBorders: true,
+      drawThickBorders: true,
+      drawTerritoryFill: true,
+    });
+    const state: RenderState = {
+      viewport: { x: 0, y: 0, width: 800, height: 600 },
+      map: {
+        width: 2,
+        height: 1,
+        xsize: 2,
+        ysize: 1,
+        tiles: {
+          '0,0': {
+            x: 0,
+            y: 0,
+            terrain: 'grassland',
+            known: true,
+            visible: true,
+            owner: 'player-1',
+          },
+          '1,0': {
+            x: 1,
+            y: 0,
+            terrain: 'plains',
+            known: true,
+            visible: true,
+            owner: 'player-2',
+          },
+        },
+      },
+      units: {},
+      cities: {},
+      players: {
+        'player-1': { name: 'Rome', nation: 'romans', color: '#22c55e' },
+        'player-2': { name: 'Japan', nation: 'japanese', color: '#2563eb' },
+      },
+    };
+
+    renderer.render(state);
+
+    expect(context.fill).toHaveBeenCalled();
+    expect(context.setLineDash).toHaveBeenCalledWith([4, 4]);
+    expect(context.lineWidth).toBe(3.5);
+    expect(context.moveTo).toHaveBeenCalled();
+    expect(context.stroke).toHaveBeenCalled();
+  });
 });

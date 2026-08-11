@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ActionType } from '../../../types/shared/actions';
 
 const requestPathResult = vi.hoisted(() => vi.fn());
 const executeUnitAction = vi.hoisted(() => vi.fn());
@@ -744,6 +745,38 @@ describe('MapCanvas Go To feedback', () => {
     await act(async () => {
       fireEvent.touchEnd(canvas, { touches: [], changedTouches: [touch] });
     });
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:2199-2221
+   * @assertion Escape aborts an active target-tile interaction without sending
+   * the partially selected action to the server.
+   */
+  it('cancels target action selection with Escape', async () => {
+    render(<MapCanvas width={100} height={100} />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      document.dispatchEvent(
+        new CustomEvent('activate-target-action-mode', {
+          detail: { unit: state.units['unit-1'], action: ActionType.PATROL },
+        })
+      );
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText('Select the other endpoint of this patrol route')).toBeInTheDocument()
+    );
+    expect(screen.getByText('Select a target · Esc to cancel')).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'Escape' });
+    });
+
+    expect(screen.queryByText('Select the other endpoint of this patrol route')).toBeNull();
+    expect(screen.queryByText('Select a target · Esc to cancel')).toBeNull();
+    expect(executeUnitAction).not.toHaveBeenCalled();
   });
 
   it('slides the viewport to a centered tile and commits the target at the end', async () => {

@@ -1969,6 +1969,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         if (gotoMode.active) deactivateGotoMode();
         setTargetActionMode(null);
         setTargetActionOptions(null);
+        setActionFeedback(null);
         event.preventDefault();
         event.stopPropagation();
       }

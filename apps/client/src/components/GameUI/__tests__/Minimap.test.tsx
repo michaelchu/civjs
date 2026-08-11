@@ -318,6 +318,55 @@ describe('Minimap', () => {
     ).toBe(true);
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/overview.js:233-275,387-400
+   * @assertion The mounted overview keeps the viewport outline on its overlay
+   * canvas, draws it through a frame callback, and cancels both base/overlay
+   * redraw callbacks when unmounted.
+   */
+  it('draws and cleans up the mounted viewport outline overlay', () => {
+    const context = {
+      clearRect: vi.fn(),
+      fillRect: vi.fn(),
+      strokeRect: vi.fn(),
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+      fill: vi.fn(),
+      arc: vi.fn(),
+      fillStyle: '',
+      globalAlpha: 1,
+      strokeStyle: '',
+      lineWidth: 1,
+    } as unknown as CanvasRenderingContext2D;
+    const frames: FrameRequestCallback[] = [];
+    const cancelFrame = vi.fn();
+
+    vi.restoreAllMocks();
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context);
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', cancelFrame);
+
+    const { unmount } = render(<Minimap />);
+    expect(frames.length).toBeGreaterThanOrEqual(2);
+
+    for (const frame of [...frames]) frame(0);
+
+    expect(context.clearRect).toHaveBeenCalled();
+    expect(context.strokeStyle).toBe(VIEWPORT_OUTLINE_COLOR);
+    expect(context.lineWidth).toBe(VIEWPORT_OUTLINE_WIDTH);
+    expect(context.beginPath).toHaveBeenCalled();
+    expect(context.stroke).toHaveBeenCalled();
+
+    unmount();
+    expect(cancelFrame).toHaveBeenCalledWith(expect.any(Number));
+  });
+
   it('uses natural/display dimensions with square ISO tile footprints', () => {
     expect(getMinimapLayout(32, 64, 12)).toEqual({
       tileSize: 4.6875,

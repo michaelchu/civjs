@@ -812,28 +812,47 @@ export class TerrainRenderer extends BaseRenderer {
    * @returns Sprite info with key for river rendering, or null if no river
    */
   private getTileRiverSprite(tile: Tile): { key: string } | null {
-    if (!tile.riverMask) return null;
+    if (tile.riverMask) {
+      // Convert riverMask bitfield to directional string like freeciv-web
+      // Our bitfield: N=1, E=2, S=4, W=8
+      // freeciv-web format: "n1e0s1w0" etc.
+      let riverStr = '';
+      riverStr += tile.riverMask & 1 ? 'n1' : 'n0'; // North
+      riverStr += tile.riverMask & 2 ? 'e1' : 'e0'; // East
+      riverStr += tile.riverMask & 4 ? 's1' : 's0'; // South
+      riverStr += tile.riverMask & 8 ? 'w1' : 'w0'; // West
 
-    // Convert riverMask bitfield to directional string like freeciv-web
-    // Our bitfield: N=1, E=2, S=4, W=8
-    // freeciv-web format: "n1e0s1w0" etc.
-    let riverStr = '';
-    riverStr += tile.riverMask & 1 ? 'n1' : 'n0'; // North
-    riverStr += tile.riverMask & 2 ? 'e1' : 'e0'; // East
-    riverStr += tile.riverMask & 4 ? 's1' : 's0'; // South
-    riverStr += tile.riverMask & 8 ? 'w1' : 'w0'; // West
+      const spriteKey = `road.river_s_${riverStr}:0`;
 
-    const spriteKey = `road.river_s_${riverStr}:0`;
+      // Debug logging for river sprite generation
+      if (import.meta.env.DEV) {
+        console.debug(
+          `River sprite requested: tile(${tile.x},${tile.y}) mask=${tile.riverMask} -> ${spriteKey}`
+        );
+      }
 
-    // Debug logging for river sprite generation
-    if (import.meta.env.DEV) {
-      console.debug(
-        `River sprite requested: tile(${tile.x},${tile.y}) mask=${tile.riverMask} -> ${spriteKey}`
-      );
+      // Return sprite key following freeciv-web's road.river_s_XXXX:0 pattern
+      return { key: spriteKey };
     }
 
-    // Return sprite key following freeciv-web's road.river_s_XXXX:0 pattern
-    return { key: spriteKey };
+    // Freeciv draws a river outlet on a coast tile when an adjacent tile owns
+    // the river extra. The authoritative snapshot represents that extra as a
+    // non-zero riverMask on the neighboring tile.
+    if (this.mapTerrainName(tile.terrain) === 'coast') {
+      const cardinalNeighbors = [
+        { dx: 0, dy: -1, name: 'n' },
+        { dx: 1, dy: 0, name: 'e' },
+        { dx: 0, dy: 1, name: 's' },
+        { dx: -1, dy: 0, name: 'w' },
+      ];
+      for (const { dx, dy, name } of cardinalNeighbors) {
+        if (this.getDirectionalNeighborTile(tile, dx, dy)?.riverMask) {
+          return { key: `road.river_outlet_${name}:0` };
+        }
+      }
+    }
+
+    return null;
   }
 
   /**
