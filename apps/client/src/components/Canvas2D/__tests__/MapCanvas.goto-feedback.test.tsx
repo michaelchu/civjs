@@ -640,6 +640,112 @@ describe('MapCanvas Go To feedback', () => {
     expect(contextMenuProps.current).toBeNull();
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapctrl.js:43-47,131-190
+   * @assertion Single-finger movement pans the map by twice the touch delta and
+   * commits the constrained viewport when the touch ends.
+   */
+  it('pans and commits the viewport through the reference touch lifecycle', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+
+    render(<MapCanvas width={100} height={100} />);
+    const canvas = screen.getByLabelText('World map');
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    state.setViewport.mockClear();
+
+    const touch = (clientX: number, clientY: number) => ({
+      identifier: 1,
+      target: canvas,
+      clientX,
+      clientY,
+      pageX: clientX,
+      pageY: clientY,
+    });
+
+    await act(async () => {
+      fireEvent.touchStart(canvas, { touches: [touch(10, 10)] });
+    });
+    await act(async () => {
+      fireEvent.touchMove(canvas, { touches: [touch(30, 30)] });
+    });
+    await act(async () => {
+      fireEvent.touchMove(canvas, { touches: [touch(40, 45)] });
+    });
+
+    expect(frames).toHaveLength(1);
+    await act(async () => {
+      frames.shift()?.(16);
+    });
+
+    await act(async () => {
+      fireEvent.touchEnd(canvas, {
+        touches: [],
+        changedTouches: [touch(40, 45)],
+      });
+    });
+
+    expect(setMapviewOrigin).toHaveBeenCalledWith(-60, -70, 100, 100);
+    expect(state.setViewport).toHaveBeenCalledWith({
+      x: 60,
+      y: 40,
+      width: 100,
+      height: 100,
+    });
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapctrl.js:43-47,131-151
+   * @assertion A stationary long touch uses the mobile context interaction and
+   * does not fall through to the normal tap/click action.
+   */
+  it('opens the unit context interaction for a stationary long touch', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000);
+    Object.assign(state.units['unit-1'], {
+      x: 1,
+      y: 1,
+      playerId: 'player-1',
+    });
+
+    render(<MapCanvas width={100} height={100} />);
+    const canvas = screen.getByLabelText('World map');
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const touch = {
+      identifier: 1,
+      target: canvas,
+      clientX: 1,
+      clientY: 1,
+      pageX: 1,
+      pageY: 1,
+    };
+    await act(async () => {
+      fireEvent.touchStart(canvas, { touches: [touch] });
+      vi.advanceTimersByTime(500);
+      await Promise.resolve();
+    });
+
+    expect((contextMenuProps.current?.unit as { id?: string })?.id).toBe('unit-1');
+    expect(tileInfoProps.current).toBeNull();
+
+    await act(async () => {
+      fireEvent.touchEnd(canvas, { touches: [], changedTouches: [touch] });
+    });
+  });
+
   it('slides the viewport to a centered tile and commits the target at the end', async () => {
     const frames: FrameRequestCallback[] = [];
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {

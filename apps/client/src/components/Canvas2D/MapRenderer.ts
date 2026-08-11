@@ -357,7 +357,7 @@ export class MapRenderer {
      * Freeciv draws terrain and specials before borders, cities, units, fog,
      * and interaction overlays. Keep that order so each layer occludes only
      * the information it is permitted to hide.
-     * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:580-720
+     * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:251-387
      */
     this.terrainRenderer.renderTerrain(state, visibleTiles);
 

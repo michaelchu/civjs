@@ -204,6 +204,103 @@ describe('MapRenderer live-state updates', () => {
     expect(requestFrame).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/unit.js:238-343
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:504-519
+   * @assertion Unit movement interpolation keeps the map redraw loop alive for
+   * the active animation, then stops scheduling frames once the animation settles.
+   */
+  it('keeps movement animation frames alive until the unit settles', () => {
+    const frames: FrameRequestCallback[] = [];
+    let movementActive = true;
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+
+    const renderer = new MapRenderer(createContext());
+    const state = createRenderState();
+    const tile = Object.values(state.map.tiles)[0]!;
+    Object.assign(renderer as unknown as Record<string, unknown>, {
+      isInitialized: true,
+      terrainRenderer: {
+        renderTerrain: vi.fn(),
+        renderSpecials: vi.fn(),
+      },
+      borderRenderer: {
+        render: vi.fn(),
+        hasActiveAnimation: () => false,
+      },
+      cityRenderer: { renderCities: vi.fn() },
+      unitRenderer: {
+        renderUnits: vi.fn(),
+        renderUnitSelection: vi.fn(),
+        renderSelectedUnit: vi.fn(),
+        hasActiveMovementAnimations: () => movementActive,
+      },
+      presentationEffectRenderer: {
+        getUnitOverrides: () => ({}),
+        render: () => false,
+      },
+      fogRenderer: { render: vi.fn() },
+      pathRenderer: { renderPaths: vi.fn() },
+      getWrappedRenderViews: () => [{ viewport: state.viewport, visibleTiles: [tile] }],
+      checkViewportBounds: () => false,
+    });
+
+    const renderSpy = vi.spyOn(renderer, 'render');
+    renderer.render(state, true);
+    expect(frames).toHaveLength(1);
+
+    movementActive = false;
+    frames.shift()?.(16);
+
+    expect(renderSpy).toHaveBeenNthCalledWith(2, state, true);
+    expect(frames).toHaveLength(0);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:504-519
+   * @assertion Renderer cleanup cancels a pending animation redraw so a
+   * detached map canvas cannot continue painting stale state.
+   */
+  it('cancels a pending movement redraw during cleanup', () => {
+    const cancelFrame = vi.fn();
+    vi.stubGlobal('requestAnimationFrame', vi.fn().mockReturnValue(73));
+    vi.stubGlobal('cancelAnimationFrame', cancelFrame);
+
+    const renderer = new MapRenderer(createContext());
+    const state = createRenderState();
+    const tile = Object.values(state.map.tiles)[0]!;
+    Object.assign(renderer as unknown as Record<string, unknown>, {
+      isInitialized: true,
+      terrainRenderer: { renderTerrain: vi.fn(), renderSpecials: vi.fn() },
+      borderRenderer: { render: vi.fn(), hasActiveAnimation: () => false },
+      cityRenderer: { renderCities: vi.fn() },
+      unitRenderer: {
+        renderUnits: vi.fn(),
+        renderUnitSelection: vi.fn(),
+        renderSelectedUnit: vi.fn(),
+        hasActiveMovementAnimations: () => true,
+      },
+      presentationEffectRenderer: {
+        getUnitOverrides: () => ({}),
+        render: () => false,
+      },
+      fogRenderer: { render: vi.fn() },
+      pathRenderer: { renderPaths: vi.fn() },
+      getWrappedRenderViews: () => [{ viewport: state.viewport, visibleTiles: [tile] }],
+      checkViewportBounds: () => false,
+    });
+
+    renderer.render(state, true);
+    renderer.cleanup();
+
+    expect(cancelFrame).toHaveBeenCalledWith(73);
+  });
+
   it('coalesces throttled packet bursts and renders the latest state', () => {
     vi.useFakeTimers();
     vi.setSystemTime(1000);
@@ -468,6 +565,60 @@ describe('MapRenderer live-state updates', () => {
       units: { [unit.id]: { ...unit, x: 2 } },
     });
     expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 64, 13);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/unit.js:245-255,289-343
+   * @assertion Reduced motion and transport state cancel the reference unit
+   * movement interpolation and draw the unit at its authoritative tile.
+   */
+  it('cancels movement interpolation for reduced motion and transported units', () => {
+    const context = createContext();
+    const unitSprite = {} as HTMLImageElement;
+    const renderer = new UnitRenderer(
+      context,
+      { getSprite: (key: string) => (key === 'u.warriors' ? unitSprite : null) } as never,
+      96,
+      48
+    );
+    const unit: Unit = {
+      id: 'transported-warrior',
+      playerId: 'player-1',
+      unitTypeId: 'warriors',
+      x: 0,
+      y: 0,
+      hp: 100,
+      movesLeft: 1,
+      veteranLevel: 0,
+    };
+    let now = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+
+    renderer.renderUnits({ ...createRenderState(), units: { [unit.id]: unit } });
+    renderer.renderUnits({
+      ...createRenderState(),
+      units: { [unit.id]: { ...unit, x: 1 } },
+    });
+    expect(renderer.hasActiveMovementAnimations()).toBe(true);
+
+    (context.drawImage as unknown as ReturnType<typeof vi.fn>).mockClear();
+    renderer.renderUnits({
+      ...createRenderState(),
+      reducedMotion: true,
+      units: { [unit.id]: { ...unit, x: 1 } },
+    });
+    expect(renderer.hasActiveMovementAnimations()).toBe(false);
+    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 64, 13);
+
+    now += 10;
+    (context.drawImage as unknown as ReturnType<typeof vi.fn>).mockClear();
+    renderer.renderUnits({
+      ...createRenderState(),
+      units: { [unit.id]: { ...unit, x: 2, transportedBy: 'transport-1' } },
+    });
+    expect(renderer.hasActiveMovementAnimations()).toBe(false);
+    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 112, 37);
   });
 
   it('does not start a full-map RAF loop for selection pulsing', () => {

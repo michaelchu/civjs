@@ -65,6 +65,9 @@ test('loads the sprite contract required by the active board renderers', async (
     'unit.fortified',
     'unit.sentry',
     'unit.goto',
+    'unit.road',
+    'unit.irrigate',
+    'unit.connect',
     'unit.stack2',
     'unit.hp_50',
     'unit.vet_2',
@@ -72,6 +75,10 @@ test('loads the sprite contract required by the active board renderers', async (
     'city.asian_wall_3',
     'road.road_n',
     'road.rail_n',
+    'road.river_s_n0e0s0w0',
+    'road.river_s_n1e1s1w1',
+    'road.river_outlet_n',
+    'road.river_outlet_w',
     'tx.fog',
     'explode.unit_0',
     'explode.unit_4',
@@ -79,13 +86,44 @@ test('loads the sprite contract required by the active board renderers', async (
     'swords.unit_7',
     'explode.nuke',
     'grid.usermark',
+    'f.shield.rome',
   ];
-  const missing = await page.evaluate(tags => {
-    const spec = (window as unknown as { tileset?: Record<string, unknown> }).tileset ?? {};
-    return tags.filter(tag => !(tag in spec));
+  const contract = await page.evaluate(tags => {
+    const globals = window as unknown as {
+      tileset?: Record<string, unknown>;
+      tileset_tile_width?: number;
+      tileset_tile_height?: number;
+      tileset_image_count?: number;
+      is_isometric?: number;
+    };
+    const spec = globals.tileset ?? {};
+    const missing = tags.filter(tag => !(tag in spec));
+    const malformed = tags.filter(tag => {
+      const definition = spec[tag];
+      return (
+        !Array.isArray(definition) ||
+        definition.length !== 5 ||
+        definition.some(value => typeof value !== 'number' || !Number.isFinite(value))
+      );
+    });
+    return {
+      missing,
+      malformed,
+      tileWidth: globals.tileset_tile_width,
+      tileHeight: globals.tileset_tile_height,
+      imageCount: globals.tileset_image_count,
+      isometric: globals.is_isometric,
+    };
   }, requiredTags);
 
-  expect(missing).toEqual([]);
+  expect(contract).toEqual({
+    missing: [],
+    malformed: [],
+    tileWidth: 96,
+    tileHeight: 48,
+    imageCount: 3,
+    isometric: 1,
+  });
 });
 
 test('supports keyboard navigation across the player-visible surface', async ({ page }) => {
