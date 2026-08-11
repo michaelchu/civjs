@@ -166,6 +166,15 @@ interface RulesetWorkerActionEvaluation {
   improvementType?: string;
 }
 
+type AutoAttackAction =
+  'Capture Units' | 'Bombard' | 'Collect Ransom' | 'Attack' | 'Suicide Attack';
+
+interface AutoAttackCandidate {
+  unit: Unit;
+  action: AutoAttackAction;
+  probability: number;
+}
+
 export type NuclearSourceAction = 'Explode Nuclear' | 'Nuke City' | 'Nuke Units';
 
 /**
@@ -228,6 +237,7 @@ export class UnitManager {
   private playerAIProvider: (playerId: string) => { isAI: boolean; aiLevel?: string } = () => ({
     isAI: false,
   });
+  private autoAttackEnabled = false;
   private hostilityProvider?: (
     attackerPlayerId: string,
     defenderPlayerId: string
@@ -373,6 +383,16 @@ export class UnitManager {
 
   public setCurrentTurnProvider(provider: () => number): void {
     this.currentTurnProvider = provider;
+  }
+
+  /**
+   * Configure Freeciv's optional server-side auto-attack behavior.
+   *
+   * @reference reference/freeciv/common/game.h:676
+   * @reference reference/freeciv/server/settings.c:2448-2453
+   */
+  public setAutoAttackEnabled(enabled: boolean): void {
+    this.autoAttackEnabled = enabled;
   }
 
   public setGameLossHandler(handler: (playerId: string) => Promise<void>): void {
@@ -847,9 +867,204 @@ export class UnitManager {
     this.embarkUnit(unit, plan.embarkTransport);
     const cargo = this.moveCargo(unit, newX, newY);
     await this.persistMove(unitId, unit, cargo, plan.embarkTransport, plan.disembarksFromTransport);
-    await this.resolveEnteredTile(unit);
     await this.establishAdjacentContacts(unit);
+    // Freeciv resolves the movement signal, then lets eligible neighboring
+    // units react, and only afterward handles hut entry. A surviving mover's
+    // movement is capped back to the amount it had before entering the tile.
+    const survivedAutoAttack = await this.resolveAutoAttackAfterMove(unit);
+    if (survivedAutoAttack && this.units.has(unit.id)) {
+      await this.resolveEnteredTile(unit);
+    }
     this.notifyMoveLifecycle(unit, cargo, plan.previousX, plan.previousY);
+  }
+
+  /**
+   * Resolve the C2C3 auto-attack pass after a unit moves adjacent to enemies.
+   * The ruleset supplies the action order; the server setting only enables the
+   * reaction. Candidate ordering mirrors Freeciv's transport-depth and
+   * pessimistic success-probability sort.
+   *
+   * @reference reference/freeciv/data/civ2civ3/actions.ruleset:10-31
+   * @reference reference/freeciv/server/unittools.c:3520-3645
+   */
+  private async resolveAutoAttackAfterMove(movedUnit: Unit): Promise<boolean> {
+    if (!this.autoAttackEnabled || !this.units.has(movedUnit.id)) return true;
+
+    const movementBeforeAutoAttack = movedUnit.movementLeft;
+    // Freeciv temporarily prevents tired-attack rules from reducing the
+    // mover's calculated defensive odds to zero during this pass.
+    movedUnit.movementLeft = Math.max(movedUnit.movementLeft, 1);
+
+    try {
+      const candidates: AutoAttackCandidate[] = [];
+      for (const position of this.getMapTopology().getNeighbors(movedUnit.x, movedUnit.y)) {
+        for (const candidate of this.getUnitsAt(position.x, position.y)) {
+          if (candidate.transportedBy || candidate.playerId === movedUnit.playerId) continue;
+          const candidateActions = await this.getAutoAttackActions(candidate, movedUnit);
+          const selected = candidateActions[0];
+          if (selected) candidates.push(selected);
+        }
+      }
+
+      candidates.sort((left, right) => {
+        const depthDifference =
+          this.getTransportDepth(right.unit) - this.getTransportDepth(left.unit);
+        return (
+          depthDifference ||
+          right.probability - left.probability ||
+          left.unit.id.localeCompare(right.unit.id)
+        );
+      });
+
+      for (const candidate of candidates) {
+        if (!this.units.has(movedUnit.id)) return false;
+        const attacker = this.units.get(candidate.unit.id);
+        if (!attacker) continue;
+
+        // The earlier action probability may be stale after another attacker
+        // changes the stack. Re-evaluate exactly before trying the action.
+        const refreshed = (await this.getAutoAttackActions(attacker, movedUnit))[0];
+        if (!refreshed) continue;
+
+        const movedUnitDefender = this.selectBestDefender(movedUnit, attacker.x, attacker.y);
+        const movedUnitWinChance = movedUnitDefender
+          ? this.calculateUnitWinChance(movedUnit, movedUnitDefender)
+          : 1;
+        const targetType = this.unitTypes[movedUnit.unitTypeId];
+        const targetTileUnits = this.getUnitsAt(attacker.x, attacker.y);
+        const threshold =
+          this.gameManagerCallback?.getCityAt?.(attacker.x, attacker.y) &&
+          targetTileUnits.length === 1
+            ? 0.9
+            : 0.25;
+        const provoking = targetType?.flags?.includes('Provoking') === true;
+        if (
+          refreshed.probability <= threshold ||
+          (!provoking && refreshed.probability <= 1 - movedUnitWinChance)
+        ) {
+          continue;
+        }
+
+        await this.executeAutoAttackAction(attacker, movedUnit, refreshed.action);
+        if (!this.units.has(movedUnit.id)) return false;
+      }
+    } finally {
+      if (this.units.has(movedUnit.id)) {
+        movedUnit.movementLeft = Math.min(movedUnit.movementLeft, movementBeforeAutoAttack);
+        await this.updateUnitPositionInDb(movedUnit.id, movedUnit);
+        this.gameManagerCallback?.broadcastUnitInfo?.(this.gameId, movedUnit);
+      }
+    }
+
+    return this.units.has(movedUnit.id);
+  }
+
+  private async getAutoAttackActions(
+    attacker: Unit,
+    movedUnit: Unit
+  ): Promise<AutoAttackCandidate[]> {
+    if (attacker.movementLeft <= 0 || attacker.transportedBy) return [];
+    const hostilePlayers = await this.getHostilePlayers(attacker, movedUnit);
+    if (!hostilePlayers.has(movedUnit.playerId)) return [];
+
+    const targetX = movedUnit.x;
+    const targetY = movedUnit.y;
+    const actionCandidates: Array<{ action: AutoAttackAction; type?: ActionType }> = [
+      { action: 'Capture Units', type: ActionType.CAPTURE_UNITS },
+      { action: 'Bombard', type: ActionType.BOMBARD },
+      { action: 'Collect Ransom', type: ActionType.COLLECT_RANSOM },
+      { action: 'Attack' },
+      { action: 'Suicide Attack', type: ActionType.SUICIDE_ATTACK },
+    ];
+
+    for (const candidate of actionCandidates) {
+      if (candidate.type !== undefined) {
+        if (!this.canUnitPerformActionForUnit(attacker, candidate.type, targetX, targetY)) {
+          continue;
+        }
+        return [
+          {
+            unit: attacker,
+            action: candidate.action,
+            probability:
+              candidate.action === 'Suicide Attack'
+                ? this.getAutoAttackWinChance(attacker, movedUnit)
+                : 1,
+          },
+        ];
+      }
+
+      const defender = this.getAutoAttackDefender(attacker, movedUnit, hostilePlayers);
+      if (!defender) continue;
+      try {
+        this.validateCombatRange(attacker, defender, this.unitTypes[attacker.unitTypeId], 'attack');
+      } catch {
+        continue;
+      }
+      const probability = this.calculateUnitWinChance(attacker, defender);
+      return [
+        {
+          unit: attacker,
+          action: candidate.action,
+          probability,
+        },
+      ];
+    }
+
+    return [];
+  }
+
+  private getAutoAttackDefender(
+    attacker: Unit,
+    movedUnit: Unit,
+    hostilePlayers?: ReadonlySet<string>
+  ): Unit | undefined {
+    return this.selectBestDefender(attacker, movedUnit.x, movedUnit.y, hostilePlayers);
+  }
+
+  private getAutoAttackWinChance(attacker: Unit, movedUnit: Unit): number {
+    const defender = this.getAutoAttackDefender(attacker, movedUnit);
+    return defender ? this.calculateUnitWinChance(attacker, defender) : 0;
+  }
+
+  private async executeAutoAttackAction(
+    attacker: Unit,
+    movedUnit: Unit,
+    action: AutoAttackAction
+  ): Promise<void> {
+    if (attacker.automation) await this.clearAutomation(attacker);
+    if (action === 'Attack') {
+      await this.attackUnit(attacker.id, movedUnit.id);
+      return;
+    }
+
+    const actionType: ActionType =
+      action === 'Capture Units'
+        ? ActionType.CAPTURE_UNITS
+        : action === 'Bombard'
+          ? ActionType.BOMBARD
+          : action === 'Collect Ransom'
+            ? ActionType.COLLECT_RANSOM
+            : ActionType.SUICIDE_ATTACK;
+    await this.executeUnitAction(
+      attacker.id,
+      actionType,
+      movedUnit.x,
+      movedUnit.y,
+      attacker.playerId
+    );
+  }
+
+  private getTransportDepth(unit: Unit): number {
+    let depth = 0;
+    let transportId = unit.transportedBy;
+    const visited = new Set<string>();
+    while (transportId && !visited.has(transportId)) {
+      visited.add(transportId);
+      depth += 1;
+      transportId = this.units.get(transportId)?.transportedBy;
+    }
+    return depth;
   }
 
   private embarkUnit(unit: Unit, transport: Unit | undefined): void {

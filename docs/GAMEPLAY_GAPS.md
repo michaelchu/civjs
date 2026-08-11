@@ -1113,9 +1113,11 @@ These are potential gaps rather than confirmed `civ2civ3`-default regressions.
 They should be promoted to numbered entries when CivJS commits to the
 corresponding server setting or broader ruleset compatibility:
 
-- **Automatic attacks:** Freeciv can autoattack after movement when the
-  `autoattack` server setting is enabled; the Freeciv server default is
-  disabled.
+- **Automatic attacks:** Resolved for the supported server setting. CivJS now
+  persists `GameConfig.autoAttack`, defaults it to Freeciv's disabled value,
+  and implements the C2C3 post-move action order and `Provoking` threshold
+  behavior. See `docs/BACKEND_GAMEPLAY_GAP_ANALYSIS.md` BG-004 and
+  `apps/server/tests/game/Civ2Civ3AutoAttack.test.ts`.
 - **Configurable occupation chance:** Freeciv supports `occupychance` and
   action post-success rules; CivJS currently moves a surviving melee attacker
   into an emptied target automatically. This matches `civ2civ3`'s

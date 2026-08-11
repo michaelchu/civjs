@@ -673,6 +673,29 @@ describe('ResearchManager', () => {
         Object.keys(TECHNOLOGIES).length + 1
       );
     });
+
+    /**
+     * @evidence parity
+     * @reference reference/freeciv/server/techtools.c:359-450
+     * @reference reference/freeciv/server/techtools.c:1266-1270
+     * @assertion Source-granted Future Tech increments the numbered Future Tech sequence after the regular C2C3 tree is complete, while an early grant is rejected.
+     * @c2c3-surface research-government
+     * @c2c3-surface-scenario boundary
+     */
+    it('allows source-granted Future Tech only after the regular tree is complete', async () => {
+      await researchManager.initializePlayerResearch('player-123');
+
+      expect(await researchManager.grantTechnology('player-123', FUTURE_TECH_ID)).toBe(false);
+
+      await researchManager.grantAvailableTechnologies(
+        'player-123',
+        Object.keys(TECHNOLOGIES).length
+      );
+
+      expect(await researchManager.grantTechnology('player-123', FUTURE_TECH_ID)).toBe(true);
+      expect(await researchManager.grantTechnology('player-123', FUTURE_TECH_ID)).toBe(true);
+      expect(researchManager.getPlayerResearch('player-123')).toMatchObject({ futureTechs: 2 });
+    });
   });
 
   describe('database integration', () => {

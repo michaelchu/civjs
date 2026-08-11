@@ -303,6 +303,10 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
         randomState,
         identityNumber: FREECIV_IDENTITY_NUMBER_SKIP,
         barbarianRate: gameConfig.barbarianRate,
+        // Freeciv's GAME_DEFAULT_AUTOATTACK is FALSE. Persist the explicit
+        // setting in game state so recovered instances retain the server
+        // behavior selected at creation time.
+        autoAttack: gameConfig.autoAttack ?? false,
         climateSettings: gameConfig.climate ?? { enabled: true },
         terrainSettings,
         mapSizingMode,
@@ -502,6 +506,11 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       researchManager,
       random,
       identities
+    );
+    unitManager.setAutoAttackEnabled(
+      game.gameState && typeof game.gameState === 'object'
+        ? (game.gameState as { autoAttack?: boolean }).autoAttack === true
+        : false
     );
     unitManager.setCombatPresentationCallback(event =>
       this.broadcastManager?.broadcastCombatOccurred(gameId, event)

@@ -84,6 +84,7 @@ export function buildStoredGameConfig(
         : undefined,
     researchPacing: researchPacingFromGameState(ruleset, game.gameState),
     randomSeed: game.gameState?.randomSeed,
+    autoAttack: game.gameState?.autoAttack === true,
     executionMode: game.gameState?.simulation?.executionMode,
     scenarioSetup: game.gameState?.scenarioSetup,
   };

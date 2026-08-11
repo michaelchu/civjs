@@ -782,11 +782,31 @@ export class ResearchManager {
   public async grantTechnology(playerId: string, techId: string): Promise<boolean> {
     const playerResearch = this.playerResearch.get(playerId);
     if (!playerResearch) throw new Error(`Player ${playerId} research not initialized`);
-    if (
-      techId === FUTURE_TECH_ID ||
-      !this.technologies[techId] ||
-      playerResearch.researchedTechs.has(techId)
-    ) {
+
+    // Freeciv represents each granted/discovered Future Tech as a numbered
+    // advance once the regular tree is complete. This path is used by
+    // conquest and other source-granted technology effects, so it must not
+    // be limited to ordinary bulb-based research.
+    // @reference reference/freeciv/server/techtools.c:359-450
+    // @reference reference/freeciv/server/techtools.c:1266-1270
+    if (techId === FUTURE_TECH_ID) {
+      if (!this.hasCompletedTechnologyTree(playerResearch)) return false;
+
+      playerResearch.futureTechs += 1;
+      await this.databaseProvider
+        .getDatabase()
+        .insert(playerTechs)
+        .values({
+          gameId: this.gameId,
+          playerId,
+          techId: `${FUTURE_TECH_ID}_${playerResearch.futureTechs}`,
+          researchedTurn: this.getCurrentTurn(),
+        });
+      this.technologyCompletionObserver?.(playerId, techId, 'grant');
+      return true;
+    }
+
+    if (!this.technologies[techId] || playerResearch.researchedTechs.has(techId)) {
       return false;
     }
     playerResearch.researchedTechs.add(techId);

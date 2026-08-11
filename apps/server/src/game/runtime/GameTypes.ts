@@ -58,6 +58,8 @@ export interface GameConfig {
   executionMode?: 'headless' | 'server';
   scenarioSetup?: ScenarioSetup;
   barbarianRate?: number;
+  /** Freeciv's optional server-side automatic reaction to adjacent movement. */
+  autoAttack?: boolean;
   climate?: {
     enabled?: boolean;
     warmingThreshold?: number;
