@@ -5,6 +5,9 @@ export default defineConfig({
   outputDir: 'test-results/browser',
   reporter: process.env.CI ? [['line'], ['html', { open: 'never' }]] : 'list',
   retries: process.env.CI ? 1 : 0,
+  // Canvas baselines contain no platform-rendered text; keep the same image
+  // name on macOS and Linux so the desktop pixel tests run in CI.
+  snapshotPathTemplate: '{snapshotDir}/{testFilePath}-snapshots/{arg}-{projectName}{ext}',
   use: {
     baseURL: 'http://127.0.0.1:4173',
     trace: 'retain-on-failure',
