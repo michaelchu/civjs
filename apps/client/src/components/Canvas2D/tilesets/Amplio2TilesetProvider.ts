@@ -148,6 +148,10 @@ export class Amplio2TilesetProvider implements TilesetProvider {
       throw new Error('Tileset spec not loaded');
     }
 
+    // A reload may use a newer spec with fewer or renamed entries. Do not
+    // retain canvases from the previous generation in the lookup table.
+    this.sprites = {};
+
     const sheetUsage: Record<number, number> = {};
     for (const tileTag in this.spec) {
       try {
@@ -177,16 +181,12 @@ export class Amplio2TilesetProvider implements TilesetProvider {
   }
 
   getSprite(tag: string): HTMLCanvasElement | null {
-    // Try exact match first
-    if (this.sprites[tag]) {
-      return this.sprites[tag];
-    }
-
-    // Try without :0 suffix for new tileset format compatibility
-    if (tag.endsWith(':0')) {
-      const tagWithoutSuffix = tag.slice(0, -2);
-      if (this.sprites[tagWithoutSuffix]) {
-        return this.sprites[tagWithoutSuffix];
+    // The reference config and the carried CivJS spec use both bare tags and
+    // explicit frame-0 tags. Accept either spelling at the provider boundary.
+    const candidates = tag.endsWith(':0') ? [tag, tag.slice(0, -2)] : [tag, `${tag}:0`];
+    for (const candidate of candidates) {
+      if (this.sprites[candidate]) {
+        return this.sprites[candidate];
       }
     }
 

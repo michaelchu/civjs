@@ -38,6 +38,8 @@ pre-certificate assessment remains in [Test Evidence Audit](TEST_EVIDENCE_AUDIT.
 Concrete implementation gaps belong in [Gameplay Gaps](GAMEPLAY_GAPS.md).
 The current server-only comparison is tracked in
 [Backend Gameplay Gap Analysis](BACKEND_GAMEPLAY_GAP_ANALYSIS.md).
+The current browser rendering and interaction comparison is tracked in
+[Frontend Parity Gap Analysis](FRONTEND_PARITY_GAP_ANALYSIS.md).
 
 ## Intentional exclusions
 

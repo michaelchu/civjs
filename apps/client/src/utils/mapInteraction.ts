@@ -193,3 +193,24 @@ export function exceedsDragThreshold(
   );
   return distance > threshold;
 }
+
+/**
+ * Match the reference client's delayed right-drag rectangle activation.
+ * Small/short right clicks remain context-menu interactions.
+ *
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:367-374
+ */
+export function isRightDragSelectionReady(
+  startPos: { x: number; y: number },
+  currentPos: { x: number; y: number },
+  startedAt: number,
+  now: number = Date.now(),
+  distance: number = 45,
+  durationMs: number = 200
+): boolean {
+  return (
+    Math.abs(currentPos.x - startPos.x) > distance &&
+    Math.abs(currentPos.y - startPos.y) > distance &&
+    now - startedAt > durationMs
+  );
+}

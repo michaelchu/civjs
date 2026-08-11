@@ -2,6 +2,18 @@ import { describe, expect, it, vi } from 'vitest';
 import { Amplio2TilesetProvider } from '../tilesets/Amplio2TilesetProvider';
 
 describe('Amplio2TilesetProvider lifecycle', () => {
+  it('accepts bare and explicit frame-zero sprite tags', () => {
+    const loader = new Amplio2TilesetProvider();
+    const sprite = {} as HTMLCanvasElement;
+
+    Object.assign(loader as unknown as Record<string, unknown>, {
+      sprites: { 'unit.warriors': sprite },
+    });
+
+    expect(loader.getSprite('unit.warriors')).toBe(sprite);
+    expect(loader.getSprite('unit.warriors:0')).toBe(sprite);
+  });
+
   it('stops an in-flight tileset load after cleanup', async () => {
     let finishConfig!: () => void;
     const loader = new Amplio2TilesetProvider();

@@ -2,7 +2,11 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGameStore } from '../../../store/gameStore';
 import { Minimap } from '../Minimap';
-import { isMinimapMarkerVisible } from '../minimapVisibility';
+import {
+  getMinimapCellAppearance,
+  isMinimapMarkerVisible,
+  MINIMAP_COLORS,
+} from '../minimapVisibility';
 import {
   getMinimapLayout,
   getMinimapTileOrigins,
@@ -170,6 +174,44 @@ describe('Minimap', () => {
     expect(isMinimapMarkerVisible(knownButNotVisible, 'player-2', 'player-1', true)).toBe(false);
     expect(isMinimapMarkerVisible(unknown, 'player-2', 'player-1', false)).toBe(false);
     expect(isMinimapMarkerVisible(unknown, 'player-1', 'player-1', true)).toBe(true);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/overview.js:342-379
+   * @assertion Overview cells prefer city/unit identity, then known ownership,
+   * then terrain, while unknown cells remain black.
+   */
+  it('uses reference overview color precedence for cells and markers', () => {
+    const visibleTile = {
+      x: 1,
+      y: 1,
+      terrain: 'grassland',
+      known: true,
+      visible: true,
+      owner: 'player-2',
+    };
+
+    expect(
+      getMinimapCellAppearance(visibleTile, '#0b8a04', 'player-1', '#d946ef', {
+        kind: 'city',
+        ownerId: 'player-1',
+      })
+    ).toEqual({ color: MINIMAP_COLORS.myCity, opacity: 1 });
+    expect(
+      getMinimapCellAppearance(visibleTile, '#0b8a04', 'player-1', '#d946ef', {
+        kind: 'unit',
+        ownerId: 'player-2',
+        ownerColor: '#d946ef',
+      })
+    ).toEqual({ color: '#d946ef', opacity: 1 });
+    expect(getMinimapCellAppearance(visibleTile, '#0b8a04', 'player-1', '#d946ef')).toEqual({
+      color: '#d946ef',
+      opacity: 1,
+    });
+    expect(
+      getMinimapCellAppearance({ ...visibleTile, known: false }, '#0b8a04', 'player-1', '#d946ef')
+    ).toEqual({ color: MINIMAP_COLORS.unknown, opacity: 1 });
   });
 
   it('uses natural/display dimensions with square ISO tile footprints', () => {

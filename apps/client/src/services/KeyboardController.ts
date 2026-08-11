@@ -236,7 +236,7 @@ export class KeyboardController {
    */
   activate(): void {
     if (!this.isActive) {
-      document.addEventListener('keydown', this.handleKeyDown.bind(this));
+      document.addEventListener('keydown', this.handleKeyDown);
       this.isActive = true;
     }
   }
@@ -246,7 +246,7 @@ export class KeyboardController {
    */
   deactivate(): void {
     if (this.isActive) {
-      document.removeEventListener('keydown', this.handleKeyDown.bind(this));
+      document.removeEventListener('keydown', this.handleKeyDown);
       this.isActive = false;
     }
   }

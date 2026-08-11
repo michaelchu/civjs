@@ -3,6 +3,7 @@ import type { City, Unit } from '../../types';
 import {
   determineMapClickAction,
   findSelectableCityUnit,
+  isRightDragSelectionReady,
   shouldIgnoreClick,
 } from '../mapInteraction';
 
@@ -84,5 +85,16 @@ describe('mapInteraction', () => {
 
     expect(shouldIgnoreClick(900, { x: 1, y: 1 }, { x: 2, y: 1 })).toBe(false);
     expect(shouldIgnoreClick(900, { x: 1, y: 1 }, { x: 1, y: 1 })).toBe(true);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:367-374
+   * @assertion Right-drag unit selection waits for both 45px axes and 200ms.
+   */
+  it('gates right-drag selection with the reference distance and time thresholds', () => {
+    expect(isRightDragSelectionReady({ x: 0, y: 0 }, { x: 46, y: 46 }, 1_000, 1_201)).toBe(true);
+    expect(isRightDragSelectionReady({ x: 0, y: 0 }, { x: 46, y: 20 }, 1_000, 1_201)).toBe(false);
+    expect(isRightDragSelectionReady({ x: 0, y: 0 }, { x: 46, y: 46 }, 1_000, 1_200)).toBe(false);
   });
 });

@@ -21,6 +21,7 @@ import {
   findCityAtTile,
   findSelectableCityUnit,
   getUnitsAtTile,
+  isRightDragSelectionReady,
   type ClickOptions,
 } from '../../utils/mapInteraction';
 import {
@@ -783,6 +784,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const dragRenderFrame = useRef<number | null>(null);
   const dragStartTime = useRef<number>(0);
   const selectionDragMode = useRef<SelectionDragMode>(null);
+  const rightSelectionActive = useRef(false);
   const rightPointerHandled = useRef(false);
   const lastTouchTap = useRef<{ x: number; y: number; time: number } | null>(null);
   const DRAG_THRESHOLD = 5; // pixels
@@ -1255,6 +1257,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       // Close context menu if open
       setContextMenu(null);
       rightPointerHandled.current = false;
+      rightSelectionActive.current = false;
 
       selectionDragMode.current =
         event.button === 2 || (event.altKey && !event.shiftKey && !event.ctrlKey)
@@ -1285,7 +1288,17 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       const canvasY = event.clientY - rect.top;
 
       const dragDistance = Math.hypot(canvasX - dragStart.current.x, canvasY - dragStart.current.y);
-      const isAreaSelection = selectionDragMode.current !== null;
+      const rightSelectionReady =
+        selectionDragMode.current === 'right' &&
+        isRightDragSelectionReady(
+          dragStart.current,
+          { x: canvasX, y: canvasY },
+          dragStartTime.current
+        );
+      if (rightSelectionReady) rightSelectionActive.current = true;
+      if (selectionDragMode.current === 'right' && !rightSelectionActive.current) return;
+
+      const isAreaSelection = selectionDragMode.current === 'left' || rightSelectionActive.current;
 
       // Check if we should start dragging or selecting a rectangle.
       if (!isDragging && dragStartTime.current > 0 && dragDistance > DRAG_THRESHOLD) {
@@ -1356,17 +1369,43 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       const canvasY = event.clientY - rect.top;
 
       const areaMode = selectionDragMode.current;
+      if (
+        areaMode === 'right' &&
+        isRightDragSelectionReady(
+          dragStart.current,
+          { x: canvasX, y: canvasY },
+          dragStartTime.current
+        )
+      ) {
+        rightSelectionActive.current = true;
+      }
+      const activeAreaMode = areaMode === 'left' || rightSelectionActive.current ? areaMode : null;
       const areaWasDragged =
-        areaMode !== null &&
+        activeAreaMode !== null &&
         (isDragging ||
           Math.hypot(canvasX - dragStart.current.x, canvasY - dragStart.current.y) >
             DRAG_THRESHOLD);
 
-      if (areaMode) {
+      if (areaMode === 'right' && !activeAreaMode) {
+        handleRightClickAtCanvasPosition(
+          canvasX,
+          canvasY,
+          { x: event.clientX, y: event.clientY },
+          dragStartViewport.current
+        );
+        rightPointerHandled.current = true;
+        selectionDragMode.current = null;
+        rightSelectionActive.current = false;
+        dragStartTime.current = 0;
+        event.preventDefault();
+        return;
+      }
+
+      if (activeAreaMode) {
         if (areaWasDragged) {
           selectUnitsInCanvasRect(dragStart.current, { x: canvasX, y: canvasY });
-          rightPointerHandled.current = areaMode === 'right';
-        } else if (areaMode === 'right') {
+          rightPointerHandled.current = activeAreaMode === 'right';
+        } else if (activeAreaMode === 'right') {
           // Resolve a normal right click on mouseup. Some browsers do not
           // dispatch a usable native contextmenu event after mouseup has been
           // prevented, so waiting for that event makes unit menus disappear.
@@ -1381,6 +1420,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           rightPointerHandled.current = true;
         }
         selectionDragMode.current = null;
+        rightSelectionActive.current = false;
         setSelectionRect(null);
         setIsDragging(false);
         canvas.style.cursor = 'crosshair';
@@ -1449,6 +1489,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
       // Reset drag tracking
       dragStartTime.current = 0;
+      rightSelectionActive.current = false;
     },
     [
       isDragging,
@@ -1951,10 +1992,22 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         const wasDragged =
           isDragging ||
           Math.hypot(canvasX - dragStart.current.x, canvasY - dragStart.current.y) > DRAG_THRESHOLD;
+        if (
+          areaMode === 'right' &&
+          isRightDragSelectionReady(
+            dragStart.current,
+            { x: canvasX, y: canvasY },
+            dragStartTime.current
+          )
+        ) {
+          rightSelectionActive.current = true;
+        }
+        const activeAreaMode =
+          areaMode === 'left' || rightSelectionActive.current ? areaMode : null;
 
-        if (wasDragged) {
+        if (activeAreaMode && wasDragged) {
           selectUnitsInCanvasRect(dragStart.current, { x: canvasX, y: canvasY });
-          rightPointerHandled.current = areaMode === 'right';
+          rightPointerHandled.current = activeAreaMode === 'right';
         } else if (areaMode === 'right') {
           handleRightClickAtCanvasPosition(
             canvasX,
@@ -1965,6 +2018,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           rightPointerHandled.current = true;
         }
         selectionDragMode.current = null;
+        rightSelectionActive.current = false;
         setSelectionRect(null);
         setIsDragging(false);
         canvas.style.cursor = 'crosshair';

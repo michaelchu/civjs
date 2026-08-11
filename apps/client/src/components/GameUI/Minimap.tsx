@@ -10,7 +10,11 @@ import { useGameStore } from '../../store/gameStore';
 import { getMapRenderTileSize, subscribeMapRenderTileSize } from '../Canvas2D/mapRenderMetrics';
 import { isIsometricTopology } from '../Canvas2D/mapTopologyGeometry';
 import { HudPanel } from './HudPanel';
-import { isMinimapMarkerVisible } from './minimapVisibility';
+import {
+  getMinimapCellAppearance,
+  isMinimapMarkerVisible,
+  MINIMAP_COLORS,
+} from './minimapVisibility';
 import {
   getMinimapLayout,
   getMinimapTileOrigins,
@@ -21,26 +25,30 @@ import {
 } from './minimapGeometry';
 
 const TILE_COLORS: Record<string, string> = {
-  ocean: '#164e63',
-  deep_ocean: '#164e63',
-  coast: '#0e7490',
-  grassland: '#3f7d4a',
-  plains: '#78934e',
-  forest: '#166534',
-  jungle: '#14532d',
-  hills: '#8b7355',
-  hill: '#8b7355',
-  mountains: '#64748b',
-  mountain: '#64748b',
-  desert: '#c49a58',
-  tundra: '#94a3a8',
-  arctic: '#cbd5e1',
-  swamp: '#4d6b4a',
+  // C2C3 terrain.ruleset overview palette. The reference overview receives
+  // these values from the terrain catalogue instead of using sprite colors.
+  inaccessible: '#191919',
+  lake: '#2e78b6',
+  ocean: '#002e89',
+  deep_ocean: '#002181',
+  coast: '#002e89',
+  arctic: '#e8e8e8',
+  grassland: '#0b8a04',
+  plains: '#7a9c2e',
+  forest: '#2b6b13',
+  jungle: '#379c26',
+  hills: '#186105',
+  hill: '#186105',
+  mountains: '#817f76',
+  mountain: '#817f76',
+  desert: '#d6b96a',
+  tundra: '#bcbcbc',
+  swamp: '#305561',
 };
 
 const terrainColor = (terrain: string | undefined): string => {
   const normalized = terrain?.toLowerCase() ?? 'unknown';
-  return TILE_COLORS[normalized] ?? (normalized === 'unknown' ? '#000000' : '#475569');
+  return TILE_COLORS[normalized] ?? (normalized === 'unknown' ? MINIMAP_COLORS.unknown : '#475569');
 };
 
 const playerColor = (color: string | undefined, fallback: string): string => color || fallback;
@@ -85,6 +93,14 @@ export const Minimap: React.FC = () => {
 
     const tiles = Object.values(map.tiles);
     const tilesByCoordinate = new Map(tiles.map(tile => [`${tile.x},${tile.y}`, tile]));
+    const citiesByCoordinate = new Map(
+      Object.values(cities).map(city => [`${city.x},${city.y}`, city] as const)
+    );
+    const unitsByCoordinate = new Map<string, (typeof units)[string]>();
+    for (const unit of Object.values(units)) {
+      const key = `${unit.x},${unit.y}`;
+      if (!unitsByCoordinate.has(key)) unitsByCoordinate.set(key, unit);
+    }
     const isIso = isIsometricTopology(topologyId);
     const displayedTileWidth = isIso ? layout.scaleX * 2 : layout.scaleX;
     const markerPositions = (x: number, y: number) =>
@@ -107,15 +123,26 @@ export const Minimap: React.FC = () => {
         layout
       );
       for (const origin of origins) {
-        context.globalAlpha = tile.visible ? 1 : 0.55;
-        context.fillStyle = terrainColor(tile.terrain);
+        const city = citiesByCoordinate.get(`${tile.x},${tile.y}`);
+        const unit = city ? undefined : unitsByCoordinate.get(`${tile.x},${tile.y}`);
+        const appearance = getMinimapCellAppearance(
+          tile,
+          terrainColor(tile.terrain),
+          currentPlayerId,
+          tile.owner ? players[tile.owner]?.color : undefined,
+          city
+            ? { kind: 'city', ownerId: city.playerId }
+            : unit
+              ? {
+                  kind: 'unit',
+                  ownerId: unit.playerId,
+                  ownerColor: players[unit.playerId]?.color,
+                }
+              : undefined
+        );
+        context.globalAlpha = appearance.opacity;
+        context.fillStyle = appearance.color;
         context.fillRect(origin.x, origin.y, displayedTileWidth + 0.5, layout.scaleY + 0.5);
-
-        if (tile.owner) {
-          context.globalAlpha = tile.visible ? 0.42 : 0.22;
-          context.fillStyle = playerColor(players[tile.owner]?.color, '#94a3b8');
-          context.fillRect(origin.x, origin.y, displayedTileWidth + 0.5, layout.scaleY + 0.5);
-        }
       }
     }
     context.globalAlpha = 1;
@@ -124,7 +151,8 @@ export const Minimap: React.FC = () => {
       const tile = tilesByCoordinate.get(`${city.x},${city.y}`);
       if (!isMinimapMarkerVisible(tile, city.playerId, currentPlayerId, false)) continue;
       for (const { x, y } of markerPositions(city.x, city.y)) {
-        context.fillStyle = playerColor(players[city.playerId]?.color, '#f8fafc');
+        context.fillStyle =
+          city.playerId === currentPlayerId ? MINIMAP_COLORS.myCity : MINIMAP_COLORS.foreignCity;
         context.fillRect(x - 2, y - 2, 4, 4);
         if (city.playerId === currentPlayerId) {
           context.strokeStyle = '#f8fafc';
@@ -138,7 +166,10 @@ export const Minimap: React.FC = () => {
       const tile = tilesByCoordinate.get(`${unit.x},${unit.y}`);
       if (!isMinimapMarkerVisible(tile, unit.playerId, currentPlayerId, true)) continue;
       for (const { x, y } of markerPositions(unit.x, unit.y)) {
-        context.fillStyle = unit.playerId === currentPlayerId ? '#67e8f9' : '#e2e8f0';
+        context.fillStyle =
+          unit.playerId === currentPlayerId
+            ? MINIMAP_COLORS.myUnit
+            : playerColor(players[unit.playerId]?.color, MINIMAP_COLORS.foreignUnit);
         context.beginPath();
         context.arc(x, y, unit.playerId === currentPlayerId ? 2 : 1.5, 0, 2 * Math.PI);
         context.fill();
