@@ -1,12 +1,12 @@
 # Test Evidence Audit
 
-## Current C2C3 evidence result (2026-08-03)
+## Current C2C3 evidence result (2026-08-11)
 
 **The mechanical C2C3 evidence certificate passes; a public whole-game parity
 claim remains unsupported.**
 
 `npm run certify:civ2civ3-parity` now reports 62/62 enabled actions (89
-enablers), 12/12 gameplay surfaces, 3/3 active script hooks, and 97/97 raw
+enablers), 12/12 gameplay surfaces, 3/3 active script hooks, and 98/98 raw
 effect types with declared runtime handlers. The strict result validates source
 mappings and required scenario classes; it does not establish semantic
 equivalence for every branch or full turn sequence. The current audit, source

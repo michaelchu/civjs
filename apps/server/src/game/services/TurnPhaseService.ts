@@ -34,7 +34,7 @@ export enum TurnPhase {
   PHASE_PLAYER_ACTIONS = 'player_actions',
 
   // Phase 3: Automated unit activities (GOTO, patrol, etc.)
-  // @reference freeciv/server/srv_main.c:1394 random_movements()
+  // @reference freeciv/server/srv_main.c:1410-1425 execute_unit_orders()
   PHASE_UNIT_ACTIVITIES = 'unit_activities',
 
   // Phase 4: City production and growth
@@ -53,7 +53,8 @@ export enum TurnPhase {
   // @reference freeciv/server/srv_main.c AI player processing
   PHASE_AI_ACTIONS = 'ai_actions',
 
-  // Phase 8: Random events and barbarians
+  // Phase 8: Random events and barbarians (random unit movement runs in
+  // PHASE_BEGIN_TURN before controlled actions)
   // @reference freeciv/server/srv_main.c:1668 summon_barbarians(), 1684 check_disasters()
   PHASE_RANDOM_EVENTS = 'random_events',
 
@@ -684,8 +685,9 @@ export class TurnPhaseService {
     // Send freeze client to prevent interactions during processing
     this.turnPacketService.sendFreezeClientPacket('Processing turn...');
 
-    // Reset movement points for all units at the start of the turn
-    // @reference freeciv/server/srv_main.c begin_turn() - unit movement point restoration
+    // Reset movement points for all units at the start of the turn.
+    // @reference reference/freeciv/common/unit.c:1718-1727
+    // @reference reference/freeciv/server/srv_main.c:1394-1406
     let totalUnitsReset = 0;
     for (const playerId of context.playerIds) {
       try {
@@ -702,11 +704,35 @@ export class TurnPhaseService {
       totalUnitsReset,
     });
 
+    let randomUnitMovements = 0;
+    let randomUnitMovementResults: unknown[] = [];
+    if (this.randomEventsManager) {
+      try {
+        const randomMovementResult = await this.randomEventsManager.processRandomUnitMovements(
+          context.playerIds
+        );
+        randomUnitMovements = randomMovementResult.unitMovements;
+        randomUnitMovementResults = randomMovementResult.results;
+        logger.debug('Random unit movement pass completed', {
+          gameId: context.gameId,
+          turn: context.turn,
+          randomUnitMovements,
+        });
+      } catch (error) {
+        result.errors.push(`Random unit movement failed: ${error}`);
+      }
+    }
+
     // Note: Turn start packets (NEW_YEAR, BEGIN_TURN) are sent by TurnManager after processing completes
     // This avoids race conditions with the turn overlay UI
 
     result.playersProcessed = context.playerIds.length;
-    result.itemsProcessed = totalUnitsReset;
+    result.itemsProcessed = totalUnitsReset + randomUnitMovements;
+    result.data = {
+      ...(result.data ?? {}),
+      randomUnitMovements,
+      randomUnitMovementResults,
+    };
   }
 
   private async executePlayerActionsPhase(

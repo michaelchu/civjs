@@ -42,9 +42,9 @@ report. It derives the enabled action set from c2c3 data, requires explicit
 source-backed normal/rejected/boundary cases for each action, inventories raw
 effect types without declared runtime handlers, and reports the adapter and
 oracle surface. `npm run certify:civ2civ3-parity` is intentionally strict: it
-passes only when the report has no mechanical blockers. The 2026-08-03 audit
+passes only when the report has no mechanical blockers. The 2026-08-11 audit
 passes with 62/62 actions, 12/12 gameplay surfaces, 3/3 active script hooks,
-and 97/97 raw effect types covered. That is an evidence-certificate result,
+and 98/98 raw effect types covered. That is an evidence-certificate result,
 not a whole-game semantic-parity claim; see
 [C2C3 Parity Audit](CIV2CIV3_PARITY_AUDIT.md) for the precise scope and known
 limitations. CI also runs the non-strict metadata check so action annotations
@@ -136,7 +136,7 @@ does not by itself certify the rest of the combat/action matrix.
 
 The turn-time `Have_Contacts` effect is separately source-mapped in
 `DiplomacyManager.test.ts`. In c2c3, Marco Polo's Embassy grants that effect
-to its owner (`data/civ2civ3/effects.ruleset:3399-3420`); Freeciv applies it
+to its owner (`data/civ2civ3/effects.ruleset:3408-3415`); Freeciv applies it
 after player-phase processing (`server/srv_main.c:784-798`) through
 `make_contact` (`server/plrhand.c:2305-2364`). CivJS evaluates the selected
 game ruleset, grants contact only among living players, and refreshes the

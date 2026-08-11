@@ -60,6 +60,35 @@ describe('UnitManager', () => {
 
       expect(unitManager.calculateUnitWinChance(attacker, defender)).toBeCloseTo(0.5);
     });
+
+    it('allows a Flagless attacker to engage an allied foreign unit', async () => {
+      const unitTypes = rulesetUnitsService.getUnitTypes('civ2civ3');
+      const flaglessWarrior = {
+        ...unitTypes.warriors,
+        name: 'Flagless Warrior',
+        flags: [...(unitTypes.warriors.flags ?? []), 'Flagless'],
+      };
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        { getTile: () => ({ terrain: 'grassland', improvements: [] }) },
+        undefined,
+        new EffectsManager('civ2civ3'),
+        undefined,
+        { ...unitTypes, warriors: flaglessWarrior }
+      );
+      manager.setAlliedPlayersProvider(() => new Set(['player-456']));
+      manager.setHostilityProvider(async () => false);
+      const attacker = await manager.createUnit('player-123', 'warriors', 10, 10);
+      const defender = await manager.createUnit('player-456', 'phalanx', 11, 10);
+
+      await expect(manager.attackUnit(attacker.id, defender.id)).resolves.toMatchObject({
+        attackerId: attacker.id,
+        defenderId: defender.id,
+      });
+    });
   });
 
   describe('unit creation', () => {
@@ -1585,6 +1614,36 @@ describe('UnitManager', () => {
       await expect(manager.moveUnit(settler.id, 11, 11)).resolves.toBe(true);
     });
 
+    it('treats a foreign Flagless unit as non-allied for stack entry and contact', async () => {
+      const mapManager = {
+        getTile: () => ({ terrain: 'grassland', improvements: [] }),
+      };
+      const contactProvider = jest.fn().mockResolvedValue(undefined);
+      const manager = new UnitManager(
+        gameId,
+        mockDbProvider,
+        mapWidth,
+        mapHeight,
+        mapManager,
+        undefined,
+        new EffectsManager('civ2civ3'),
+        undefined,
+        rulesetUnitsService.getUnitTypes('civ2civ3')
+      );
+      manager.setAlliedPlayersProvider(() => new Set(['player-456']));
+      manager.setHostilityProvider(async () => false);
+      manager.setContactProvider(contactProvider);
+      const unit = await manager.createUnit('player-123', 'warriors', 10, 10);
+      const storm = await manager.createUnit('player-456', 'storm', 11, 10);
+
+      await expect(manager.moveUnit(unit.id, 11, 10)).rejects.toThrow(
+        'Cannot move to tile occupied by enemy unit'
+      );
+
+      await manager.moveUnit(unit.id, 10, 11);
+      expect(contactProvider).not.toHaveBeenCalledWith('player-123', storm.playerId);
+    });
+
     it('moves RandomMovement units to a legal adjacent tile during random events', async () => {
       const topology = new MapTopology(20, 20);
       const mapManager = {
@@ -1605,7 +1664,16 @@ describe('UnitManager', () => {
       );
       const storm = await manager.createUnit('player-123', 'storm', 10, 10);
 
+      expect(storm.movementLeft).toBe(0);
+      expect(manager.getUnitsWithRandomMovement('player-123')).toEqual([]);
+      await expect(manager.moveUnit(storm.id, 11, 10)).rejects.toThrow(
+        'Random-movement units move during random movement processing'
+      );
+
+      await manager.seedUnitState(storm.id, { movementLeft: 6 });
       expect(manager.getUnitsWithRandomMovement('player-123')).toEqual([storm]);
+      expect(manager.canUnitPerformAction(storm.id, ActionType.GOTO, 11, 10)).toBe(false);
+      expect((manager as any).getPathStepCost(storm, 10, 10, 11, 10, true)).toBe(-1);
       const result = await manager.executeRandomMovement(storm.id);
 
       expect(result).toMatchObject({

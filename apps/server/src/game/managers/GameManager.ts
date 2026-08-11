@@ -1748,10 +1748,9 @@ export class GameManager {
     );
     gameInstance.cityManager.setTileOccupancyProvider((city, tile) => {
       const hostilePlayers = this.hostilePlayersByGame.get(gameId)?.get(city.playerId);
-      if (!hostilePlayers?.size) return false;
       return gameInstance.unitManager.getUnitsAt(tile.x, tile.y).some(unit => {
         const unitType = gameInstance.unitManager.getUnitType(unit.unitTypeId);
-        return hostilePlayers.has(unit.playerId) && !unitType?.flags?.includes('DoesntOccupyTile');
+        return this.doesUnitOccupyCityTile(city.playerId, unit, unitType, hostilePlayers);
       });
     });
     gameInstance.cityManager.refreshAllTileOccupancy();
@@ -1917,6 +1916,25 @@ export class GameManager {
       gameInstance.turnDeadlineAt = null;
       gameInstance.pausedTimerSeconds = null;
     }
+  }
+
+  /**
+   * Foreign Flagless units occupy a city tile even when their owners are
+   * allied or otherwise absent from the hostile-player cache.
+   * @reference reference/freeciv/common/unit.c:1358-1375
+   */
+  private doesUnitOccupyCityTile(
+    cityPlayerId: string,
+    unit: Unit,
+    unitType: UnitType | undefined,
+    hostilePlayers: ReadonlySet<string> | undefined
+  ): boolean {
+    if (unit.playerId === cityPlayerId) return false;
+    const flagless = unitType?.flags?.includes('Flagless') === true;
+    return (
+      (flagless || hostilePlayers?.has(unit.playerId) === true) &&
+      !unitType?.flags?.includes('DoesntOccupyTile')
+    );
   }
 
   /**

@@ -55,7 +55,7 @@ are defined in [Test Evidence Audit](TEST_EVIDENCE_AUDIT.md) and
 [C2C3 Parity Baseline](CIV2CIV3_PARITY_BASELINE.md).
 
 The current strict C2C3 evidence certificate covers all 62 enabled actions,
-12 gameplay surfaces, 3 active ruleset script hooks, and 97 raw effect types.
+12 gameplay surfaces, 3 active ruleset script hooks, and 98 raw effect types.
 Its exact interpretation and remaining semantic limitations are recorded in
 [C2C3 Parity Audit](CIV2CIV3_PARITY_AUDIT.md); do not infer a whole-game
 reference-parity claim from those coverage counts alone.

@@ -79,6 +79,50 @@ describe('TurnPhaseService recovery checkpoints', () => {
     );
   });
 
+  it('runs random movement after restoration and before player actions', async () => {
+    const order: string[] = [];
+    const processing = {
+      resetPlayerUnitMovement: jest.fn(async () => {
+        order.push('reset');
+        return 2;
+      }),
+    };
+    const randomEvents = {
+      processRandomUnitMovements: jest.fn(async () => {
+        order.push('random');
+        return { unitMovements: 1, results: [] };
+      }),
+    };
+    const service = new TurnPhaseService(
+      'game-1',
+      processing as any,
+      {} as any,
+      { sendFreezeClientPacket: jest.fn() } as any,
+      { registerEventHandler: jest.fn() } as any,
+      randomEvents as any
+    );
+    const result = {
+      phase: TurnPhase.PHASE_BEGIN_TURN,
+      success: true,
+      duration: 0,
+      playersProcessed: 0,
+      itemsProcessed: 0,
+      errors: [],
+    };
+
+    await (service as any).executeBeginTurnPhase(
+      { gameId: 'game-1', turn: 3, year: -3920, playerIds: ['player-1'] },
+      result
+    );
+
+    expect(order).toEqual(['reset', 'random']);
+    expect(randomEvents.processRandomUnitMovements).toHaveBeenCalledWith(['player-1']);
+    expect(result).toMatchObject({
+      itemsProcessed: 3,
+      data: { randomUnitMovements: 1, randomUnitMovementResults: [] },
+    });
+  });
+
   it('skips phase implementations that already have durable successful checkpoints', async () => {
     const processing = { resetPlayerUnitMovement: jest.fn() };
     const coordination = {};

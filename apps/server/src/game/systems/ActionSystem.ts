@@ -648,6 +648,13 @@ export class ActionSystem {
    * Check if unit can move
    */
   private canMove(unit: Unit, targetX?: number, targetY?: number): boolean {
+    // RandomMovement units are advanced by the authoritative random-movement
+    // pass and cannot receive player-controlled movement orders.
+    // @reference reference/freeciv/common/movement.c:688-690
+    if (this.unitTypes[unit.unitTypeId]?.flags?.includes('RandomMovement')) {
+      this.logMovementFailure(unit, targetX, targetY);
+      return false;
+    }
     if (targetX === undefined || targetY === undefined || unit.movementLeft <= 0) {
       this.logMovementFailure(unit, targetX, targetY);
       return false;

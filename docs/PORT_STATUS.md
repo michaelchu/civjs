@@ -6,6 +6,9 @@
 tree. See [C2C3 Parity Baseline](CIV2CIV3_PARITY_BASELINE.md) for the pinned
 reference and differential-oracle setup.
 
+**Reference revision audited:** Freeciv `main` at
+`eb8c7033aa6a70dfcd4aee828c3ac1ba33092afc` (`3.3.90.14-dev`).
+
 ## Product scope
 
 CivJS is a server-authoritative C2C3 game with a React/Canvas client. The
@@ -21,7 +24,7 @@ limited to C2C3.
 ## Evidence status
 
 The strict C2C3 evidence certificate currently passes: all 62 enabled actions
-(89 enablers), all 12 gameplay surfaces, all 3 active script hooks, and all 97
+(89 enablers), all 12 gameplay surfaces, all 3 active script hooks, and all 98
 raw effect types meet its source-backed coverage requirements. Differential
 fixtures use one native Freeciv server session as an oracle, so they remain
 practical in CI. This remains short of a public complete whole-game parity
@@ -33,6 +36,8 @@ The current evidence classification, source mappings, and known limitations
 are maintained in [C2C3 Parity Audit](CIV2CIV3_PARITY_AUDIT.md). The historical
 pre-certificate assessment remains in [Test Evidence Audit](TEST_EVIDENCE_AUDIT.md).
 Concrete implementation gaps belong in [Gameplay Gaps](GAMEPLAY_GAPS.md).
+The current server-only comparison is tracked in
+[Backend Gameplay Gap Analysis](BACKEND_GAMEPLAY_GAP_ANALYSIS.md).
 
 ## Intentional exclusions
 

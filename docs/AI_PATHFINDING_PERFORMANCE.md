@@ -1,5 +1,8 @@
 # AI pathfinding performance
 
+The source comparison in this document uses Freeciv `main` at
+`eb8c7033aa6a70dfcd4aee828c3ac1ba33092afc` (`3.3.90.14-dev`).
+
 The focused benchmark is available as:
 
 ```bash

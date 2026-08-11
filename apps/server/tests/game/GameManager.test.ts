@@ -76,6 +76,24 @@ describe('GameManager', () => {
     });
   });
 
+  it('counts a foreign Flagless unit as a city-tile occupier without hostility', () => {
+    const isOccupier = (gameManager as any).doesUnitOccupyCityTile.bind(gameManager);
+    const flaglessUnit = { playerId: 'player-456', unitTypeId: 'storm' };
+    const ordinaryUnit = { playerId: 'player-456', unitTypeId: 'warriors' };
+
+    expect(isOccupier('player-123', flaglessUnit, { flags: ['Flagless'] }, new Set())).toBe(true);
+    expect(isOccupier('player-123', ordinaryUnit, { flags: [] }, new Set())).toBe(false);
+    expect(isOccupier('player-123', flaglessUnit, { flags: ['Flagless'] }, undefined)).toBe(true);
+    expect(
+      isOccupier(
+        'player-123',
+        { ...flaglessUnit, playerId: 'player-123' },
+        { flags: ['Flagless'] },
+        undefined
+      )
+    ).toBe(false);
+  });
+
   describe('research diplomacy state', () => {
     it('caches directional embassy, contact, and barbarian facts for research costs', async () => {
       const gameId = 'research-diplomacy-game';

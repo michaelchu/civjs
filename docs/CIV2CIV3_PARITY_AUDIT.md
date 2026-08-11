@@ -1,7 +1,9 @@
 # Civ2Civ3 Parity Audit
 
-**Audit date:** 2026-08-03
+**Audit date:** 2026-08-11
 **Scope:** The supported `civ2civ3` ruleset only.
+**Reference commit:** `eb8c7033aa6a70dfcd4aee828c3ac1ba33092afc`
+(`3.3.90.14-dev`)
 **Status:** The mechanical C2C3 evidence certificate passes. It is ready for
 human semantic review, not a claim that every Freeciv gameplay branch is
 identical.
@@ -13,14 +15,14 @@ historical counts in [Test Evidence Audit](TEST_EVIDENCE_AUDIT.md).
 ## Executable result
 
 `npm run certify:civ2civ3-parity` converts the 12 C2C3 ruleset projections and
-runs the strict evidence audit. Its 2026-08-03 result was:
+runs the strict evidence audit. Its 2026-08-11 result was:
 
 | Check                          | Result                                                                      |
 | ------------------------------ | --------------------------------------------------------------------------- |
 | Enabled action matrix          | 62/62 actions complete, covering 89 enablers                                |
 | Gameplay-surface matrix        | 12/12 surfaces have normal, boundary, turn-state, and differential evidence |
 | Active ruleset script hooks    | 3/3 source-backed                                                           |
-| Raw C2C3 effect types          | 97/97 have declared runtime handlers                                        |
+| Raw C2C3 effect types          | 98/98 have declared runtime handlers                                        |
 | Static compatibility adapters  | 0 building-effect and 0 research-cost adapters                              |
 | Pinned native-oracle scenarios | 16 deterministic fixtures                                                   |
 
@@ -32,12 +34,12 @@ semantic equivalence merely because a test has a valid annotation.
 
 | Runtime behavior                    | CivJS implementation                                                                                                                                                                  | Freeciv reference                                                                                                 |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Fanatic unit upkeep                 | `Fanatics` effects exempt units carrying the `Fanatic` flag from upkeep.                                                                                                              | `common/unittype.c:152-156`; `data/civ2civ3/effects.ruleset:1670-1676`                                            |
-| Conquest technology                 | `Conquest_Tech_Pct` resolves against prerequisite-valid victim technologies without rolling back a successful capture.                                                                | `server/citytools.c:2126-2129`; `server/techtools.c:1234-1340`                                                    |
-| City illness and recovery           | `Health_Pct` affects city health; damaged units recover only after a stationary turn.                                                                                                 | `common/city.c:2826-2918`; `common/unit.c:2247-2282`; `server/unittools.c:626-654`                                |
-| AI diplomacy goodwill               | `Gain_AI_Love` is applied by the C2C3 diplomacy controller.                                                                                                                           | `ai/default/daidiplomacy.c:1129-1138`                                                                             |
-| Border tile claims                  | `Tile_Claimable`, tile relation, range, and region requirements participate in border claims.                                                                                         | `server/maphand.c:2086-2104`; `data/civ2civ3/effects.ruleset:4626-4665`                                           |
-| Move-state and damage-slow recovery | `movedThisTurn` is persisted through movement, combat, transport actions, reload, and turn reset; combat also recalculates and persists health-dependent movement for both survivors. | `common/movement.c:49-95`; `common/unit.c:2247-2282`; `server/unithand.c:5047-5105`; `server/unittools.c:482-654` |
+| Fanatic unit upkeep                 | `Fanatics` effects exempt units carrying the `Fanatic` flag from upkeep.                                                                                                              | `common/unittype.c:152-156`; `data/civ2civ3/effects.ruleset:1679-1688`                                            |
+| Conquest technology                 | `Conquest_Tech_Pct` resolves against prerequisite-valid victim technologies without rolling back a successful capture.                                                                | `server/citytools.c:2126-2129`; `server/techtools.c:1236-1332`                                                    |
+| City illness and recovery           | `Health_Pct` affects city health; damaged units recover only after a stationary turn.                                                                                                 | `common/city.c:2922-2990`; `common/unit.c:2233-2275`; `server/unittools.c:636-654`                                |
+| AI diplomacy goodwill               | `Gain_AI_Love` is applied by the C2C3 diplomacy controller.                                                                                                                           | `ai/default/daidiplomacy.c:1112-1119`                                                                             |
+| Border tile claims                  | `Tile_Claimable`, tile relation, range, and region requirements participate in border claims.                                                                                         | `server/maphand.c:2088-2104`; `data/civ2civ3/effects.ruleset:4637-4663`                                           |
+| Move-state and damage-slow recovery | `movedThisTurn` is persisted through movement, combat, transport actions, reload, and turn reset; combat also recalculates and persists health-dependent movement for both survivors. | `common/movement.c:49-95`; `common/unit.c:2233-2275`; `server/unithand.c:5090-5105`; `server/unittools.c:636-654` |
 
 The native oracle now also includes a C2C3 map-topology fixture for the
 wrapped ISO-hex first-ring neighbor set. That is a topology comparison, not a

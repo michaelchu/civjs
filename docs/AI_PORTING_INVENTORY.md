@@ -2,6 +2,9 @@
 
 Behavioral parity target for the supported C2C3/default AI.
 
+The current reference revision is Freeciv `main` at
+`eb8c7033aa6a70dfcd4aee828c3ac1ba33092afc` (`3.3.90.14-dev`).
+
 ## Scope
 
 This inventory tracks native CivJS behavior against

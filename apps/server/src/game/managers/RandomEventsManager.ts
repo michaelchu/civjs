@@ -3,7 +3,7 @@
  * RandomEventsManager - Orchestrates all random events during turn processing
  *
  * This manager coordinates the various random events that occur during
- * the PHASE_RANDOM_EVENTS phase of turn processing, including:
+ * turn processing, including:
  * - Barbarian spawning and uprisings
  * - City disasters (earthquakes, fires, floods, etc.)
  * - Goody hut discoveries
@@ -61,6 +61,11 @@ export interface RandomEventsPhaseResult {
   duration: number;
 }
 
+export interface RandomUnitMovementPhaseResult {
+  unitMovements: number;
+  results: RandomEventResult[];
+}
+
 export class RandomEventsManager {
   private gameId: string;
   private config: RandomEventConfig;
@@ -115,27 +120,26 @@ export class RandomEventsManager {
     });
 
     try {
-      // 1. Process random unit movements (freeciv srv_main.c:1394)
-      if (this.config.randomMovementsEnabled) {
-        result.unitMovements = await this.processRandomUnitMovements(playerIds, result);
-      }
+      // Random unit movement is executed during begin-turn setup, before
+      // player and AI actions. This phase handles the remaining random events.
+      // @reference reference/freeciv/server/srv_main.c:1394-1406
 
-      // 2. Spawn barbarian uprisings (freeciv srv_main.c:1668)
+      // 1. Spawn barbarian uprisings (freeciv srv_main.c:1668)
       if (this.shouldSpawnBarbarians(turn)) {
         result.barbarianEvents = await this.processBarbarianSpawning(turn, result);
       }
 
-      // 3. Check and apply city disasters (freeciv srv_main.c:1684)
+      // 2. Check and apply city disasters (freeciv srv_main.c:1684)
       if (this.config.disastersEnabled) {
         result.disasterEvents = await this.processDisasters(playerIds, result, turn, year);
       }
 
-      // 4. Process goody hut discoveries (if any pending)
+      // 3. Process goody hut discoveries (if any pending)
       if (this.config.goodyHutsEnabled) {
         result.goodyHutDiscoveries = await this.processGoodyHutDiscoveries(playerIds, result);
       }
 
-      // 5. Natural resource changes (freeciv srv_main.c:1758-1793)
+      // 4. Natural resource changes (freeciv srv_main.c:1758-1793)
       if (this.config.resourceChangesEnabled) {
         result.resourceChanges = await this.processNaturalResourceChanges(result);
       }
@@ -176,11 +180,21 @@ export class RandomEventsManager {
 
   /**
    * Process random unit movements
-   * @reference freeciv/server/srv_main.c:1394 random_movements()
+   * @reference reference/freeciv/server/unittools.c:5110-5180 random_movements()
    */
-  private async processRandomUnitMovements(
+  async processRandomUnitMovements(playerIds: string[]): Promise<RandomUnitMovementPhaseResult> {
+    const results: RandomEventResult[] = [];
+    if (!this.config.randomMovementsEnabled) {
+      return { unitMovements: 0, results };
+    }
+
+    const unitMovements = await this.processRandomUnitMovementsIntoResults(playerIds, results);
+    return { unitMovements, results };
+  }
+
+  private async processRandomUnitMovementsIntoResults(
     playerIds: string[],
-    result: RandomEventsPhaseResult
+    results: RandomEventResult[]
   ): Promise<number> {
     logger.debug('Processing random unit movements', { gameId: this.gameId });
 
@@ -196,7 +210,7 @@ export class RandomEventsManager {
           if (moveResult.success) {
             movementsProcessed++;
 
-            result.results.push({
+            results.push({
               eventType: 'random_unit_movement',
               success: true,
               playersAffected: [playerId],

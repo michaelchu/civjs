@@ -511,7 +511,7 @@ export class UnitManager {
     const transport = this.resolveTransportForCreation(transportedBy, unitTypeId);
 
     const creation = this.getUnitCreationValues(playerId, unitTypeId, unitType, x, y);
-    const { veteranLevel, createdTurn, movementPoints } = creation;
+    const { veteranLevel, createdTurn, movementPoints, maxMovementPoints } = creation;
     const initialMovementPoints = transportedBy ? 0 : movementPoints;
     const unitId = this.identities.nextUuid();
     // Save to database and get the generated ID
@@ -531,7 +531,7 @@ export class UnitManager {
         defenseStrength: unitType.combat,
         rangedStrength: unitType.range > 1 ? unitType.combat : 0,
         movementPoints: initialMovementPoints.toString(),
-        maxMovementPoints: movementPoints.toString(),
+        maxMovementPoints: maxMovementPoints.toString(),
         movedThisTurn: false,
         fuel: unitType.fuel ?? 0,
         veteranLevel,
@@ -650,7 +650,12 @@ export class UnitManager {
     unitType: UnitType,
     x: number,
     y: number
-  ): { veteranLevel: number; createdTurn: number; movementPoints: number } {
+  ): {
+    veteranLevel: number;
+    createdTurn: number;
+    movementPoints: number;
+    maxMovementPoints: number;
+  } {
     const city = this.gameManagerCallback?.getCityAt?.(x, y);
     const calculatedVeteranLevel =
       city && city.playerId === playerId && this.effectsManager
@@ -666,10 +671,15 @@ export class UnitManager {
       Math.max(0, calculatedVeteranLevel),
       getVeteranLevelCount(unitType) - 1
     );
+    const maxMovementPoints = this.getUnitMovementPoints(playerId, unitType, veteranLevel);
     return {
       veteranLevel,
       createdTurn: this.currentTurnProvider?.() ?? 1,
-      movementPoints: this.getUnitMovementPoints(playerId, unitType, veteranLevel),
+      // Freeciv gives RandomMovement units no player-controlled movement at
+      // creation; the begin-turn random-movement pass restores their points.
+      // @reference reference/freeciv/common/unit.c:1718-1727
+      movementPoints: this.isRandomMovementUnitType(unitType) ? 0 : maxMovementPoints,
+      maxMovementPoints,
     };
   }
 
@@ -677,15 +687,32 @@ export class UnitManager {
    * Move a unit to a new position
    */
   async moveUnit(unitId: string, newX: number, newY: number): Promise<boolean> {
+    return this.moveUnitInternal(unitId, newX, newY, false);
+  }
+
+  private async moveUnitInternal(
+    unitId: string,
+    newX: number,
+    newY: number,
+    allowRandomMovement: boolean
+  ): Promise<boolean> {
     const unit = this.units.get(unitId);
     if (!unit) throw new Error(`Unit not found: ${unitId}`);
-    const plan = await this.prepareMove(unit, newX, newY);
+    const plan = await this.prepareMove(unit, newX, newY, allowRandomMovement);
     await this.commitMove(unit, unitId, newX, newY, plan);
     logger.info(`Unit ${unitId} moved to (${newX}, ${newY})`);
     return true;
   }
 
-  private async prepareMove(unit: Unit, newX: number, newY: number): Promise<MovePlan> {
+  private async prepareMove(
+    unit: Unit,
+    newX: number,
+    newY: number,
+    allowRandomMovement = false
+  ): Promise<MovePlan> {
+    if (!allowRandomMovement && this.isRandomMovementUnit(unit)) {
+      throw new Error('Random-movement units move during random movement processing');
+    }
     this.validateMoveTarget(newX, newY);
     if (this.calculateDistance(unit.x, unit.y, newX, newY) !== 1) {
       throw new Error('Units may only move to an adjacent tile');
@@ -891,12 +918,17 @@ export class UnitManager {
   }
 
   private async establishAdjacentContacts(unit: Unit): Promise<void> {
-    if (!this.contactProvider) return;
+    // A Flagless unit never reveals its owner through contact-making, and a
+    // Flagless target is intentionally omitted from contact discovery.
+    // @reference reference/freeciv/server/unittools.c:5180-5195
+    // @reference reference/freeciv/server/plrhand.c:2371-2385
+    if (!this.contactProvider || this.isFlaglessUnit(unit)) return;
     const foreignPlayers = new Set(
       [...this.units.values()]
         .filter(
           other =>
             other.playerId !== unit.playerId &&
+            !this.isFlaglessUnit(other) &&
             this.calculateDistance(unit.x, unit.y, other.x, other.y) <= 1
         )
         .map(other => other.playerId)
@@ -971,7 +1003,7 @@ export class UnitManager {
 
   private validateUnitDestination(unit: Unit, targetUnit?: Unit): void {
     if (!targetUnit || targetUnit.playerId === unit.playerId) return;
-    if (this.alliedPlayersProvider?.(unit.playerId).has(targetUnit.playerId)) return;
+    if (!this.isNonAlliedUnitFor(unit, targetUnit)) return;
     throw new Error('Cannot move to tile occupied by enemy unit');
   }
 
@@ -1281,13 +1313,19 @@ export class UnitManager {
   }
 
   private async getHostilePlayers(attacker: Unit, defender: Unit): Promise<Set<string>> {
-    const players = new Set(this.getUnitsAt(defender.x, defender.y).map(unit => unit.playerId));
+    const defenders = this.getUnitsAt(defender.x, defender.y);
+    const players = new Set(defenders.map(unit => unit.playerId));
     const hostilePlayers = new Set<string>();
     const attackerIsBarbarian = await this.isBarbarianPlayer(attacker.playerId);
     for (const playerId of players) {
+      const targetRequiresWar = defenders.some(
+        target => target.playerId === playerId && !this.isFlaglessUnit(target)
+      );
       if (
         playerId !== attacker.playerId &&
-        (attackerIsBarbarian ||
+        (this.isFlaglessUnit(attacker) ||
+          !targetRequiresWar ||
+          attackerIsBarbarian ||
           !this.hostilityProvider ||
           (await this.hostilityProvider(attacker.playerId, playerId)))
       ) {
@@ -2868,14 +2906,46 @@ export class UnitManager {
     return (unitType?.movement ?? 1) * this.getMoveFragments();
   }
 
+  private isRandomMovementUnitType(unitType: UnitType | undefined): boolean {
+    return unitType?.flags?.includes('RandomMovement') === true;
+  }
+
+  private isRandomMovementUnit(unit: Unit): boolean {
+    return this.isRandomMovementUnitType(this.unitTypes[unit.unitTypeId]);
+  }
+
+  private isFlaglessUnit(unit: Unit): boolean {
+    return this.unitTypes[unit.unitTypeId]?.flags?.includes('Flagless') === true;
+  }
+
+  /**
+   * Freeciv treats a Flagless unit as non-allied to every foreign unit,
+   * regardless of the diplomatic relation between their owners. A foreign
+   * Flagless target is likewise non-allied to the observing unit.
+   * @reference reference/freeciv/common/unit.c:1358-1375
+   */
+  private isNonAlliedUnitFor(observer: Unit, candidate: Unit): boolean {
+    if (candidate.playerId === observer.playerId) return false;
+    return (
+      this.isFlaglessUnit(observer) ||
+      this.isFlaglessUnit(candidate) ||
+      !this.alliedPlayersProvider?.(observer.playerId).has(candidate.playerId)
+    );
+  }
+
   getPathStepCost(
     unit: Unit,
     fromX: number,
     fromY: number,
     toX: number,
     toY: number,
-    isDestination: boolean
+    isDestination: boolean,
+    allowRandomMovement = false
   ): number {
+    // RandomMovement units are advanced by random_movements(), not by player
+    // pathfinding or automated Go To orders.
+    // @reference reference/freeciv/common/movement.c:688-690
+    if (this.isRandomMovementUnit(unit) && !allowRandomMovement) return -1;
     // Freeciv's peaceful-border restriction applies to military units only;
     // civilian units such as settlers may cross foreign territory.
     // @reference reference/freeciv/common/movement.c:764-767
@@ -2913,11 +2983,7 @@ export class UnitManager {
   }
 
   private hasHostileUnitAt(unit: Unit, x: number, y: number): boolean {
-    return this.getUnitsAt(x, y).some(
-      candidate =>
-        candidate.playerId !== unit.playerId &&
-        !this.alliedPlayersProvider?.(unit.playerId).has(candidate.playerId)
-    );
+    return this.getUnitsAt(x, y).some(candidate => this.isNonAlliedUnitFor(unit, candidate));
   }
 
   private hasHostileCityAt(unit: Unit, x: number, y: number): boolean {
@@ -3361,8 +3427,8 @@ export class UnitManager {
   }
 
   /**
-   * Move one random-movement unit to a legal adjacent tile.
-   * @reference reference/freeciv/server/srv_main.c:random_movements
+   * Execute the random-movement pass for one eligible unit.
+   * @reference reference/freeciv/server/unittools.c:5110-5180 random_movements
    */
   async executeRandomMovement(unitId: string): Promise<{
     success: boolean;
@@ -3379,30 +3445,56 @@ export class UnitManager {
       return { success: false, fromTile, movementPointsUsed: 0 };
     }
 
-    const candidates = this.getMapTopology().getNeighbors(unit.x, unit.y);
-    for (let index = candidates.length - 1; index > 0; index--) {
-      const randomIndex = randomInt(this.random, index + 1);
-      [candidates[index], candidates[randomIndex]] = [candidates[randomIndex]!, candidates[index]!];
+    let movementPointsUsed = 0;
+    let moved = false;
+    // The current C2C3 RandomMovement unit (Storm) normally consumes all six
+    // fragments in one sea step. Keep the loop bounded for future rulesets
+    // whose random movement can use zero-cost terrain.
+    for (let step = 0; step < 64 && unit.movementLeft > 0; step += 1) {
+      const candidates = [...this.getMapTopology().getNeighbors(unit.x, unit.y)];
+      for (let index = candidates.length - 1; index > 0; index--) {
+        const randomIndex = randomInt(this.random, index + 1);
+        [candidates[index], candidates[randomIndex]] = [
+          candidates[randomIndex]!,
+          candidates[index]!,
+        ];
+      }
+
+      let movedThisStep = false;
+      for (const candidate of candidates) {
+        const stepCost = this.getPathStepCost(
+          unit,
+          unit.x,
+          unit.y,
+          candidate.x,
+          candidate.y,
+          true,
+          true
+        );
+        if (stepCost < 0 || stepCost > unit.movementLeft) continue;
+        const movementBefore = unit.movementLeft;
+        try {
+          await this.moveUnitInternal(unit.id, candidate.x, candidate.y, true);
+          movementPointsUsed += Math.max(0, movementBefore - unit.movementLeft);
+          moved = true;
+          movedThisStep = true;
+          break;
+        } catch {
+          // A candidate can become illegal after a preceding unit moves; try
+          // the next legal neighbor rather than aborting the random pass.
+        }
+      }
+      if (!movedThisStep) break;
     }
 
-    for (const candidate of candidates) {
-      const stepCost = this.getPathStepCost(unit, unit.x, unit.y, candidate.x, candidate.y, true);
-      if (stepCost < 0 || stepCost > unit.movementLeft) continue;
-      try {
-        await this.moveUnit(unit.id, candidate.x, candidate.y);
-        return {
+    return moved
+      ? {
           success: true,
           fromTile,
           toTile: { x: unit.x, y: unit.y },
-          movementPointsUsed: fromTile.x === unit.x && fromTile.y === unit.y ? 0 : stepCost,
-        };
-      } catch {
-        // A candidate can become illegal after a preceding unit moves; try the
-        // next legal neighbor rather than aborting the random-events phase.
-      }
-    }
-
-    return { success: false, fromTile, movementPointsUsed: 0 };
+          movementPointsUsed,
+        }
+      : { success: false, fromTile, movementPointsUsed: 0 };
   }
 
   /** The immutable unit catalogue selected for this game instance. */
@@ -4184,10 +4276,7 @@ export class UnitManager {
   }
 
   private getHostileUnitsAt(unit: Unit, x: number, y: number): Unit[] {
-    const alliedPlayers = this.alliedPlayersProvider?.(unit.playerId) ?? new Set<string>();
-    return this.getUnitsAt(x, y).filter(
-      target => target.playerId !== unit.playerId && !alliedPlayers.has(target.playerId)
-    );
+    return this.getUnitsAt(x, y).filter(target => this.isNonAlliedUnitFor(unit, target));
   }
 
   private async commitParadrop(unit: Unit, x: number, y: number): Promise<void> {
@@ -4421,7 +4510,7 @@ export class UnitManager {
       (targetCity?.playerId !== undefined && targetCity.playerId !== unit.playerId) ||
       this.getUnitsAt(targetX, targetY).some(
         target =>
-          target.playerId !== unit.playerId &&
+          this.isNonAlliedUnitFor(unit, target) &&
           !target.transportedBy &&
           this.canUnitTargetUnit(unit, target)
       )
@@ -4450,7 +4539,7 @@ export class UnitManager {
       : type.bombardRate;
     const targets = this.getUnitsAt(targetX!, targetY!).filter(
       target =>
-        target.playerId !== unit.playerId &&
+        this.isNonAlliedUnitFor(unit, target) &&
         !target.transportedBy &&
         this.canUnitTargetUnit(unit, target)
     );
@@ -4494,7 +4583,7 @@ export class UnitManager {
     }
     return this.getUnitsAt(targetX, targetY).some(
       target =>
-        target.playerId !== unit.playerId &&
+        this.isNonAlliedUnitFor(unit, target) &&
         !target.transportedBy &&
         this.canUnitTargetUnit(unit, target)
     );
@@ -4523,7 +4612,7 @@ export class UnitManager {
     if (action === 'Nuke Units') {
       return this.getUnitsAt(x, y).some(
         target =>
-          target.playerId !== unit.playerId &&
+          this.isNonAlliedUnitFor(unit, target) &&
           !target.transportedBy &&
           this.canUnitTargetUnit(unit, target)
       );
@@ -4750,19 +4839,26 @@ export class UnitManager {
   ): Promise<boolean> {
     if (action === 'Explode Nuclear') return true;
     const targetPlayerIds = new Set<string>();
+    const playersRequiringWar = new Set<string>();
     if (action === 'Nuke City') {
       const city = this.gameManagerCallback?.getCityAt?.(targetX, targetY);
-      if (city && city.playerId !== unit.playerId) targetPlayerIds.add(city.playerId);
+      if (city && city.playerId !== unit.playerId) {
+        targetPlayerIds.add(city.playerId);
+        playersRequiringWar.add(city.playerId);
+      }
     } else {
       for (const target of this.getUnitsAt(targetX, targetY)) {
         if (target.playerId !== unit.playerId && !target.transportedBy) {
           targetPlayerIds.add(target.playerId);
+          if (!this.isFlaglessUnit(unit) && !this.isFlaglessUnit(target)) {
+            playersRequiringWar.add(target.playerId);
+          }
         }
       }
     }
     if (targetPlayerIds.size === 0) return false;
     if (!this.hostilityProvider) return true;
-    for (const targetPlayerId of targetPlayerIds) {
+    for (const targetPlayerId of playersRequiringWar) {
       if (!(await this.hostilityProvider(unit.playerId, targetPlayerId))) return false;
     }
     return true;
@@ -5070,7 +5166,25 @@ export class UnitManager {
     if (!this.hostilityProvider) return true;
     const targetPlayerIds = this.getHostileAreaPlayers(actor, centerX, centerY, radius);
     if (targetPlayerIds.size === 0) return false;
+    const foreignUnitPlayers = new Set<string>();
+    const flaglessUnitPlayers = new Set<string>();
+    for (const target of this.units.values()) {
+      if (
+        target.playerId === actor.playerId ||
+        this.calculateDistance(target.x, target.y, centerX, centerY) > radius
+      ) {
+        continue;
+      }
+      foreignUnitPlayers.add(target.playerId);
+      if (this.isFlaglessUnit(target)) flaglessUnitPlayers.add(target.playerId);
+    }
     for (const targetPlayerId of targetPlayerIds) {
+      if (
+        flaglessUnitPlayers.has(targetPlayerId) ||
+        (this.isFlaglessUnit(actor) && foreignUnitPlayers.has(targetPlayerId))
+      ) {
+        continue;
+      }
       if (!(await this.hostilityProvider(actor.playerId, targetPlayerId))) return false;
     }
     return true;
@@ -5116,7 +5230,7 @@ export class UnitManager {
       return { success: false, message: 'Unit cannot perform a suicide attack' };
     }
     const defender = this.getUnitsAt(targetX!, targetY!).find(
-      target => target.playerId !== unit.playerId && !target.transportedBy
+      target => this.isNonAlliedUnitFor(unit, target) && !target.transportedBy
     )!;
     const combat = await this.attackUnit(unit.id, defender.id, 'suicide');
     if (this.units.has(unit.id)) await this.destroyUnit(unit.id);
@@ -5289,12 +5403,17 @@ export class UnitManager {
     targetY: number
   ): Promise<string | undefined> {
     if (!this.canUnitAttackForeignUnit(unit) || !this.hostilityProvider) return undefined;
-    const target = this.getUnitsAt(targetX, targetY).find(
-      candidate =>
-        candidate.playerId !== unit.playerId &&
-        !this.alliedPlayersProvider?.(unit.playerId).has(candidate.playerId)
+    const target = this.getUnitsAt(targetX, targetY).find(candidate =>
+      this.isNonAlliedUnitFor(unit, candidate)
     );
-    if (!target || (await this.hostilityProvider(unit.playerId, target.playerId))) return undefined;
+    if (
+      !target ||
+      this.isFlaglessUnit(unit) ||
+      this.isFlaglessUnit(target) ||
+      (await this.hostilityProvider(unit.playerId, target.playerId))
+    ) {
+      return undefined;
+    }
     return `Cannot invade unless you break peace with ${target.playerId} first.`;
   }
 

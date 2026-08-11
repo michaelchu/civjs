@@ -13,6 +13,12 @@ default for new games. Ruleset-specific claims must be checked against
 still cite Freeciv's common/server implementation, and inherited scripted
 behavior may cite `reference/freeciv/data/default/default.lua`.
 
+**Reference revision audited:** Freeciv `main` at
+`eb8c7033aa6a70dfcd4aee828c3ac1ba33092afc` (`3.3.90.14-dev`), committed
+2026-08-11. The numbered entries below are regression records from prior
+audits; their current status must still be revalidated against this revision
+before treating a surrounding subsystem as fully equivalent.
+
 ## How to add an entry
 
 Record the player-visible symptom first, then capture the smallest reproducible
@@ -150,37 +156,45 @@ you declare war first.` Civilian/border-entry units may enter permitted
   non-persistent point; `UnitManager.test.ts` covers applying and persisting the
   generated movement order. Client type-check covers the city control flow.
 
-### GP-004 — Storm random movement is a no-op
+### GP-004 — Storm random movement used the wrong movement phase
 
 - **Status:** Resolved
 - **Area:** Random events, units
-- **Observed behavior:** The `civ2civ3` Storm unit has `RandomMovement`, but
-  random-event processing never moved it.
-- **Reproduction:** Create a Storm in a `civ2civ3` game and advance turns. The
-  Storm remains stationary unless another system moves it.
-- **Current implementation:** `RandomEventsManager` now queries
-  `UnitManager.getUnitsWithRandomMovement()` and executes a legal shuffled
-  adjacent move for each eligible unit. `TurnManager` enables random movement
-  processing for active games; movement persistence and lifecycle broadcasts
-  use the normal authoritative movement path.
-- **Reference behavior:** Freeciv processes random unit movement during the
-  random-events phase. The `civ2civ3` Storm is explicitly flagged
+- **Observed behavior:** The `civ2civ3` Storm unit has `RandomMovement`, but it
+  was created with ordinary movement points, could be moved through the normal
+  movement path, and was processed after player and AI actions.
+- **Reproduction:** Create a Storm in a `civ2civ3` game and inspect its initial
+  movement or submit a direct movement order. Advance a turn and compare the
+  movement ordering with Freeciv's begin-turn sequence.
+- **Current implementation:** RandomMovement units are created with zero
+  player-controlled movement while retaining their full movement maximum.
+  `TurnPhaseService` restores movement and invokes the public random-movement
+  pass before player and AI actions. Direct movement, pathfinding, and action
+  availability reject controlled movement; the pass persists a legal shuffled
+  neighbor move through the normal authoritative movement path.
+- **Reference behavior:** Freeciv initializes RandomMovement units with zero
+  movement, restores them during begin-turn processing, spends their movement
+  before controlled actions, and rejects ordinary movement unless the server is
+  in the random-movement pass. The `civ2civ3` Storm is explicitly flagged
   `RandomMovement`.
 - **CivJS references:**
-  - `apps/server/src/game/managers/TurnManager.ts`
+  - `apps/server/src/game/services/TurnPhaseService.ts`
   - `apps/server/src/game/managers/RandomEventsManager.ts`
   - `apps/server/src/game/managers/UnitManager.ts`
+  - `apps/server/src/game/systems/ActionSystem.ts`
   - `apps/server/src/shared/data/rulesets/civ2civ3/units.json`
 - **Freeciv references:**
   - `reference/freeciv/server/srv_main.c` (`random_movements`)
   - `reference/freeciv/server/unittools.c`
   - `reference/freeciv/data/civ2civ3/units.ruleset` (`RandomMovement`, Storm)
-- **Expected outcome:** Wire the manager into turn processing and implement
-  ruleset-driven random movement with legal destination selection, visibility,
-  persistence, and player notifications.
-- **Regression coverage:** `UnitManager.test.ts` covers a legal Storm move;
-  `RandomEventsManager.test.ts` covers random-events integration and a blocked
-  Storm destination.
+- **Expected outcome:** Keep random movement ruleset-driven, legal, persisted,
+  and ordered before controlled player/AI actions, while preventing direct
+  movement orders from bypassing the server pass.
+- **Regression coverage:** `UnitManager.test.ts` covers zero initial movement,
+  direct-move rejection, and a legal Storm move;
+  `RandomEventsManager.test.ts` covers the begin-turn movement pass and a
+  blocked Storm destination; `TurnPhaseService.recovery.test.ts` covers reset
+  before random movement ordering.
 
 ### GP-006 — Submarines can attack non-native tiles
 

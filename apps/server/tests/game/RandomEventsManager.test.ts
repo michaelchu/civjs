@@ -48,7 +48,7 @@ describe('RandomEventsManager', () => {
     );
   });
 
-  it('processes random-movement units during the random-events phase', async () => {
+  it('processes random-movement units during begin-turn setup', async () => {
     const unit = { id: 'storm-1', unitTypeId: 'storm' };
     const unitManager = {
       getUnitsWithRandomMovement: jest.fn().mockReturnValue([unit]),
@@ -81,7 +81,7 @@ describe('RandomEventsManager', () => {
       { broadcastToGame: jest.fn() } as any
     );
 
-    const result = await manager.processRandomEvents(60, -3900, ['player-1']);
+    const result = await manager.processRandomUnitMovements(['player-1']);
 
     expect(result.unitMovements).toBe(1);
     expect(result.results).toEqual([
@@ -97,6 +97,10 @@ describe('RandomEventsManager', () => {
       }),
     ]);
     expect(unitManager.executeRandomMovement).toHaveBeenCalledWith('storm-1');
+
+    const remainingEvents = await manager.processRandomEvents(60, -3900, ['player-1']);
+    expect(remainingEvents.unitMovements).toBe(0);
+    expect(unitManager.executeRandomMovement).toHaveBeenCalledTimes(1);
   });
 
   it('does not count a Storm whose legal destinations are blocked', async () => {
@@ -130,7 +134,7 @@ describe('RandomEventsManager', () => {
       { broadcastToGame: jest.fn() } as any
     );
 
-    const result = await manager.processRandomEvents(60, -3900, ['player-1']);
+    const result = await manager.processRandomUnitMovements(['player-1']);
 
     expect(result.unitMovements).toBe(0);
     expect(result.results).toEqual([]);
