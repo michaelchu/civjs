@@ -251,13 +251,12 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     // @reference reference/freeciv/server/cityturn.c:338-390
     // Give the city a deterministic, unimproved grassland radius so this
     // twenty-turn flow also proves natural food accumulation and growth.
-    for (let x = 6; x <= 10; x += 1) {
-      for (let y = 6; y <= 10; y += 1) {
-        map.tiles[x][y].terrain = 'grassland';
-        map.tiles[x][y].resource = undefined;
-        map.tiles[x][y].improvements = ['road'];
-        map.tiles[x][y].riverMask = 1;
-      }
+    for (const tilePosition of topology.getPositionsWithinRadius(8, 8, 2)) {
+      const tile = map.tiles[tilePosition.x][tilePosition.y];
+      tile.terrain = 'grassland';
+      tile.resource = undefined;
+      tile.improvements = ['road'];
+      tile.riverMask = 1;
     }
     const settlerId = await gameManager.createUnit(gameId, hostPlayer!.id, 'settlers', 8, 8);
     const cityReply = waitForPacket(host, PacketType.CITY_FOUND_REPLY);
