@@ -21,12 +21,17 @@ test('renders the authoritative Civ2Civ3 presentation and supported game screens
     if (!context) return 0;
     const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
     let opaque = 0;
+    const colors = new Set<string>();
     for (let index = 3; index < data.length; index += 4) {
       if (data[index] > 0) opaque += 1;
+      if (data[index] > 0) {
+        colors.add(`${data[index - 3]},${data[index - 2]},${data[index - 1]}`);
+      }
     }
-    return opaque;
+    return { opaque, colors: colors.size };
   });
-  expect(pixels).toBeGreaterThan(1000);
+  expect(pixels.opaque).toBeGreaterThan(1000);
+  expect(pixels.colors).toBeGreaterThan(8);
 
   await page.getByRole('button', { name: /Empire report/ }).click();
   await expect(page.getByText('Kyoto')).toBeVisible();
@@ -41,6 +46,46 @@ test('renders the authoritative Civ2Civ3 presentation and supported game screens
     animations: 'disabled',
     fullPage: true,
   });
+});
+
+test('loads the sprite contract required by the active board renderers', async ({ page }) => {
+  await page.goto('/test/browser-parity');
+  await expect(page.locator('canvas[aria-label="World map"]')).toHaveAttribute(
+    'data-renderer-ready',
+    'true'
+  );
+
+  const requiredTags = [
+    'u.warriors',
+    'u.worker',
+    'unit.select0',
+    'unit.select1',
+    'unit.select2',
+    'unit.select3',
+    'unit.fortified',
+    'unit.sentry',
+    'unit.goto',
+    'unit.stack2',
+    'unit.hp_50',
+    'unit.vet_2',
+    'city.asian_city_0',
+    'city.asian_wall_3',
+    'road.road_n',
+    'road.rail_n',
+    'tx.fog',
+    'explode.unit_0',
+    'explode.unit_4',
+    'swords.unit_0',
+    'swords.unit_7',
+    'explode.nuke',
+    'grid.usermark',
+  ];
+  const missing = await page.evaluate(tags => {
+    const spec = (window as unknown as { tileset?: Record<string, unknown> }).tileset ?? {};
+    return tags.filter(tag => !(tag in spec));
+  }, requiredTags);
+
+  expect(missing).toEqual([]);
 });
 
 test('supports keyboard navigation across the player-visible surface', async ({ page }) => {

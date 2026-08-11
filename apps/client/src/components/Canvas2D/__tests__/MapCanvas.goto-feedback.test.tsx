@@ -115,6 +115,7 @@ import { MapCanvas } from '../MapCanvas';
 
 describe('MapCanvas Go To feedback', () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -605,6 +606,38 @@ describe('MapCanvas Go To feedback', () => {
     });
 
     expect(state.selectUnits).toHaveBeenCalledWith(['unit-1']);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/control.js:367-374
+   * @assertion A right drag remains a context interaction until both axes exceed
+   * 45px and the pointer has been held for more than 200ms.
+   */
+  it('applies the reference right-drag gate in the canvas lifecycle', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000);
+    Object.assign(state.units['unit-1'], { x: 1, y: 1, playerId: 'player-1' });
+
+    render(<MapCanvas width={100} height={100} />);
+    const canvas = screen.getByLabelText('World map');
+    state.selectUnits.mockClear();
+
+    await act(async () => {
+      fireEvent.mouseDown(canvas, { clientX: 1, clientY: 1, button: 2 });
+      fireEvent.mouseMove(canvas, { clientX: 60, clientY: 60, buttons: 2 });
+    });
+    expect(state.selectUnits).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.setSystemTime(1_201);
+      fireEvent.mouseMove(canvas, { clientX: 60, clientY: 60, buttons: 2 });
+      fireEvent.mouseUp(canvas, { clientX: 60, clientY: 60, button: 2 });
+      await Promise.resolve();
+    });
+
+    expect(state.selectUnits).toHaveBeenCalledWith(['unit-1']);
+    expect(contextMenuProps.current).toBeNull();
   });
 
   it('slides the viewport to a centered tile and commits the target at the end', async () => {

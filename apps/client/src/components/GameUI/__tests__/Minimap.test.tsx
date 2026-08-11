@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGameStore } from '../../../store/gameStore';
+import type { City, Player } from '../../../types';
 import { Minimap } from '../Minimap';
 import {
   getMinimapCellAppearance,
@@ -22,6 +23,7 @@ import {
 
 describe('Minimap', () => {
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
@@ -212,6 +214,108 @@ describe('Minimap', () => {
     expect(
       getMinimapCellAppearance({ ...visibleTile, known: false }, '#0b8a04', 'player-1', '#d946ef')
     ).toEqual({ color: MINIMAP_COLORS.unknown, opacity: 1 });
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/overview.js:342-379
+   * @assertion The mounted minimap applies reference marker/owner colors to the
+   * actual base canvas, not only to the pure color-resolution helper.
+   */
+  it('draws reference cell colors through the mounted minimap canvas', () => {
+    const fillCalls: Array<{ style: string; alpha: number; args: number[] }> = [];
+    const filledStyles: string[] = [];
+    let fillStyle = '';
+    let globalAlpha = 1;
+    const context = {
+      clearRect: vi.fn(),
+      fillRect: vi.fn((...args: number[]) =>
+        fillCalls.push({ style: fillStyle, alpha: globalAlpha, args })
+      ),
+      strokeRect: vi.fn(),
+      beginPath: vi.fn(),
+      arc: vi.fn(),
+      fill: vi.fn(() => filledStyles.push(fillStyle)),
+      stroke: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      get fillStyle() {
+        return fillStyle;
+      },
+      set fillStyle(value: string) {
+        fillStyle = value;
+      },
+      get globalAlpha() {
+        return globalAlpha;
+      },
+      set globalAlpha(value: number) {
+        globalAlpha = value;
+      },
+      strokeStyle: '',
+      lineWidth: 1,
+    } as unknown as CanvasRenderingContext2D;
+
+    vi.restoreAllMocks();
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context);
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    useGameStore.setState({
+      map: {
+        width: 2,
+        height: 1,
+        xsize: 2,
+        ysize: 1,
+        tiles: {
+          '0,0': { x: 0, y: 0, terrain: 'grassland', known: true, visible: true },
+          '1,0': { x: 1, y: 0, terrain: 'plains', known: true, visible: true },
+        },
+      },
+      cities: {
+        'city-1': {
+          id: 'city-1',
+          name: 'Rome',
+          playerId: 'player-1',
+          x: 0,
+          y: 0,
+        } as City,
+      },
+      units: {
+        'unit-1': {
+          id: 'unit-1',
+          playerId: 'player-2',
+          unitTypeId: 'warriors',
+          x: 1,
+          y: 0,
+          hp: 100,
+          movesLeft: 1,
+          veteranLevel: 0,
+        },
+      },
+      players: {
+        'player-1': {
+          id: 'player-1',
+          name: 'Rome',
+          nation: 'romans',
+          color: '#ffffff',
+        } as Player,
+        'player-2': {
+          id: 'player-2',
+          name: 'Japan',
+          nation: 'japanese',
+          color: '#2563eb',
+        } as Player,
+      },
+    });
+
+    render(<Minimap />);
+
+    expect(fillCalls.some(call => call.style === MINIMAP_COLORS.myCity)).toBe(true);
+    expect(
+      fillCalls.some(call => call.style === '#2563eb') || filledStyles.includes('#2563eb')
+    ).toBe(true);
   });
 
   it('uses natural/display dimensions with square ISO tile footprints', () => {

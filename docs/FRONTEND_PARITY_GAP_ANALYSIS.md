@@ -27,20 +27,29 @@ checks:
 git ls-remote https://github.com/freeciv/freeciv-web.git refs/heads/develop
 npm --prefix apps/client run type-check
 npm --prefix apps/client run test -- --run \
+  src/components/Canvas2D/__tests__/MapRenderer.layer-order.test.ts \
   src/components/GameUI/__tests__/Minimap.test.tsx \
   src/utils/__tests__/mapInteraction.test.ts \
   src/services/__tests__/KeyboardController.test.ts \
   src/components/Canvas2D/__tests__/MapCanvas.goto-feedback.test.tsx
+npx playwright test tests/e2e/renderer-parity.spec.ts --project=chromium-desktop
 ```
 
 Reference source paths are recorded in the findings so a future submodule
 advance can be reviewed against the same surfaces.
 
+The parity suite now also verifies the rendered output boundary instead of
+only testing pure geometry helpers: the painter pass order is asserted with a
+deterministic renderer fixture, the mounted minimap is checked for city and
+foreign-owner colors, the right-drag threshold is exercised through the
+`MapCanvas` pointer lifecycle, and the browser fixture validates both canvas
+color diversity and the sprite tags required by active board renderers.
+
 ## Findings
 
 | ID     | Frontend surface                                   | Current status                                                              | Reference evidence                                                                                                                                                                              | CivJS evidence                                                                                                                                                                                                                                                                                                                      |
 | ------ | -------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| FE-001 | Board painter order and layer separation           | Implemented; regression coverage exists                                     | `freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:580-720` renders terrain, borders/specials, cities, units, fog, and interaction layers in ordered passes.                           | `apps/client/src/components/Canvas2D/MapRenderer.ts:349-389` dispatches `TerrainRenderer`, `BorderRenderer`, cities, units, presentation effects, fog, paths, and selection in stable painter order. The renderer culls visible tiles and draws wrapped copies from one snapshot.                                                   |
+| FE-001 | Board painter order and layer separation           | Implemented; regression coverage exists                                     | `freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:251-387` refreshes the map through ordered layer passes and applies selection after tile drawing.                            | `apps/client/src/components/Canvas2D/MapRenderer.ts:349-389` dispatches `TerrainRenderer`, `BorderRenderer`, cities, units, presentation effects, fog, paths, and selection in stable painter order. The renderer culls visible tiles and draws wrapped copies from one snapshot.                                                   |
 | FE-002 | Isometric projection, finite edges, and wrapping   | Implemented; geometry tests exist                                           | `2dcanvas/mapview_common.js:195-239,282-291` normalizes GUI positions, map wrapping, and finite-map padding.                                                                                    | `mapTopologyGeometry.ts`, `MapRenderer.ts:237-291`, and `minimapGeometry.ts` share native/display transforms. ISO minimap tiles retain diamond/parallelogram footprints, wrapped origins are translated, and finite-map ocean/fog padding is handled explicitly.                                                                    |
 | FE-003 | Overview terrain palette and marker precedence     | Resolved in this audit                                                      | `overview.js:304-335` builds terrain/player palettes; `overview.js:342-379` resolves city, visible unit, known owner, terrain, and unknown colors in that order.                                | `GameUI/minimapVisibility.ts` and `GameUI/Minimap.tsx` now implement the same precedence and C2C3 terrain palette. Own city/unit, foreign city, foreign unit, owner, terrain, and unknown cases are source-mapped in `Minimap.test.tsx`.                                                                                            |
 | FE-004 | Overview viewport outline and click-to-center      | Implemented with an intentional geometry adaptation                         | `overview.js:233-275,387-400` draws the viewport outline and maps overview clicks to map coordinates.                                                                                           | `minimapGeometry.ts` projects GUI viewport corners through logical map space, producing an ISO diamond and wrapped copies; `Minimap.tsx` keeps the outline on a separate overlay canvas and emits center requests consumed by `MapCanvas`.                                                                                          |
@@ -71,6 +80,8 @@ additions without checking deployment and renderer tests.
 
 The focused frontend regression set passed during this audit:
 
+- Deterministic map painter-order and mounted minimap draw-command tests.
+- Browser sprite-contract and board-render color-diversity checks.
 - Minimap geometry, palette, and visibility tests.
 - Right-drag threshold and map-interaction tests.
 - Keyboard activation/deactivation tests.
