@@ -166,7 +166,7 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
         maxPlayers: 2,
         mapSizingMode: 'fixed',
         mapWidth: 40,
-        mapHeight: 25,
+        mapHeight: 26,
         ruleset: 'civ2civ3',
         selectedNation: 'roman',
       },
@@ -184,14 +184,14 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       selectedNation: 'greek',
     });
     expect(joined).toMatchObject({ success: true });
-    expect((await mapPacket).data).toMatchObject({ xsize: 40, ysize: 25 });
+    expect((await mapPacket).data).toMatchObject({ xsize: 40, ysize: 26 });
 
     const mapReply = await emitWithAck<{
       success: boolean;
       mapData: { width: number; height: number };
     }>(host, 'get_map_data', {});
     expect(mapReply.success).toBe(true);
-    expect(mapReply.mapData).toMatchObject({ width: 40, height: 25 });
+    expect(mapReply.mapData).toMatchObject({ width: 40, height: 26 });
 
     // @reference reference/freeciv/server/unittools.c:1215-1280
     const hostPlayer = Array.from(gameManager.getGameInstance(gameId)!.players.values()).find(
@@ -199,9 +199,15 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
     );
     expect(hostPlayer).toBeDefined();
     const unitStart = { x: 10, y: 10 };
-    const map = gameManager.getGameInstance(gameId)!.mapManager.getMapData()!;
-    const moveTarget = { x: unitStart.x + 1, y: unitStart.y };
-    const combatTarget = { x: moveTarget.x + 1, y: moveTarget.y };
+    const gameInstance = gameManager.getGameInstance(gameId)!;
+    const map = gameInstance.mapManager.getMapData()!;
+    const topology = gameInstance.mapManager.getTopology();
+    const moveTarget = topology.getNeighbors(unitStart.x, unitStart.y)[0];
+    if (!moveTarget) throw new Error('Socket smoke test could not find a movement neighbor');
+    const combatTarget = topology
+      .getNeighbors(moveTarget.x, moveTarget.y)
+      .find(position => position.x !== unitStart.x || position.y !== unitStart.y);
+    if (!combatTarget) throw new Error('Socket smoke test could not find a combat neighbor');
     // Map generation is intentionally variable; pin only the two tiles this
     // transport-boundary movement assertion needs.
     // Clear generated extras as well: a goody hut on the movement target would
@@ -847,7 +853,7 @@ describe('Socket game flow - Milestone 0 smoke test', () => {
       { gameId, selectedNation: 'roman' }
     );
     expect(reconnect).toMatchObject({ success: true });
-    expect((await returningMap).data).toMatchObject({ xsize: 40, ysize: 25 });
+    expect((await returningMap).data).toMatchObject({ xsize: 40, ysize: 26 });
     expect(await returningCities).toMatchObject({
       gameId,
       cities: { [cityId]: expect.objectContaining({ id: cityId, name: 'Socket City' }) },

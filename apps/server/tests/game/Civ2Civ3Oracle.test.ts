@@ -347,7 +347,16 @@ async function civ2civ3ZeroMoveSelfNuclear(): Promise<Record<string, number>> {
   );
   const nuclear = await manager.createUnit('oracle-player', 'nuclear', 10, 10);
   nuclear.movementLeft = 0;
-  const hexNeighbor = await manager.createUnit('oracle-player', 'warriors', 11, 11);
+  const hexNeighborPosition = topology
+    .getNeighbors(10, 10)
+    .find(position => tiles.has(`${position.x},${position.y}`));
+  if (!hexNeighborPosition) throw new Error('Civ2Civ3 nuclear fixture has no hex neighbor.');
+  const hexNeighbor = await manager.createUnit(
+    'oracle-player',
+    'warriors',
+    hexNeighborPosition.x,
+    hexNeighborPosition.y
+  );
   const action = await manager.executeUnitAction(
     nuclear.id,
     ActionType.NUCLEAR_EXPLOSION,

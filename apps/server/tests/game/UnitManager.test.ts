@@ -4263,8 +4263,8 @@ describe('UnitManager', () => {
         const result = await manager.executeUnitAction(
           paratrooper.id,
           ActionType.PARADROP,
+          13,
           16,
-          10,
           'player-123'
         );
 
