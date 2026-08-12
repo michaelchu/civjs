@@ -161,4 +161,66 @@ describe('FogRenderer', () => {
 
     expect(anchor).toEqual({ x: -48, y: 144 });
   });
+
+  it('uses freeciv-web flat-index edge adjustment for ISO fog corners', () => {
+    const context = {
+      canvas: { width: 1280, height: 720 },
+      drawImage: vi.fn(),
+      fillRect: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+    const renderer = new FogRenderer(context, { getSprite: () => null } as never, 96, 48);
+    const tiles = Object.fromEntries(
+      Array.from({ length: 48 * 48 }, (_, index) => {
+        const x = index % 48;
+        const y = Math.floor(index / 48);
+        return [
+          `${x},${y}`,
+          {
+            x,
+            y,
+            terrain: 'plains',
+            known: !(x === 47 && y === 1),
+            visible: !(x === 47 && y === 0),
+          },
+        ];
+      })
+    );
+    const state: RenderState = {
+      viewport: { x: -400, y: -250, width: 1280, height: 720 },
+      map: {
+        width: 48,
+        height: 48,
+        xsize: 48,
+        ysize: 48,
+        topology_id: 4,
+        wrap_id: 0,
+        tiles,
+      },
+      units: {},
+      cities: {},
+      players: {},
+    };
+
+    renderer.render(state);
+    const knowledgeByCoordinate = new Map(
+      Object.values(state.map.tiles).map(tile => [
+        `${tile.x},${tile.y}`,
+        !tile.known ? 0 : tile.visible ? 2 : 1,
+      ])
+    );
+    const corners = (
+      renderer as unknown as {
+        getReferencePainterCorners: (
+          renderState: RenderState,
+          mapWidth: number,
+          mapHeight: number,
+          knowledge: Map<string, number>
+        ) => Array<{ states: number[]; screen: { x: number; y: number } }>;
+      }
+    ).getReferencePainterCorners(state, 48, 48, knowledgeByCoordinate);
+
+    expect(
+      corners.find(corner => corner.screen.x === 352 && corner.screen.y === 250)?.states
+    ).toEqual([1, 2, 2, 0]);
+  });
 });

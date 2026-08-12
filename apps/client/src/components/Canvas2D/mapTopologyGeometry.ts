@@ -2,11 +2,12 @@
  * @module client/components/Canvas2D/mapTopologyGeometry
  * Shared Freeciv native, logical, natural/display, and GUI map geometry.
  *
- * Freeciv packets and CivJS tile storage use native coordinates.  Isometric
- * and hexagonal topologies also have a logical map coordinate system for
- * movement and a natural/display coordinate system whose width is twice the
- * native width.  Keeping those systems explicit prevents a display rotation
- * from leaking into authoritative tile coordinates.
+ * Freeciv packets and CivJS tile storage use native coordinates. Isometric
+ * maps also expose logical and natural coordinate helpers for topology and
+ * native-map conversions. The browser 2D client itself follows freeciv-web's
+ * tile path: tile x/y values are passed directly to map_to_gui_pos() and
+ * gui_to_map_pos(). Keeping that distinction explicit prevents the C
+ * conversion helpers from rotating the web renderer a second time.
  *
  * @reference reference/freeciv/common/map.h:170-190
  * @reference reference/freeciv/common/world_object.h:52-60
@@ -161,7 +162,16 @@ export const guiToMapPosition = (
   };
 };
 
-/** Project one authoritative native tile into the canvas GUI coordinate space. */
+/**
+ * Project one authoritative tile into the browser 2D GUI coordinate space.
+ *
+ * Freeciv-web's 2D renderer stores tiles in the same x/y grid that it passes
+ * to map_to_gui_pos(). The native/logical conversion helpers above are still
+ * used by topology and wrapping code, but must not be inserted into this
+ * rendering path.
+ *
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:81-96,243-249
+ */
 export const nativeToGuiPosition = (
   nativeX: number,
   nativeY: number,
@@ -169,11 +179,11 @@ export const nativeToGuiPosition = (
   tileWidth: number,
   tileHeight: number
 ): MapPoint => {
-  const logical = nativeToMapPosition(nativeX, nativeY, geometry.nativeWidth, geometry.isIsometric);
-  return mapToGuiPosition(logical.x, logical.y, tileWidth, tileHeight);
+  void geometry;
+  return mapToGuiPosition(nativeX, nativeY, tileWidth, tileHeight);
 };
 
-/** Convert canvas GUI coordinates back to the authoritative native tile. */
+/** Convert canvas GUI coordinates back to the tile grid used by freeciv-web. */
 export const guiToNativePosition = (
   guiX: number,
   guiY: number,
@@ -181,8 +191,8 @@ export const guiToNativePosition = (
   tileWidth: number,
   tileHeight: number
 ): MapPoint => {
-  const logical = guiToMapPosition(guiX, guiY, tileWidth, tileHeight);
-  return mapToNativePosition(logical.x, logical.y, geometry.nativeWidth, geometry.isIsometric);
+  void geometry;
+  return guiToMapPosition(guiX, guiY, tileWidth, tileHeight);
 };
 
 /** Project a GUI point into natural/display coordinates for overview outlines. */
@@ -286,8 +296,8 @@ export const normalizeMapPosition = (
 };
 
 /**
- * Apply one logical Freeciv map direction to CivJS's native rectangular tile storage.
- * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:360-369
+ * Apply one freeciv-web map direction to the browser tile grid.
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:215-219,341-350
  */
 export const stepNativeMapPosition = (
   nativeX: number,
@@ -299,14 +309,8 @@ export const stepNativeMapPosition = (
   topologyId: number,
   wrapId: number
 ): MapPoint | null => {
-  const geometry = createMapGeometry(nativeWidth, nativeHeight, topologyId);
-  const logical = nativeToMapPosition(nativeX, nativeY, nativeWidth, geometry.isIsometric);
-  const candidate = mapToNativePosition(
-    logical.x + mapDx,
-    logical.y + mapDy,
-    nativeWidth,
-    geometry.isIsometric
-  );
+  void topologyId;
+  const candidate = { x: nativeX + mapDx, y: nativeY + mapDy };
 
   if ((wrapId & 1) !== 0) candidate.x = wrap(candidate.x, nativeWidth);
   if ((wrapId & 2) !== 0) candidate.y = wrap(candidate.y, nativeHeight);

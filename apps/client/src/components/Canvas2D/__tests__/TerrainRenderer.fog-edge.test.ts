@@ -46,7 +46,8 @@ describe('TerrainRenderer fog-edge neighbors', () => {
       ]);
 
       const mixedNeighbors = Array.from({ length: 8 }, () => ({ graphic_str: 'lake' }));
-      mixedNeighbors[6] = { graphic_str: 'land' };
+      // Freeciv-web's DIR8 order is NW, N, NE, W, E, SW, S, SE.
+      mixedNeighbors[3] = { graphic_str: 'land' };
       globals.tile_types_setup = {
         'l0.lake': {
           match_style: 2,
@@ -151,11 +152,10 @@ describe('TerrainRenderer fog-edge neighbors', () => {
     ).getNeighboringTerrains({ x: 1, y: 1, terrain: 'grassland' });
 
     expect(neighbors[0].graphic_str).toBe('grassland');
-    expect(neighbors[2].graphic_str).toBe('plains');
-    expect(neighbors[4].graphic_str).toBe('grassland');
+    expect(neighbors[4].graphic_str).toBe('plains');
   });
 
-  it('samples logical terrain neighbors from native ISO tile storage', () => {
+  it('samples direct terrain neighbors from the browser map grid', () => {
     const renderer = new TerrainRenderer({} as CanvasRenderingContext2D, {} as never, 96, 48);
     const state = {
       viewport: { x: 0, y: 0, width: 800, height: 600 },
@@ -174,7 +174,7 @@ describe('TerrainRenderer fog-edge neighbors', () => {
     } satisfies RenderState;
     renderer.invalidateTileCache({
       '10,10': { x: 10, y: 10, terrain: 'grassland', known: true, visible: true },
-      // Logical east is native (10,11); raw x + 1 is an unrelated tile.
+      // Browser freeciv-web uses direct map-grid x/y for the 2D painter.
       '10,11': { x: 10, y: 11, terrain: 'plains', known: true, visible: true },
       '11,10': { x: 11, y: 10, terrain: 'desert', known: true, visible: true },
     });
@@ -194,7 +194,59 @@ describe('TerrainRenderer fog-edge neighbors', () => {
       }
     ).getNeighboringTerrains({ x: 10, y: 10, terrain: 'grassland' });
 
-    expect(neighbors[2].graphic_str).toBe('plains');
+    expect(neighbors[4].graphic_str).toBe('desert');
+  });
+
+  it('preserves the browser ISO edge adjustment for diagonal neighbors', () => {
+    const renderer = new TerrainRenderer({} as CanvasRenderingContext2D, {} as never, 96, 48);
+    const state = {
+      viewport: { x: 0, y: 0, width: 800, height: 600 },
+      map: {
+        width: 3,
+        height: 3,
+        xsize: 3,
+        ysize: 3,
+        topology_id: 4,
+        wrap_id: 0,
+        tiles: {},
+      },
+      units: {},
+      cities: {},
+      players: {},
+    } satisfies RenderState;
+    const edgeTiles = {
+      '0,0': { x: 0, y: 0, terrain: 'grassland', known: true, visible: true },
+      '2,0': { x: 2, y: 0, terrain: 'desert', known: true, visible: true },
+      '2,1': { x: 2, y: 1, terrain: 'mountains', known: true, visible: true },
+      '0,2': { x: 0, y: 2, terrain: 'plains', known: true, visible: true },
+    };
+    renderer.invalidateTileCache(edgeTiles);
+    (renderer as unknown as { buildTileMap(): void }).buildTileMap();
+    (
+      renderer as unknown as {
+        setMapTopology(candidate: RenderState): void;
+        getDirectionalNeighborTile(
+          tile: { x: number; y: number },
+          dx: number,
+          dy: number
+        ): { x: number; y: number } | undefined;
+      }
+    ).setMapTopology(state);
+
+    const getNeighbor = (tile: { x: number; y: number }, dx: number, dy: number) =>
+      (
+        renderer as unknown as {
+          getDirectionalNeighborTile(
+            tile: { x: number; y: number },
+            dx: number,
+            dy: number
+          ): { x: number; y: number } | undefined;
+        }
+      ).getDirectionalNeighborTile(tile, dx, dy);
+
+    expect(getNeighbor({ x: 0, y: 0 }, -1, 0)).toMatchObject({ x: 2, y: 0 });
+    expect(getNeighbor({ x: 0, y: 0 }, -1, 1)).toMatchObject({ x: 2, y: 1 });
+    expect(getNeighbor({ x: 2, y: 0 }, 1, 0)).toMatchObject({ x: 0, y: 0 });
   });
 
   it('pads ocean across the full canvas when viewport dimensions lag', () => {

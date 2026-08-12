@@ -1,10 +1,9 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import {
   compareCanvasPixels,
-  createLogicalIsometricReferenceFixture,
   createRectangularReferenceOverviewFixture,
   getReferenceMinimap,
-  readReferenceOverviewPixels,
+  readReferenceDisplayedOverviewPixels,
   getReferenceWorldMap,
   loadFreecivWebRenderer,
   readCanvasPixels,
@@ -37,11 +36,6 @@ const renderReferenceFixture = async (
 ): Promise<Page> => {
   const page = await browser.newPage();
   await loadFreecivWebRenderer(page);
-  const referenceFixture = createLogicalIsometricReferenceFixture(
-    fixture.tiles,
-    fixture.mapWidth,
-    fixture.mapHeight
-  );
   const overviewFixture = createRectangularReferenceOverviewFixture(
     fixture.tiles,
     fixture.mapWidth,
@@ -49,9 +43,9 @@ const renderReferenceFixture = async (
   );
   await renderFreecivWebFixture(
     page,
-    referenceFixture.tiles,
-    referenceFixture.width,
-    referenceFixture.height,
+    fixture.tiles,
+    fixture.mapWidth,
+    fixture.mapHeight,
     fixture.viewport,
     overviewFixture
   );
@@ -89,6 +83,44 @@ test.describe('freeciv-web render-only pixel parity', () => {
         SCREENSHOT_OPTIONS
       );
 
+      const civJsOverviewPixels = await readCanvasPixels(
+        page
+          .locator('canvas[aria-label^="Minimap overview"]')
+          .locator('..')
+          .locator('canvas[aria-hidden="true"]')
+      );
+      const overviewDiff = compareCanvasPixels(
+        await readReferenceDisplayedOverviewPixels(referencePage),
+        civJsOverviewPixels
+      );
+      expect(overviewDiff).toEqual({
+        width: 240,
+        height: 240,
+        differingPixels: 0,
+        totalPixels: 240 * 240,
+        maxChannelDelta: 0,
+        meanChannelDelta: 0,
+      });
+
+      expect(
+        compareCanvasPixels(
+          await readCanvasPixels(referencePage.locator('#overview_viewrect')),
+          await readCanvasPixels(
+            page
+              .locator('canvas[aria-label^="Minimap overview"]')
+              .locator('..')
+              .locator('canvas[aria-label^="Minimap overview"]')
+          )
+        )
+      ).toEqual({
+        width: 240,
+        height: 240,
+        differingPixels: 0,
+        totalPixels: 240 * 240,
+        maxChannelDelta: 0,
+        meanChannelDelta: 0,
+      });
+
       const diff = compareCanvasPixels(
         await readCanvasPixels(page.locator('canvas[aria-label="World map"]')),
         await readCanvasPixels(getReferenceWorldMap(referencePage))
@@ -98,51 +130,6 @@ test.describe('freeciv-web render-only pixel parity', () => {
         height: PARITY_VIEWPORT.height,
         differingPixels: 0,
         totalPixels: PARITY_VIEWPORT.width * PARITY_VIEWPORT.height,
-        maxChannelDelta: 0,
-        meanChannelDelta: 0,
-      });
-
-      const civJsOverviewPixels = await readCanvasPixels(
-        page
-          .locator('canvas[aria-label^="Minimap overview"]')
-          .locator('..')
-          .locator('canvas[aria-hidden="true"]')
-      );
-      const referenceOverviewPixels = await readReferenceOverviewPixels(referencePage);
-      // Freeciv-web keeps known-but-not-visible terrain at full palette
-      // brightness while CivJS dims that cell. Mask only those known-fog cell
-      // rectangles so this assertion remains a strict raster/palette check.
-      const normalizedReferenceOverviewPixels = {
-        ...referenceOverviewPixels,
-        data: [...referenceOverviewPixels.data],
-      };
-      for (const tile of fixture.tiles) {
-        if (!tile.known || tile.visible) continue;
-        const xStart = Math.floor((tile.x * referenceOverviewPixels.width) / fixture.mapWidth);
-        const xEnd = Math.floor(((tile.x + 1) * referenceOverviewPixels.width) / fixture.mapWidth);
-        const yStart = Math.floor((tile.y * referenceOverviewPixels.height) / fixture.mapHeight);
-        const yEnd = Math.floor(
-          ((tile.y + 1) * referenceOverviewPixels.height) / fixture.mapHeight
-        );
-        for (let y = yStart; y < yEnd; y += 1) {
-          for (let x = xStart; x < xEnd; x += 1) {
-            const index = (y * referenceOverviewPixels.width + x) * 4;
-            normalizedReferenceOverviewPixels.data[index] = civJsOverviewPixels.data[index];
-            normalizedReferenceOverviewPixels.data[index + 1] = civJsOverviewPixels.data[index + 1];
-            normalizedReferenceOverviewPixels.data[index + 2] = civJsOverviewPixels.data[index + 2];
-            normalizedReferenceOverviewPixels.data[index + 3] = civJsOverviewPixels.data[index + 3];
-          }
-        }
-      }
-      const overviewDiff = compareCanvasPixels(
-        normalizedReferenceOverviewPixels,
-        civJsOverviewPixels
-      );
-      expect(overviewDiff).toEqual({
-        width: 240,
-        height: 240,
-        differingPixels: 0,
-        totalPixels: 240 * 240,
         maxChannelDelta: 0,
         meanChannelDelta: 0,
       });
@@ -164,8 +151,7 @@ test.describe('freeciv-web render-only pixel parity', () => {
     try {
       // Roads, rails, rivers, irrigation, resources, fog, and the reference
       // viewport outline are captured from the actual reference painter. The
-      // overview image is a separate raster snapshot, while the tile-center
-      // assertion compares its rectangular palette cells with CivJS.
+      // overview base and overlay are compared as displayed pixel rasters.
       await expect(getReferenceWorldMap(referencePage)).toHaveScreenshot(
         'freeciv-web-isometric-feature-world-map.png',
         SCREENSHOT_OPTIONS
@@ -179,7 +165,114 @@ test.describe('freeciv-web render-only pixel parity', () => {
       expect(overviewParity.mismatches).toBe(0);
       expect(overviewParity.comparedTiles).toBeGreaterThan(2000);
       expect(overviewParity.rememberedFogTiles).toBe(1);
-      expect(overviewParity.rememberedFogMismatches).toBe(1);
+      expect(overviewParity.rememberedFogMismatches).toBe(0);
+
+      const displayedReferencePixels = await readReferenceDisplayedOverviewPixels(referencePage);
+      const displayedCivJsPixels = await readCanvasPixels(
+        page
+          .locator('canvas[aria-label^="Minimap overview"]')
+          .locator('..')
+          .locator('canvas[aria-hidden="true"]')
+      );
+      expect(compareCanvasPixels(displayedReferencePixels, displayedCivJsPixels)).toEqual({
+        width: 240,
+        height: 240,
+        differingPixels: 0,
+        totalPixels: 240 * 240,
+        maxChannelDelta: 0,
+        meanChannelDelta: 0,
+      });
+
+      expect(
+        compareCanvasPixels(
+          await readCanvasPixels(referencePage.locator('#overview_viewrect')),
+          await readCanvasPixels(
+            page
+              .locator('canvas[aria-label^="Minimap overview"]')
+              .locator('..')
+              .locator('canvas[aria-label^="Minimap overview"]')
+          )
+        )
+      ).toEqual({
+        width: 240,
+        height: 240,
+        differingPixels: 0,
+        totalPixels: 240 * 240,
+        maxChannelDelta: 0,
+        meanChannelDelta: 0,
+      });
+
+      const worldParity = compareCanvasPixels(
+        await readCanvasPixels(referencePage.locator('#canvas')),
+        await readCanvasPixels(page.locator('canvas[aria-label="World map"]'))
+      );
+      expect(worldParity).toEqual({
+        width: PARITY_VIEWPORT.width,
+        height: PARITY_VIEWPORT.height,
+        differingPixels: 0,
+        totalPixels: PARITY_VIEWPORT.width * PARITY_VIEWPORT.height,
+        maxChannelDelta: 0,
+        meanChannelDelta: 0,
+      });
+    } finally {
+      await referencePage.close();
+    }
+  });
+
+  test('keeps non-square ISO overview raster and overlay pixels aligned with freeciv-web', async ({
+    page,
+    browser,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== 'chromium-desktop', 'Pixel parity is desktop-only.');
+    await prepareIsometricFixture(page, 'reference', { mapWidth: 32, mapHeight: 64 });
+    const fixture = await readCivJsParityFixture(page);
+    const referencePage = await renderReferenceFixture(browser, fixture);
+
+    try {
+      const civJsBase = page
+        .locator('canvas[aria-label^="Minimap overview"]')
+        .locator('..')
+        .locator('canvas[aria-hidden="true"]');
+      await expect(civJsBase).toHaveAttribute('width', '224');
+      await expect(civJsBase).toHaveAttribute('height', '300');
+
+      const referenceOverview = getReferenceMinimap(referencePage);
+      await expect(referenceOverview).toHaveCSS('width', '224px');
+      await expect(referenceOverview).toHaveCSS('height', '300px');
+
+      const overviewParity = await compareReferenceOverviewToCivJs(page, referencePage, fixture);
+      expect(overviewParity.mismatches).toBe(0);
+      expect(overviewParity.skippedOffscreenTiles).toBe(0);
+
+      const displayedReferencePixels = await readReferenceDisplayedOverviewPixels(referencePage);
+      const displayedCivJsPixels = await readCanvasPixels(civJsBase);
+      expect(compareCanvasPixels(displayedReferencePixels, displayedCivJsPixels)).toEqual({
+        width: 224,
+        height: 300,
+        differingPixels: 0,
+        totalPixels: 224 * 300,
+        maxChannelDelta: 0,
+        meanChannelDelta: 0,
+      });
+
+      expect(
+        compareCanvasPixels(
+          await readCanvasPixels(referencePage.locator('#overview_viewrect')),
+          await readCanvasPixels(
+            page
+              .locator('canvas[aria-label^="Minimap overview"]')
+              .locator('..')
+              .locator('canvas[aria-label^="Minimap overview"]')
+          )
+        )
+      ).toEqual({
+        width: 224,
+        height: 300,
+        differingPixels: 0,
+        totalPixels: 224 * 300,
+        maxChannelDelta: 0,
+        meanChannelDelta: 0,
+      });
     } finally {
       await referencePage.close();
     }

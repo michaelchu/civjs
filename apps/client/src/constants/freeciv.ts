@@ -43,11 +43,11 @@ export const FreecivConstants = {
 export const NUM_CARDINAL_DIRS = 4;
 export const NUM_CORNER_DIRS = 4;
 
-// Direction mappings - N, S, E, W for CELL_CORNER sprite mapping
-export const DIR4_TO_DIR8 = [0, 4, 2, 6] as const;
-
-// Cardinal directions for MATCH_SAME and dithering - N, E, S, W
-export const CARDINAL_TILESET_DIRS = [0, 2, 4, 6] as const;
+// Freeciv-web's DIR8 order is NW, N, NE, W, E, SW, S, SE.
+// CELL_CORNER and dither use DIR4_TO_DIR8 = N, S, E, W. The MATCH_SAME
+// branch intentionally indexes the first four DIR8 entries directly.
+export const DIR4_TO_DIR8 = [1, 6, 4, 3] as const;
+export const CARDINAL_TILESET_DIRS = [1, 4, 6, 3] as const;
 
 // Expose constants globally for compatibility with freeciv-web tileset scripts
 // This ensures that dynamically loaded JavaScript files from the server can access these constants

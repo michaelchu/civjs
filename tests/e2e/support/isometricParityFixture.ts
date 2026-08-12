@@ -30,14 +30,20 @@ export const waitForStableCanvasFrames = async (page: Page): Promise<void> => {
 
 export const prepareIsometricFixture = async (
   page: Page,
-  mode: IsometricParityMode = 'visual'
+  mode: IsometricParityMode = 'visual',
+  dimensions?: { mapWidth: number; mapHeight: number }
 ): Promise<void> => {
   await page.setViewportSize(PARITY_VIEWPORT);
   await page.addInitScript(preferences => {
     localStorage.setItem('civjs:user-preferences:v2', preferences);
   }, REDUCED_MOTION_PREFERENCES);
-  const parityQuery = mode === 'visual' ? '' : `&parity=${mode}`;
-  await page.goto(`/test/browser-parity?visual=isometric${parityQuery}`);
+  const query = new URLSearchParams({ visual: 'isometric' });
+  if (mode !== 'visual') query.set('parity', mode);
+  if (dimensions) {
+    query.set('mapWidth', String(dimensions.mapWidth));
+    query.set('mapHeight', String(dimensions.mapHeight));
+  }
+  await page.goto(`/test/browser-parity?${query.toString()}`);
   await expect(page.locator('canvas[aria-label="World map"]')).toHaveAttribute(
     'data-renderer-ready',
     'true'

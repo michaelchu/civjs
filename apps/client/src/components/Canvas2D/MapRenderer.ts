@@ -72,6 +72,7 @@ export class MapRenderer {
   private fogOfWarEnabled = true;
   private currentMap: GameState['map'] = { width: 0, height: 0, tiles: {} };
   private currentGeometry: MapGeometry = createMapGeometry(0, 0);
+  private renderCompleteListener: ((viewport: MapViewport) => void) | null = null;
 
   /**
    * Creates the renderer and its layer-specific stages.
@@ -172,6 +173,20 @@ export class MapRenderer {
     return { width: this.tileWidth, height: this.tileHeight };
   }
 
+  /**
+   * Notify consumers only after a viewport has actually been painted.
+   * MapRenderer may defer a normal render while its refresh interval is
+   * active; publishing the requested viewport before that deferred paint
+   * would move the minimap outline ahead of the board.
+   */
+  setRenderCompleteListener(listener: ((viewport: MapViewport) => void) | null): void {
+    this.renderCompleteListener = listener;
+  }
+
+  private notifyRenderComplete(viewport: MapViewport): void {
+    this.renderCompleteListener?.({ ...viewport });
+  }
+
   /** Configures the canvas for crisp pixel-art sprite rendering. */
   private setupCanvas() {
     this.ctx.imageSmoothingEnabled = false;
@@ -222,6 +237,7 @@ export class MapRenderer {
     if (!this.isInitialized) {
       this.clearCanvas();
       this.renderLoadingMessage();
+      this.notifyRenderComplete(state.viewport);
       return;
     }
 
@@ -231,6 +247,7 @@ export class MapRenderer {
     if (!mapWidth || !mapHeight || mapTiles.length === 0) {
       this.clearCanvas();
       this.renderEmptyMap();
+      this.notifyRenderComplete(state.viewport);
       return;
     }
 
@@ -313,6 +330,7 @@ export class MapRenderer {
     this.lastRedrawTime = currentTime;
     this.totalDraws++;
     this.meanTime = (this.meanTime * (this.totalDraws - 1) + elapsed) / this.totalDraws;
+    this.notifyRenderComplete(state.viewport);
 
     if (!this.stopChecking && this.totalDraws % 100 === 0) {
       this.MAPVIEW_REFRESH_INTERVAL = Math.max(12, Math.min(140, this.meanTime + 10));
@@ -833,6 +851,10 @@ export class MapRenderer {
   }
 
   private getVisibleTiles(mapTiles: Tile[], viewport: MapViewport, includeUnknown = false): Tile[] {
+    if (this.currentGeometry.isIsometric && !this.isWrappedMap()) {
+      return this.getReferenceIsometricTiles(mapTiles, viewport, includeUnknown);
+    }
+
     const tiles: Tile[] = [];
     const canvasWidth = this.ctx.canvas?.width || viewport.width;
     const canvasHeight = this.ctx.canvas?.height || viewport.height;
@@ -866,6 +888,97 @@ export class MapRenderer {
                 known: true,
               }
         );
+      }
+    }
+
+    return tiles;
+  }
+
+  /**
+   * Enumerate the finite ISO tile positions exactly as gui_rect_iterate().
+   *
+   * Bounding-box culling is tempting here, but it draws diagonal edge tiles
+   * that the reference painter intentionally skips and changes which opaque
+   * CELL_CORNER sprites win at the map boundary. The browser painter walks a
+   * doubled-coordinate grid containing both tile and corner positions; this
+   * helper retains only its actual tile positions, in painter order.
+   *
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:305-374
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:215-219
+   */
+  private getReferenceIsometricTiles(
+    mapTiles: Tile[],
+    viewport: MapViewport,
+    includeUnknown: boolean
+  ): Tile[] {
+    const mapWidth = this.currentMap.xsize ?? this.currentMap.width;
+    const mapHeight = this.currentMap.ysize ?? this.currentMap.height;
+    if (!mapWidth || !mapHeight) return [];
+
+    const canvasWidth = this.ctx.canvas?.width || viewport.width;
+    const canvasHeight = this.ctx.canvas?.height || viewport.height;
+    const tileByIndex = new Map(mapTiles.map(tile => [tile.x + tile.y * mapWidth, tile] as const));
+    const guiWidth = canvasWidth + (this.tileWidth >> 1);
+    const guiHeight = canvasHeight + (this.tileHeight >> 1);
+    let guiX0 = viewport.x;
+    let guiY0 = viewport.y;
+    let guiW = guiWidth;
+    let guiH = guiHeight;
+
+    if (guiW < 0) {
+      guiX0 += guiW;
+      guiW = -guiW;
+    }
+    if (guiH < 0) {
+      guiY0 += guiH;
+      guiH = -guiH;
+    }
+    if (guiW <= 0 || guiH <= 0) return [];
+
+    const painterRadius = 2;
+    const painterScale = painterRadius * 2;
+    const referenceFloor = (numerator: number, denominator: number): number =>
+      Math.floor(numerator / denominator - (numerator < 0 && numerator % denominator < 0 ? 1 : 0));
+    const painterX0 = referenceFloor(guiX0 * painterScale, this.tileWidth) - painterRadius / 2;
+    const painterY0 = referenceFloor(guiY0 * painterScale, this.tileHeight) - painterRadius / 2;
+    const painterX1 =
+      referenceFloor((guiX0 + guiW) * painterScale + this.tileWidth - 1, this.tileWidth) +
+      painterRadius;
+    const painterY1 =
+      referenceFloor((guiY0 + guiH) * painterScale + this.tileHeight - 1, this.tileHeight) +
+      painterRadius;
+
+    const firstX = Math.floor(painterX0);
+    const firstY = Math.floor(painterY0);
+    const lastX = Math.floor(painterX1);
+    const lastY = Math.floor(painterY1);
+    const tiles: Tile[] = [];
+
+    for (let painterY = firstY; painterY < lastY; painterY += 1) {
+      for (let painterX = firstX; painterX < lastX; painterX += 1) {
+        const sum = painterX + painterY;
+        if (sum % 2 !== 0) continue;
+        if (this.currentMap.wrap_id === 0 && (sum <= 0 || sum / 4 > mapWidth)) {
+          continue;
+        }
+        if (painterX % 2 !== 0 || painterY % 2 !== 0 || sum % 4 !== 0) {
+          continue;
+        }
+
+        const mapX = sum / 4 - 1;
+        const mapY = (painterY - painterX) / 4;
+        let lookupY = mapY;
+        if (mapX >= mapWidth) lookupY -= 1;
+        else if (mapX < 0) lookupY += 1;
+        const tileIndex = mapX + lookupY * mapWidth;
+        const tile =
+          tileIndex >= 0 && tileIndex < mapWidth * mapHeight
+            ? tileByIndex.get(tileIndex)
+            : undefined;
+
+        if (tile?.terrain && (includeUnknown || !this.fogOfWarEnabled || tile.known)) {
+          tiles.push(this.fogOfWarEnabled ? tile : { ...tile, visible: true, known: true });
+        }
       }
     }
 

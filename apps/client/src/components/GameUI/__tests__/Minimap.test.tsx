@@ -10,6 +10,7 @@ import {
 } from '../minimapVisibility';
 import {
   getMinimapLayout,
+  getMinimapSourceTileOrigins,
   getMinimapTileOrigins,
   getMinimapViewportPolygons,
   guiToMapPos,
@@ -56,7 +57,7 @@ describe('Minimap', () => {
     expect(screen.queryByText('Overview')).not.toBeInTheDocument();
   });
 
-  it('renders a 32x64 ISO map in a centered square-tile overview', () => {
+  it('renders a 32x64 ISO map using Freeciv-web overview bounds', () => {
     useGameStore.setState({
       map: {
         width: 32,
@@ -71,7 +72,7 @@ describe('Minimap', () => {
 
     render(<Minimap />);
     const canvas = screen.getByLabelText('Minimap overview');
-    expect(canvas).toHaveAttribute('width', '150');
+    expect(canvas).toHaveAttribute('width', '224');
     expect(canvas).toHaveAttribute('height', '300');
   });
 
@@ -199,21 +200,24 @@ describe('Minimap', () => {
         kind: 'city',
         ownerId: 'player-1',
       })
-    ).toEqual({ color: MINIMAP_COLORS.myCity, opacity: 1 });
+    ).toEqual({ color: MINIMAP_COLORS.myCity });
     expect(
       getMinimapCellAppearance(visibleTile, '#0b8a04', 'player-1', '#d946ef', {
         kind: 'unit',
         ownerId: 'player-2',
         ownerColor: '#d946ef',
       })
-    ).toEqual({ color: '#d946ef', opacity: 1 });
+    ).toEqual({ color: '#d946ef' });
     expect(getMinimapCellAppearance(visibleTile, '#0b8a04', 'player-1', '#d946ef')).toEqual({
       color: '#d946ef',
-      opacity: 1,
     });
     expect(
       getMinimapCellAppearance({ ...visibleTile, known: false }, '#0b8a04', 'player-1', '#d946ef')
-    ).toEqual({ color: MINIMAP_COLORS.unknown, opacity: 1 });
+    ).toEqual({ color: MINIMAP_COLORS.unknown });
+
+    expect(
+      getMinimapCellAppearance({ ...visibleTile, visible: false }, '#0b8a04', 'player-1', '#d946ef')
+    ).toEqual({ color: '#d946ef' });
   });
 
   /**
@@ -232,6 +236,10 @@ describe('Minimap', () => {
       fillRect: vi.fn((...args: number[]) =>
         fillCalls.push({ style: fillStyle, alpha: globalAlpha, args })
       ),
+      drawImage: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      scale: vi.fn(),
       strokeRect: vi.fn(),
       beginPath: vi.fn(),
       arc: vi.fn(),
@@ -329,6 +337,10 @@ describe('Minimap', () => {
     const context = {
       clearRect: vi.fn(),
       fillRect: vi.fn(),
+      drawImage: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      scale: vi.fn(),
       strokeRect: vi.fn(),
       beginPath: vi.fn(),
       moveTo: vi.fn(),
@@ -359,7 +371,7 @@ describe('Minimap', () => {
 
     expect(context.clearRect).toHaveBeenCalled();
     expect(context.strokeStyle).toBe(VIEWPORT_OUTLINE_COLOR);
-    expect(context.lineWidth).toBe(VIEWPORT_OUTLINE_WIDTH);
+    expect(context.lineWidth).toBe(4 / 200);
     expect(context.beginPath).toHaveBeenCalled();
     expect(context.stroke).toHaveBeenCalled();
 
@@ -369,10 +381,10 @@ describe('Minimap', () => {
 
   it('uses Freeciv-web rectangular overview dimensions for ISO maps', () => {
     expect(getMinimapLayout(32, 64)).toEqual({
-      tileSize: 4.6875,
-      width: 150,
+      tileSize: 7,
+      width: 224,
       height: 300,
-      scaleX: 4.6875,
+      scaleX: 7,
       scaleY: 4.6875,
       coordinateWidth: 32,
       coordinateHeight: 64,
@@ -387,10 +399,10 @@ describe('Minimap', () => {
       coordinateHeight: 50,
     });
     expect(getMinimapLayout(100, 400)).toEqual({
-      tileSize: 0.75,
-      width: 75,
+      tileSize: 2,
+      width: 200,
       height: 300,
-      scaleX: 0.75,
+      scaleX: 2,
       scaleY: 0.75,
       coordinateWidth: 100,
       coordinateHeight: 400,
@@ -406,7 +418,9 @@ describe('Minimap', () => {
     });
 
     const isoLayout = getMinimapLayout(32, 64);
-    expect(isoLayout.scaleX).toBe(isoLayout.scaleY);
+    expect(isoLayout.scaleX).toBe(7);
+    expect(isoLayout.scaleY).toBe(300 / 64);
+    expect(isoLayout.scaleX).not.toBe(isoLayout.scaleY);
   });
 
   it('maps rectangular overview clicks back to native ISO tile storage', () => {
@@ -475,6 +489,14 @@ describe('Minimap', () => {
     expect(origins).toContainEqual({ x: 150, y: 50 });
   });
 
+  it('keeps wrapped cells on integer Freeciv source-raster origins', () => {
+    const layout = getMinimapLayout(32, 64);
+    const origins = getMinimapSourceTileOrigins(31, 63, 32, 64, 3, layout);
+
+    expect(origins).toContainEqual({ x: -7, y: 441 });
+    expect(origins).toContainEqual({ x: 217, y: 441 });
+  });
+
   it('projects GUI coordinates with the active tileset half-tile origin', () => {
     expect(guiToMapPos(48, 0, 96, 48)).toEqual({ x: 0, y: 0 });
     expect(guiToMapPos(0, 0, 96, 48)).toEqual({ x: -1, y: 0 });
@@ -509,10 +531,10 @@ describe('Minimap', () => {
     );
 
     expect(polygons[0]).toEqual([
-      { x: 103.125, y: 150 },
-      { x: 150, y: 103.125 },
-      { x: 196.875, y: 150 },
-      { x: 150, y: 196.875 },
+      { x: 154, y: 150 },
+      { x: 224, y: 103.125 },
+      { x: 294, y: 150 },
+      { x: 224, y: 196.875 },
     ]);
     expect(polygons).toHaveLength(9);
   });

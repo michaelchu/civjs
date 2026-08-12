@@ -32,10 +32,11 @@ describe('BorderRenderer player colors', () => {
     } as unknown as CanvasRenderingContext2D;
     const renderer = new BorderRenderer(context, {} as never, 96, 48);
     const aiPlayerId = 'ai-player-uuid';
+    const enemyPlayerId = 'enemy-player-uuid';
     const state: RenderState = {
       viewport: { x: 0, y: 0, width: 800, height: 600 },
       map: {
-        width: 1,
+        width: 2,
         height: 1,
         tiles: {
           '0,0': {
@@ -46,6 +47,14 @@ describe('BorderRenderer player colors', () => {
             visible: true,
             owner: aiPlayerId,
           },
+          '1,0': {
+            x: 1,
+            y: 0,
+            terrain: 'grassland',
+            known: true,
+            visible: true,
+            owner: enemyPlayerId,
+          },
         },
       },
       units: {},
@@ -55,6 +64,11 @@ describe('BorderRenderer player colors', () => {
           name: 'AI Leader',
           nation: 'greeks',
           color: '#00aa33',
+        },
+        [enemyPlayerId]: {
+          name: 'Enemy Leader',
+          nation: 'romans',
+          color: '#0000aa',
         },
       },
     };

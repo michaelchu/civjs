@@ -12,19 +12,18 @@
 import { BaseRenderer } from './BaseRenderer';
 import type { RenderState } from './BaseRenderer';
 import type { Tile } from '../../../types';
-import { stepNativeMapPosition } from '../mapTopologyGeometry';
 
 // Direction constants from freeciv
 // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/fc_types.js
 enum Direction {
-  DIR8_NORTH = 0,
-  DIR8_NORTHEAST = 1,
-  DIR8_EAST = 2,
-  DIR8_SOUTHEAST = 3,
-  DIR8_SOUTH = 4,
+  DIR8_NORTHWEST = 0,
+  DIR8_NORTH = 1,
+  DIR8_NORTHEAST = 2,
+  DIR8_WEST = 3,
+  DIR8_EAST = 4,
   DIR8_SOUTHWEST = 5,
-  DIR8_WEST = 6,
-  DIR8_NORTHWEST = 7,
+  DIR8_SOUTH = 6,
+  DIR8_SOUTHEAST = 7,
 }
 
 // Cardinal directions only (used for borders)
@@ -197,18 +196,19 @@ export class BorderRenderer extends BaseRenderer {
 
     const mapWidth = map.xsize ?? map.width;
     const mapHeight = map.ysize ?? map.height;
-    const wrapId = map.wrap_id ?? 0;
-    const position = stepNativeMapPosition(
-      tile.x,
-      tile.y,
-      dx,
-      dy,
-      mapWidth,
-      mapHeight,
-      map.topology_id ?? 0,
-      wrapId
-    );
-    return position ? map.tiles[`${position.x},${position.y}`] || null : null;
+    // Match freeciv-web's map_pos_to_tile() flat-array lookup. The ISO edge
+    // adjustment is applied before indexing, and mapstep does not synthesize
+    // a neighbor when the resulting array index is outside the map.
+    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:215-219,343-350
+    const candidateX = tile.x + dx;
+    let candidateY = tile.y + dy;
+    if (candidateX >= mapWidth) candidateY -= 1;
+    else if (candidateX < 0) candidateY += 1;
+    const flatIndex = candidateX + candidateY * mapWidth;
+    if (flatIndex < 0 || flatIndex >= mapWidth * mapHeight) return null;
+    const lookupX = ((flatIndex % mapWidth) + mapWidth) % mapWidth;
+    const lookupY = Math.floor(flatIndex / mapWidth);
+    return map.tiles[`${lookupX},${lookupY}`] || null;
   }
 
   /**
@@ -231,12 +231,15 @@ export class BorderRenderer extends BaseRenderer {
         continue;
       }
 
-      // Generate border in these cases:
-      // 1. Neighbor exists and has different owner (including null owner)
-      // 2. No neighbor (map edge)
+      // freeciv-web only draws an outline when mapstep() returns an opposing
+      // owned tile. Map edges and unowned neighbors do not create a border
+      // sprite in the reference renderer.
       const shouldDrawBorder =
-        !neighbor || // No neighbor (map edge)
-        (neighbor && tile.owner !== neighbor.owner); // Different owner (including unowned neighbor)
+        neighbor !== null &&
+        neighbor.owner !== null &&
+        tile.owner !== neighbor.owner &&
+        tile.owner !== '255' &&
+        players?.[tile.owner] != null;
 
       if (shouldDrawBorder) {
         // Get nation colors - in freeciv-web this comes from nations[players[owner]['nation']]

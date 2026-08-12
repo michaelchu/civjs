@@ -21,7 +21,7 @@ export const VIEWPORT_OUTLINE_COLOR = 'rgb(200,200,255)';
 export const VIEWPORT_OUTLINE_WIDTH = 1;
 
 export interface MinimapLayout {
-  /** Rectangular map-cell scale used to size the overview canvas. */
+  /** Integer source-raster tile size selected by Freeciv-web. */
   tileSize: number;
   width: number;
   height: number;
@@ -75,7 +75,14 @@ const guiToOverviewMapPosition = (
  *
  * Freeciv-web's overview raster does not draw the ISO sprite footprint. It
  * allocates one rectangular cell for each map-coordinate tile and scales the
- * complete raster into the overview bounds.
+ * complete raster into the overview bounds. The source raster size is chosen
+ * from the map width only; the displayed width and height are then capped
+ * independently. The reference CSS stretches the source image to those
+ * displayed dimensions, so ISO maps can intentionally use different X/Y
+ * cell scales.
+ *
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/overview.js:50-54,104-109
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/css/civclient.css:80-85
  */
 export const getMinimapLayout = (nativeWidth: number, nativeHeight: number): MinimapLayout => {
   if (nativeWidth <= 0 || nativeHeight <= 0) {
@@ -97,17 +104,12 @@ export const getMinimapLayout = (nativeWidth: number, nativeHeight: number): Min
     tileSize += 1;
   }
 
-  const scale = Math.min(
-    tileSize,
-    MAX_OVERVIEW_WIDTH / coordinateWidth,
-    MAX_OVERVIEW_HEIGHT / coordinateHeight
-  );
-  const scaleX = scale;
-  const scaleY = scale;
-  const width = Math.floor(scaleX * coordinateWidth);
-  const height = Math.floor(scaleY * coordinateHeight);
+  const width = Math.min(tileSize * coordinateWidth, MAX_OVERVIEW_WIDTH);
+  const height = Math.min(tileSize * coordinateHeight, MAX_OVERVIEW_HEIGHT);
+  const scaleX = width / coordinateWidth;
+  const scaleY = height / coordinateHeight;
   return {
-    tileSize: scale,
+    tileSize,
     width,
     height,
     scaleX,
@@ -140,6 +142,23 @@ export const getMinimapTileOrigins = (
   return getOverviewWrapTranslations(nativeWidth, nativeHeight, wrapId).map(translation => ({
     x: (cell.x + translation.x) * layout.scaleX,
     y: (cell.y + translation.y) * layout.scaleY,
+  }));
+};
+
+/** Return integer source-raster origins before the overview is displayed. */
+export const getMinimapSourceTileOrigins = (
+  nativeX: number,
+  nativeY: number,
+  nativeWidth: number,
+  nativeHeight: number,
+  wrapId: number,
+  layout: MinimapLayout
+): MinimapPoint[] => {
+  const cell = nativeToMinimapPosition(nativeX, nativeY);
+
+  return getOverviewWrapTranslations(nativeWidth, nativeHeight, wrapId).map(translation => ({
+    x: (cell.x + translation.x) * layout.tileSize,
+    y: (cell.y + translation.y) * layout.tileSize,
   }));
 };
 

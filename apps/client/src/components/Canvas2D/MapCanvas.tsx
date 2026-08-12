@@ -6,6 +6,7 @@ import React, { useRef, useEffect, useCallback, useMemo, useState } from 'react'
 import { useGameStore } from '../../store/gameStore';
 import { MapRenderer } from './MapRenderer';
 import { setMapRenderTileSize } from './mapRenderMetrics';
+import { setMapRenderViewport } from './mapRenderViewport';
 import { ActionFeedbackBanner, type ActionFeedback } from './ActionFeedbackBanner';
 import { UnitContextMenu } from '../GameUI/UnitContextMenu';
 import { CityNameDialog } from '../GameUI/CityNameDialog';
@@ -291,7 +292,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       if (!ctx) return;
 
       renderer = new MapRenderer(ctx, undefined, rulesetName);
+      renderer.setRenderCompleteListener(setMapRenderViewport);
       rendererRef.current = renderer;
+      if (import.meta.env.DEV) {
+        (window as unknown as { __civjsParityRenderer?: MapRenderer }).__civjsParityRenderer =
+          renderer;
+      }
 
       try {
         // Initialize renderer (tileset files are now served from client domain)
@@ -305,10 +311,15 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
         setRendererReady(true);
         const gameState = useGameStore.getState();
+        const renderedViewport = {
+          ...gameState.viewport,
+          width: canvas.width || gameState.viewport.width,
+          height: canvas.height || gameState.viewport.height,
+        };
 
         if (rendererRef.current === renderer) {
           renderer.render({
-            viewport: gameState.viewport,
+            viewport: renderedViewport,
             map: gameState.map,
             units: gameState.units,
             presentationEffects: gameState.presentationEffects,
@@ -333,8 +344,16 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     return () => {
       cancelled = true;
       renderer?.cleanup();
+      setMapRenderViewport(null);
       if (rendererRef.current === renderer) {
         rendererRef.current = null;
+      }
+      if (
+        import.meta.env.DEV &&
+        (window as unknown as { __civjsParityRenderer?: MapRenderer }).__civjsParityRenderer ===
+          renderer
+      ) {
+        delete (window as unknown as { __civjsParityRenderer?: MapRenderer }).__civjsParityRenderer;
       }
     };
   }, [rulesetName]);
@@ -380,9 +399,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       // Read the store once so a redraw cannot mix entities from one state
       // revision with the viewport from another.
       const state = useGameStore.getState();
+      const renderedViewport = viewportOverride ?? state.viewport;
       renderer.render(
         {
-          viewport: viewportOverride ?? state.viewport,
+          viewport: renderedViewport,
           map: state.map,
           units: state.units,
           presentationEffects: state.presentationEffects,
@@ -402,6 +422,15 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       );
     },
     [contextMenu?.unit.id, gotoMode.currentPath, reducedMotion]
+  );
+
+  /** Commit a camera position and immediately paint that exact snapshot. */
+  const commitViewportAndRender = useCallback(
+    (nextViewport: MapViewport) => {
+      setViewport(nextViewport);
+      renderLatestSnapshot(nextViewport, true);
+    },
+    [renderLatestSnapshot, setViewport]
   );
 
   const cameraSlideFrame = useRef<number | null>(null);
@@ -443,10 +472,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       }
       const latestViewport = cameraSlideViewport.current;
       cameraSlideViewport.current = null;
-      if (commitLatest && latestViewport) setViewport(latestViewport);
+      if (commitLatest && latestViewport) commitViewportAndRender(latestViewport);
       return latestViewport;
     },
-    [setViewport]
+    [commitViewportAndRender]
   );
 
   const cancelMinimapPan = useCallback(
@@ -457,10 +486,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       }
       const latestViewport = minimapPanViewport.current;
       minimapPanViewport.current = null;
-      if (commitLatest && latestViewport) setViewport(latestViewport);
+      if (commitLatest && latestViewport) commitViewportAndRender(latestViewport);
       return latestViewport;
     },
-    [setViewport]
+    [commitViewportAndRender]
   );
 
   const scheduleMinimapPan = useCallback(
@@ -477,11 +506,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         // Commit the viewport and paint the same snapshot immediately. The
         // direct paint prevents the normal store-render RAF from exposing a
         // cleared frame while the minimap pointer is still moving.
-        setViewport(latestViewport);
-        renderLatestSnapshot(latestViewport, true);
+        commitViewportAndRender(latestViewport);
       });
     },
-    [renderLatestSnapshot, setViewport]
+    [commitViewportAndRender]
   );
 
   const getCenteredViewport = useCallback(
@@ -577,8 +605,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
       if (reducedMotion || Math.hypot(dx, dy) < 1) {
         cameraSlideViewport.current = null;
-        setViewport(target);
-        renderLatestSnapshot(target, true);
+        commitViewportAndRender(target);
         return;
       }
 
@@ -603,7 +630,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         if (progress >= 1) {
           cameraSlideFrame.current = null;
           cameraSlideViewport.current = null;
-          setViewport(target);
+          // Repaint the committed target before releasing the render
+          // override. Otherwise the outline can briefly describe a different
+          // camera position than the board's final painted frame.
+          commitViewportAndRender(target);
           return;
         }
         cameraSlideFrame.current = requestAnimationFrame(animate);
@@ -623,9 +653,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     getCenteredViewport,
     height,
     reducedMotion,
+    commitViewportAndRender,
     renderLatestSnapshot,
     scheduleMinimapPan,
-    setViewport,
     width,
   ]);
 
@@ -641,8 +671,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       canvas.height = height;
     }
 
-    setViewport({ width, height });
-  }, [width, height, setViewport]);
+    const currentViewport = useGameStore.getState().viewport;
+    commitViewportAndRender({ ...currentViewport, width, height });
+  }, [width, height, commitViewportAndRender]);
 
   // Extract complex expressions to satisfy ESLint rule
   const unitsCount = Object.keys(units).length;
@@ -682,7 +713,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         height
       );
 
-      setViewport({
+      // Paint the centered camera before exposing it to the minimap. This
+      // keeps startup behavior atomic when the store and renderer initialize
+      // in separate effects.
+      commitViewportAndRender({
         x: centeredViewport.x,
         y: centeredViewport.y,
         width,
@@ -703,7 +737,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     unitsCount,
     citiesCount,
     hasReceivedUnitSnapshot,
-    setViewport,
+    commitViewportAndRender,
     cities,
     units,
     width,
@@ -804,6 +838,21 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       });
     },
     [renderLatestSnapshot]
+  );
+
+  const commitDragViewport = useCallback(
+    (nextViewport: MapViewport) => {
+      // A pointer-up can arrive before the coalesced drag RAF runs. Cancel
+      // that stale preview so it cannot repaint an unconstrained viewport
+      // after the committed final position.
+      if (dragRenderFrame.current !== null) {
+        cancelAnimationFrame(dragRenderFrame.current);
+        dragRenderFrame.current = null;
+      }
+      currentRenderViewport.current = nextViewport;
+      commitViewportAndRender(nextViewport);
+    },
+    [commitViewportAndRender]
   );
 
   useEffect(
@@ -1448,7 +1497,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         };
 
         // Update state with the constrained final position
-        setViewport(finalViewport);
+        commitDragViewport(finalViewport);
         setIsDragging(false);
       } else if (dragStartTime.current > 0) {
         // Handle click (not drag)
@@ -1493,7 +1542,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     },
     [
       isDragging,
-      setViewport,
+      commitDragViewport,
       handleMapTileClick,
       selectUnitsInCanvasRect,
       handleRightClickAtCanvasPosition,
@@ -1666,7 +1715,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           y: constrainedPosition.y,
         };
 
-        setViewport(finalViewport);
+        commitDragViewport(finalViewport);
         setIsDragging(false);
       } else if (!longPressFiredRef.current && dragStartTime.current > 0) {
         // Treat as a tap/click
@@ -1728,7 +1777,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     },
     [
       isDragging,
-      setViewport,
+      commitDragViewport,
       viewport,
       gotoMode.active,
       requestGotoPath,
@@ -2047,7 +2096,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           y: constrainedPosition.y,
         };
 
-        setViewport(finalViewport);
+        commitDragViewport(finalViewport);
         setIsDragging(false);
       }
 
@@ -2059,7 +2108,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       document.addEventListener('mouseup', handleGlobalMouseUp);
       return () => document.removeEventListener('mouseup', handleGlobalMouseUp);
     }
-  }, [handleRightClickAtCanvasPosition, isDragging, selectUnitsInCanvasRect, setViewport]);
+  }, [commitDragViewport, handleRightClickAtCanvasPosition, isDragging, selectUnitsInCanvasRect]);
 
   // Removed zoom functionality to match freeciv-web 2D canvas behavior
   // Freeciv-web's 2D renderer does not support zoom - only the WebGL renderer does

@@ -145,7 +145,7 @@ describe('MapRenderer live-state updates', () => {
     const views = getWrappedRenderViews.call(renderer, tiles, viewport);
 
     expect(views.map(view => view.viewport)).toEqual(
-      expect.arrayContaining([viewport, { ...viewport, x: 3536, y: 2244 }])
+      expect.arrayContaining([viewport, { ...viewport, x: 2288, y: 2244 }])
     );
   });
 

@@ -1,26 +1,24 @@
 /**
  * @module client/components/GameUI/Minimap
  * Freeciv-web-compatible overview map with an independently refreshed viewport overlay.
+ * The base is rendered as an integer source raster and resampled once, matching
+ * the reference overview image/CSS pipeline before the viewport is stroked.
  *
  * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/overview.js:20-24,50-119,233-320,459-474
  * @reference reference/freeciv/client/overview_common.c:324-374,408-483
  */
 import React, { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useGameStore } from '../../store/gameStore';
+import { getMapRenderViewport, subscribeMapRenderViewport } from '../Canvas2D/mapRenderViewport';
 import { getMapRenderTileSize, subscribeMapRenderTileSize } from '../Canvas2D/mapRenderMetrics';
 import { HudPanel } from './HudPanel';
-import {
-  getMinimapCellAppearance,
-  isMinimapMarkerVisible,
-  MINIMAP_COLORS,
-} from './minimapVisibility';
+import { getMinimapCellAppearance, MINIMAP_COLORS } from './minimapVisibility';
 import {
   getMinimapLayout,
-  getMinimapTileOrigins,
+  getMinimapSourceTileOrigins,
   getMinimapViewportPolygons,
   minimapPointToMapTile,
   VIEWPORT_OUTLINE_COLOR,
-  VIEWPORT_OUTLINE_WIDTH,
 } from './minimapGeometry';
 
 const TILE_COLORS: Record<string, string> = {
@@ -50,10 +48,9 @@ const terrainColor = (terrain: string | undefined): string => {
   return TILE_COLORS[normalized] ?? (normalized === 'unknown' ? MINIMAP_COLORS.unknown : '#475569');
 };
 
-const playerColor = (color: string | undefined, fallback: string): string => color || fallback;
-
 export const Minimap: React.FC = () => {
   const baseCanvasRef = useRef<HTMLCanvasElement>(null);
+  const sourceCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const draggingRef = useRef(false);
   const dragMovedRef = useRef(false);
@@ -62,6 +59,11 @@ export const Minimap: React.FC = () => {
   const overlayFrameRef = useRef<number | null>(null);
   const map = useGameStore(state => state.map);
   const viewport = useGameStore(state => state.viewport);
+  const activeRenderViewport = useSyncExternalStore(
+    subscribeMapRenderViewport,
+    getMapRenderViewport,
+    getMapRenderViewport
+  );
   const units = useGameStore(state => state.units);
   const cities = useGameStore(state => state.cities);
   const players = useGameStore(state => state.players);
@@ -78,6 +80,7 @@ export const Minimap: React.FC = () => {
   const topologyId = map.topology_id ?? 0;
   const wrapId = map.wrap_id ?? 0;
   const layout = getMinimapLayout(nativeWidth ?? 0, nativeHeight ?? 0);
+  const displayedViewport = activeRenderViewport ?? viewport;
 
   const drawBase = useCallback(() => {
     const canvas = baseCanvasRef.current;
@@ -90,8 +93,20 @@ export const Minimap: React.FC = () => {
     context.fillRect(0, 0, layout.width, layout.height);
     if (!nativeWidth || !nativeHeight) return;
 
+    const sourceCanvas = sourceCanvasRef.current ?? document.createElement('canvas');
+    sourceCanvasRef.current = sourceCanvas;
+    const sourceWidth = layout.tileSize * layout.coordinateWidth;
+    const sourceHeight = layout.tileSize * layout.coordinateHeight;
+    sourceCanvas.width = sourceWidth;
+    sourceCanvas.height = sourceHeight;
+    const sourceContext = sourceCanvas.getContext('2d');
+    if (!sourceContext || !sourceWidth || !sourceHeight) return;
+    sourceContext.imageSmoothingEnabled = false;
+    sourceContext.clearRect(0, 0, sourceWidth, sourceHeight);
+    sourceContext.fillStyle = '#000000';
+    sourceContext.fillRect(0, 0, sourceWidth, sourceHeight);
+
     const tiles = Object.values(map.tiles);
-    const tilesByCoordinate = new Map(tiles.map(tile => [`${tile.x},${tile.y}`, tile]));
     const citiesByCoordinate = new Map(
       Object.values(cities).map(city => [`${city.x},${city.y}`, city] as const)
     );
@@ -100,15 +115,9 @@ export const Minimap: React.FC = () => {
       const key = `${unit.x},${unit.y}`;
       if (!unitsByCoordinate.has(key)) unitsByCoordinate.set(key, unit);
     }
-    const markerPositions = (x: number, y: number) =>
-      getMinimapTileOrigins(x, y, nativeWidth, nativeHeight, wrapId, layout).map(origin => ({
-        x: origin.x + layout.scaleX / 2,
-        y: origin.y + layout.scaleY / 2,
-      }));
 
     for (const tile of tiles) {
-      if (!tile.known) continue;
-      const origins = getMinimapTileOrigins(
+      const origins = getMinimapSourceTileOrigins(
         tile.x,
         tile.y,
         nativeWidth,
@@ -134,61 +143,24 @@ export const Minimap: React.FC = () => {
                 }
               : undefined
         );
-        context.globalAlpha = appearance.opacity;
-        context.fillStyle = appearance.color;
-        context.fillRect(origin.x, origin.y, layout.scaleX, layout.scaleY);
+        sourceContext.fillStyle = appearance.color;
+        sourceContext.fillRect(origin.x, origin.y, layout.tileSize, layout.tileSize);
       }
     }
-    context.globalAlpha = 1;
-
-    for (const city of Object.values(cities)) {
-      const tile = tilesByCoordinate.get(`${city.x},${city.y}`);
-      if (!isMinimapMarkerVisible(tile, city.playerId, currentPlayerId, false)) continue;
-      for (const { x, y } of markerPositions(city.x, city.y)) {
-        context.fillStyle =
-          city.playerId === currentPlayerId ? MINIMAP_COLORS.myCity : MINIMAP_COLORS.foreignCity;
-        context.fillRect(x - 2, y - 2, 4, 4);
-        if (city.playerId === currentPlayerId) {
-          context.strokeStyle = '#f8fafc';
-          context.lineWidth = 1;
-          context.strokeRect(x - 3, y - 3, 6, 6);
-        }
-      }
-    }
-
-    for (const unit of Object.values(units)) {
-      const tile = tilesByCoordinate.get(`${unit.x},${unit.y}`);
-      if (!isMinimapMarkerVisible(tile, unit.playerId, currentPlayerId, true)) continue;
-      for (const { x, y } of markerPositions(unit.x, unit.y)) {
-        context.fillStyle =
-          unit.playerId === currentPlayerId
-            ? MINIMAP_COLORS.myUnit
-            : playerColor(players[unit.playerId]?.color, MINIMAP_COLORS.foreignUnit);
-        context.beginPath();
-        context.arc(x, y, unit.playerId === currentPlayerId ? 2 : 1.5, 0, 2 * Math.PI);
-        context.fill();
-      }
-    }
-
-    const selectedCity = selectedCityId ? cities[selectedCityId] : undefined;
-    if (selectedCity) {
-      for (const { x, y } of markerPositions(selectedCity.x, selectedCity.y)) {
-        context.strokeStyle = '#f8fafc';
-        context.lineWidth = 2;
-        context.strokeRect(x - 4, y - 4, 8, 8);
-      }
-    }
-
-    const selectedUnit = selectedUnitId ? units[selectedUnitId] : undefined;
-    if (selectedUnit) {
-      for (const { x, y } of markerPositions(selectedUnit.x, selectedUnit.y)) {
-        context.strokeStyle = '#67e8f9';
-        context.lineWidth = 2;
-        context.beginPath();
-        context.arc(x, y, 4.5, 0, 2 * Math.PI);
-        context.stroke();
-      }
-    }
+    // Freeciv-web leaves the overview image at the browser's default filtered
+    // image-scaling behavior; the source raster itself remains unsmoothed.
+    context.imageSmoothingEnabled = true;
+    context.drawImage(
+      sourceCanvas,
+      0,
+      0,
+      sourceWidth,
+      sourceHeight,
+      0,
+      0,
+      layout.width,
+      layout.height
+    );
   }, [
     cities,
     currentPlayerId,
@@ -197,8 +169,6 @@ export const Minimap: React.FC = () => {
     nativeHeight,
     nativeWidth,
     players,
-    selectedCityId,
-    selectedUnitId,
     wrapId,
     units,
   ]);
@@ -212,7 +182,7 @@ export const Minimap: React.FC = () => {
     context.clearRect(0, 0, layout.width, layout.height);
     if (!nativeWidth || !nativeHeight) return;
     const polygons = getMinimapViewportPolygons(
-      viewport,
+      displayedViewport,
       nativeWidth,
       nativeHeight,
       wrapId,
@@ -222,16 +192,19 @@ export const Minimap: React.FC = () => {
       topologyId
     );
     context.strokeStyle = VIEWPORT_OUTLINE_COLOR;
-    context.lineWidth = VIEWPORT_OUTLINE_WIDTH;
+    context.lineWidth = layout.coordinateWidth / layout.width;
+    context.save();
+    context.scale(layout.scaleX, layout.scaleY);
     context.beginPath();
     for (const polygon of polygons) {
-      context.moveTo(polygon[0].x, polygon[0].y);
+      context.moveTo(polygon[0].x / layout.scaleX, polygon[0].y / layout.scaleY);
       for (let index = 1; index < polygon.length; index += 1) {
-        context.lineTo(polygon[index].x, polygon[index].y);
+        context.lineTo(polygon[index].x / layout.scaleX, polygon[index].y / layout.scaleY);
       }
-      context.lineTo(polygon[0].x, polygon[0].y);
+      context.lineTo(polygon[0].x / layout.scaleX, polygon[0].y / layout.scaleY);
     }
     context.stroke();
+    context.restore();
   }, [
     layout,
     nativeHeight,
@@ -239,7 +212,7 @@ export const Minimap: React.FC = () => {
     tileSize.height,
     tileSize.width,
     topologyId,
-    viewport,
+    displayedViewport,
     wrapId,
   ]);
 

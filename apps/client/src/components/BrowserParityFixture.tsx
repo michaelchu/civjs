@@ -48,13 +48,17 @@ const seedFixture = (): void => {
   const showEndGame = query.get('state') === 'endgame';
   const isometricVisual = query.get('visual') === 'isometric';
   const parityMode = query.get('parity');
+  const queryDimension = (name: string, fallback: number): number => {
+    const value = Number.parseInt(query.get(name) ?? '', 10);
+    return Number.isInteger(value) && value > 0 ? value : fallback;
+  };
   const referenceParityVisual =
     isometricVisual && (parityMode === 'reference' || parityMode === 'reference-base');
   const referenceBaseVisual = isometricVisual && parityMode === 'reference-base';
-  const mapWidth = isometricVisual ? 48 : 5;
-  const mapHeight = isometricVisual ? 48 : 5;
-  const cityX = isometricVisual ? 24 : 2;
-  const cityY = isometricVisual ? 24 : 2;
+  const mapWidth = isometricVisual ? queryDimension('mapWidth', 48) : 5;
+  const mapHeight = isometricVisual ? queryDimension('mapHeight', 48) : 5;
+  const cityX = isometricVisual ? Math.floor(mapWidth / 2) : 2;
+  const cityY = isometricVisual ? Math.floor(mapHeight / 2) : 2;
   const terrain = [
     'deep_ocean',
     'coast',

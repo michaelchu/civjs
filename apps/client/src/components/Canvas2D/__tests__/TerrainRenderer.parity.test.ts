@@ -139,8 +139,8 @@ describe('TerrainRenderer parity contracts', () => {
   /**
    * @evidence parity
    * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:1192-1203
-   * @assertion Resource sprites use the ruleset graphic tag, are centered at
-   * the reference reduced scale, and unmapped resources are skipped.
+   * @assertion Resource sprites use the ruleset graphic tag, retain the
+   * established CivJS presentation scale, and unmapped resources are skipped.
    */
   it('renders authoritative resource graphics with centered scaling', () => {
     const resourceTile = tile({ resource: 'wheat' });

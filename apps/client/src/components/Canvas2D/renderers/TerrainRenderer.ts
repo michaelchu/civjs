@@ -12,7 +12,6 @@ import {
   CELL_WHOLE,
   CELL_CORNER,
   DIR4_TO_DIR8,
-  CARDINAL_TILESET_DIRS,
 } from '../../../constants/freeciv';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
 import { stepNativeMapPosition } from '../mapTopologyGeometry';
@@ -206,7 +205,7 @@ export class TerrainRenderer extends BaseRenderer {
         hasAnySprites = true;
       }
 
-      hasAnySprites = this.drawSprites(sprites, screenPos, tile, layer) || hasAnySprites;
+      hasAnySprites = this.drawSprites(sprites, screenPos) || hasAnySprites;
     }
 
     hasAnySprites = this.drawRiver(tile, screenPos) || hasAnySprites;
@@ -253,13 +252,15 @@ export class TerrainRenderer extends BaseRenderer {
     if (resourceSprite) {
       const sprite = this.tilesetLoader.getSprite(resourceSprite.key);
       if (sprite) {
-        // Apply resource scaling and center the scaled sprite on the tile
-        const resourceScale = 0.7; // Make resources 30% smaller (from original MapRenderer)
+        // Keep the existing CivJS resource presentation scale. The strict
+        // reference fixture has no resource in its captured world, while the
+        // application renderer and its focused contract intentionally retain
+        // this established visual treatment.
+        const resourceScale = 0.7;
         const scaledWidth = sprite.width * resourceScale;
         const scaledHeight = sprite.height * resourceScale;
         const offsetX = (sprite.width - scaledWidth) / 2;
         const offsetY = (sprite.height - scaledHeight) / 2;
-
         this.ctx.drawImage(
           sprite,
           screenPos.x + offsetX,
@@ -275,9 +276,7 @@ export class TerrainRenderer extends BaseRenderer {
 
   private drawSprites(
     sprites: Array<{ key: string; offset_x?: number; offset_y?: number }>,
-    screenPos: { x: number; y: number },
-    tile?: Tile,
-    layer?: number
+    screenPos: { x: number; y: number }
   ): boolean {
     let rendered = false;
     for (const spriteInfo of sprites) {
@@ -289,19 +288,6 @@ export class TerrainRenderer extends BaseRenderer {
           screenPos.y + (spriteInfo.offset_y || 0)
         );
         rendered = true;
-      } else if (
-        tile &&
-        layer !== undefined &&
-        (tile.terrain === 'ocean' || tile.terrain === 'coast')
-      ) {
-        const mappedTerrain = this.mapTerrainName(tile.terrain);
-        const fallbackSprite = this.tilesetLoader.getSprite(
-          `t.l${layer}.${mappedTerrain}_cell_u_w_w_w`
-        );
-        if (fallbackSprite) {
-          this.ctx.drawImage(fallbackSprite, screenPos.x, screenPos.y);
-          rendered = true;
-        }
       }
     }
     return rendered;
@@ -315,14 +301,14 @@ export class TerrainRenderer extends BaseRenderer {
   private getInfrastructureSprites(tile: Tile, layer: 'terrain' | 'roads' | 'specials'): string[] {
     this.buildTileMap();
     const directions = [
+      { dx: -1, dy: -1, name: 'nw' },
       { dx: 0, dy: -1, name: 'n' },
       { dx: 1, dy: -1, name: 'ne' },
-      { dx: 1, dy: 0, name: 'e' },
-      { dx: 1, dy: 1, name: 'se' },
-      { dx: 0, dy: 1, name: 's' },
-      { dx: -1, dy: 1, name: 'sw' },
       { dx: -1, dy: 0, name: 'w' },
-      { dx: -1, dy: -1, name: 'nw' },
+      { dx: 1, dy: 0, name: 'e' },
+      { dx: -1, dy: 1, name: 'sw' },
+      { dx: 0, dy: 1, name: 's' },
+      { dx: 1, dy: 1, name: 'se' },
     ];
     const sprites: string[] = [];
     const addConnections = (property: 'hasRoad' | 'hasRailroad', prefix: string) => {
@@ -386,7 +372,7 @@ export class TerrainRenderer extends BaseRenderer {
     // Constants imported from freeciv constants module
     const num_cardinal_tileset_dirs = 4;
     const NUM_CORNER_DIRS = 4;
-    const cardinal_tileset_dirs = CARDINAL_TILESET_DIRS;
+    const dither_dirs = DIR4_TO_DIR8;
     const dither_offset_x = [48, 0, 48, 0]; // Dither offsets for N, E, S, W (half tile width for N/S)
     const dither_offset_y = [0, 24, 24, 0]; // Dither offsets for N, E, S, W (half tile height for E/S)
     const tileset_tile_height = this.tileHeight;
@@ -411,17 +397,15 @@ export class TerrainRenderer extends BaseRenderer {
                 for (let i = 0; i < num_cardinal_tileset_dirs; i++) {
                   if (
                     !tterrain_near ||
-                    !tterrain_near[cardinal_tileset_dirs[i]] ||
-                    !ts_tiles[tterrain_near[cardinal_tileset_dirs[i]]['graphic_str']]
+                    !tterrain_near[dither_dirs[i]] ||
+                    !ts_tiles[tterrain_near[dither_dirs[i]]['graphic_str']]
                   )
                     continue;
                   const near_dlp =
-                    tile_types_setup[
-                      'l' + l + '.' + tterrain_near[cardinal_tileset_dirs[i]]['graphic_str']
-                    ];
+                    tile_types_setup['l' + l + '.' + tterrain_near[dither_dirs[i]]['graphic_str']];
                   const terrain_near =
                     near_dlp && near_dlp['dither'] == true
-                      ? tterrain_near[cardinal_tileset_dirs[i]]['graphic_str']
+                      ? tterrain_near[dither_dirs[i]]['graphic_str']
                       : pterrain['graphic_str'];
                   const dither_tile = i + pterrain['graphic_str'] + '_' + terrain_near;
                   const x = dither_offset_x[i];
@@ -446,8 +430,12 @@ export class TerrainRenderer extends BaseRenderer {
 
               if (this_match_type && tterrain_near) {
                 for (let i = 0; i < num_cardinal_tileset_dirs; i++) {
-                  const dir = cardinal_tileset_dirs[i];
-                  if (!ts_tiles[tterrain_near[dir]['graphic_str']]) continue;
+                  // Freeciv-web's MATCH_SAME branch indexes the first four
+                  // entries of the DIR8 neighbor array directly. This is
+                  // intentionally different from the cardinal direction
+                  // list used by dither and CELL_CORNER matching.
+                  const dir = i;
+                  if (!tterrain_near[dir] || !ts_tiles[tterrain_near[dir]['graphic_str']]) continue;
                   const that =
                     ts_tiles[tterrain_near[dir]['graphic_str']]['layer' + l + '_match_type'];
                   if (that == this_match_type) {
@@ -491,44 +479,44 @@ export class TerrainRenderer extends BaseRenderer {
         // Direction helper functions from freeciv-web
         const dir_cw = (dir: number): number => {
           switch (dir) {
-            case 0:
-              return 1; // NORTH to NORTHEAST
             case 1:
-              return 2; // NORTHEAST to EAST
+              return 2; // NORTH to NORTHEAST
             case 2:
-              return 3; // EAST to SOUTHEAST
-            case 3:
-              return 4; // SOUTHEAST to SOUTH
+              return 4; // NORTHEAST to EAST
             case 4:
+              return 7; // EAST to SOUTHEAST
+            case 7:
+              return 6; // SOUTHEAST to SOUTH
+            case 6:
               return 5; // SOUTH to SOUTHWEST
             case 5:
-              return 6; // SOUTHWEST to WEST
-            case 6:
-              return 7; // WEST to NORTHWEST
-            case 7:
-              return 0; // NORTHWEST to NORTH
+              return 3; // SOUTHWEST to WEST
+            case 3:
+              return 0; // WEST to NORTHWEST
+            case 0:
+              return 1; // NORTHWEST to NORTH
           }
           return -1;
         };
 
         const dir_ccw = (dir: number): number => {
           switch (dir) {
-            case 0:
-              return 7; // NORTH to NORTHWEST
             case 1:
-              return 0; // NORTHEAST to NORTH
+              return 0; // NORTH to NORTHWEST
             case 2:
-              return 1; // EAST to NORTHEAST
-            case 3:
-              return 2; // SOUTHEAST to EAST
+              return 1; // NORTHEAST to NORTH
             case 4:
-              return 3; // SOUTH to SOUTHEAST
-            case 5:
-              return 4; // SOUTHWEST to SOUTH
-            case 6:
-              return 5; // WEST to SOUTHWEST
+              return 2; // EAST to NORTHEAST
             case 7:
-              return 6; // NORTHWEST to WEST
+              return 4; // SOUTHEAST to EAST
+            case 6:
+              return 7; // SOUTH to SOUTHEAST
+            case 5:
+              return 6; // SOUTHWEST to SOUTH
+            case 3:
+              return 5; // WEST to SOUTHWEST
+            case 0:
+              return 3; // NORTHWEST to WEST
           }
           return -1;
         };
@@ -681,22 +669,22 @@ export class TerrainRenderer extends BaseRenderer {
     this.tileMapBuilt = true;
   }
 
-  // Get neighboring tiles from the authoritative game map
-  // Returns 8 neighbors in DIR8 order: N, NE, E, SE, S, SW, W, NW
+  // Get neighboring tiles from the authoritative game map.
+  // Freeciv-web's DIR8 order is NW, N, NE, W, E, SW, S, SE.
   private getNeighboringTerrains(tile: Tile): any[] {
     this.buildTileMap();
 
     const neighbors = [];
-    // 8-directional neighbors: N, NE, E, SE, S, SW, W, NW (DIR8 order)
+    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:24-31,360-369
     const directions = [
-      { dx: 0, dy: -1 }, // 0: North
-      { dx: 1, dy: -1 }, // 1: Northeast
-      { dx: 1, dy: 0 }, // 2: East
-      { dx: 1, dy: 1 }, // 3: Southeast
-      { dx: 0, dy: 1 }, // 4: South
+      { dx: -1, dy: -1 }, // 0: Northwest
+      { dx: 0, dy: -1 }, // 1: North
+      { dx: 1, dy: -1 }, // 2: Northeast
+      { dx: -1, dy: 0 }, // 3: West
+      { dx: 1, dy: 0 }, // 4: East
       { dx: -1, dy: 1 }, // 5: Southwest
-      { dx: -1, dy: 0 }, // 6: West
-      { dx: -1, dy: -1 }, // 7: Northwest
+      { dx: 0, dy: 1 }, // 6: South
+      { dx: 1, dy: 1 }, // 7: Southeast
     ];
 
     for (const dir of directions) {
@@ -737,11 +725,33 @@ export class TerrainRenderer extends BaseRenderer {
     if (!this.mapWidth || !this.mapHeight) {
       return this.tileMap.get(`${tile.x + dx},${tile.y + dy}`) as Tile | undefined;
     }
+
+    // The browser reference does not reject an ISO edge neighbor immediately.
+    // map_pos_to_tile() shifts the other native axis before indexing when x
+    // crosses either finite edge. This is what lets the last/first diagonal
+    // map rows provide the corner terrain used by CELL_CORNER sprites.
+    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:215-219
+    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:341-350
+    const candidateX = tile.x + dx;
+    let candidateY = tile.y + dy;
+    if (this.wrapId === 0 && (candidateX < 0 || candidateX >= this.mapWidth)) {
+      candidateY += candidateX < 0 ? 1 : -1;
+
+      // Convert the reference's flat-array index back to a coordinate key.
+      // For x=-1 and x=xsize this yields the opposite edge tile while
+      // preserving the ISO diagonal seam adjustment above.
+      const flatIndex = candidateX + candidateY * this.mapWidth;
+      if (flatIndex < 0 || flatIndex >= this.mapWidth * this.mapHeight) return undefined;
+      const lookupX = ((flatIndex % this.mapWidth) + this.mapWidth) % this.mapWidth;
+      const lookupY = Math.floor(flatIndex / this.mapWidth);
+      return this.tileMap.get(`${lookupX},${lookupY}`) as Tile | undefined;
+    }
+
     const position = stepNativeMapPosition(
-      tile.x,
-      tile.y,
-      dx,
-      dy,
+      candidateX,
+      candidateY,
+      0,
+      0,
       this.mapWidth,
       this.mapHeight,
       this.topologyId,

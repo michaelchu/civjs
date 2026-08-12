@@ -20,7 +20,6 @@ export type MinimapCellMarker = {
 
 export interface MinimapCellAppearance {
   color: string;
-  opacity: number;
 }
 
 export const isMinimapMarkerVisible = (
@@ -48,7 +47,7 @@ export const getMinimapCellAppearance = (
   marker?: MinimapCellMarker
 ): MinimapCellAppearance => {
   if (!tile || !tile.known) {
-    return { color: MINIMAP_COLORS.unknown, opacity: 1 };
+    return { color: MINIMAP_COLORS.unknown };
   }
 
   if (
@@ -58,7 +57,6 @@ export const getMinimapCellAppearance = (
     return {
       color:
         marker.ownerId === currentPlayerId ? MINIMAP_COLORS.myCity : MINIMAP_COLORS.foreignCity,
-      opacity: tile.visible ? 1 : 0.55,
     };
   }
 
@@ -70,13 +68,9 @@ export const getMinimapCellAppearance = (
       color:
         marker.ownerId === currentPlayerId
           ? MINIMAP_COLORS.myUnit
-          : ownerColor || MINIMAP_COLORS.foreignUnit,
-      opacity: tile.visible ? 1 : 0.55,
+          : marker.ownerColor || MINIMAP_COLORS.foreignUnit,
     };
   }
 
-  return {
-    color: tile.owner && ownerColor ? ownerColor : terrainColor,
-    opacity: tile.visible ? 1 : 0.55,
-  };
+  return { color: tile.owner && ownerColor ? ownerColor : terrainColor };
 };

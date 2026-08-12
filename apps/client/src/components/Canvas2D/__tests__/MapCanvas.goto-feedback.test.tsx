@@ -64,6 +64,7 @@ vi.mock('../MapRenderer', () => ({
     render(...args: unknown[]) {
       mapRendererRender(...args);
     }
+    setRenderCompleteListener() {}
     setFogOfWarEnabled() {}
     canvasToMap() {
       return { mapX: 1, mapY: 1 };
@@ -701,6 +702,14 @@ describe('MapCanvas Go To feedback', () => {
       width: 100,
       height: 100,
     });
+    expect(
+      (mapRendererRender.mock.calls.at(-1)?.[0] as { viewport?: unknown } | undefined)?.viewport
+    ).toEqual({
+      x: 60,
+      y: 40,
+      width: 100,
+      height: 100,
+    });
   });
 
   /**
@@ -813,6 +822,14 @@ describe('MapCanvas Go To feedback', () => {
       frames.shift()?.(1700);
     });
     expect(state.setViewport).toHaveBeenCalledWith({
+      x: 60,
+      y: 40,
+      width: 100,
+      height: 100,
+    });
+    expect(
+      (mapRendererRender.mock.calls.at(-1)?.[0] as { viewport?: unknown } | undefined)?.viewport
+    ).toEqual({
       x: 60,
       y: 40,
       width: 100,

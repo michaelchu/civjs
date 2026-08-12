@@ -43,24 +43,27 @@ export const readCanvasPixels = async (canvas: Locator): Promise<CanvasPixels> =
     };
   });
 
-/** Read the reference overview image without including its viewport overlay. */
-export const readReferenceOverviewPixels = async (page: Page): Promise<CanvasPixels> =>
+/** Read the reference overview image after its CSS dimensions are applied. */
+export const readReferenceDisplayedOverviewPixels = async (page: Page): Promise<CanvasPixels> =>
   page.evaluate(() => {
     const image = document.getElementById('overview_img');
     if (!(image instanceof HTMLImageElement) || !image.complete || !image.naturalWidth) {
       throw new Error('Reference overview image is unavailable');
     }
+    const bounds = image.getBoundingClientRect();
+    const width = Math.round(bounds.width);
+    const height = Math.round(bounds.height);
+    if (!width || !height) throw new Error('Reference overview image has no displayed dimensions');
     const canvas = document.createElement('canvas');
-    canvas.width = image.naturalWidth;
-    canvas.height = image.naturalHeight;
+    canvas.width = width;
+    canvas.height = height;
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Reference overview canvas context is unavailable');
-    context.imageSmoothingEnabled = false;
-    context.drawImage(image, 0, 0);
+    context.drawImage(image, 0, 0, width, height);
     return {
-      width: canvas.width,
-      height: canvas.height,
-      data: Array.from(context.getImageData(0, 0, canvas.width, canvas.height).data),
+      width,
+      height,
+      data: Array.from(context.getImageData(0, 0, width, height).data),
     };
   });
 
@@ -141,56 +144,9 @@ const unknownReferenceTile = (x: number, y: number): ReferenceParityTile => ({
   visible: false,
 });
 
-export const nativeToReferenceLogicalPosition = (
-  nativeX: number,
-  nativeY: number,
-  nativeWidth: number
-): { x: number; y: number } => {
-  const x = Math.floor((nativeY + (nativeY & 1)) / 2 + nativeX);
-  return { x, y: nativeY - x + nativeWidth };
-};
-
 /**
- * Adapt CivJS native ISO coordinates to the logical coordinates consumed by
- * the Freeciv-web 2D painter. The adapter is test-only; it lets both clients
- * paint the same tile fixture without changing either production map model.
- *
- * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:233-250
- */
-export const createLogicalIsometricReferenceFixture = (
-  tiles: ReferenceParityTile[],
-  nativeWidth: number,
-  nativeHeight: number
-): ReferenceMapFixture => {
-  const logicalWidth = nativeWidth + Math.ceil(nativeHeight / 2);
-  const logicalHeight = logicalWidth;
-  const projectedTiles = Array.from({ length: logicalWidth * logicalHeight }, (_, index) =>
-    unknownReferenceTile(index % logicalWidth, Math.floor(index / logicalWidth))
-  );
-
-  for (const tile of tiles) {
-    const { x: logicalX, y: logicalY } = nativeToReferenceLogicalPosition(
-      tile.x,
-      tile.y,
-      nativeWidth
-    );
-    if (logicalX < 0 || logicalX >= logicalWidth || logicalY < 0 || logicalY >= logicalHeight) {
-      throw new Error(`ISO fixture tile (${tile.x},${tile.y}) projected outside the reference map`);
-    }
-    projectedTiles[logicalX + logicalY * logicalWidth] = {
-      ...tile,
-      x: logicalX,
-      y: logicalY,
-    };
-  }
-
-  return { tiles: projectedTiles, width: logicalWidth, height: logicalHeight };
-};
-
-/**
- * Adapt the same native fixture to Freeciv-web's rectangular overview grid.
- * The world painter needs logical ISO coordinates, while overview.js indexes
- * one rectangular cell per map-coordinate tile.
+ * Adapt the fixture to Freeciv-web's rectangular overview grid.
+ * overview.js indexes one rectangular cell per map-coordinate tile.
  */
 export const createRectangularReferenceOverviewFixture = (
   tiles: ReferenceParityTile[],
@@ -237,7 +193,7 @@ const REFERENCE_PAGE_HTML = `
     #canvas { display: block; }
     #overview { position: absolute; left: 0; top: ${PARITY_VIEWPORT.height + 20}px; width: ${PARITY_MINIMAP_SIZE}px; height: ${PARITY_MINIMAP_SIZE}px; }
     #overview_map { position: relative; width: ${PARITY_MINIMAP_SIZE}px; height: ${PARITY_MINIMAP_SIZE}px; overflow: hidden; }
-    #overview_img, #overview_viewrect { position: absolute; left: 0; top: 0; image-rendering: pixelated; }
+    #overview_img, #overview_viewrect { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
   </style>
   <canvas id="canvas" width="${PARITY_VIEWPORT.width}" height="${PARITY_VIEWPORT.height}"></canvas>
   <div id="overview">
@@ -448,8 +404,14 @@ export const renderFreecivWebFixture = async (
           },
         }));
         window.tiles = tileObjects;
-        const tileLookup = new Map(tileObjects.map(tile => [`${tile.x},${tile.y}`, tile] as const));
-        window.map_pos_to_tile = (x, y) => tileLookup.get(`${x},${y}`) ?? null;
+        window.map_pos_to_tile = (x, y) => {
+          // Preserve the legacy map_pos_to_tile() finite ISO edge adjustment
+          // used by the browser painter. The test fixture must exercise the
+          // same boundary lookup as the production reference scripts.
+          if (x >= fixtureWidth) y -= 1;
+          else if (x < 0) y += 1;
+          return tileObjects[x + y * fixtureWidth] ?? null;
+        };
       };
 
       installMapFixture(referenceTiles, width, height);
