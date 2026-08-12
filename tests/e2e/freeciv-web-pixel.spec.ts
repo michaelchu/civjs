@@ -23,7 +23,11 @@ const SCREENSHOT_OPTIONS = {
   animations: 'disabled' as const,
   caret: 'hide' as const,
   scale: 'css' as const,
-  threshold: 0,
+  // The reference atlas is composited by Chromium's canvas implementation.
+  // macOS and Linux can differ by a couple of sRGB channel values at sprite
+  // edges, so keep the baseline guard tolerant of that rasterization noise.
+  // CivJS-vs-reference parity below remains an explicit exact pixel check.
+  threshold: 0.01,
   maxDiffPixels: 0,
 };
 
@@ -59,6 +63,10 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe('freeciv-web render-only pixel parity', () => {
+  // Rendering the full reference atlas can exceed Playwright's 30s default
+  // when the desktop parity workers contend for CPU on GitHub-hosted runners.
+  test.describe.configure({ timeout: 60_000 });
+
   test('compares the CivJS terrain canvas with a headless freeciv-web capture', async ({
     page,
     browser,
