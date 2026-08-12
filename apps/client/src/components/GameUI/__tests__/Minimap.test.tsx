@@ -367,14 +367,14 @@ describe('Minimap', () => {
     expect(cancelFrame).toHaveBeenCalledWith(expect.any(Number));
   });
 
-  it('uses natural/display dimensions with square ISO tile footprints', () => {
-    expect(getMinimapLayout(32, 64, 12)).toEqual({
+  it('uses Freeciv-web rectangular overview dimensions for ISO maps', () => {
+    expect(getMinimapLayout(32, 64)).toEqual({
       tileSize: 4.6875,
       width: 150,
       height: 300,
-      scaleX: 2.34375,
+      scaleX: 4.6875,
       scaleY: 4.6875,
-      coordinateWidth: 64,
+      coordinateWidth: 32,
       coordinateHeight: 64,
     });
     expect(getMinimapLayout(80, 50)).toEqual({
@@ -386,68 +386,68 @@ describe('Minimap', () => {
       coordinateWidth: 80,
       coordinateHeight: 50,
     });
-    expect(getMinimapLayout(100, 400, 12)).toEqual({
+    expect(getMinimapLayout(100, 400)).toEqual({
       tileSize: 0.75,
       width: 75,
       height: 300,
-      scaleX: 0.375,
+      scaleX: 0.75,
       scaleY: 0.75,
-      coordinateWidth: 200,
+      coordinateWidth: 100,
       coordinateHeight: 400,
     });
 
-    expect(getMinimapLayout(80, 50, 12)).toMatchObject({
+    expect(getMinimapLayout(80, 50)).toMatchObject({
       width: 240,
       height: 150,
-      scaleX: 1.5,
+      scaleX: 3,
       scaleY: 3,
-      coordinateWidth: 160,
+      coordinateWidth: 80,
       coordinateHeight: 50,
     });
 
-    const isoLayout = getMinimapLayout(32, 64, 12);
-    expect(isoLayout.scaleX * 2).toBe(isoLayout.scaleY);
+    const isoLayout = getMinimapLayout(32, 64);
+    expect(isoLayout.scaleX).toBe(isoLayout.scaleY);
   });
 
-  it('maps natural/display overview clicks back to native ISO tile storage', () => {
-    const layout = getMinimapLayout(32, 64, 12);
+  it('maps rectangular overview clicks back to native ISO tile storage', () => {
+    const layout = getMinimapLayout(32, 64);
     const native = { x: 16, y: 32 };
-    const display = nativeToMinimapPosition(native.x, native.y, 32, 64, 12);
-    const pixel = nativeToMinimapPixelPosition(16, 32, 32, 64, 12, layout);
-    expect(minimapPointToMapTile(pixel.x, pixel.y, 32, 64, layout, 12, 3)).toEqual(native);
-    expect(display).toEqual({ x: 32, y: 32 });
+    const display = nativeToMinimapPosition(native.x, native.y);
+    const pixel = nativeToMinimapPixelPosition(16, 32, layout);
+    expect(minimapPointToMapTile(pixel.x, pixel.y, 32, 64, layout, 3)).toEqual(native);
+    expect(display).toEqual(native);
   });
 
-  it('places native ISO tiles in natural/display coordinates', () => {
-    expect(nativeToMinimapPosition(0, 0, 32, 64, 12)).toEqual({ x: 0, y: 0 });
-    expect(nativeToMinimapPosition(0, 1, 32, 64, 12)).toEqual({ x: 1, y: 1 });
-    expect(nativeToMinimapPosition(0, 2, 32, 64, 12)).toEqual({ x: 0, y: 2 });
-    expect(nativeToMinimapPosition(16, 32, 32, 64, 12)).toEqual({ x: 32, y: 32 });
-    expect(nativeToMinimapPosition(31, 63, 32, 64, 12)).toEqual({ x: 63, y: 63 });
+  it('places native ISO tiles in rectangular overview coordinates', () => {
+    expect(nativeToMinimapPosition(0, 0)).toEqual({ x: 0, y: 0 });
+    expect(nativeToMinimapPosition(0, 1)).toEqual({ x: 0, y: 1 });
+    expect(nativeToMinimapPosition(0, 2)).toEqual({ x: 0, y: 2 });
+    expect(nativeToMinimapPosition(16, 32)).toEqual({ x: 16, y: 32 });
+    expect(nativeToMinimapPosition(31, 63)).toEqual({ x: 31, y: 63 });
   });
 
-  it('keeps native ISO east and south adjacent in natural/display coordinates', () => {
-    const base = nativeToMinimapPosition(10, 20, 32, 64, 12);
-    const east = nativeToMinimapPosition(11, 20, 32, 64, 12);
-    const south = nativeToMinimapPosition(10, 21, 32, 64, 12);
+  it('keeps native ISO east and south adjacent in rectangular overview coordinates', () => {
+    const base = nativeToMinimapPosition(10, 20);
+    const east = nativeToMinimapPosition(11, 20);
+    const south = nativeToMinimapPosition(10, 21);
 
-    expect(east).toEqual({ x: base.x + 2, y: base.y });
-    expect(south).toEqual({ x: base.x + 1, y: base.y + 1 });
+    expect(east).toEqual({ x: base.x + 1, y: base.y });
+    expect(south).toEqual({ x: base.x, y: base.y + 1 });
   });
 
-  it('maps every native ISO tile to exactly one displayed overview position and back', () => {
-    const layout = getMinimapLayout(32, 64, 12);
+  it('maps every native ISO tile to exactly one rectangular overview position and back', () => {
+    const layout = getMinimapLayout(32, 64);
     const positions = new Set<string>();
 
     for (let y = 0; y < 64; y += 1) {
       for (let x = 0; x < 32; x += 1) {
-        const position = nativeToMinimapPosition(x, y, 32, 64, 12);
+        const position = nativeToMinimapPosition(x, y);
         expect(position.x).toBeGreaterThanOrEqual(0);
         expect(position.x).toBeLessThan(layout.coordinateWidth);
         expect(position.y).toBeGreaterThanOrEqual(0);
         expect(position.y).toBeLessThan(layout.coordinateHeight);
         positions.add(`${position.x},${position.y}`);
-        expect(minimapPositionToNative(position.x, position.y, 32, 64, 12, 3)).toEqual({
+        expect(minimapPositionToNative(position.x, position.y, 32, 64, 3)).toEqual({
           x,
           y,
         });
@@ -457,22 +457,22 @@ describe('Minimap', () => {
     expect(positions.size).toBe(32 * 64);
   });
 
-  it('centers ISO markers in the same displayed cells as their terrain', () => {
-    const layout = getMinimapLayout(32, 64, 12);
-    const cell = nativeToMinimapPosition(16, 32, 32, 64, 12);
+  it('centers ISO markers in the same rectangular cells as their terrain', () => {
+    const layout = getMinimapLayout(32, 64);
+    const cell = nativeToMinimapPosition(16, 32);
 
-    expect(nativeToMinimapPixelPosition(16, 32, 32, 64, 12, layout)).toEqual({
-      x: (cell.x + 1) * layout.scaleX,
+    expect(nativeToMinimapPixelPosition(16, 32, layout)).toEqual({
+      x: (cell.x + 0.5) * layout.scaleX,
       y: (cell.y + 0.5) * layout.scaleY,
     });
   });
 
-  it('draws wrapped ISO tiles and markers across the natural horizontal seam', () => {
-    const layout = getMinimapLayout(4, 4, 12);
-    const origins = getMinimapTileOrigins(3, 1, 4, 4, 12, 3, layout);
+  it('draws wrapped ISO tiles and markers across the rectangular horizontal seam', () => {
+    const layout = getMinimapLayout(4, 4);
+    const origins = getMinimapTileOrigins(3, 1, 4, 4, 3, layout);
 
-    expect(origins).toContainEqual({ x: -25, y: 50 });
-    expect(origins).toContainEqual({ x: 175, y: 50 });
+    expect(origins).toContainEqual({ x: -50, y: 50 });
+    expect(origins).toContainEqual({ x: 150, y: 50 });
   });
 
   it('projects GUI coordinates with the active tileset half-tile origin', () => {
@@ -496,7 +496,7 @@ describe('Minimap', () => {
   });
 
   it('projects an ISO viewport as a rotated diamond', () => {
-    const layout = getMinimapLayout(32, 64, 12);
+    const layout = getMinimapLayout(32, 64);
     const polygons = getMinimapViewportPolygons(
       { x: -432, y: 1296, width: 960, height: 480 },
       32,
@@ -509,10 +509,10 @@ describe('Minimap', () => {
     );
 
     expect(polygons[0]).toEqual([
-      { x: 75, y: 56.25 },
-      { x: 98.4375, y: 150 },
-      { x: 75, y: 243.75 },
-      { x: 51.5625, y: 150 },
+      { x: 103.125, y: 150 },
+      { x: 150, y: 103.125 },
+      { x: 196.875, y: 150 },
+      { x: 150, y: 196.875 },
     ]);
     expect(polygons).toHaveLength(9);
   });

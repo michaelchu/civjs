@@ -8,7 +8,6 @@
 import React, { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { getMapRenderTileSize, subscribeMapRenderTileSize } from '../Canvas2D/mapRenderMetrics';
-import { isIsometricTopology } from '../Canvas2D/mapTopologyGeometry';
 import { HudPanel } from './HudPanel';
 import {
   getMinimapCellAppearance,
@@ -78,7 +77,7 @@ export const Minimap: React.FC = () => {
   const nativeHeight = map.ysize ?? map.height;
   const topologyId = map.topology_id ?? 0;
   const wrapId = map.wrap_id ?? 0;
-  const layout = getMinimapLayout(nativeWidth ?? 0, nativeHeight ?? 0, topologyId);
+  const layout = getMinimapLayout(nativeWidth ?? 0, nativeHeight ?? 0);
 
   const drawBase = useCallback(() => {
     const canvas = baseCanvasRef.current;
@@ -101,15 +100,11 @@ export const Minimap: React.FC = () => {
       const key = `${unit.x},${unit.y}`;
       if (!unitsByCoordinate.has(key)) unitsByCoordinate.set(key, unit);
     }
-    const isIso = isIsometricTopology(topologyId);
-    const displayedTileWidth = isIso ? layout.scaleX * 2 : layout.scaleX;
     const markerPositions = (x: number, y: number) =>
-      getMinimapTileOrigins(x, y, nativeWidth, nativeHeight, topologyId, wrapId, layout).map(
-        origin => ({
-          x: origin.x + displayedTileWidth / 2,
-          y: origin.y + layout.scaleY / 2,
-        })
-      );
+      getMinimapTileOrigins(x, y, nativeWidth, nativeHeight, wrapId, layout).map(origin => ({
+        x: origin.x + layout.scaleX / 2,
+        y: origin.y + layout.scaleY / 2,
+      }));
 
     for (const tile of tiles) {
       if (!tile.known) continue;
@@ -118,7 +113,6 @@ export const Minimap: React.FC = () => {
         tile.y,
         nativeWidth,
         nativeHeight,
-        topologyId,
         wrapId,
         layout
       );
@@ -142,7 +136,7 @@ export const Minimap: React.FC = () => {
         );
         context.globalAlpha = appearance.opacity;
         context.fillStyle = appearance.color;
-        context.fillRect(origin.x, origin.y, displayedTileWidth + 0.5, layout.scaleY + 0.5);
+        context.fillRect(origin.x, origin.y, layout.scaleX, layout.scaleY);
       }
     }
     context.globalAlpha = 1;
@@ -205,7 +199,6 @@ export const Minimap: React.FC = () => {
     players,
     selectedCityId,
     selectedUnitId,
-    topologyId,
     wrapId,
     units,
   ]);
@@ -285,15 +278,7 @@ export const Minimap: React.FC = () => {
     const rect = canvas.getBoundingClientRect();
     const localX = ((clientX - rect.left) / (rect.width || layout.width)) * layout.width;
     const localY = ((clientY - rect.top) / (rect.height || layout.height)) * layout.height;
-    const point = minimapPointToMapTile(
-      localX,
-      localY,
-      nativeWidth,
-      nativeHeight,
-      layout,
-      topologyId,
-      wrapId
-    );
+    const point = minimapPointToMapTile(localX, localY, nativeWidth, nativeHeight, layout, wrapId);
     document.dispatchEvent(
       new CustomEvent('center-map-on-tile', {
         detail: {

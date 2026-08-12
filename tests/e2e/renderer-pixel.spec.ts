@@ -1,46 +1,7 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import { hideGameHud, prepareIsometricFixture } from './support/isometricParityFixture';
+import { PARITY_VIEWPORT } from './support/parityConstants';
 import { installRulesetRoutes } from './support/rulesetRoutes';
-
-const VIEWPORT_WIDTH = 1280;
-const VIEWPORT_HEIGHT = 720;
-const REDUCED_MOTION_PREFERENCES = JSON.stringify({
-  muted: true,
-  volume: 0,
-  reducedMotion: true,
-  disableFogOfWar: false,
-  cityReportColumns: ['name', 'status', 'size', 'growth', 'resources', 'economy', 'production'],
-  cityWorklistPresets: [],
-});
-
-const waitForStableCanvasFrames = async (page: Page) => {
-  await page.evaluate(
-    () =>
-      new Promise<void>(resolve => {
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-      })
-  );
-};
-
-const prepareIsometricFixture = async (page: Page) => {
-  await page.setViewportSize({ width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT });
-  await page.addInitScript(preferences => {
-    localStorage.setItem('civjs:user-preferences:v2', preferences);
-  }, REDUCED_MOTION_PREFERENCES);
-  await page.goto('/test/browser-parity?visual=isometric');
-  await expect(page.locator('canvas[aria-label="World map"]')).toHaveAttribute(
-    'data-renderer-ready',
-    'true'
-  );
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const fixtureMap = (window as unknown as { map?: { topology_id?: number } }).map;
-        return fixtureMap?.topology_id ?? 0;
-      })
-    )
-    .toBe(4);
-  await waitForStableCanvasFrames(page);
-};
 
 test.beforeEach(async ({ page }) => {
   await installRulesetRoutes(page);
@@ -56,13 +17,11 @@ test.describe('isometric map pixel parity', () => {
       width: canvas.width,
       height: canvas.height,
     }));
-    expect(canvasSize).toEqual({ width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT });
+    expect(canvasSize).toEqual(PARITY_VIEWPORT);
 
     // The pixel baseline is for the map renderer only. Keep the real app shell
     // mounted, but remove the custom HUD layer from the clipped canvas region.
-    await page.locator('[data-game-hud]').evaluate(element => {
-      (element as HTMLElement).style.display = 'none';
-    });
+    await hideGameHud(page);
 
     await expect(map).toHaveScreenshot('isometric-world-map.png', {
       animations: 'disabled',
@@ -72,7 +31,7 @@ test.describe('isometric map pixel parity', () => {
     });
   });
 
-  test('matches the isometric minimap orientation and white viewport outline', async ({
+  test('matches the rectangular minimap raster and isometric viewport outline', async ({
     page,
   }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium-desktop', 'Pixel baselines are desktop-only.');

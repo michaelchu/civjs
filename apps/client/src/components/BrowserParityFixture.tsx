@@ -2,7 +2,7 @@
  * @module client/components/BrowserParityFixture
  * Defines the Browser Parity Fixture client UI component.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { City, Tile } from '../types';
 import { useGameStore } from '../store/gameStore';
 import { GameLayout } from './GameUI/GameLayout';
@@ -47,6 +47,10 @@ const seedFixture = (): void => {
   const query = new URLSearchParams(window.location.search);
   const showEndGame = query.get('state') === 'endgame';
   const isometricVisual = query.get('visual') === 'isometric';
+  const parityMode = query.get('parity');
+  const referenceParityVisual =
+    isometricVisual && (parityMode === 'reference' || parityMode === 'reference-base');
+  const referenceBaseVisual = isometricVisual && parityMode === 'reference-base';
   const mapWidth = isometricVisual ? 48 : 5;
   const mapHeight = isometricVisual ? 48 : 5;
   const cityX = isometricVisual ? 24 : 2;
@@ -65,15 +69,16 @@ const seedFixture = (): void => {
   const tiles: Tile[] = [];
   for (let y = 0; y < mapHeight; y += 1) {
     for (let x = 0; x < mapWidth; x += 1) {
-      const isVisualRiver = isometricVisual && x === 23 && y === 23;
-      const isVisualCoastOutlet = isometricVisual && x === 24 && y === 23;
+      const isVisualRiver = isometricVisual && !referenceBaseVisual && x === 23 && y === 23;
+      const isVisualCoastOutlet = isometricVisual && !referenceBaseVisual && x === 24 && y === 23;
       const visualTerrain = isVisualCoastOutlet
         ? 'coast'
         : isVisualRiver
           ? 'plains'
           : terrain[(x + y * 2) % terrain.length];
-      const visualOwner =
-        isometricVisual && x >= 12 && x <= 36 && y >= 12 && y <= 36
+      const visualOwner = referenceParityVisual
+        ? undefined
+        : isometricVisual && x >= 12 && x <= 36 && y >= 12 && y <= 36
           ? 'player-one'
           : isometricVisual && x >= 38 && y >= 12 && y <= 34
             ? 'player-two'
@@ -85,28 +90,42 @@ const seedFixture = (): void => {
         visible: isometricVisual ? !(x === mapWidth - 1 && y === 0) : !(x === 4 && y === 0),
         known: isometricVisual ? !(x === mapWidth - 1 && y === 1) : !(x === 4 && y === 1),
         resource: isometricVisual
-          ? x === 26 && y === 22
+          ? !referenceBaseVisual && x === 26 && y === 22
             ? 'gold'
             : undefined
           : x === 3 && y === 2
             ? 'gold'
             : undefined,
-        riverMask: isVisualRiver ? 2 : x === 1 && y === 2 ? 10 : undefined,
-        hasRoad: isometricVisual ? y === 25 && x >= 15 && x <= 33 : y === 3,
-        hasRailroad: isometricVisual ? y === 26 && x >= 17 && x <= 31 : y === 4,
-        improvements: isometricVisual
-          ? x === 22 && y === 25
-            ? ['irrigation']
-            : []
-          : x === 1 && y === 1
-            ? ['irrigation']
-            : [],
-        owner: visualOwner ?? (x >= 1 && x <= 3 ? 'player-one' : undefined),
+        riverMask: isVisualRiver ? 2 : !isometricVisual && x === 1 && y === 2 ? 10 : undefined,
+        hasRoad: referenceBaseVisual
+          ? false
+          : isometricVisual
+            ? y === 25 && x >= 15 && x <= 33
+            : y === 3,
+        hasRailroad: referenceBaseVisual
+          ? false
+          : isometricVisual
+            ? y === 26 && x >= 17 && x <= 31
+            : y === 4,
+        improvements: referenceBaseVisual
+          ? []
+          : isometricVisual
+            ? x === 22 && y === 25
+              ? ['irrigation']
+              : []
+            : x === 1 && y === 1
+              ? ['irrigation']
+              : [],
+        owner: referenceParityVisual
+          ? undefined
+          : (visualOwner ?? (x >= 1 && x <= 3 ? 'player-one' : undefined)),
       });
     }
   }
   const city = makeCity(cityX, cityY);
-  tiles.find(tile => tile.x === city.x && tile.y === city.y)!.cityId = city.id;
+  if (!referenceParityVisual) {
+    tiles.find(tile => tile.x === city.x && tile.y === city.y)!.cityId = city.id;
+  }
 
   Object.assign(window, {
     map: { xsize: mapWidth, ysize: mapHeight, topology_id: TOPOLOGY_ISO, wrap_id: 0 },
@@ -159,36 +178,38 @@ const seedFixture = (): void => {
       wrap_id: 0,
       tiles: Object.fromEntries(tiles.map(tile => [`${tile.x},${tile.y}`, tile])),
     },
-    cities: { [city.id]: city },
-    units: {
-      'unit-one': {
-        id: 'unit-one',
-        playerId: 'player-one',
-        unitTypeId: 'warriors',
-        x: cityX,
-        y: cityY,
-        hp: 80,
-        movesLeft: 1,
-        maxMoves: 1,
-        veteranLevel: 0,
-        fortified: true,
-      },
-      ...(isometricVisual
-        ? {
-            'unit-two': {
-              id: 'unit-two',
-              playerId: 'player-two',
-              unitTypeId: 'warriors',
-              x: 30,
-              y: 23,
-              hp: 50,
-              movesLeft: 1,
-              maxMoves: 1,
-              veteranLevel: 1,
-            },
-          }
-        : {}),
-    },
+    cities: referenceParityVisual ? {} : { [city.id]: city },
+    units: referenceParityVisual
+      ? {}
+      : {
+          'unit-one': {
+            id: 'unit-one',
+            playerId: 'player-one',
+            unitTypeId: 'warriors',
+            x: cityX,
+            y: cityY,
+            hp: 80,
+            movesLeft: 1,
+            maxMoves: 1,
+            veteranLevel: 0,
+            fortified: true,
+          },
+          ...(isometricVisual
+            ? {
+                'unit-two': {
+                  id: 'unit-two',
+                  playerId: 'player-two',
+                  unitTypeId: 'warriors',
+                  x: 30,
+                  y: 23,
+                  hp: 50,
+                  movesLeft: 1,
+                  maxMoves: 1,
+                  veteranLevel: 1,
+                },
+              }
+            : {}),
+        },
     research: {
       currentTech: 'writing',
       bulbsAccumulated: 20,
@@ -282,11 +303,21 @@ const seedFixture = (): void => {
           ],
         }
       : undefined,
-    viewport: { x: -400, y: -250, width: 800, height: 600 },
+    viewport: referenceBaseVisual
+      ? { x: -400, y: -250, width: window.innerWidth, height: window.innerHeight }
+      : referenceParityVisual
+        ? { x: -592, y: 1392, width: window.innerWidth, height: window.innerHeight }
+        : { x: -400, y: -250, width: 800, height: 600 },
   });
 };
 
 export const BrowserParityFixture = () => {
   useState(seedFixture);
+  const viewport = useGameStore(state => state.viewport);
+
+  useEffect(() => {
+    Object.assign(window, { viewport });
+  }, [viewport]);
+
   return <GameLayout rulesetName="civ2civ3" />;
 };
