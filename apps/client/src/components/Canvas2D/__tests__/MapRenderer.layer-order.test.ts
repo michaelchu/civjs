@@ -301,4 +301,69 @@ describe('MapRenderer painter order', () => {
     expect(tileOrder(unitEntries.mock.calls[0]?.[0])).toEqual(['1,0', '0,0']);
     expect(tileOrder(pathEntries.mock.calls[0]?.[0])).toEqual(['1,0', '0,0']);
   });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:449-472
+   * @assertion Square-ISO CITYBAR commands remain adjacent per tile in the
+   * global painter walk, so city text precedes that same tile's work-output
+   * sprites before the renderer advances to the next tile or wrapped copy.
+   */
+  it('keeps square-isometric city-bar composition adjacent per painter tile', () => {
+    const renderer = new MapRenderer(createContext());
+    const state = createState();
+    state.map.topology_id = 1;
+    state.map.height = 2;
+    state.map.ysize = 2;
+    const second = { x: 1, y: 0, terrain: 'desert', known: true, visible: true };
+    state.map.tiles['1,0'] = second;
+    const overlayTiles: string[] = [];
+
+    Object.assign(renderer as unknown as Record<string, unknown>, {
+      currentMap: state.map,
+      fogOfWarEnabled: false,
+      terrainRenderer: {
+        renderTerrainEntries: vi.fn(),
+        renderSpecials: vi.fn(),
+        renderSpecial2: vi.fn(),
+        renderSpecial3: vi.fn(),
+        renderTileLabels: vi.fn(),
+      },
+      borderRenderer: { render: vi.fn() },
+      cityRenderer: {
+        renderCityEntries: vi.fn(),
+        renderCityOverlayEntries: vi.fn(
+          (entries: Array<{ tile: RenderState['map']['tiles'][string] }>) => {
+            expect(entries).toHaveLength(1);
+            overlayTiles.push(`${entries[0].tile.x},${entries[0].tile.y}`);
+          }
+        ),
+      },
+      unitRenderer: { renderUnitLayerEntries: vi.fn() },
+      presentationEffectRenderer: {
+        getUnitOverrides: () => ({}),
+        renderUnitEffectsForTile: () => false,
+        renderGotoEffectsForTile: () => false,
+      },
+      fogRenderer: { render: vi.fn() },
+      pathRenderer: { renderPathLayerEntries: vi.fn() },
+    });
+
+    const renderMapViews = (
+      renderer as unknown as {
+        renderMapViews: (
+          views: Array<{
+            state: RenderState;
+            visibleTiles: RenderState['map']['tiles'][string][];
+            isPrimary?: boolean;
+          }>
+        ) => boolean;
+      }
+    ).renderMapViews;
+    renderMapViews.call(renderer, [
+      { state, visibleTiles: [state.map.tiles['0,0'], second], isPrimary: true },
+    ]);
+
+    expect(overlayTiles).toEqual(['0,0', '1,0']);
+  });
 });

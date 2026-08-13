@@ -26,6 +26,7 @@ describe('BorderRenderer player colors', () => {
       beginPath: vi.fn(),
       moveTo: vi.fn(),
       lineTo: vi.fn(),
+      closePath: vi.fn(),
       stroke: vi.fn(function (this: { strokeStyle: string }) {
         strokeColors.push(this.strokeStyle);
       }),
@@ -77,6 +78,8 @@ describe('BorderRenderer player colors', () => {
 
     expect(strokeColors).toContain('#00aa33');
     expect(strokeColors).not.toContain('#808080');
+    expect(context.setLineDash).toHaveBeenCalledWith([4, 4]);
+    expect(context.closePath).toHaveBeenCalled();
   });
 
   it('does not reveal borders on completely unknown tiles', () => {

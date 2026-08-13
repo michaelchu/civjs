@@ -37,7 +37,6 @@ export interface GraphicDefinition {
   act_gfx_alt2?: string;
   /** Suppress the nation shield for foreign units while actively playing. */
   flagless?: boolean;
-  offsets?: UnitOverlayOffsets;
 }
 
 export interface UnitOverlayOffsets {

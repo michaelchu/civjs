@@ -4,7 +4,6 @@
  */
 import { Router } from 'express';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
-import { resolveUnitOverlayOffsets } from '@game/services/UnitPresentationService';
 
 const router = Router();
 
@@ -36,7 +35,6 @@ export const buildRulesetPresentation = (ruleset: string) => {
           graphic: unit.graphic,
           graphic_alt: unit.graphic_alt,
           flagless: unit.flags.includes('Flagless'),
-          offsets: resolveUnitOverlayOffsets(unit.name ?? id),
         },
       ])
     ),

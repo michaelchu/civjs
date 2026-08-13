@@ -8,11 +8,14 @@ native layer policy, presentation offsets, and runtime selection are active.
 Square-isometric maps use Amplio2; C2C3's `ISO|HEX` topology `3` selects the
 native Hexemplio provider.
 
-Hexemplio is a reproducible package generated from pinned Freeciv revision
+Both built-in packages are reproducible. Amplio2 is generated from the
+Freeciv revision named by pinned freeciv-web and checked by
+`npm run check:amplio2-tileset`; Hexemplio is generated from pinned Freeciv
+revision
 `eb8c7033aa6a70dfcd4aee828c3ac1ba33092afc`. Its manifest and exact source PNGs
 are checked by `npm run check:hexemplio-tileset`, which is part of the root
-verification gate. The remaining package-provenance limitation applies to the
-older customized Amplio2 compatibility atlas, not the C2C3 runtime.
+verification gate. Both checks validate revisions, source metadata, geometry,
+offsets, sprite rectangles, images, and license artifacts.
 
 General manifest discovery, user-selectable fallback chains, and the Civ III
 importer remain future work.
@@ -176,14 +179,17 @@ future extension.
 
 `Amplio2TilesetProvider`:
 
-- Preserve current Amplio2 behavior and visual output.
-- Encapsulate the existing configuration, sprite tables, sheets, dimensions,
-  offsets, layer matching, and fallback tags.
-- Replaces direct renderer access to Amplio2 browser globals.
+- Loads the exact schema-1 package generated from the pinned browser config and
+  its matching historical Freeciv extractor output.
+- Encapsulates the generated sprite table, three exact atlas sheets, dimensions,
+  offsets, terrain matching, layer policy, and source revisions.
+- Replaces direct renderer access to Amplio2 browser globals and does not use a
+  cross-provider sprite fallback.
 - Is the intended complete fallback provider for future partial custom
   tilesets.
 
-Visual and sprite-selection regression tests protect that compatibility path.
+The package checker and strict render-only browser comparisons protect terrain,
+entities, wrapped seams, camera/minimap geometry, and transient effects.
 
 ## Hexemplio provider
 
@@ -284,8 +290,9 @@ Completed:
 
 1. Define provider, topology, geometry, composition, render-profile, and offset
    contracts.
-2. Move Amplio2 loading behind `Amplio2TilesetProvider` and protect it with a
-   synthetic provider plus visual regressions.
+2. Generate Amplio2 from its pinned browser/Freeciv source, load it behind
+   `Amplio2TilesetProvider`, and protect it with package, synthetic-provider,
+   and zero-diff browser regressions.
 3. Add topology-compatible runtime selection and the generated Hexemplio
    package/provider.
 4. Port native projection, terrain/extras, layer/fog, unit/city, border, and
@@ -304,7 +311,8 @@ Remaining for custom packages:
 
 The built-in provider foundation now satisfies:
 
-- Amplio2 renders with no intentional visual regression.
+- Amplio2 reproduces the pinned square-ISO browser painter for the covered
+  terrain, entity, wrapping, minimap/camera, and transient-effect fixtures.
 - The renderer contains no hard-coded Amplio2 asset paths.
 - Amplio2-specific matching data and offsets are provider-owned.
 - A synthetic second provider can be selected in tests without changing
@@ -313,9 +321,12 @@ The built-in provider foundation now satisfies:
   mismatch cannot silently render through the square-isometric strategy.
 - The built-in Hexemplio manifest records and reproducibly generates its spec
   list, sprites, offsets, policy, assets, license, and exact Freeciv revision.
+- The built-in Amplio2 manifest records and checks the browser revision,
+  historical Freeciv revision, extractor/config/patch hashes, generated spec,
+  exact atlases, sprite rectangles, offsets, policy, and license.
 
-Explicit cross-provider missing-asset fallback and reproducible Amplio2 package
-provenance remain future acceptance items for user-selectable custom tilesets.
+Explicit cross-provider missing-asset fallback remains a future acceptance item
+for user-selectable custom tilesets.
 
 C2C3 map presentation now has:
 

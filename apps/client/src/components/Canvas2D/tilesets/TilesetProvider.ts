@@ -84,7 +84,9 @@ export interface TilesetPresentationOffsets {
   stackY: number;
   cityX: number;
   cityY: number;
+  citybarX: number;
   citybarY: number;
+  tileLabelX: number;
   tileLabelY: number;
 }
 

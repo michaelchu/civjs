@@ -2,6 +2,7 @@ import { expect, type Page } from '@playwright/test';
 import {
   readReferenceOverviewTileColors,
   type CanvasPixels,
+  type ReferenceEntityFixture,
   type ReferenceParityTile,
   type ReferenceRenderViewport,
 } from './freecivWebRenderHarness';
@@ -15,7 +16,14 @@ import {
 } from '../../../apps/client/src/components/Canvas2D/mapTopologyGeometry';
 import { PARITY_VIEWPORT, REDUCED_MOTION_PREFERENCES } from './parityConstants';
 
-export type IsometricParityMode = 'visual' | 'reference' | 'reference-base' | 'native-reference';
+export type IsometricParityMode =
+  | 'visual'
+  | 'reference'
+  | 'reference-base'
+  | 'reference-entities'
+  | 'reference-effects'
+  | 'reference-wrapped'
+  | 'native-reference';
 
 export interface CivJsParityFixture {
   tiles: ReferenceParityTile[];
@@ -26,6 +34,8 @@ export interface CivJsParityFixture {
   /** Finite board-render fixture retained for strict legacy painter comparison. */
   referenceBoardTopologyId: number;
   viewport: ReferenceRenderViewport;
+  entities?: ReferenceEntityFixture;
+  effects?: { combat: { x: number; y: number }; nuclear: { x: number; y: number } };
 }
 
 export const waitForStableCanvasFrames = async (page: Page): Promise<void> => {
@@ -82,6 +92,8 @@ export const readCivJsParityFixture = async (page: Page): Promise<CivJsParityFix
       tiles?: ReferenceParityTile[];
       viewport?: ReferenceRenderViewport;
       __civjsParityGeometry?: { topologyId?: number; wrapId?: number };
+      __civjsParityEntities?: ReferenceEntityFixture;
+      __civjsParityEffects?: CivJsParityFixture['effects'];
     };
     const runtimeGeometry = globals.__civjsParityGeometry;
     return {
@@ -92,6 +104,8 @@ export const readCivJsParityFixture = async (page: Page): Promise<CivJsParityFix
       referenceBoardTopologyId: globals.map?.topology_id ?? 0,
       tiles: globals.tiles ?? [],
       viewport: globals.viewport,
+      entities: globals.__civjsParityEntities,
+      effects: globals.__civjsParityEffects,
     };
   });
 

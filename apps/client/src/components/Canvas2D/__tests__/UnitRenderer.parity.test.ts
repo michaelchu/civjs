@@ -57,7 +57,9 @@ const createProvider = (tags: string[]) => {
       stackY: 0,
       cityX: 0,
       cityY: 0,
+      citybarX: 0,
       citybarY: 0,
+      tileLabelX: 0,
       tileLabelY: 0,
     })),
   } as unknown as TilesetProvider;
@@ -109,7 +111,7 @@ describe('UnitRenderer parity contracts', () => {
    * @evidence parity
    * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:895-965,970-1065
    * @assertion A visible unit composes the nation flag, unit graphic, activity
-   * indicator, connection marker, health/stack overlays, and veteran badge
+   * indicator, health/stack overlays, and veteran badge
    * in the reference sprite-array order.
    */
   it('composes activity, identity, health, veteran, and stack sprites', () => {
@@ -120,11 +122,9 @@ describe('UnitRenderer parity contracts', () => {
         'f.shield.rome',
         'u.warriors',
         'unit.road',
-        'unit.connect',
         'unit.vet_2',
         'unit.hp_50',
-        'unit.stk_shld_l',
-        'unit.stack2',
+        'unit.stack',
       ]),
       96,
       48
@@ -140,10 +140,8 @@ describe('UnitRenderer parity contracts', () => {
       'f.shield.rome',
       'u.warriors',
       'unit.road',
-      'unit.connect',
       'unit.hp_50',
-      'unit.stk_shld_l',
-      'unit.stack2',
+      'unit.stack',
       'unit.vet_2',
     ]);
   });

@@ -50,7 +50,9 @@ function createSyntheticProvider(): TilesetProvider {
       stackY: 0,
       cityX: 0,
       cityY: 0,
+      citybarX: 0,
       citybarY: 0,
+      tileLabelX: 0,
       tileLabelY: 0,
     }),
   };

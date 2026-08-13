@@ -25,6 +25,64 @@ export interface ReferenceMapGeometry {
   wrapId: number;
 }
 
+export interface ReferenceUnitFixture {
+  id: string;
+  playerId: 'player-one' | 'player-two';
+  unitTypeId: string;
+  graphic: string;
+  graphicAlt: string;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  veteranLevel: number;
+  activity?:
+    | 'idle'
+    | 'cultivate'
+    | 'mine'
+    | 'irrigate'
+    | 'fortified'
+    | 'sentry'
+    | 'pillage'
+    | 'goto'
+    | 'transform'
+    | 'fortifying'
+    | 'clean'
+    | 'base'
+    | 'road'
+    | 'convert'
+    | 'plant';
+  automation?: 'worker' | 'explore';
+  actionDecisionWant?: boolean;
+  transported?: boolean;
+}
+
+export interface ReferenceCityFixture {
+  id: string;
+  playerId: 'player-one' | 'player-two';
+  x: number;
+  y: number;
+  name: string;
+  size: number;
+  graphic: string;
+  graphicAlt: string;
+  walls: boolean;
+  unhappy: boolean;
+  occupied: boolean;
+  production?: { unitTypeId: string };
+}
+
+export interface ReferenceEntityFixture {
+  units: ReferenceUnitFixture[];
+  cities: ReferenceCityFixture[];
+  showCitybar: boolean;
+}
+
+export interface ReferenceEffectFixture {
+  combat: { x: number; y: number };
+  nuclear: { x: number; y: number };
+}
+
 export interface CanvasPixels {
   width: number;
   height: number;
@@ -202,6 +260,7 @@ export interface ReferenceParityTile {
   hasRoad?: boolean;
   hasRailroad?: boolean;
   improvements?: string[];
+  label?: string;
 }
 
 const unknownReferenceTile = (x: number, y: number): ReferenceParityTile => ({
@@ -244,7 +303,7 @@ const referenceScriptPaths = [
   path.join(referenceJavascriptRoot, 'terrain.js'),
   path.join(referenceJavascriptRoot, '2dcanvas/tilespec.js'),
   path.join(referenceJavascriptRoot, '2dcanvas/tileset_config_amplio2.js'),
-  path.join(applicationAssetsRoot, 'js/2dcanvas/tileset_spec_amplio2.js'),
+  path.join(applicationAssetsRoot, 'tilesets/amplio2/tileset_spec_amplio2.js'),
   path.join(referenceJavascriptRoot, '2dcanvas/mapview.js'),
   path.join(referenceJavascriptRoot, '2dcanvas/mapview_common.js'),
   path.join(referenceJavascriptRoot, 'libs/bmp_lib.js'),
@@ -252,7 +311,10 @@ const referenceScriptPaths = [
 ];
 
 const atlasPaths = [0, 1, 2].map(index =>
-  path.join(applicationAssetsRoot, `tilesets/freeciv-web-tileset-amplio2-${index}.png`)
+  path.join(
+    applicationAssetsRoot,
+    `tilesets/amplio2/images/freeciv-web-tileset-amplio2-${index}.png`
+  )
 );
 
 const REFERENCE_PAGE_HTML = `
@@ -300,8 +362,30 @@ const REFERENCE_RUNTIME_SETUP = `
   // The render-only page deliberately supplies only the browser services that
   // the legacy map painter reads. It does not boot the Freeciv client, socket,
   // dialogs, or server.
-  window.find_visible_unit = () => null;
-  window.get_drawable_unit = () => null;
+  window.units = {};
+  window.unit_types = {};
+  window.tile_units = tile => tile?.units ?? [];
+  window.unit_type = unit => window.unit_types[unit.type];
+  window.unit_has_goto = () => false;
+  window.get_unit_anim_offset = () => ({ x: 0, y: 0 });
+  window.should_ask_server_for_actions = unit =>
+    unit?.action_decision_want === window.ACT_DEC_ACTIVE;
+  window.get_units_in_focus = () => window.current_focus;
+  window.get_focus_unit_on_tile = tile =>
+    window.current_focus.find(unit => unit.tile === tile?.index) ?? null;
+  window.find_visible_unit = tile => {
+    const units = window.tile_units(tile);
+    if (!tile || units.length === 0) return null;
+    const focused = window.get_focus_unit_on_tile(tile);
+    if (focused) return focused;
+    if (window.tile_city(tile)) return null;
+    return (
+      units.find(unit => Array.isArray(unit.anim_list) && unit.anim_list.length > 0) ??
+      units.find(unit => !unit.transported) ??
+      units[0]
+    );
+  };
+  window.get_drawable_unit = tile => window.find_visible_unit(tile);
   window.unit_is_in_focus = () => false;
   window.draw_units = false;
   window.draw_focus_unit = false;
@@ -317,6 +401,13 @@ const REFERENCE_RUNTIME_SETUP = `
   window.explosion_anim_map = {};
   window.city_rules = {};
   window.cities = {};
+  window.city_owner_player_id = city => city?.owner ?? null;
+  window.city_owner = city => window.players[window.city_owner_player_id(city)];
+  window.city_tile = city => window.index_to_tile(city?.tile);
+  window.get_city_production_type = city =>
+    city?.production_kind === window.VUT_UTYPE
+      ? window.unit_types[city.production_value]
+      : null;
   window.C_S_RUNNING = 2;
   window.C_S_OVER = 3;
   window.client_state = () => window.C_S_RUNNING;
@@ -330,11 +421,12 @@ const REFERENCE_RUNTIME_SETUP = `
     1: { id: 1, playerno: 1, nation: 1, name: 'Caesar' },
   };
   window.nations = {
-    0: { graphic_str: 'japanese', color: '#dc2626' },
-    1: { graphic_str: 'romans', color: '#2563eb' },
+    // overview.js passes these through color_rbg_to_list(), whose pinned
+    // wire-format contract is the server's rgb(r,g,b) string (not CSS hex).
+    0: { graphic_str: 'japan', color: 'rgb(220,38,38)' },
+    1: { graphic_str: 'rome', color: 'rgb(37,99,235)' },
   };
-  window.city_owner_player_id = city => city.owner;
-  window.is_city_center = () => false;
+  window.is_city_center = (city, tile) => city?.tile === tile?.index;
   window.EXTRA_RIVER = 0;
   window.EXTRA_ROAD = 1;
   window.EXTRA_RAIL = 2;
@@ -351,12 +443,36 @@ const REFERENCE_RUNTIME_SETUP = `
   window.EXTRA_BUOY = 13;
   window.EXTRA_RUINS = 14;
   window.extras = {
+    0: { graphic_str: 'road.river' },
+    1: { graphic_str: 'road.road' },
+    2: { graphic_str: 'road.rail' },
+    3: { graphic_str: 'tx.irrigation' },
     20: { graphic_str: 'ts.gold' },
   };
   window.terrain_control = {};
   window.ruleset_control = { num_extra_types: 15 };
   window.ruleset_units = {};
   window.SSA_NONE = 0;
+  window.SSA_AUTOWORKER = 1;
+  window.SSA_AUTOEXPLORE = 2;
+  window.UTYF_FLAGLESS = 29;
+  window.VUT_UTYPE = 61;
+  window.ACT_DEC_ACTIVE = 2;
+  window.ACTIVITY_IDLE = 0;
+  window.ACTIVITY_CULTIVATE = 1;
+  window.ACTIVITY_MINE = 2;
+  window.ACTIVITY_IRRIGATE = 3;
+  window.ACTIVITY_FORTIFIED = 4;
+  window.ACTIVITY_SENTRY = 5;
+  window.ACTIVITY_PILLAGE = 6;
+  window.ACTIVITY_GOTO = 7;
+  window.ACTIVITY_TRANSFORM = 9;
+  window.ACTIVITY_FORTIFYING = 10;
+  window.ACTIVITY_CLEAN = 11;
+  window.ACTIVITY_BASE = 12;
+  window.ACTIVITY_GEN_ROAD = 13;
+  window.ACTIVITY_CONVERT = 14;
+  window.ACTIVITY_PLANT = 15;
   // The reference BMP helper prefers window.btoa when available, but its
   // legacy binary-string path can contain non-Latin1 code units in Chromium.
   // Preserve the reference encoder's byte semantics while making the
@@ -405,6 +521,7 @@ const toReferenceTile = (tile: ReferenceParityTile, index: number) => {
     spec_sprite: null,
     goto_dir: null,
     nuke: 0,
+    label: tile.label ?? null,
   };
 };
 
@@ -425,7 +542,9 @@ export const renderFreecivWebFixture = async (
   mapHeight: number,
   viewport: ReferenceRenderViewport,
   overviewFixture?: ReferenceMapFixture,
-  geometry: ReferenceMapGeometry = { topologyId: 1, wrapId: 0 }
+  geometry: ReferenceMapGeometry = { topologyId: 1, wrapId: 0 },
+  entities?: ReferenceEntityFixture,
+  effects?: ReferenceEffectFixture
 ): Promise<void> => {
   const atlasUrls = await Promise.all(
     atlasPaths.map(async atlasPath => {
@@ -447,7 +566,10 @@ export const renderFreecivWebFixture = async (
       minimapSize,
       overview: overviewFixture,
       boardTopologyId,
+      boardWrapId,
       overviewWrapId,
+      entities,
+      effects,
     }) => {
       const images = await Promise.all(
         imageUrls.map(
@@ -489,15 +611,113 @@ export const renderFreecivWebFixture = async (
           else if (x < 0) y += 1;
           return tileObjects[x + y * fixtureWidth] ?? null;
         };
+        window.index_to_tile = index => tileObjects[index] ?? null;
       };
 
-      // Keep the board capture on the legacy harness's finite lookup. Its
-      // map_pos_to_tile() adapter does not normalize wrapped coordinates;
-      // overview geometry is installed with the real runtime wrap below.
+      const installEntityFixture = fixture => {
+        window.units = {};
+        window.unit_types = {};
+        window.ruleset_units = window.unit_types;
+        window.cities = {};
+        window.city_rules = {};
+        window.draw_units = Boolean(fixture);
+        window.show_citybar = fixture?.showCitybar ?? false;
+        if (!fixture) return;
+
+        const ownerId = playerId => (playerId === 'player-one' ? 0 : 1);
+        const activityIds = {
+          idle: window.ACTIVITY_IDLE,
+          cultivate: window.ACTIVITY_CULTIVATE,
+          mine: window.ACTIVITY_MINE,
+          irrigate: window.ACTIVITY_IRRIGATE,
+          fortified: window.ACTIVITY_FORTIFIED,
+          sentry: window.ACTIVITY_SENTRY,
+          pillage: window.ACTIVITY_PILLAGE,
+          goto: window.ACTIVITY_GOTO,
+          transform: window.ACTIVITY_TRANSFORM,
+          fortifying: window.ACTIVITY_FORTIFYING,
+          clean: window.ACTIVITY_CLEAN,
+          base: window.ACTIVITY_BASE,
+          road: window.ACTIVITY_GEN_ROAD,
+          convert: window.ACTIVITY_CONVERT,
+          plant: window.ACTIVITY_PLANT,
+        };
+
+        for (const definition of fixture.units) {
+          window.unit_types[definition.unitTypeId] ??= {
+            id: definition.unitTypeId,
+            name: definition.unitTypeId,
+            graphic_str: definition.graphic,
+            graphic_alt: definition.graphicAlt,
+            hp: definition.maxHp,
+            flags: { isSet: () => false },
+          };
+          const tile = window.map_pos_to_tile(definition.x, definition.y);
+          if (!tile) throw new Error(`Reference entity unit ${definition.id} is off-map`);
+          const unit = {
+            id: definition.id,
+            owner: ownerId(definition.playerId),
+            type: definition.unitTypeId,
+            tile: tile.index,
+            hp: definition.hp,
+            veteran: definition.veteranLevel,
+            activity: activityIds[definition.activity ?? 'idle'],
+            activity_tgt: -1,
+            ssa_controller:
+              definition.automation === 'worker'
+                ? window.SSA_AUTOWORKER
+                : definition.automation === 'explore'
+                  ? window.SSA_AUTOEXPLORE
+                  : window.SSA_NONE,
+            action_decision_want: definition.actionDecisionWant ? window.ACT_DEC_ACTIVE : 0,
+            transported: definition.transported ?? false,
+            anim_list: [],
+            goto_tile: -1,
+          };
+          window.units[unit.id] = unit;
+          tile.units.push(unit);
+        }
+
+        fixture.cities.forEach((definition, style) => {
+          const tile = window.map_pos_to_tile(definition.x, definition.y);
+          if (!tile) throw new Error(`Reference entity city ${definition.id} is off-map`);
+          window.city_rules[style] = {
+            graphic: definition.graphic,
+            graphic_alt: definition.graphicAlt,
+          };
+          const city = {
+            id: definition.id,
+            owner: ownerId(definition.playerId),
+            tile: tile.index,
+            style,
+            name: encodeURIComponent(definition.name),
+            size: definition.size,
+            walls: definition.walls,
+            unhappy: definition.unhappy,
+            occupied: definition.occupied,
+            production_kind: definition.production ? window.VUT_UTYPE : null,
+            production_value: definition.production?.unitTypeId ?? null,
+          };
+          window.cities[city.id] = city;
+          tile.worked = city.id;
+        });
+      };
+
+      // map_pos_to_tile() above preserves the pinned browser's one-step ISO
+      // edge adjustment. That adjustment resolves the neighboring X-period
+      // requested by gui_rect_iterate() when boardWrapId enables wrapping.
       const referenceBoardTopologyId =
         ((boardTopologyId & 1) !== 0 ? window.TF_ISO : 0) |
         ((boardTopologyId & 2) !== 0 ? window.TF_HEX : 0);
-      installMapFixture(referenceTiles, width, height, 0, referenceBoardTopologyId);
+      installMapFixture(referenceTiles, width, height, boardWrapId, referenceBoardTopologyId);
+      installEntityFixture(entities);
+      if (effects) {
+        const combatTile = window.map_pos_to_tile(effects.combat.x, effects.combat.y);
+        const nuclearTile = window.map_pos_to_tile(effects.nuclear.x, effects.nuclear.y);
+        if (!combatTile || !nuclearTile) throw new Error('Reference effect fixture is off-map');
+        window.explosion_anim_map[combatTile.index] = 25;
+        nuclearTile.nuke = 60;
+      }
       window.terrains = Object.fromEntries(
         Object.entries(terrain).map(([name, definition]) => [
           name,
@@ -519,6 +739,7 @@ export const renderFreecivWebFixture = async (
       window.mapview_canvas = mapCanvas;
       window.mapview_canvas_ctx = mapCanvas.getContext('2d');
       window.mapview_canvas_ctx.imageSmoothingEnabled = false;
+      window.mapview_canvas_ctx.font = window.canvas_text_font;
       window.buffer_canvas = document.createElement('canvas');
       window.buffer_canvas_ctx = window.buffer_canvas.getContext('2d');
       window.dashedSupport = true;
@@ -547,6 +768,7 @@ export const renderFreecivWebFixture = async (
       const overviewHeight = overviewFixture?.height ?? height;
       if (overviewFixture) {
         installMapFixture(overviewFixture.tiles, overviewWidth, overviewHeight, overviewWrapId);
+        installEntityFixture(entities);
       }
 
       window.OVERVIEW_TILE_SIZE = 1;
@@ -601,7 +823,10 @@ export const renderFreecivWebFixture = async (
           }
         : undefined,
       boardTopologyId: geometry.topologyId,
+      boardWrapId: geometry.wrapId,
       overviewWrapId: geometry.wrapId,
+      entities,
+      effects,
     }
   );
 };

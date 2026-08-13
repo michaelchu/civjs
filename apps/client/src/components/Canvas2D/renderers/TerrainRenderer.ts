@@ -213,14 +213,15 @@ export class TerrainRenderer extends BaseRenderer {
     this.ctx.font = '16px Georgia, serif';
     this.ctx.textBaseline = 'alphabetic';
     this.ctx.fillStyle = 'rgba(255, 255, 255, 1)';
+    const offsets = this.tilesetLoader.getPresentationOffsets?.();
     for (const tile of visibleTiles) {
       if (!tile.label) continue;
       const screenPos = this.mapToScreen(tile.x, tile.y, state.viewport);
       const textWidth = this.ctx.measureText(tile.label).width;
       this.ctx.fillText(
         tile.label,
-        screenPos.x + this.tileWidth / 2 - Math.floor(textWidth / 2),
-        screenPos.y + (this.tilesetLoader.getPresentationOffsets?.().tileLabelY ?? 14)
+        screenPos.x + (offsets?.tileLabelX ?? 0) + this.tileWidth / 2 - Math.floor(textWidth / 2),
+        screenPos.y + (offsets?.tileLabelY ?? 15) - 1
       );
     }
   }
@@ -368,7 +369,14 @@ export class TerrainRenderer extends BaseRenderer {
     layer: 'terrain' | 'roads' | 'special1' | 'special2' | 'special3'
   ): Array<{ key: string; offset_x?: number; offset_y?: number }> {
     this.buildTileMap();
-    const directions = getValidMapDirections(this.topologyId);
+    // freeciv-web's square path scans numeric DIR8 order (NW,N,NE,W,E,SW,S,SE)
+    // and later connection sprites overwrite earlier ones at the path center.
+    // Native Freeciv/Hexemplio uses its topology-valid tileset order instead.
+    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:1459-1513
+    const directions =
+      this.tilesetLoader.getGeometry().hexWidth > 0
+        ? getValidMapDirections(this.topologyId)
+        : MAP_DIRECTIONS;
     const sprites: Array<{ key: string; offset_x?: number; offset_y?: number }> = [];
 
     if (layer === 'roads') {
@@ -636,276 +644,142 @@ export class TerrainRenderer extends BaseRenderer {
     );
   }
 
-  // Direct port of freeciv-web's fill_terrain_sprite_array function
+  /**
+   * Direct port of freeciv-web's fill_terrain_sprite_array(). The reference
+   * keeps these tables in script globals; CivJS reads the equivalent tables
+   * from the revisioned provider manifest so composition and sprites always
+   * belong to the same package.
+   *
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:512-647
+   */
   private fillTerrainSpriteArray(
-    l: number,
-    _ptile: any,
-    pterrain: any,
-    tterrain_near: any
-  ): Array<{ key: string; offset_x?: number; offset_y?: number }> {
-    // Get globals from window - these are loaded by the tileset scripts
-    const tile_types_setup = (window as any).tile_types_setup || {};
-    const tileset = (window as any).tileset || {};
-    const ts_tiles = (window as any).ts_tiles || {};
-    const cellgroup_map = (window as any).cellgroup_map || {};
+    layer: number,
+    profile: TerrainCompositionProfile,
+    graphic: string,
+    neighboringGraphics: readonly string[]
+  ): TerrainSpriteCommand[] {
+    const drawing = profile.terrains[graphic]?.layers[layer];
+    if (!drawing) return [];
 
-    // Constants imported from freeciv constants module
-    const num_cardinal_tileset_dirs = 4;
-    const NUM_CORNER_DIRS = 4;
-    const dither_dirs = DIR4_TO_DIR8;
-    const dither_offset_x = [48, 0, 48, 0]; // Dither offsets for N, E, S, W (half tile width for N/S)
-    const dither_offset_y = [0, 24, 24, 0]; // Dither offsets for N, E, S, W (half tile height for E/S)
-    const tileset_tile_height = this.tileHeight;
-
-    if (!tile_types_setup['l' + l + '.' + pterrain['graphic_str']]) {
-      return [];
-    }
-
-    const dlp = tile_types_setup['l' + l + '.' + pterrain['graphic_str']];
-
-    switch (dlp['sprite_type']) {
+    switch (drawing.spriteType) {
       case CELL_WHOLE:
         {
-          switch (dlp['match_style']) {
+          switch (drawing.matchStyle) {
             case MATCH_NONE: {
-              const result_sprites: Array<{
-                key: string;
-                offset_x?: number;
-                offset_y?: number;
-              }> = [];
-              if (dlp['dither'] == true) {
-                for (let i = 0; i < num_cardinal_tileset_dirs; i++) {
-                  if (
-                    !tterrain_near ||
-                    !tterrain_near[dither_dirs[i]] ||
-                    !ts_tiles[tterrain_near[dither_dirs[i]]['graphic_str']]
-                  )
-                    continue;
-                  const near_dlp =
-                    tile_types_setup['l' + l + '.' + tterrain_near[dither_dirs[i]]['graphic_str']];
-                  const terrain_near =
-                    near_dlp && near_dlp['dither'] == true
-                      ? tterrain_near[dither_dirs[i]]['graphic_str']
-                      : pterrain['graphic_str'];
-                  const dither_tile = i + pterrain['graphic_str'] + '_' + terrain_near;
-                  const x = dither_offset_x[i];
-                  const y = dither_offset_y[i];
-                  result_sprites.push({
-                    key: dither_tile,
-                    offset_x: x,
-                    offset_y: y,
-                  });
-                }
-                return result_sprites;
-              } else {
-                return [{ key: 't.l' + l + '.' + pterrain['graphic_str'] + '1' }];
+              if (!drawing.dither) return [{ key: `t.l${layer}.${graphic}1` }];
+              const offsets = [
+                [this.tileWidth / 2, 0],
+                [0, this.tileHeight / 2],
+                [this.tileWidth / 2, this.tileHeight / 2],
+                [0, 0],
+              ];
+              const sprites: TerrainSpriteCommand[] = [];
+              for (let index = 0; index < 4; index += 1) {
+                const nearGraphic = neighboringGraphics[DIR4_TO_DIR8[index]];
+                const nearDefinition = nearGraphic ? profile.terrains[nearGraphic] : undefined;
+                if (!nearDefinition) continue;
+                const terrainNear = nearDefinition.layers[layer]?.dither ? nearGraphic : graphic;
+                sprites.push({
+                  key: `${index}${graphic}_${terrainNear}`,
+                  offset_x: offsets[index][0],
+                  offset_y: offsets[index][1],
+                });
               }
+              return sprites;
             }
 
             case MATCH_SAME: {
-              let tileno = 0;
-              const this_match_type =
-                ts_tiles[pterrain['graphic_str']] &&
-                ts_tiles[pterrain['graphic_str']]['layer' + l + '_match_type'];
-
-              if (this_match_type && tterrain_near) {
-                for (let i = 0; i < num_cardinal_tileset_dirs; i++) {
-                  // Freeciv-web's MATCH_SAME branch indexes the first four
-                  // entries of the DIR8 neighbor array directly. This is
-                  // intentionally different from the cardinal direction
-                  // list used by dither and CELL_CORNER matching.
-                  const dir = i;
-                  if (!tterrain_near[dir] || !ts_tiles[tterrain_near[dir]['graphic_str']]) continue;
-                  const that =
-                    ts_tiles[tterrain_near[dir]['graphic_str']]['layer' + l + '_match_type'];
-                  if (that == this_match_type) {
-                    tileno |= 1 << i;
+              let tileNumber = 0;
+              if (drawing.matchType) {
+                for (let index = 0; index < 4; index += 1) {
+                  // The browser indexes the first four DIR8 neighbors here,
+                  // unlike the cardinal mapping used by dither and corners.
+                  const nearGraphic = neighboringGraphics[index];
+                  if (
+                    nearGraphic &&
+                    profile.terrains[nearGraphic]?.layers[layer]?.matchType === drawing.matchType
+                  ) {
+                    tileNumber |= 1 << index;
                   }
                 }
               }
-
-              const gfx_key =
-                't.l' + l + '.' + pterrain['graphic_str'] + '_' + this.cardinalIndexStr(tileno);
-              const y = tileset[gfx_key] ? tileset_tile_height - tileset[gfx_key][3] : 0;
-
-              return [{ key: gfx_key, offset_x: 0, offset_y: y }];
+              const key = `t.l${layer}.${graphic}_${this.cardinalIndexStr(tileNumber)}`;
+              const sprite = this.tilesetLoader.getSprite(key);
+              return [
+                {
+                  key,
+                  offset_x: 0,
+                  offset_y: sprite ? this.tileHeight - sprite.height : 0,
+                },
+              ];
             }
           }
         }
         break;
 
       case CELL_CORNER: {
-        // Full CELL_CORNER implementation copied from freeciv-web
-        const W = this.tileWidth;
-        const H = this.tileHeight;
-        const iso_offsets = [
-          [W / 4, 0],
-          [W / 4, H / 2],
-          [W / 2, H / 4],
-          [0, H / 4],
+        const offsets = [
+          [this.tileWidth / 4, 0],
+          [this.tileWidth / 4, this.tileHeight / 2],
+          [this.tileWidth / 2, this.tileHeight / 4],
+          [0, this.tileHeight / 4],
         ];
-
-        // Get this terrain's match_index[0] from tile_types_setup
-        const this_match_index = tile_types_setup['l' + l + '.' + pterrain['graphic_str']]
-          ? tile_types_setup['l' + l + '.' + pterrain['graphic_str']]['match_index'][0]
-          : -1;
-
-        const result_sprites: Array<{
-          key: string;
-          offset_x?: number;
-          offset_y?: number;
-        }> = [];
-
-        // Direction helper functions from freeciv-web
-        const dir_cw = (dir: number): number => {
-          switch (dir) {
-            case 1:
-              return 2; // NORTH to NORTHEAST
-            case 2:
-              return 4; // NORTHEAST to EAST
-            case 4:
-              return 7; // EAST to SOUTHEAST
-            case 7:
-              return 6; // SOUTHEAST to SOUTH
-            case 6:
-              return 5; // SOUTH to SOUTHWEST
-            case 5:
-              return 3; // SOUTHWEST to WEST
-            case 3:
-              return 0; // WEST to NORTHWEST
-            case 0:
-              return 1; // NORTHWEST to NORTH
-          }
-          return -1;
+        const thisMatchIndex = drawing.matchIndex[0] ?? -1;
+        const result: TerrainSpriteCommand[] = [];
+        const matchIndexAt = (direction: number): number => {
+          const nearGraphic = neighboringGraphics[direction];
+          return nearGraphic
+            ? (profile.terrains[nearGraphic]?.layers[layer]?.matchIndex[0] ?? -1)
+            : -1;
         };
 
-        const dir_ccw = (dir: number): number => {
-          switch (dir) {
-            case 1:
-              return 0; // NORTH to NORTHWEST
-            case 2:
-              return 1; // NORTHEAST to NORTH
-            case 4:
-              return 2; // EAST to NORTHEAST
-            case 7:
-              return 4; // SOUTHEAST to EAST
-            case 6:
-              return 7; // SOUTH to SOUTHEAST
-            case 5:
-              return 6; // SOUTHWEST to SOUTH
-            case 3:
-              return 5; // WEST to SOUTHWEST
-            case 0:
-              return 3; // NORTHWEST to WEST
-          }
-          return -1;
-        };
-
-        // Put corner cells - complete implementation from freeciv-web
-        for (let i = 0; i < NUM_CORNER_DIRS; i++) {
-          const count = dlp['match_indices'] || 1;
-          let array_index = 0;
-          const dir = dir_ccw(DIR4_TO_DIR8[i]);
-          const x = iso_offsets[i][0];
-          const y = iso_offsets[i][1];
-
-          // Get match_index[0] for the three neighboring terrain tiles for this corner
-          const m = [
-            // Counter-clockwise neighbor
-            tile_types_setup['l' + l + '.' + tterrain_near[dir_ccw(dir)]['graphic_str']]
-              ? tile_types_setup['l' + l + '.' + tterrain_near[dir_ccw(dir)]['graphic_str']][
-                  'match_index'
-                ][0]
-              : -1,
-            // Direct neighbor
-            tile_types_setup['l' + l + '.' + tterrain_near[dir]['graphic_str']]
-              ? tile_types_setup['l' + l + '.' + tterrain_near[dir]['graphic_str']][
-                  'match_index'
-                ][0]
-              : -1,
-            // Clockwise neighbor
-            tile_types_setup['l' + l + '.' + tterrain_near[dir_cw(dir)]['graphic_str']]
-              ? tile_types_setup['l' + l + '.' + tterrain_near[dir_cw(dir)]['graphic_str']][
-                  'match_index'
-                ][0]
-              : -1,
+        for (let index = 0; index < 4; index += 1) {
+          const count = drawing.matchIndices;
+          let arrayIndex = 0;
+          const direction = this.counterClockwiseDirection(DIR4_TO_DIR8[index]);
+          const matches = [
+            matchIndexAt(this.counterClockwiseDirection(direction)),
+            matchIndexAt(direction),
+            matchIndexAt(this.clockwiseDirection(direction)),
           ];
 
-          // Calculate array_index based on match style
-          switch (dlp['match_style']) {
+          switch (drawing.matchStyle) {
             case MATCH_NONE:
-              // No matching needed
               break;
-            case MATCH_SAME: {
-              // Binary encoding based on whether neighbors match this terrain's match_index
-              const b1 = m[2] != this_match_index ? 1 : 0;
-              const b2 = m[1] != this_match_index ? 1 : 0;
-              const b3 = m[0] != this_match_index ? 1 : 0;
-              array_index = array_index * 2 + b1;
-              array_index = array_index * 2 + b2;
-              array_index = array_index * 2 + b3;
+            case MATCH_SAME:
+              arrayIndex = arrayIndex * 2 + (matches[2] !== thisMatchIndex ? 1 : 0);
+              arrayIndex = arrayIndex * 2 + (matches[1] !== thisMatchIndex ? 1 : 0);
+              arrayIndex = arrayIndex * 2 + (matches[0] !== thisMatchIndex ? 1 : 0);
               break;
-            }
-            case MATCH_PAIR: {
-              // MATCH_PAIR encodes whether each adjacent tile has the
-              // secondary match index, then uses the corresponding generated
-              // cell sprite (for example lake_cell_u_s_l_s).
-              const thatMatchIndex = dlp['match_index'][1];
-              const b1 = m[2] == thatMatchIndex ? 1 : 0;
-              const b2 = m[1] == thatMatchIndex ? 1 : 0;
-              const b3 = m[0] == thatMatchIndex ? 1 : 0;
-              array_index = array_index * 2 + b1;
-              array_index = array_index * 2 + b2;
-              array_index = array_index * 2 + b3;
-
-              const matchTypes = (window as any).ts_layer?.[l]?.match_types || [];
-              const thisMatchLetter = matchTypes[dlp['match_index'][0]]?.[0] || '';
-              const thatMatchLetter = matchTypes[thatMatchIndex]?.[0] || '';
-              const matchTypeLetter = (matchIndex: number): string =>
-                matchIndex == thatMatchIndex ? thatMatchLetter : thisMatchLetter;
-              // Sprite names are preloaded in m[0], m[1], m[2] order. The
-              // draw-time bit packing above is intentionally reversed.
-              const matchLetters = [m[0], m[1], m[2]].map(matchTypeLetter).join('_');
-              const directionLetters = ['u', 'd', 'r', 'l'];
-              result_sprites.push({
-                key: `t.l${l}.${pterrain['graphic_str']}_cell_${directionLetters[i]}_${matchLetters}`,
-                offset_x: x,
-                offset_y: y,
-              });
-              continue;
-            }
+            case MATCH_PAIR:
+              // Deliberately mirror the pinned browser's unfinished branch.
+              return [];
             case MATCH_FULL: {
-              // Full match implementation
-              const n = [];
-              for (let j = 0; j < 3; j++) {
-                n[j] = count - 1; // default to last entry
-                for (let k = 0; k < count; k++) {
-                  if (m[j] == dlp['match_index'][k]) {
-                    n[j] = k;
-                    break;
-                  }
+              const indices: number[] = [];
+              for (let adjacent = 0; adjacent < 3; adjacent += 1) {
+                for (let candidate = 0; candidate < count; candidate += 1) {
+                  indices[adjacent] = candidate;
+                  if (matches[adjacent] === drawing.matchIndex[candidate]) break;
                 }
               }
-              array_index = array_index * count + n[2];
-              array_index = array_index * count + n[1];
-              array_index = array_index * count + n[0];
+              arrayIndex = arrayIndex * count + indices[2];
+              arrayIndex = arrayIndex * count + indices[1];
+              arrayIndex = arrayIndex * count + indices[0];
               break;
             }
           }
 
-          array_index = array_index * NUM_CORNER_DIRS + i;
-          const sprite_key = cellgroup_map[pterrain['graphic_str'] + '.' + array_index];
-
-          if (sprite_key) {
-            result_sprites.push({
-              key: sprite_key + '.' + i,
-              offset_x: x,
-              offset_y: y,
+          arrayIndex = arrayIndex * 4 + index;
+          const spriteKey = profile.cellgroupMap?.[`${graphic}.${arrayIndex}`];
+          if (spriteKey) {
+            result.push({
+              key: `${spriteKey}.${index}`,
+              offset_x: offsets[index][0],
+              offset_y: offsets[index][1],
             });
           }
         }
-
-        return result_sprites;
+        return result;
       }
     }
 
@@ -1069,16 +943,13 @@ export class TerrainRenderer extends BaseRenderer {
     if (composition?.mode === 'direct-cells') {
       return this.fillDirectTerrainSpriteArray(layer, tile, mappedTerrain, composition);
     }
-    const pterrain = { graphic_str: mappedTerrain };
-    const ptile = tile;
-    const tterrain_near = this.getNeighboringTerrains(tile);
-
-    try {
-      return this.fillTerrainSpriteArray(layer, ptile, pterrain, tterrain_near);
-    } catch (error) {
-      console.warn(`Error in fillTerrainSpriteArray for ${tile.terrain} layer ${layer}:`, error);
-      return [];
-    }
+    if (composition?.mode !== 'legacy-cellgroup') return [];
+    return this.fillTerrainSpriteArray(
+      layer,
+      composition,
+      mappedTerrain,
+      this.getNeighboringTerrains(tile).map(terrain => terrain.graphic_str)
+    );
   }
 
   /** Port of Freeciv's native terrain compositor for unflattened spec sprites. */

@@ -20,14 +20,7 @@ describe('ruleset presentation API', () => {
       graphic_alt: '-',
       graphic_alt2: '-',
     });
-    expect(presentation.units.warriors.offsets).toMatchObject({
-      unitX: 13,
-      unitY: -9,
-      shieldX: 25,
-      shieldY: -15,
-      veteranX: 33,
-      veteranY: -33,
-    });
+    expect(presentation.units.warriors).not.toHaveProperty('offsets');
     expect(presentation.extras.extra_gold.graphic).toBe('ts.gold');
     expect(presentation.extras.extra_mine).toMatchObject({
       causes: 'Mine',

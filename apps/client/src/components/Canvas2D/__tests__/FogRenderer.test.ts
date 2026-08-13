@@ -223,4 +223,63 @@ describe('FogRenderer', () => {
       corners.find(corner => corner.screen.x === 352 && corner.screen.y === 250)?.states
     ).toEqual([1, 2, 2, 0]);
   });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:305-374
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:1126-1154
+   * @assertion A square-ISO fog corner crossing the X seam reads the wrapped
+   * edge tiles in the same order as the browser painter instead of treating
+   * the out-of-range half of the corner as unknown.
+   */
+  it('wraps square-ISO fog knowledge across the horizontal seam', () => {
+    const sprites = new Map<string, HTMLCanvasElement>();
+    const context = {
+      canvas: { width: 300, height: 240 },
+      drawImage: vi.fn(),
+      fillRect: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+    const loader = {
+      getSprite: (key: string) => {
+        if (!sprites.has(key)) sprites.set(key, { key } as unknown as HTMLCanvasElement);
+        return sprites.get(key) ?? null;
+      },
+    };
+    const renderer = new FogRenderer(context, loader as never, 96, 48);
+    const tiles = Object.fromEntries(
+      Array.from({ length: 4 * 3 }, (_, index) => {
+        const x = index % 4;
+        const y = Math.floor(index / 4);
+        return [
+          `${x},${y}`,
+          {
+            x,
+            y,
+            terrain: 'plains',
+            known: true,
+            visible: !(x === 3 && y === 1),
+          },
+        ];
+      })
+    );
+
+    renderer.render({
+      viewport: { x: 0, y: 0, width: 300, height: 240 },
+      map: {
+        width: 4,
+        height: 3,
+        xsize: 4,
+        ysize: 3,
+        topology_id: 1,
+        wrap_id: 1,
+        tiles,
+      },
+      units: {},
+      cities: {},
+      players: {},
+    });
+
+    expect(context.drawImage).toHaveBeenCalledWith(sprites.get('t.fog_f_k_k_k'), 96, 120);
+    expect(sprites.has('t.fog_f_u_u_k')).toBe(false);
+  });
 });

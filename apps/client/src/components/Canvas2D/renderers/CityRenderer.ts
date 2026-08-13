@@ -51,7 +51,6 @@ export interface CityRenderEntry {
  * Examples: "city.european_city_0", "city.asian_wall_3", etc.
  */
 export class CityRenderer extends BaseRenderer {
-  private static readonly CITY_SPRITE_OFFSET = { offset_x: -4, offset_y: -24 };
   private static readonly CITYBAR_OFFSET = { x: 45, y: 55 };
   private cityStyles: Record<string, CityStyle> = {};
   private nationStyleDefinitions: Record<string, NationStyle> = {};
@@ -113,8 +112,23 @@ export class CityRenderer extends BaseRenderer {
 
   /** Paint CITYBAR for one globally ordered tile/copy walk. */
   renderCityOverlayEntries(entries: readonly CityRenderEntry[]): void {
-    this.renderWorkedTileOverlayEntries(entries);
-    this.renderCityBarEntries(entries);
+    const first = entries[0];
+    if (!first) return;
+    const cityByPosition = this.indexCities(first.state);
+    const selectedCity = first.state.selectedCityId
+      ? first.state.cities[first.state.selectedCityId]
+      : undefined;
+    const workableByPosition = new Map(
+      (selectedCity?.workableTiles ?? []).map(tile => [`${tile.x},${tile.y}`, tile] as const)
+    );
+
+    for (const { state, tile } of entries) {
+      if (!tile.known || !this.isInViewport(tile.x, tile.y, state.viewport)) continue;
+      const city = cityByPosition.get(`${tile.x},${tile.y}`);
+      if (city) this.renderCityBar(city, this.mapToScreen(city.x, city.y, state.viewport), state);
+      const workable = workableByPosition.get(`${tile.x},${tile.y}`);
+      if (workable) this.renderWorkedTileOutput(workable, state.viewport);
+    }
   }
 
   /** Paint selected-city output overlays on Freeciv's OVERLAYS layer. */
@@ -219,7 +233,13 @@ export class CityRenderer extends BaseRenderer {
   }
 
   private encodeOutput(value: number): string {
-    return Math.max(0, Math.floor(value)).toString(36).toUpperCase();
+    const output = Math.max(0, Math.floor(value));
+    // The pinned web client concatenates the decimal value directly. Modern
+    // Freeciv's native compositor instead clips tile-output sprite indices to
+    // its available 0..9 digit table.
+    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:819-846
+    // @reference reference/freeciv/client/tilespec.c:5329-5346
+    return String(this.tilesetLoader.getGeometry().hexWidth > 0 ? Math.min(9, output) : output);
   }
 
   /**
@@ -252,7 +272,11 @@ export class CityRenderer extends BaseRenderer {
       spriteKey = `${city.presentation.graphicAlt}_${spriteType}_${sizeIndex}`;
     }
 
-    const overlays = city.presentation?.overlays ?? [];
+    // Pinned freeciv-web's square-isometric get_city_sprite() composes only
+    // the city image and disorder marker. The richer presentation overlays
+    // come from the modern native client and belong to the Hexemplio path.
+    const nativeHex = this.tilesetLoader.getGeometry().hexWidth > 0;
+    const overlays = nativeHex ? (city.presentation?.overlays ?? []) : [];
     for (const key of overlays.filter(key => key.endsWith('_underlay'))) {
       sprites.push({ key, ...cityOffset });
     }
@@ -263,9 +287,6 @@ export class CityRenderer extends BaseRenderer {
     for (const key of overlays.filter(key => !key.endsWith('_underlay'))) {
       sprites.push({ key, ...cityOffset });
     }
-    if (city.granaryTurns === -1 && this.tilesetLoader.getGeometry().hexWidth <= 0) {
-      sprites.push({ key: 'city.starve', ...cityOffset });
-    }
     if (city.disorder) {
       const full = this.getFullTileOffset();
       sprites.push({ key: 'city.disorder', offset_x: full.x, offset_y: full.y });
@@ -275,8 +296,7 @@ export class CityRenderer extends BaseRenderer {
   }
 
   private getCitySpriteOffset(): { offset_x: number; offset_y: number } {
-    const geometry = this.tilesetLoader.getGeometry?.();
-    if (!geometry || geometry.hexWidth <= 0) return CityRenderer.CITY_SPRITE_OFFSET;
+    const geometry = this.tilesetLoader.getGeometry();
     const offsets = this.tilesetLoader.getPresentationOffsets();
     return {
       offset_x: (geometry.tileWidth - geometry.fullTileWidth) / 2 + offsets.cityX,
@@ -368,8 +388,7 @@ export class CityRenderer extends BaseRenderer {
    */
   private renderCityBar(city: City, screenPos: { x: number; y: number }, state: RenderState): void {
     const presentation = this.tilesetLoader.getPresentationOffsets?.();
-    const nativeHex = this.tilesetLoader.getGeometry().hexWidth > 0;
-    const canvasX = screenPos.x + (nativeHex ? this.tileWidth / 2 : CityRenderer.CITYBAR_OFFSET.x);
+    const canvasX = screenPos.x + (presentation?.citybarX ?? CityRenderer.CITYBAR_OFFSET.x);
     const canvasY = screenPos.y + (presentation?.citybarY ?? CityRenderer.CITYBAR_OFFSET.y);
     const text = this.decodeCityName(city.name).toUpperCase();
     const size = String(city.size);

@@ -43,7 +43,7 @@ interface MapCanvasProps {
 }
 
 type SelectionDragMode = 'left' | 'right' | null;
-type CenterMapSource = 'map' | 'minimap-click' | 'minimap-drag';
+type CenterMapSource = 'map' | 'minimap-click' | 'minimap-drag' | 'right-click';
 interface SelectionRect {
   left: number;
   top: number;
@@ -195,10 +195,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   );
 
   const openUnitContextMenu = useCallback(
-    (unit: Unit, position: { x: number; y: number }, city?: City) => {
+    (unit: Unit, position: { x: number; y: number }, city?: City, preserveMapFocus = false) => {
       if (unit.playerId !== currentPlayerId) return;
       setContextMenu({ unit, position, city });
-      selectUnit(unit.id);
+      if (!preserveMapFocus) selectUnit(unit.id);
       setSelectedUnit(unit);
     },
     [currentPlayerId, selectUnit]
@@ -418,7 +418,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     // Read the store once so a redraw cannot mix entities from one state
     // revision with the viewport from another.
     const state = useGameStore.getState();
-    const renderedViewport = viewportOverride ?? state.viewport;
+    const renderedViewport =
+      viewportOverride ??
+      cameraSlideViewport.current ??
+      minimapPanViewport.current ??
+      state.viewport;
     renderer.render(
       {
         viewport: renderedViewport,
@@ -538,18 +542,16 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       const centerTile = normalizeMapTile(tileX, tileY);
       if (!centerTile) return null;
 
-      let centerY = centerTile.y;
-      const mapHeight = state.map.ysize ?? state.map.height;
-      const isWrappedY = (state.map.wrap_id ?? 0) & 2;
-      // Freeciv keeps discrete recentering away from the polar edge so the
-      // destination viewport does not become mostly empty map padding.
-      // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:64-94
-      const polarBuffer = 9;
-      if (!isWrappedY && mapHeight > polarBuffer * 2 + 1) {
-        centerY = Math.max(polarBuffer, Math.min(mapHeight - 1 - polarBuffer, centerY));
-      }
-
-      const centered = renderer.getViewportPositionForTile(centerTile.x, centerY, width, height);
+      // center_tile_mapcanvas_2d() centers the exact requested tile. The
+      // reference's polar-edge clamp belongs only to its right-click recenter
+      // handler, not overview/report/programmatic centering.
+      // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:49-59
+      const centered = renderer.getViewportPositionForTile(
+        centerTile.x,
+        centerTile.y,
+        width,
+        height
+      );
       const constrained =
         (state.map.wrap_id ?? 0) !== 0
           ? centered
@@ -594,11 +596,13 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       const target = getCenteredViewport(detail.x, detail.y);
       if (!target) return;
       const state = useGameStore.getState();
+      const usesReferenceSquareIsoCamera = (state.map.topology_id ?? 3) === 1;
       const current = state.viewport;
       const dx = target.x - current.x;
       const dy = target.y - current.y;
 
       if (
+        !usesReferenceSquareIsoCamera &&
         source === 'map' &&
         !Object.values(state.units).some(unit => unit.x === detail.x && unit.y === detail.y)
       ) {
@@ -620,7 +624,22 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         return;
       }
 
-      if (reducedMotion || Math.hypot(dx, dy) < 1) {
+      // Square-isometric overview/report centering is a direct
+      // center_tile_mapcanvas_2d() + set_mapview_origin() operation. The
+      // reference only enables its 700 ms slide from the separate
+      // right-click recenter path.
+      // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/overview.js:386-400
+      // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapctrl.js:297-323
+      const shouldUseReferenceSquareSlide =
+        usesReferenceSquareIsoCamera && source === 'right-click';
+      const shouldSnapReferenceSquareSlide =
+        shouldUseReferenceSquareSlide && (Math.abs(dx) > width || Math.abs(dy) > height);
+      if (
+        (usesReferenceSquareIsoCamera && !shouldUseReferenceSquareSlide) ||
+        shouldSnapReferenceSquareSlide ||
+        reducedMotion ||
+        Math.hypot(dx, dy) < 1
+      ) {
         cameraSlideViewport.current = null;
         commitViewportAndRender(target);
         return;
@@ -629,8 +648,18 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       const startedAt = performance.now();
       const durationMs = 700;
       const animate = (now: number) => {
-        const progress = Math.min(1, (now - startedAt) / durationMs);
-        const eased = 1 - Math.pow(1 - progress, 3);
+        const elapsed = now - startedAt;
+        const progress = Math.min(1, elapsed / durationMs);
+        // The browser slide quantizes its 700 ms duration through a 100-step
+        // counter and floors each copied-buffer offset. Re-rendering the same
+        // integer origin gives identical static map pixels without retaining
+        // a second full-size backing canvas.
+        const referenceRemaining = shouldUseReferenceSquareSlide
+          ? Math.floor((100 * (durationMs - (1 + elapsed))) / durationMs)
+          : 0;
+        const eased = shouldUseReferenceSquareSlide
+          ? (100 - referenceRemaining) / 100
+          : 1 - Math.pow(1 - progress, 3);
         const viewportOverride = {
           ...current,
           width,
@@ -638,13 +667,17 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           // Keep every intermediate origin on a device pixel. The terrain
           // renderer intentionally relies on integer-aligned sprite origins;
           // fractional slide positions expose dark seams and jagged gaps.
-          x: Math.round(current.x + dx * eased),
-          y: Math.round(current.y + dy * eased),
+          x: shouldUseReferenceSquareSlide
+            ? current.x + Math.floor(dx * eased)
+            : Math.round(current.x + dx * eased),
+          y: shouldUseReferenceSquareSlide
+            ? current.y + Math.floor(dy * eased)
+            : Math.round(current.y + dy * eased),
         };
-        cameraSlideViewport.current = viewportOverride;
-        renderLatestSnapshot(viewportOverride, true);
 
-        if (progress >= 1) {
+        // update_map_slide() stops when its counter reaches zero; the next
+        // normal map frame exposes the already-centered target.
+        if (progress >= 1 || (shouldUseReferenceSquareSlide && referenceRemaining <= 0)) {
           cameraSlideFrame.current = null;
           cameraSlideViewport.current = null;
           // Repaint the committed target before releasing the render
@@ -653,6 +686,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           commitViewportAndRender(target);
           return;
         }
+        cameraSlideViewport.current = viewportOverride;
+        renderLatestSnapshot(viewportOverride, true);
         cameraSlideFrame.current = requestAnimationFrame(animate);
       };
 
@@ -1304,6 +1339,48 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
       const unitsAtTile = getUnitsAtTile(units, mapTile.x, mapTile.y);
       const cityAtTile = findCityAtTile(cities, mapTile.x, mapTile.y);
+      const usesReferenceSquareIsoControls = (map.topology_id ?? 3) === 1;
+      const ownUnit = unitsAtTile.find(unit => unit.playerId === currentPlayerId);
+
+      if (usesReferenceSquareIsoControls) {
+        // freeciv-web reserves right click for recentering, except when a
+        // visible owned unit occupies the original pointer tile. The target
+        // alone is polar-clamped on sufficiently large finite maps.
+        // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapctrl.js:288-323
+        const focusedVisibleUnit = unitsAtTile.find(unit => focusedUnits.includes(unit.id));
+        const visibleUnit =
+          focusedVisibleUnit ??
+          (cityAtTile
+            ? null
+            : (unitsAtTile.find(unit => !unit.transportedBy) ?? unitsAtTile[0] ?? null));
+        if (visibleUnit?.playerId === currentPlayerId) {
+          if (focusedUnits.length <= 1) {
+            selectUnit(visibleUnit.id);
+            setSelectedUnit(visibleUnit);
+          }
+          openUnitContextMenu(visibleUnit, position, cityAtTile, focusedUnits.length > 1);
+          return;
+        }
+
+        const mapWidth = map.xsize ?? map.width;
+        const mapHeight = map.ysize ?? map.height;
+        const mapScrollBorder = 8;
+        const bigMapSize = 24;
+        const targetY =
+          mapWidth > bigMapSize && mapHeight > bigMapSize
+            ? mapTile.y > mapHeight - mapScrollBorder
+              ? mapHeight - mapScrollBorder
+              : mapTile.y < mapScrollBorder
+                ? mapScrollBorder
+                : mapTile.y
+            : mapTile.y;
+        document.dispatchEvent(
+          new CustomEvent('center-map-on-tile', {
+            detail: { x: mapTile.x, y: targetY, source: 'right-click' },
+          })
+        );
+        return;
+      }
 
       // Right-clicking an AI city is intentionally inert. In particular, do
       // not expose the city panel through an owned unit that happens to share
@@ -1311,8 +1388,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       if (cityAtTile && players[cityAtTile.playerId]?.isHuman === false) {
         return;
       }
-
-      const ownUnit = unitsAtTile.find(unit => unit.playerId === currentPlayerId);
 
       if (ownUnit) {
         openUnitContextMenu(ownUnit, position, cityAtTile);
@@ -1331,11 +1406,18 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     [
       cities,
       currentPlayerId,
+      focusedUnits,
+      map.height,
+      map.topology_id,
+      map.width,
+      map.xsize,
+      map.ysize,
       normalizeMapTile,
       openCityInfo,
       openTileInfo,
       openUnitContextMenu,
       players,
+      selectUnit,
       units,
     ]
   );

@@ -1,93 +1,61 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TerrainRenderer } from '../renderers/TerrainRenderer';
 import type { RenderState } from '../renderers/BaseRenderer';
+import type { TerrainCompositionProfile } from '../tilesets/TilesetProvider';
 
 describe('TerrainRenderer fog-edge neighbors', () => {
-  it('selects the generated lake corner sprites for MATCH_PAIR', () => {
-    const globals = window as unknown as Record<string, unknown>;
-    const previous = {
-      tile_types_setup: globals.tile_types_setup,
-      ts_layer: globals.ts_layer,
-      ts_tiles: globals.ts_tiles,
-      cellgroup_map: globals.cellgroup_map,
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:597-610
+   * @assertion The pinned browser leaves MATCH_PAIR corner composition
+   * unfinished and returns no sprites; provider metadata must not silently
+   * introduce a different result.
+   */
+  it('preserves the pinned browser MATCH_PAIR behavior without script globals', () => {
+    const renderer = new TerrainRenderer({} as CanvasRenderingContext2D, {} as never, 96, 48);
+    const pairLayer = {
+      matchStyle: 2,
+      spriteType: 1,
+      matchIndices: 2,
+      matchIndex: [0, 2],
+      dither: false,
+      matchType: 'shallow',
+      matchWith: ['land'],
     };
-    globals.tile_types_setup = {
-      'l0.lake': {
-        match_style: 2,
-        sprite_type: 1,
-        match_indices: 2,
-        match_index: [0, 2],
-      },
-    };
-    globals.ts_layer = [{ match_types: ['shallow', 'deep', 'land'] }];
-    globals.ts_tiles = { lake: { layer0_match_type: 'shallow' } };
-    globals.cellgroup_map = {};
-
-    try {
-      const renderer = new TerrainRenderer({} as CanvasRenderingContext2D, {} as never, 96, 48);
-      const neighbors = Array.from({ length: 8 }, () => ({ graphic_str: 'lake' }));
-      const sprites = (
-        renderer as unknown as {
-          fillTerrainSpriteArray: (
-            layer: number,
-            tile: unknown,
-            terrain: { graphic_str: string },
-            neighbors: Array<{ graphic_str: string }>
-          ) => Array<{ key: string }>;
-        }
-      ).fillTerrainSpriteArray(0, {}, { graphic_str: 'lake' }, neighbors);
-
-      expect(sprites).toHaveLength(4);
-      expect(sprites.map(sprite => sprite.key)).toEqual([
-        't.l0.lake_cell_u_s_s_s',
-        't.l0.lake_cell_d_s_s_s',
-        't.l0.lake_cell_r_s_s_s',
-        't.l0.lake_cell_l_s_s_s',
-      ]);
-
-      const mixedNeighbors = Array.from({ length: 8 }, () => ({ graphic_str: 'lake' }));
-      // Freeciv-web's DIR8 order is NW, N, NE, W, E, SW, S, SE.
-      mixedNeighbors[3] = { graphic_str: 'land' };
-      globals.tile_types_setup = {
-        'l0.lake': {
-          match_style: 2,
-          sprite_type: 1,
-          match_indices: 2,
-          match_index: [0, 2],
+    const profile: TerrainCompositionProfile = {
+      mode: 'legacy-cellgroup',
+      matchTypes: [['shallow', 'deep', 'land']],
+      terrains: {
+        lake: { numLayers: 1, blendLayer: 0, layers: [pairLayer] },
+        land: {
+          numLayers: 1,
+          blendLayer: 0,
+          layers: [{ ...pairLayer, matchIndex: [2, 2], matchType: 'land' }],
         },
-        'l0.land': { match_index: [2] },
-      };
-      const mixedSprites = (
-        renderer as unknown as {
-          fillTerrainSpriteArray: (
-            layer: number,
-            tile: unknown,
-            terrain: { graphic_str: string },
-            neighbors: Array<{ graphic_str: string }>
-          ) => Array<{ key: string }>;
-        }
-      ).fillTerrainSpriteArray(0, {}, { graphic_str: 'lake' }, mixedNeighbors);
+      },
+      cellgroupMap: {},
+    };
+    const sprites = (
+      renderer as unknown as {
+        fillTerrainSpriteArray: (
+          layer: number,
+          composition: TerrainCompositionProfile,
+          graphic: string,
+          neighbors: string[]
+        ) => Array<{ key: string }>;
+      }
+    ).fillTerrainSpriteArray(0, profile, 'lake', [
+      'lake',
+      'lake',
+      'lake',
+      'land',
+      'lake',
+      'lake',
+      'lake',
+      'lake',
+    ]);
 
-      expect(mixedSprites[0].key).toBe('t.l0.lake_cell_u_l_s_s');
-
-      const unknownNeighbors = Array.from({ length: 8 }, () => ({ graphic_str: 'unconfigured' }));
-      const unknownSprites = (
-        renderer as unknown as {
-          fillTerrainSpriteArray: (
-            layer: number,
-            tile: unknown,
-            terrain: { graphic_str: string },
-            neighbors: Array<{ graphic_str: string }>
-          ) => Array<{ key: string }>;
-        }
-      ).fillTerrainSpriteArray(0, {}, { graphic_str: 'lake' }, unknownNeighbors);
-
-      expect(unknownSprites[0].key).toBe('t.l0.lake_cell_u_s_s_s');
-    } finally {
-      Object.entries(previous).forEach(([key, value]) => {
-        globals[key] = value;
-      });
-    }
+    expect(sprites).toEqual([]);
   });
 
   it('draws terrain layer-first across the visible tile set', () => {

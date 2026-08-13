@@ -60,7 +60,9 @@ const createProvider = (tags: string[]) => {
       stackY: 0,
       cityX: 0,
       cityY: 0,
+      citybarX: 0,
       citybarY: 0,
+      tileLabelX: 0,
       tileLabelY: 0,
     })),
   } as unknown as TilesetProvider;
@@ -128,6 +130,58 @@ describe('TerrainRenderer parity contracts', () => {
 
   /**
    * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:1181-1188
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:340-350
+   * @assertion Tileset offsets move the label anchor before the reference
+   * painter centers the text and subtracts one baseline pixel.
+   */
+  it('places tile labels at the exact tileset-relative reference baseline', () => {
+    const context = {
+      canvas: { width: 800, height: 600 },
+      measureText: vi.fn(() => ({ width: 31 })),
+      fillText: vi.fn(),
+      font: '',
+      textBaseline: '',
+      fillStyle: '',
+    } as unknown as CanvasRenderingContext2D;
+    const provider = createProvider([]);
+    vi.mocked(provider.getPresentationOffsets).mockReturnValue({
+      unitFlagX: 0,
+      unitFlagY: 0,
+      cityFlagX: 0,
+      cityFlagY: 0,
+      unitX: 0,
+      unitY: 0,
+      activityX: 0,
+      activityY: 0,
+      selectX: 0,
+      selectY: 0,
+      stackX: 0,
+      stackY: 0,
+      cityX: 0,
+      cityY: 0,
+      citybarX: 0,
+      citybarY: 0,
+      tileLabelX: 7,
+      tileLabelY: 15,
+    });
+    const renderer = new TerrainRenderer(context, provider, 96, 48);
+    const labeled = tile({ x: 3, y: 1, label: 'Oracle' });
+    const state = createState({ '3,1': labeled });
+    state.viewport = { x: 20, y: 30, width: 800, height: 600 };
+    state.map.width = 4;
+    state.map.height = 4;
+
+    renderer.renderTileLabels(state, [labeled]);
+
+    // map_to_gui_pos(3,1) = (96,96), then subtract viewport (20,30).
+    expect(context.fillText).toHaveBeenCalledWith('Oracle', 76 + 7 + 48 - 15, 66 + 15 - 1);
+    expect(context.font).toBe('16px Georgia, serif');
+    expect(context.textBaseline).toBe('alphabetic');
+  });
+
+  /**
+   * @evidence parity
    * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:315-325,1431-1523
    * @assertion A rail hides the road on the same connection and the river is
    * painted later in SPECIAL1.
@@ -148,6 +202,34 @@ describe('TerrainRenderer parity contracts', () => {
     renderer.renderSpecials(state, [center]);
 
     expect(drawnTags(context)).toEqual(['road.rail_e', 'road.river_s_n1e0s1w0:0']);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:24-31
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:1459-1513
+   * @assertion Square path segments are emitted in numeric DIR8 order so west
+   * is painted before east at their overlapping center pixels.
+   */
+  it('emits square path segments in the browser numeric DIR8 order', () => {
+    const center = tile({ x: 1, y: 1, hasRailroad: true });
+    const west = tile({ x: 0, y: 1, hasRailroad: true });
+    const east = tile({ x: 2, y: 1, hasRailroad: true });
+    const context = createContext();
+    const renderer = new TerrainRenderer(
+      context,
+      createProvider(['road.rail_w', 'road.rail_e']),
+      96,
+      48
+    );
+    const state = createState({ '0,1': west, '1,1': center, '2,1': east });
+    state.map.width = 3;
+    state.map.xsize = 3;
+    renderer.setMapGeometry(state.map);
+
+    renderer.renderTerrain(state, [center]);
+
+    expect(drawnTags(context)).toEqual(['road.rail_w', 'road.rail_e']);
   });
 
   /**

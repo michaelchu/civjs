@@ -154,7 +154,14 @@ describe('MapCanvas Go To feedback', () => {
       delete (state.players as Record<string, unknown>)[playerId];
     }
     state.diplomacy.nations.length = 0;
-    Object.assign(state.map, { wrap_id: 0 });
+    Object.assign(state.map, {
+      width: 10,
+      height: 10,
+      xsize: 10,
+      ysize: 10,
+      topology_id: 3,
+      wrap_id: 0,
+    });
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
       {} as CanvasRenderingContext2D
     );
@@ -439,7 +446,14 @@ describe('MapCanvas Go To feedback', () => {
     expect(state.selectUnit).toHaveBeenCalledWith(null);
   });
 
-  it('opens an owned unit menu through the normal right-click mouse lifecycle', async () => {
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapctrl.js:309-316
+   * @assertion A visible owned unit takes precedence over square-ISO
+   * right-click recentering and opens the unit context interaction once.
+   */
+  it('opens an owned unit menu through the square-ISO right-click lifecycle', async () => {
+    Object.assign(state.map, { topology_id: 1 });
     Object.assign(state.units['unit-1'], { x: 1, y: 1, playerId: 'player-1' });
 
     render(<MapCanvas width={100} height={100} />);
@@ -462,8 +476,8 @@ describe('MapCanvas Go To feedback', () => {
   });
 
   /**
-   * @assertion Right-clicking a foreign or empty tile opens tile information
-   * without moving the camera.
+   * @assertion The native Hexemplio interaction keeps CivJS's tile-information
+   * right-click behavior; square ISO has a separate reference test below.
    */
   it('opens tile info on a foreign or empty tile instead of recentering', async () => {
     Object.assign(state.units['unit-1'], {
@@ -491,7 +505,7 @@ describe('MapCanvas Go To feedback', () => {
     );
   });
 
-  it('opens city info on a city tile instead of recentering', async () => {
+  it('opens city info on a native city tile instead of recentering', async () => {
     Object.assign(state.cities, {
       'city-1': {
         id: 'city-1',
@@ -542,6 +556,66 @@ describe('MapCanvas Go To feedback', () => {
     expect(contextMenuProps.current).toBeNull();
     expect(cityOverlayProps.current?.isOpen).toBe(false);
     expect(tileInfoProps.current).toBeNull();
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapctrl.js:288-323
+   * @assertion Square ISO reserves a normal right click for recentering, while
+   * the original pointer tile still controls whether an owned-unit menu wins.
+   */
+  it('re-centers square ISO on a non-owned right-click target', async () => {
+    Object.assign(state.map, { topology_id: 1 });
+    Object.assign(state.units['unit-1'], { x: 1, y: 1, playerId: 'player-2' });
+    const dispatchSpy = vi.spyOn(document, 'dispatchEvent');
+
+    render(<MapCanvas width={100} height={100} />);
+    const canvas = screen.getByLabelText('World map');
+    await act(async () => {
+      fireEvent.contextMenu(canvas, { clientX: 1, clientY: 1, button: 2 });
+      await Promise.resolve();
+    });
+
+    expect(contextMenuProps.current).toBeNull();
+    expect(tileInfoProps.current).toBeNull();
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'center-map-on-tile',
+        detail: { x: 1, y: 1, source: 'right-click' },
+      })
+    );
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapctrl.js:294-307
+   * @assertion Only square ISO's explicit right-click recenter applies the
+   * eight-tile polar guard on maps larger than 24 by 24.
+   */
+  it('polar-clamps only the square right-click recenter target', async () => {
+    Object.assign(state.map, {
+      width: 40,
+      height: 40,
+      xsize: 40,
+      ysize: 40,
+      topology_id: 1,
+    });
+    Object.assign(state.units['unit-1'], { x: 0, y: 0, playerId: 'player-2' });
+    const dispatchSpy = vi.spyOn(document, 'dispatchEvent');
+
+    render(<MapCanvas width={100} height={100} />);
+    const canvas = screen.getByLabelText('World map');
+    await act(async () => {
+      fireEvent.contextMenu(canvas, { clientX: 1, clientY: 1, button: 2 });
+      await Promise.resolve();
+    });
+
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'center-map-on-tile',
+        detail: { x: 1, y: 8, source: 'right-click' },
+      })
+    );
   });
 
   it('does nothing when left-clicking an AI city', async () => {
@@ -954,6 +1028,138 @@ describe('MapCanvas Go To feedback', () => {
     });
   });
 
+  it('centers square-isometric map requests immediately without a custom marker', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    Object.assign(state.map, { topology_id: 1 });
+
+    render(<MapCanvas width={100} height={100} />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    state.setViewport.mockClear();
+    state.updateGameState.mockClear();
+
+    await act(async () => {
+      document.dispatchEvent(new CustomEvent('center-map-on-tile', { detail: { x: 5, y: 0 } }));
+      await Promise.resolve();
+    });
+
+    expect(getViewportPositionForTile).toHaveBeenLastCalledWith(5, 0, 100, 100);
+    expect(state.setViewport).toHaveBeenCalledWith({
+      x: 60,
+      y: 40,
+      width: 100,
+      height: 100,
+    });
+    expect(state.updateGameState).not.toHaveBeenCalled();
+    expect(frames).toHaveLength(0);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:434-515
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:525-559
+   * @assertion A nearby square-ISO right-click uses the pinned 700 ms,
+   * 100-step, floor-quantized slide before committing the centered target.
+   */
+  it('uses the reference linear slide for square-isometric right-click recentering', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    vi.spyOn(performance, 'now').mockReturnValue(1000);
+    Object.assign(state.map, { topology_id: 1 });
+
+    render(<MapCanvas width={100} height={100} />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    state.setViewport.mockClear();
+    mapRendererRender.mockClear();
+
+    await act(async () => {
+      document.dispatchEvent(
+        new CustomEvent('center-map-on-tile', {
+          detail: { x: 1, y: 1, source: 'right-click' },
+        })
+      );
+      await Promise.resolve();
+    });
+
+    expect(frames).toHaveLength(1);
+    expect(state.setViewport).not.toHaveBeenCalled();
+
+    await act(async () => {
+      frames.shift()?.(1350);
+    });
+    expect(
+      (mapRendererRender.mock.calls.at(-1)?.[0] as { viewport?: unknown } | undefined)?.viewport
+    ).toEqual({ x: 30, y: 20, width: 100, height: 100 });
+    expect(state.setViewport).not.toHaveBeenCalled();
+
+    await act(async () => {
+      frames.shift()?.(1699);
+    });
+    expect(state.setViewport).toHaveBeenCalledWith({
+      x: 60,
+      y: 40,
+      width: 100,
+      height: 100,
+    });
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:450-455
+   * @assertion A square-ISO right-click farther than one viewport bypasses
+   * animation-frame continuation and commits its centered target directly.
+   */
+  it('snaps a distant square-isometric right-click to the target', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    Object.assign(state.map, { topology_id: 1 });
+
+    render(<MapCanvas width={100} height={100} />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    state.setViewport.mockClear();
+    getViewportPositionForTile.mockReturnValue({ x: 160, y: 40 });
+    setMapviewOrigin.mockReturnValue({ x: 160, y: 40, width: 100, height: 100 });
+
+    await act(async () => {
+      document.dispatchEvent(
+        new CustomEvent('center-map-on-tile', {
+          detail: { x: 1, y: 1, source: 'right-click' },
+        })
+      );
+      await Promise.resolve();
+    });
+
+    expect(getViewportPositionForTile).toHaveBeenLastCalledWith(1, 1, 100, 100);
+    expect(state.setViewport).toHaveBeenCalledWith({
+      x: 160,
+      y: 40,
+      width: 100,
+      height: 100,
+    });
+    expect(frames).toHaveLength(0);
+  });
+
   it('coalesces minimap drag panning without sliding or creating markers', async () => {
     const frames: FrameRequestCallback[] = [];
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
@@ -1001,8 +1207,15 @@ describe('MapCanvas Go To feedback', () => {
     });
   });
 
-  it('keeps programmatic recentering away from finite-map polar edges', async () => {
-    Object.assign(state.map, { width: 40, height: 40, xsize: 40, ysize: 40, wrap_id: 0 });
+  it('centers programmatic requests on the exact finite-map polar tile', async () => {
+    Object.assign(state.map, {
+      width: 40,
+      height: 40,
+      xsize: 40,
+      ysize: 40,
+      topology_id: 1,
+      wrap_id: 0,
+    });
     const frames: FrameRequestCallback[] = [];
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
       frames.push(callback);
@@ -1026,9 +1239,7 @@ describe('MapCanvas Go To feedback', () => {
       await Promise.resolve();
     });
 
-    expect(getViewportPositionForTile).toHaveBeenCalledWith(5, 9, 100, 100);
-
-    Object.assign(state.map, { width: 10, height: 10, xsize: 10, ysize: 10 });
+    expect(getViewportPositionForTile).toHaveBeenCalledWith(5, 0, 100, 100);
   });
 
   it('preserves the requested center period on a wrapped map', async () => {

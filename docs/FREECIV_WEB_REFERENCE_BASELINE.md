@@ -36,34 +36,33 @@ re-audited against the client, including:
 - `javascript/2dcanvas/tileset_config_amplio2.js` and `javascript/tilespec.js`
   for sprite tags, frame suffixes, tile dimensions, and presentation offsets.
 
-CivJS carries a newer, application-specific Amplio2 config/spec and PNG atlas
-snapshot under `apps/client/public/`. Those assets include CivJS deployment
-and renderer additions that are not present as tracked files in the pinned
-upstream tree, so they remain in place and are audited through the provider
-boundary rather than replaced wholesale by the older upstream config.
+CivJS now carries an exact, reproducible Amplio2 browser package under
+`apps/client/public/tilesets/amplio2/`. `tools/generate-amplio2-tileset.mjs`
+packages the pinned browser config together with the extractor output from the
+Freeciv revision named by `freeciv/version.txt`. Its manifest records both
+source revisions, source hashes, generated spec, all three declared atlas
+images, every sprite rectangle, geometry, presentation offsets, terrain
+composition, and license. `npm run check:amplio2-tileset` is part of `verify`
+and rejects any stale or locally altered artifact.
 
-That retained bundle is not an exact asset baseline for the pinned painter.
-The pinned config uses unit offsets `19/14`, while the carried config uses
-`25/18` plus customized per-unit adjustments. The pinned extractor also
-currently emits four `1800x1030` sheets although its runtime config declares
-three. Before replacing the runtime bundle, the extractor, config, generated
-sprite table, image count, offsets, and source Freeciv revision must be made one
-reproducible artifact and validated together. Cross-client terrain tests
-currently run the pinned painter against the carried atlas, so they certify
-painter/rasterization equivalence for those fixtures, not official upstream
-asset provenance or unit/city pixel equality.
+The active `Amplio2TilesetProvider` reads only that manifest; no copied browser
+globals or application-specific `25/18` offsets remain in the square-ISO path.
+The generated package uses the pinned `19/14` unit offsets and exact atlas
+rectangles. The render-only browser suite now compares terrain/features,
+cities, units, city bars, focus/status composition, wrapping seams, labels,
+fog, borders, movement-related composition, and transient combat/nuclear
+sprites with zero channel tolerance.
 
 The detailed client comparison is maintained in
 [`FRONTEND_PARITY_GAP_ANALYSIS.md`](FRONTEND_PARITY_GAP_ANALYSIS.md).
 
 For minimap parity, the pinned browser client remains the source of truth for
-the integer overview palette raster and marker precedence. Freeciv's native
-client overview code supplies the physical `2x1` isometric cell aspect and
-fractional viewport-corner conversion. CivJS uses one shared physical
-transform for the displayed raster, markers, wrapped copies, pointer inversion,
-and viewport outline. The displayed outline remains a diamond/parallelogram,
-as required by CivJS's UI contract, while its corners are projected from the
-same logical camera bounds as the board.
+the rectangular square-ISO overview raster, palette, marker precedence,
+pointer inversion, and camera footprint. Freeciv's native client overview code
+supplies the physical `2x1` isometric cell aspect and fractional viewport-corner
+conversion for C2C3 ISO-hex. Each path uses one shared transform for raster,
+markers, wrapping, pointer inversion, and the projected diamond/parallelogram
+outline, so the outline identifies the same area shown by the board camera.
 
 The topology boundary between the references is now enforced. C2C3 defaults to
 `ISO|HEX` (`topology_id=3`), while Amplio2 declares square isometric
@@ -80,6 +79,11 @@ layer/fog policy, terrain composition, extra styles, sprite rectangles, and
 license. The package copies the exact referenced PNG files rather than
 repacking them, and `npm run verify` runs `check:hexemplio-tileset` to reject a
 stale or locally altered generated package.
+
+For topology `1`, the renderer follows the pinned browser layer sequence,
+global painter walk, exact Amplio2 composition, direct overview/programmatic
+centering, redraw-stepped movement and explosion behavior, and finite/wrapped
+edge handling. Those map surfaces have direct zero-diff browser evidence.
 
 For topology `3`, the renderer follows Freeciv's native layer sequence and
 Hexemplio metadata for terrain blending, roads/rivers/extras, borders, fog,
@@ -99,7 +103,8 @@ git submodule update --remote --merge reference/freeciv-web
 git -C reference/freeciv-web log -1 --format='%H %cI %s'
 ```
 
-Record the selected commit here, update any affected source line references,
+Record the selected commit here, regenerate/check Amplio2 if its version,
+extractor, config, or patch changed, update affected source line references,
 and run the browser tests plus `npm run verify` before accepting the new pin.
 For a fresh checkout, initialize both references with:
 

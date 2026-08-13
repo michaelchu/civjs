@@ -74,4 +74,62 @@ describe('PathRenderer', () => {
     expect(context.stroke).not.toHaveBeenCalled();
     expect(context.fillText).not.toHaveBeenCalled();
   });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:382-397
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:341-369
+   * @assertion A square-ISO GOTO step crossing a wrapped map edge is drawn to
+   * the nearest periodic copy, preserving the same one-tile diagonal GUI
+   * vector as an ordinary eastward step.
+   */
+  it('draws a square-ISO goto segment across the horizontal seam', () => {
+    const context = {
+      canvas: { width: 800, height: 600 },
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+    const renderer = new PathRenderer(context, {} as never, 96, 48);
+    renderer.setMapGeometry({
+      width: 4,
+      height: 3,
+      xsize: 4,
+      ysize: 3,
+      topology_id: 1,
+      wrap_id: 1,
+      tiles: {},
+    });
+
+    renderer.renderPaths({
+      viewport: { x: 0, y: 0, width: 800, height: 600 },
+      map: {
+        width: 4,
+        height: 3,
+        xsize: 4,
+        ysize: 3,
+        topology_id: 1,
+        wrap_id: 1,
+        tiles: {},
+      },
+      units: {},
+      cities: {},
+      players: {},
+      gotoPath: {
+        unitId: 'unit-1',
+        tiles: [
+          { x: 3, y: 1, moveCost: 0 },
+          { x: 0, y: 1, moveCost: 1 },
+        ],
+        totalCost: 1,
+        estimatedTurns: 1,
+        valid: true,
+      },
+    });
+
+    expect(context.moveTo).toHaveBeenCalledWith(144, 120);
+    expect(context.lineTo).toHaveBeenCalledWith(192, 144);
+    expect(context.stroke).toHaveBeenCalledTimes(1);
+  });
 });

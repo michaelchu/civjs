@@ -22,17 +22,17 @@ interface PreparedUnitLayer {
 
 export class UnitRenderer extends BaseRenderer {
   private readonly defaultUnitOverlayOffsets: UnitOverlayOffsets = {
-    unitX: 16,
-    unitY: -11,
+    unitX: 19,
+    unitY: -14,
     shieldX: 25,
-    shieldY: -15,
+    shieldY: -16,
     veteranX: 35,
     veteranY: -35,
     stackX: 0,
     stackY: -31,
     stackRingX: 0,
     stackRingY: -31,
-    stackRingKey: 'unit.stk_shld_l',
+    stackRingKey: 'unit.stack',
     shieldRight: false,
     shieldYAligned: false,
   };
@@ -48,11 +48,27 @@ export class UnitRenderer extends BaseRenderer {
   private movementAnimations = new Map<
     string,
     {
-      segments: Array<{ fromX: number; fromY: number; toX: number; toY: number }>;
+      segments: Array<{
+        fromX: number;
+        fromY: number;
+        toX: number;
+        toY: number;
+        /** Freeciv-web's destination tuple counter (ANIM_STEPS = 8). */
+        remainingSteps: number;
+      }>;
       startedAt: number;
     }
   >();
   private readonly movementDurationMs = 180;
+  private readonly referenceMovementSteps = 8;
+  private squareAnimationSamples = new Map<
+    string,
+    {
+      body: { x: number; y: number };
+      shield: { x: number; y: number };
+      hp: { x: number; y: number };
+    }
+  >();
 
   /**
    * Render all units visible in the viewport with proper stacking behavior.
@@ -60,6 +76,7 @@ export class UnitRenderer extends BaseRenderer {
    */
   renderUnits(state: RenderState, visibleTiles?: Tile[]): void {
     this.updateMovementAnimations(state);
+    this.squareAnimationSamples.clear();
     const prepared = this.prepareUnitLayer(state);
     const orderedTiles =
       visibleTiles ??
@@ -122,6 +139,7 @@ export class UnitRenderer extends BaseRenderer {
     if (!first) return;
 
     this.updateMovementAnimations(first.state);
+    this.squareAnimationSamples.clear();
     const prepared = this.prepareUnitLayer(first.state);
     if (prepared.focusedIds.length === 0) this.resetSelectionAnimation();
 
@@ -210,9 +228,18 @@ export class UnitRenderer extends BaseRenderer {
                 fromY: current.segments.at(-1)?.toY ?? previous.y,
                 toX: unit.x,
                 toY: unit.y,
+                remainingSteps: this.referenceMovementSteps,
               },
             ]
-          : [{ fromX: previous.x, fromY: previous.y, toX: unit.x, toY: unit.y }];
+          : [
+              {
+                fromX: previous.x,
+                fromY: previous.y,
+                toX: unit.x,
+                toY: unit.y,
+                remainingSteps: this.referenceMovementSteps,
+              },
+            ];
         if (current || this.movementAnimations.size < this.maxMovementAnimations) {
           this.movementAnimations.set(unit.id, {
             segments,
@@ -287,19 +314,36 @@ export class UnitRenderer extends BaseRenderer {
     state: RenderState
   ): void {
     const screenPos = this.mapToScreen(unit.x, unit.y, viewport);
-
-    // Get unit animation offset for smooth movement
-    // @reference reference/freeciv-web/.../unit.js:get_unit_anim_offset()
-    const animOffset = this.getUnitAnimOffset(unit, viewport, state.reducedMotion);
-
-    // Sprite offsets are relative to the tile origin, matching the reference
-    // fill_unit_sprite_array() contract. Unit-specific UO_* adjustments are
-    // supplied by the ruleset presentation endpoint.
-    const originX = screenPos.x + animOffset.x;
-    const originY = screenPos.y + animOffset.y;
-    const offsets = this.getUnitOverlayOffsets(unit);
-    const unitX = originX + offsets.unitX;
-    const unitY = originY + offsets.unitY;
+    const offsets = this.getUnitOverlayOffsets();
+    const nativeHex = this.getTilesetGeometry().hexWidth > 0;
+    // The pinned browser samples its mutable animation tuple for body/activity,
+    // nation shield, then HP. A foreign Flagless unit omits the shield helper
+    // entirely, so that special case consumes only the body and HP samples.
+    // Stack and veteran markers remain at the authoritative tile origin.
+    const samplesSquareShield = !(
+      this.unitGraphics[unit.unitTypeId]?.flagless &&
+      state.currentPlayerId &&
+      unit.playerId !== state.currentPlayerId
+    );
+    const squareSamples = nativeHex
+      ? null
+      : this.getSquareAnimationSamples(
+          unit,
+          viewport,
+          state.reducedMotion,
+          Boolean(samplesSquareShield)
+        );
+    const bodyAnimOffset =
+      squareSamples?.body ?? this.getUnitAnimOffset(unit, viewport, state.reducedMotion);
+    const shieldAnimOffset = squareSamples?.shield ?? bodyAnimOffset;
+    const hpAnimOffset = squareSamples?.hp ?? bodyAnimOffset;
+    const bodyOrigin = {
+      x: screenPos.x + bodyAnimOffset.x,
+      y: screenPos.y + bodyAnimOffset.y,
+    };
+    const staticOrigin = screenPos;
+    const unitX = bodyOrigin.x + offsets.unitX;
+    const unitY = bodyOrigin.y + offsets.unitY;
 
     // Render unit sprites using freeciv-web approach
     // @reference reference/freeciv-web/.../tilespec.js:fill_unit_sprite_array()
@@ -307,7 +351,11 @@ export class UnitRenderer extends BaseRenderer {
       unit,
       state.players[unit.playerId],
       state.currentPlayerId,
-      offsets
+      offsets,
+      {
+        x: shieldAnimOffset.x - bodyAnimOffset.x,
+        y: shieldAnimOffset.y - bodyAnimOffset.y,
+      }
     );
     const unitSprites = this.fillUnitSpriteArray(
       unit,
@@ -323,7 +371,7 @@ export class UnitRenderer extends BaseRenderer {
           const offsetX = spriteInfo.offset_x || 0;
           const offsetY = spriteInfo.offset_y || 0;
 
-          this.ctx.drawImage(sprite, originX + offsetX, originY + offsetY);
+          this.ctx.drawImage(sprite, bodyOrigin.x + offsetX, bodyOrigin.y + offsetY);
         } else if (spriteInfo.required) {
           // Freeciv tries the ruleset alternate graphic before a local placeholder.
           const alternateGraphic = this.unitGraphics[unit.unitTypeId]?.graphic_alt;
@@ -343,25 +391,53 @@ export class UnitRenderer extends BaseRenderer {
 
     if (nationShield?.fallback) {
       this.renderNationShieldFallback(
-        originX + nationShield.offset_x,
-        originY + nationShield.offset_y,
+        bodyOrigin.x + nationShield.offset_x,
+        bodyOrigin.y + nationShield.offset_y,
         state.players[unit.playerId]?.color
       );
     }
 
-    const nativeHex = this.getTilesetGeometry().hexWidth > 0;
-    // Preserve the carried Freeciv-web animation behavior on its atlas. The
-    // topology-exact Hexemplio path follows fill_unit_sprite_array(): stack,
-    // veteran, then HP, all at the full-tile origin.
-    if (animOffset.x === 0 && animOffset.y === 0) {
-      if (nativeHex) {
-        this.renderNativeUnitIndicators(unit, stackSize, originX, originY, offsets);
-      } else {
-        this.renderLegacyUnitIndicators(unit, stackSize, originX, originY, offsets, state);
+    if (nativeHex) {
+      if (bodyAnimOffset.x === 0 && bodyAnimOffset.y === 0) {
+        this.renderNativeUnitIndicators(unit, stackSize, bodyOrigin.x, bodyOrigin.y, offsets);
       }
-    } else if (!nativeHex) {
-      this.renderVeteranSprite(unit, originX, originY, offsets);
+    } else {
+      this.renderLegacyUnitIndicators(
+        unit,
+        stackSize,
+        staticOrigin.x,
+        staticOrigin.y,
+        offsets,
+        hpAnimOffset
+      );
     }
+  }
+
+  private getSquareAnimationSamples(
+    unit: Unit,
+    viewport: MapViewport,
+    reducedMotion = false,
+    sampleShield = true
+  ): {
+    body: { x: number; y: number };
+    shield: { x: number; y: number };
+    hp: { x: number; y: number };
+  } {
+    // A wrapped logical tile can be painted through multiple translated GUI
+    // viewports in one map redraw. freeciv-web calls fill_unit_sprite_array()
+    // for every copy, so each copy consumes its own body/shield/HP samples.
+    const paintedCopyKey = `${unit.id}@${viewport.x},${viewport.y}`;
+    const cached = this.squareAnimationSamples.get(paintedCopyKey);
+    if (cached) return cached;
+    const body = this.getUnitAnimOffset(unit, viewport, reducedMotion);
+    const shield = sampleShield ? this.getUnitAnimOffset(unit, viewport, reducedMotion) : body;
+    const samples = {
+      body,
+      shield,
+      hp: this.getUnitAnimOffset(unit, viewport, reducedMotion),
+    };
+    this.squareAnimationSamples.set(paintedCopyKey, samples);
+    return samples;
   }
 
   /**
@@ -378,6 +454,29 @@ export class UnitRenderer extends BaseRenderer {
     if (reducedMotion) {
       this.movementAnimations.delete(unit.id);
       return { x: 0, y: 0 };
+    }
+    if (this.getTilesetGeometry().hexWidth <= 0) {
+      const segment = animation.segments[0];
+      if (!segment) {
+        this.movementAnimations.delete(unit.id);
+        return { x: 0, y: 0 };
+      }
+      segment.remainingSteps -= 1;
+      const step = Math.floor((segment.remainingSteps + 2) / 3);
+      const from = this.mapToScreen(segment.fromX, segment.fromY, viewport);
+      const to = this.mapToScreen(segment.toX, segment.toY, viewport);
+      const authoritative = this.mapToScreen(unit.x, unit.y, viewport);
+      const guiDx =
+        Math.floor((to.x - from.x) * (step / this.referenceMovementSteps)) +
+        (authoritative.x - to.x);
+      const guiDy =
+        Math.floor((to.y - from.y) * (step / this.referenceMovementSteps)) +
+        (authoritative.y - to.y);
+      if (step === 0) {
+        animation.segments.shift();
+        if (animation.segments.length === 0) this.movementAnimations.delete(unit.id);
+      }
+      return { x: -guiDx, y: -guiDy };
     }
     const elapsed = performance.now() - animation.startedAt;
     const segmentIndex = Math.floor(elapsed / this.movementDurationMs);
@@ -455,8 +554,8 @@ export class UnitRenderer extends BaseRenderer {
     if (agentSprite) sprites.push(agentSprite);
 
     const orders = Array.isArray(unit.orders) ? unit.orders : [];
-    if (orders.length > 0) {
-      const nativeHex = this.getTilesetGeometry().hexWidth > 0;
+    const nativeHex = this.getTilesetGeometry().hexWidth > 0;
+    if (nativeHex && orders.length > 0) {
       const repeated = orders.some(
         order =>
           Boolean((order as { repeat?: unknown }).repeat) ||
@@ -464,20 +563,17 @@ export class UnitRenderer extends BaseRenderer {
             .toLowerCase()
             .includes('patrol')
       );
-      if (nativeHex && repeated) {
+      if (repeated) {
         const full = this.getFullTileOffset();
         sprites.push({ key: 'unit.patrol', offset_x: full.x, offset_y: full.y });
       } else if (
-        nativeHex &&
         this.getUnitActivityName(unit) !== '' &&
         this.getUnitActivityName(unit) !== 'idle'
       ) {
         sprites.push({ key: 'unit.connect' });
-      } else if (nativeHex) {
+      } else {
         const activity = this.getActivityOffset();
         sprites.push({ key: 'unit.goto', offset_x: activity.x, offset_y: activity.y });
-      } else if (this.isConnectingActivity(this.getUnitActivityName(unit))) {
-        sprites.push({ key: 'unit.connect', offset_x: -6, offset_y: -6 });
       }
     }
 
@@ -510,43 +606,24 @@ export class UnitRenderer extends BaseRenderer {
     originX: number,
     originY: number,
     offsets: UnitOverlayOffsets,
-    state: RenderState
+    hpAnimOffset: { x: number; y: number }
   ): void {
     const maxHp = Math.max(1, unit.maxHp ?? 100);
     const hpPercent = this.toTenPercentFloor((unit.hp / maxHp) * 100);
-    const hpKey = `unit.hp_${hpPercent}`;
-    const hasMoveBar =
-      Boolean(state.showUnitMovePoints) &&
-      Number.isFinite(unit.movesLeft) &&
-      Number.isFinite(unit.maxMoves) &&
-      (unit.maxMoves ?? 0) > 0;
-    const movePercent = hasMoveBar
-      ? this.toTenPercentFloor((unit.movesLeft / (unit.maxMoves ?? 1)) * 100)
-      : hpPercent;
-
-    let drewHp = false;
-    if (hasMoveBar) {
-      drewHp =
-        this.drawUnitSpriteIfPresent(`unit.hp_${movePercent}`, originX, originY - 31) || drewHp;
+    const drewHp = this.drawUnitSpriteIfPresent(
+      `unit.hp_${hpPercent}`,
+      originX + offsets.stackX + hpAnimOffset.x,
+      originY + offsets.stackY + hpAnimOffset.y
+    );
+    if (!drewHp) {
+      this.renderUnitHealthBar(unit, originX + hpAnimOffset.x, originY + hpAnimOffset.y);
     }
-    drewHp =
-      this.drawUnitSpriteIfPresent(hpKey, originX, originY - (hasMoveBar ? 36 : 31)) || drewHp;
-
-    // Keep the generic bar as a ruleset/tileset fallback, including full HP.
-    if (!drewHp) this.renderUnitHealthBar(unit, originX, originY);
 
     if (stackSize > 1) {
-      if (!offsets.shieldYAligned) {
-        this.drawUnitSpriteIfPresent(
-          offsets.stackRingKey,
-          originX + offsets.stackRingX,
-          originY + offsets.stackRingY
-        );
-      }
       this.drawUnitSpriteIfPresent(
-        `unit.stack${Math.min(stackSize, 9)}`,
-        originX + offsets.stackX,
-        originY + offsets.stackY
+        offsets.stackRingKey,
+        originX + offsets.stackRingX,
+        originY + offsets.stackRingY
       );
     }
     this.renderVeteranSprite(unit, originX, originY, offsets);
@@ -631,7 +708,8 @@ export class UnitRenderer extends BaseRenderer {
     unit: Unit,
     player: RenderState['players'][string] | undefined,
     currentPlayerId: string | undefined,
-    offsets: UnitOverlayOffsets
+    offsets: UnitOverlayOffsets,
+    animationOffset: { x: number; y: number } = { x: 0, y: 0 }
   ): { key: string; offset_x: number; offset_y: number; fallback?: boolean } | null {
     const definition = this.unitGraphics[unit.unitTypeId];
     if (definition?.flagless && currentPlayerId && unit.playerId !== currentPlayerId) {
@@ -645,8 +723,8 @@ export class UnitRenderer extends BaseRenderer {
       return {
         key: '',
         fallback: true,
-        offset_x: offsets.shieldX,
-        offset_y: offsets.shieldY,
+        offset_x: offsets.shieldX + animationOffset.x,
+        offset_y: offsets.shieldY + animationOffset.y,
       };
     }
 
@@ -669,25 +747,36 @@ export class UnitRenderer extends BaseRenderer {
       return {
         key: '',
         fallback: true,
-        offset_x: offsets.shieldX,
-        offset_y: offsets.shieldY,
+        offset_x: offsets.shieldX + animationOffset.x,
+        offset_y: offsets.shieldY + animationOffset.y,
       };
     }
 
     return {
       key,
-      offset_x: offsets.shieldX,
-      offset_y: offsets.shieldY,
+      offset_x: offsets.shieldX + animationOffset.x,
+      offset_y: offsets.shieldY + animationOffset.y,
     };
   }
 
-  private getUnitOverlayOffsets(unit: Unit): UnitOverlayOffsets {
-    if (this.getTilesetGeometry().hexWidth <= 0) {
-      return this.unitGraphics[unit.unitTypeId]?.offsets ?? this.defaultUnitOverlayOffsets;
-    }
-
+  private getUnitOverlayOffsets(): UnitOverlayOffsets {
     const presentation = this.tilesetLoader.getPresentationOffsets();
     const full = this.getFullTileOffset();
+    if (this.getTilesetGeometry().hexWidth <= 0) {
+      return {
+        ...this.defaultUnitOverlayOffsets,
+        unitX: full.x + presentation.unitX,
+        unitY: full.y + presentation.unitY,
+        shieldX: full.x + presentation.unitFlagX,
+        shieldY: full.y + presentation.unitFlagY,
+        stackX: full.x + presentation.stackX,
+        stackY: full.y + presentation.stackY,
+        stackRingX: full.x + presentation.stackX,
+        stackRingY: full.y + presentation.stackY,
+        stackRingKey: 'unit.stack',
+      };
+    }
+
     return {
       unitX: full.x + presentation.unitX,
       unitY: full.y + presentation.unitY,
@@ -714,8 +803,6 @@ export class UnitRenderer extends BaseRenderer {
   }
 
   private getActivityOffset(): { x: number; y: number } {
-    const geometry = this.getTilesetGeometry();
-    if (geometry.hexWidth <= 0) return { x: 55, y: -25 };
     const offsets = this.tilesetLoader.getPresentationOffsets();
     const full = this.getFullTileOffset();
     return { x: full.x + offsets.activityX, y: full.y + offsets.activityY };
@@ -800,8 +887,8 @@ export class UnitRenderer extends BaseRenderer {
       irrigating: 'unit.irrigate',
       mine: 'unit.mine',
       mining: 'unit.mine',
-      cultivating: 'unit.irrigate',
-      cultivate: 'unit.irrigate',
+      cultivating: 'unit.cultivate',
+      cultivate: 'unit.cultivate',
       planting: 'unit.plant',
       transforming: 'unit.transform',
       pillage: 'unit.pillage',
@@ -843,25 +930,6 @@ export class UnitRenderer extends BaseRenderer {
         : '';
   }
 
-  private isConnectingActivity(activity: string): boolean {
-    return new Set([
-      'road',
-      'build_road',
-      'building_road',
-      'railroad',
-      'build_railroad',
-      'building_railroad',
-      'irrigate',
-      'irrigation',
-      'irrigating',
-      'mine',
-      'mining',
-      'cultivate',
-      'cultivating',
-      'planting',
-    ]).has(activity);
-  }
-
   /**
    * Get the server-side-agent overlay independently of unit activity.
    * @reference freeciv-web: get_unit_agent_sprite()
@@ -879,7 +947,10 @@ export class UnitRenderer extends BaseRenderer {
     }
     if (unit.automation !== 'worker') return null;
 
-    if (this.tilesetLoader.getSprite('unit.auto_worker')) {
+    if (
+      this.getTilesetGeometry().hexWidth <= 0 ||
+      this.tilesetLoader.getSprite('unit.auto_worker')
+    ) {
       const full = this.getFullTileOffset();
       return { key: 'unit.auto_worker', offset_x: full.x, offset_y: full.y };
     }
@@ -987,9 +1058,13 @@ export class UnitRenderer extends BaseRenderer {
     reducedMotion = false
   ): void {
     const screenPos = this.mapToScreen(unit.x, unit.y, viewport);
-    const movementOffset = this.getUnitAnimOffset(unit, viewport, reducedMotion);
-    screenPos.x += movementOffset.x;
-    screenPos.y += movementOffset.y;
+    // Freeciv-web emits selection before fill_unit_sprite_array(), so the
+    // selection frame is static and does not consume or inherit unit movement.
+    if (this.getTilesetGeometry().hexWidth > 0) {
+      const movementOffset = this.getUnitAnimOffset(unit, viewport, reducedMotion);
+      screenPos.x += movementOffset.x;
+      screenPos.y += movementOffset.y;
+    }
 
     // Reset animation when unit selection changes
     if (this.lastSelectedUnitId !== unit.id) {

@@ -325,7 +325,13 @@ async function buildManifest() {
       stackY: scalarNumber(tilespecSections, 'stack_size_offset_y'),
       cityX: scalarNumber(tilespecSections, 'city_offset_x'),
       cityY: scalarNumber(tilespecSections, 'city_offset_y'),
+      citybarX: scalarNumber(
+        tilespecSections,
+        'citybar_offset_x',
+        scalarNumber(tilespecSections, 'normal_tile_width', 126) / 2
+      ),
       citybarY: scalarNumber(tilespecSections, 'citybar_offset_y'),
+      tileLabelX: scalarNumber(tilespecSections, 'tilelabel_offset_x'),
       tileLabelY: scalarNumber(tilespecSections, 'tilelabel_offset_y'),
     },
     terrainComposition: buildTerrainProfile(tilespecSource),

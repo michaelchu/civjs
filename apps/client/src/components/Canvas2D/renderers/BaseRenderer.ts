@@ -29,8 +29,6 @@ export interface RenderState {
   researchedTechs?: ReadonlySet<string>;
   presentationEffects?: PresentationEffect[];
   reducedMotion?: boolean;
-  /** Matches freeciv-web's show_unit_movepct option, disabled by default. */
-  showUnitMovePoints?: boolean;
 }
 
 export abstract class BaseRenderer {

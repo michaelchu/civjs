@@ -56,14 +56,36 @@ const seedFixture = (): void => {
     return Number.isInteger(value) && value > 0 ? value : fallback;
   };
   const nativeReferenceVisual = isometricVisual && parityMode === 'native-reference';
+  const referenceEntityVisual = isometricVisual && parityMode === 'reference-entities';
+  const referenceEffectsVisual = isometricVisual && parityMode === 'reference-effects';
+  const referenceWrappedVisual = isometricVisual && parityMode === 'reference-wrapped';
   const referenceParityVisual =
     isometricVisual &&
-    (parityMode === 'reference' || parityMode === 'reference-base' || nativeReferenceVisual);
+    (parityMode === 'reference' ||
+      parityMode === 'reference-base' ||
+      parityMode === 'reference-entities' ||
+      parityMode === 'reference-effects' ||
+      parityMode === 'reference-wrapped' ||
+      nativeReferenceVisual);
   const referenceBaseVisual = isometricVisual && parityMode === 'reference-base';
   const mapWidth = isometricVisual ? queryDimension('mapWidth', 48) : 5;
   const mapHeight = isometricVisual ? queryDimension('mapHeight', 48) : 5;
-  const cityX = isometricVisual ? Math.floor(mapWidth / 2) : 2;
-  const cityY = isometricVisual ? Math.floor(mapHeight / 2) : 2;
+  // Keep the entity oracle near the finite board's south-east edge. Centering
+  // on this tile reaches beyond the map at the lower canvas corners, so both
+  // renderers exercise freeciv-web's opaque edge clear before composition.
+  const cityX = isometricVisual
+    ? referenceEntityVisual || referenceEffectsVisual
+      ? Math.floor((mapWidth * 3) / 4)
+      : Math.floor(mapWidth / 2)
+    : 2;
+  const cityY = isometricVisual
+    ? referenceEntityVisual || referenceEffectsVisual
+      ? Math.floor((mapHeight * 3) / 4)
+      : Math.floor(mapHeight / 2)
+    : 2;
+  const stackedUnitX = Math.min(mapWidth - 1, cityX + 6);
+  const stackedUnitY = Math.max(0, cityY - 1);
+  const wrappedSeamY = Math.floor(mapHeight / 2);
   const terrain = [
     'deep_ocean',
     'coast',
@@ -96,8 +118,16 @@ const seedFixture = (): void => {
         x,
         y,
         terrain: visualTerrain,
-        visible: isometricVisual ? !(x === mapWidth - 1 && y === 0) : !(x === 4 && y === 0),
-        known: isometricVisual ? !(x === mapWidth - 1 && y === 1) : !(x === 4 && y === 1),
+        visible: referenceWrappedVisual
+          ? !(x === mapWidth - 1 && y === wrappedSeamY)
+          : isometricVisual
+            ? !(x === mapWidth - 1 && y === 0)
+            : !(x === 4 && y === 0),
+        known: referenceWrappedVisual
+          ? !(x === mapWidth - 1 && y === wrappedSeamY + 1)
+          : isometricVisual
+            ? !(x === mapWidth - 1 && y === 1)
+            : !(x === 4 && y === 1),
         resource: isometricVisual
           ? !referenceBaseVisual && x === 26 && y === 22
             ? 'gold'
@@ -108,14 +138,18 @@ const seedFixture = (): void => {
         riverMask: isVisualRiver ? 2 : !isometricVisual && x === 1 && y === 2 ? 10 : undefined,
         hasRoad: referenceBaseVisual
           ? false
-          : isometricVisual
-            ? y === 25 && x >= 15 && x <= 33
-            : y === 3,
+          : referenceWrappedVisual
+            ? y === wrappedSeamY && (x <= 1 || x >= mapWidth - 2)
+            : isometricVisual
+              ? y === 25 && x >= 15 && x <= 33
+              : y === 3,
         hasRailroad: referenceBaseVisual
           ? false
-          : isometricVisual
-            ? y === 26 && x >= 17 && x <= 31
-            : y === 4,
+          : referenceWrappedVisual
+            ? y === wrappedSeamY + 1 && (x <= 1 || x >= mapWidth - 2)
+            : isometricVisual
+              ? y === 26 && x >= 17 && x <= 31
+              : y === 4,
         improvements: referenceBaseVisual
           ? []
           : isometricVisual
@@ -125,33 +159,186 @@ const seedFixture = (): void => {
             : x === 1 && y === 1
               ? ['irrigation']
               : [],
-        owner: referenceParityVisual
-          ? undefined
-          : (visualOwner ?? (x >= 1 && x <= 3 ? 'player-one' : undefined)),
+        owner:
+          referenceWrappedVisual && x === mapWidth - 1 && y === wrappedSeamY - 1
+            ? 'player-one'
+            : referenceWrappedVisual && x === 0 && y === wrappedSeamY - 1
+              ? 'player-two'
+              : referenceEntityVisual && x === cityX - 4 && y === cityY
+                ? 'player-one'
+                : referenceEntityVisual && x === cityX - 3 && y === cityY
+                  ? 'player-two'
+                  : referenceParityVisual
+                    ? undefined
+                    : (visualOwner ?? (x >= 1 && x <= 3 ? 'player-one' : undefined)),
+        label:
+          referenceWrappedVisual && x === 0 && y === wrappedSeamY + 2
+            ? 'Seam'
+            : referenceEntityVisual && x === cityX - 4 && y === cityY + 1
+              ? 'Oracle'
+              : undefined,
       });
     }
   }
   const city = makeCity(cityX, cityY);
-  if (!referenceParityVisual) {
+  if (!referenceParityVisual || referenceEntityVisual) {
     tiles.find(tile => tile.x === city.x && tile.y === city.y)!.cityId = city.id;
   }
+  const fixtureCities = referenceParityVisual && !referenceEntityVisual ? {} : { [city.id]: city };
+  const fixtureUnits =
+    referenceParityVisual && !referenceEntityVisual
+      ? {}
+      : {
+          'unit-one': {
+            id: 'unit-one',
+            playerId: 'player-one',
+            unitTypeId: 'warriors',
+            x: cityX,
+            y: cityY,
+            hp: 8,
+            maxHp: 10,
+            movesLeft: 1,
+            maxMoves: 1,
+            veteranLevel: 0,
+            fortified: true,
+          },
+          ...(isometricVisual
+            ? {
+                'unit-two': {
+                  id: 'unit-two',
+                  playerId: 'player-two',
+                  unitTypeId: 'warriors',
+                  x: stackedUnitX,
+                  y: stackedUnitY,
+                  hp: 5,
+                  maxHp: 10,
+                  movesLeft: 1,
+                  maxMoves: 1,
+                  veteranLevel: 1,
+                  activity: referenceEntityVisual ? 'sentry' : undefined,
+                  actionDecisionWant: referenceEntityVisual,
+                },
+                ...(referenceEntityVisual
+                  ? {
+                      'unit-three': {
+                        id: 'unit-three',
+                        playerId: 'player-two',
+                        unitTypeId: 'settlers',
+                        x: stackedUnitX,
+                        y: stackedUnitY,
+                        hp: 20,
+                        maxHp: 20,
+                        movesLeft: 1,
+                        maxMoves: 1,
+                        veteranLevel: 0,
+                      },
+                    }
+                  : {}),
+              }
+            : {}),
+        };
 
-  // Preserve a finite ISO board in the two strict reference-painter modes: the
-  // pinned browser harness cannot resolve wrapped map positions completely.
-  // The normal visual fixture uses the real C2C3 topology/wrap metadata; that
-  // metadata is also exposed separately so physical-overview tests can assert
-  // the production contract without weakening the finite world-pixel oracle.
+  const referenceEntities = referenceEntityVisual
+    ? {
+        cities: [
+          {
+            id: city.id,
+            playerId: city.playerId,
+            x: city.x,
+            y: city.y,
+            name: city.name,
+            size: city.size,
+            graphic: 'city.asian',
+            graphicAlt: 'city.classical',
+            walls: true,
+            unhappy: city.disorder,
+            occupied: city.occupied ?? false,
+            production: { unitTypeId: 'settlers' },
+          },
+        ],
+        units: [
+          {
+            id: 'unit-one',
+            playerId: 'player-one',
+            unitTypeId: 'warriors',
+            graphic: 'u.warriors',
+            graphicAlt: '-',
+            x: city.x,
+            y: city.y,
+            hp: 8,
+            maxHp: 10,
+            veteranLevel: 0,
+            activity: 'fortified',
+          },
+          {
+            id: 'unit-two',
+            playerId: 'player-two',
+            unitTypeId: 'warriors',
+            graphic: 'u.warriors',
+            graphicAlt: '-',
+            x: stackedUnitX,
+            y: stackedUnitY,
+            hp: 5,
+            maxHp: 10,
+            veteranLevel: 1,
+            activity: 'sentry',
+            actionDecisionWant: true,
+          },
+          {
+            id: 'unit-three',
+            playerId: 'player-two',
+            unitTypeId: 'settlers',
+            graphic: 'u.settlers',
+            graphicAlt: '-',
+            x: stackedUnitX,
+            y: stackedUnitY,
+            hp: 20,
+            maxHp: 20,
+            veteranLevel: 0,
+          },
+        ],
+        showCitybar: true,
+      }
+    : undefined;
+
+  const effectX = Math.max(0, cityX - 2);
+  const effectY = Math.max(0, cityY - 2);
+  const effectTile = tiles.find(tile => tile.x === effectX && tile.y === effectY);
+  if (referenceEffectsVisual && effectTile) {
+    effectTile.known = true;
+    effectTile.visible = true;
+  }
+  const referenceEffects = referenceEffectsVisual
+    ? {
+        combat: { x: effectX, y: effectY },
+        nuclear: { x: effectX + 3, y: effectY + 1 },
+      }
+    : undefined;
+
+  const referenceBoardTopology =
+    referenceParityVisual && !nativeReferenceVisual ? TOPOLOGY_ISO : C2C3_TOPOLOGY;
+  const referenceBoardWrap = referenceWrappedVisual
+    ? 1
+    : referenceParityVisual && !nativeReferenceVisual
+      ? 0
+      : C2C3_WRAP;
+
+  // Strict browser-painter fixtures use square ISO. The wrapped fixture keeps
+  // Freeciv-web's X-period enabled and centers the camera directly over that
+  // seam; the native-reference fixture continues to exercise C2C3 metadata.
   Object.assign(window, {
     map: {
       xsize: mapWidth,
       ysize: mapHeight,
-      topology_id: referenceParityVisual && !nativeReferenceVisual ? TOPOLOGY_ISO : C2C3_TOPOLOGY,
-      wrap_id: referenceParityVisual && !nativeReferenceVisual ? 0 : C2C3_WRAP,
+      topology_id: referenceBoardTopology,
+      wrap_id: referenceBoardWrap,
     },
     __civjsParityGeometry: {
       topologyId: C2C3_TOPOLOGY,
       wrapId: C2C3_WRAP,
     },
+    __civjsParityEntities: referenceEntities,
+    __civjsParityEffects: referenceEffects,
     tiles,
   });
 
@@ -159,6 +346,9 @@ const seedFixture = (): void => {
     clientState: 'running',
     currentGameId: 'browser-parity',
     currentPlayerId: 'player-one',
+    // The fixture supplies its final entity state synchronously; prevent the
+    // production startup-centering effect from replacing the oracle viewport.
+    hasReceivedUnitSnapshot: true,
     turn: 42,
     year: 1200,
     activeTab: 'map',
@@ -174,6 +364,7 @@ const seedFixture = (): void => {
         sciencePerTurn: 2,
         history: 20,
         government: 'republic',
+        nationGraphic: 'japan',
         isHuman: true,
         isActive: true,
       },
@@ -188,6 +379,7 @@ const seedFixture = (): void => {
         sciencePerTurn: 1,
         history: 16,
         government: 'monarchy',
+        nationGraphic: 'rome',
         isHuman: false,
         isActive: true,
       },
@@ -197,42 +389,49 @@ const seedFixture = (): void => {
       height: mapHeight,
       xsize: mapWidth,
       ysize: mapHeight,
-      topology_id: referenceParityVisual && !nativeReferenceVisual ? TOPOLOGY_ISO : C2C3_TOPOLOGY,
-      wrap_id: referenceParityVisual && !nativeReferenceVisual ? 0 : C2C3_WRAP,
+      topology_id: referenceBoardTopology,
+      wrap_id: referenceBoardWrap,
       tiles: Object.fromEntries(tiles.map(tile => [`${tile.x},${tile.y}`, tile])),
     },
-    cities: referenceParityVisual ? {} : { [city.id]: city },
-    units: referenceParityVisual
-      ? {}
-      : {
-          'unit-one': {
-            id: 'unit-one',
-            playerId: 'player-one',
-            unitTypeId: 'warriors',
-            x: cityX,
-            y: cityY,
-            hp: 80,
-            movesLeft: 1,
-            maxMoves: 1,
-            veteranLevel: 0,
-            fortified: true,
+    mapData: referenceParityVisual
+      ? {
+          width: mapWidth,
+          height: mapHeight,
+          startingPositions: [
+            {
+              playerId: 'player-one',
+              x: cityX,
+              y: cityY,
+            },
+          ],
+          seed: 'browser-parity',
+          generatedAt: new Date(0),
+        }
+      : undefined,
+    cities: fixtureCities,
+    units: fixtureUnits,
+    presentationEffects: referenceEffectsVisual
+      ? [
+          {
+            id: 'reference-combat-effect',
+            type: 'combat',
+            x: effectX,
+            y: effectY,
+            startedAt: performance.now(),
           },
-          ...(isometricVisual
-            ? {
-                'unit-two': {
-                  id: 'unit-two',
-                  playerId: 'player-two',
-                  unitTypeId: 'warriors',
-                  x: 30,
-                  y: 23,
-                  hp: 50,
-                  movesLeft: 1,
-                  maxMoves: 1,
-                  veteranLevel: 1,
-                },
-              }
-            : {}),
-        },
+          {
+            id: 'reference-nuclear-effect',
+            type: 'nuclear',
+            x: effectX + 3,
+            y: effectY + 1,
+            startedAt: performance.now(),
+            tiles: [
+              { x: effectX + 3, y: effectY + 1 },
+              { x: effectX + 4, y: effectY + 1 },
+            ],
+          },
+        ]
+      : [],
     research: {
       currentTech: 'writing',
       bulbsAccumulated: 20,
@@ -328,9 +527,18 @@ const seedFixture = (): void => {
       : undefined,
     viewport: referenceBaseVisual
       ? { x: -400, y: -250, width: window.innerWidth, height: window.innerHeight }
-      : referenceParityVisual && !nativeReferenceVisual
+      : referenceEntityVisual
         ? { x: -592, y: 1392, width: window.innerWidth, height: window.innerHeight }
-        : { x: -400, y: -250, width: 800, height: 600 },
+        : referenceWrappedVisual
+          ? {
+              x: Math.round(-wrappedSeamY * 48 + 48 - window.innerWidth / 2),
+              y: Math.round(wrappedSeamY * 24 + 24 - window.innerHeight / 2),
+              width: window.innerWidth,
+              height: window.innerHeight,
+            }
+          : referenceParityVisual && !nativeReferenceVisual
+            ? { x: -592, y: 1392, width: window.innerWidth, height: window.innerHeight }
+            : { x: -400, y: -250, width: 800, height: 600 },
   });
 };
 

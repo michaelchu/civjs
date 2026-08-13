@@ -440,8 +440,15 @@ export class GameClient {
 
       case PacketType.UNIT_ATTACK_REPLY: {
         const combatResult = packet.data.combatResult;
-        if (packet.data.success && combatResult) {
-          const unit = useGameStore.getState().units[combatResult.defenderId];
+        if (
+          packet.data.success &&
+          combatResult &&
+          (combatResult.attackerDestroyed || combatResult.defenderDestroyed)
+        ) {
+          const units = useGameStore.getState().units;
+          const unit = combatResult.attackerDestroyed
+            ? units[combatResult.attackerId]
+            : units[combatResult.defenderId];
           if (unit) {
             this.addPresentationEffect({
               id: `combat:${combatResult.attackerId}:${combatResult.defenderId}:${Date.now()}`,

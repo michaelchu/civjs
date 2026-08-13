@@ -36,3 +36,7 @@ pnpm-lock.yaml
 
 # Reference freeciv codebase (external)
 ../../reference/
+
+# Exact freeciv-web extractor output; formatting would invalidate its recorded
+# source hash and break reproducibility checks.
+public/tilesets/amplio2/tileset_spec_amplio2.js

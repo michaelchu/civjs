@@ -197,7 +197,9 @@ export class HexemplioTilesetProvider implements TilesetProvider {
         stackY: 25,
         cityX: 17,
         cityY: 21,
+        citybarX: 63,
         citybarY: 40,
+        tileLabelX: 0,
         tileLabelY: 20,
       }
     );

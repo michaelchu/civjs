@@ -138,8 +138,8 @@ describe('GameClient state-bearing packets', () => {
           x: 3,
           y: 4,
           hpBefore: 100,
-          hpAfter: 20,
-          destroyed: false,
+          hpAfter: 0,
+          destroyed: true,
         },
       ],
     });
@@ -147,7 +147,14 @@ describe('GameClient state-bearing packets', () => {
       type: PacketType.UNIT_ATTACK_REPLY,
       data: {
         success: true,
-        combatResult: { attackerId: 'attacker', defenderId: 'defender' },
+        combatResult: {
+          attackerId: 'attacker',
+          defenderId: 'defender',
+          attackerDamage: 20,
+          defenderDamage: 100,
+          attackerDestroyed: false,
+          defenderDestroyed: true,
+        },
       },
     } as Packet);
 
@@ -163,6 +170,40 @@ describe('GameClient state-bearing packets', () => {
       })
     );
     vi.restoreAllMocks();
+  });
+
+  it('does not synthesize a local explosion for a non-lethal attack reply', () => {
+    useGameStore.getState().updateGameState({
+      units: {
+        defender: {
+          id: 'defender',
+          playerId: 'player-2',
+          unitTypeId: 'warriors',
+          x: 3,
+          y: 4,
+          hp: 50,
+          movesLeft: 1,
+          veteranLevel: 0,
+        },
+      },
+    });
+
+    handlePacket({
+      type: PacketType.UNIT_ATTACK_REPLY,
+      data: {
+        success: true,
+        combatResult: {
+          attackerId: 'attacker',
+          defenderId: 'defender',
+          attackerDamage: 50,
+          defenderDamage: 50,
+          attackerDestroyed: false,
+          defenderDestroyed: false,
+        },
+      },
+    } as Packet);
+
+    expect(useGameStore.getState().presentationEffects).toEqual([]);
   });
 
   it('removes a consumed settler when the server broadcasts unit destruction', () => {

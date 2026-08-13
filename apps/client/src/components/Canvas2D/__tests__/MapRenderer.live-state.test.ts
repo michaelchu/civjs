@@ -24,6 +24,42 @@ function createContext() {
   return context as unknown as CanvasRenderingContext2D;
 }
 
+const AMPLIO2_PRESENTATION_OFFSETS = {
+  unitFlagX: 25,
+  unitFlagY: -16,
+  cityFlagX: 2,
+  cityFlagY: -9,
+  unitX: 19,
+  unitY: -14,
+  activityX: 55,
+  activityY: -25,
+  selectX: 0,
+  selectY: 0,
+  stackX: 0,
+  stackY: -31,
+  cityX: 0,
+  cityY: -14,
+  citybarX: 45,
+  citybarY: 55,
+  tileLabelX: 0,
+  tileLabelY: 15,
+};
+
+function createSquareUnitTileset(getSprite: (key: string) => HTMLImageElement | undefined | null) {
+  return {
+    getSprite,
+    getGeometry: () => ({
+      tileWidth: 96,
+      tileHeight: 48,
+      fullTileWidth: 96,
+      fullTileHeight: 48,
+      hexWidth: 0,
+      hexHeight: 0,
+    }),
+    getPresentationOffsets: () => AMPLIO2_PRESENTATION_OFFSETS,
+  };
+}
+
 function createRenderState(cities: RenderState['cities'] = {}): RenderState {
   return {
     viewport: { x: 0, y: 0, width: 800, height: 600 },
@@ -183,6 +219,26 @@ describe('MapRenderer live-state updates', () => {
     expect(normalized.y - viewportOrigin.y).toBe(1200);
   });
 
+  it('preserves an exact finite-map GUI origin without generic camera clamping', () => {
+    const renderer = new MapRenderer(createContext());
+    Object.assign(renderer as unknown as Record<string, unknown>, {
+      currentMap: {
+        width: 40,
+        height: 40,
+        xsize: 40,
+        ysize: 40,
+        topology_id: 1,
+        wrap_id: 0,
+        tiles: {},
+      },
+    });
+
+    expect(renderer.setMapviewOrigin(-100_000, 75_000, 800, 600)).toEqual({
+      x: -100_000,
+      y: 75_000,
+    });
+  });
+
   it('normalizes C2C3 wrapped origins through native storage axes', () => {
     const renderer = new MapRenderer(createContext());
     Object.assign(renderer as unknown as Record<string, unknown>, {
@@ -243,6 +299,49 @@ describe('MapRenderer live-state updates', () => {
     expect(views.map(view => view.viewport)).toEqual(
       expect.arrayContaining([viewport, { ...viewport, x: -4144, y: 2244 }])
     );
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:305-380
+   * @assertion Wrapped square-ISO copies retain the exact gui_rect_iterate
+   * painter walk instead of reverting to bounding-box tile culling at seams.
+   */
+  it('uses the square-ISO painter iterator for neighboring wrapped copies', () => {
+    const renderer = new MapRenderer(createContext());
+    const tiles: Tile[] = [
+      { x: 0, y: 25, terrain: 'plains', known: true, visible: true },
+      { x: 79, y: 25, terrain: 'desert', known: true, visible: true },
+    ];
+    Object.assign(renderer as unknown as Record<string, unknown>, {
+      currentMap: {
+        width: 80,
+        height: 50,
+        xsize: 80,
+        ysize: 50,
+        topology_id: 1,
+        wrap_id: 1,
+        tiles: Object.fromEntries(tiles.map(tile => [`${tile.x},${tile.y}`, tile])),
+      },
+    });
+
+    const viewport = {
+      ...renderer.getViewportPositionForTile(0, 25, 800, 600),
+      width: 800,
+      height: 600,
+    };
+    const getWrappedRenderViews = (
+      renderer as unknown as {
+        getWrappedRenderViews: (
+          mapTiles: Tile[],
+          candidate: typeof viewport
+        ) => Array<{ viewport: typeof viewport; visibleTiles: Tile[]; isPrimary: boolean }>;
+      }
+    ).getWrappedRenderViews;
+    const views = getWrappedRenderViews.call(renderer, tiles, viewport);
+
+    expect(views.some(view => view.isPrimary && view.visibleTiles.includes(tiles[0]))).toBe(true);
+    expect(views.some(view => !view.isPrimary && view.visibleTiles.includes(tiles[1]))).toBe(true);
   });
 
   it('renders every wrapped copy while a presentation effect is active', () => {
@@ -380,7 +479,8 @@ describe('MapRenderer live-state updates', () => {
       } as RenderState['cities'][string],
     });
 
-    vi.setSystemTime(1010);
+    // Stay inside freeciv-web's strict 10 ms square-ISO refresh gate.
+    vi.setSystemTime(1005);
     renderer.render(latestState);
     expect(renderCityEntries).toHaveBeenCalledTimes(1);
 
@@ -401,7 +501,7 @@ describe('MapRenderer live-state updates', () => {
     });
 
     renderer.render(createRenderState());
-    vi.setSystemTime(1010);
+    vi.setSystemTime(1005);
     renderer.render(createRenderState());
     renderer.cleanup();
     vi.advanceTimersByTime(100);
@@ -413,10 +513,9 @@ describe('MapRenderer live-state updates', () => {
     const context = createContext();
     const unitSprite = {} as HTMLImageElement;
     const stackSprite = {} as HTMLImageElement;
-    const tilesetLoader = {
-      getSprite: (key: string) =>
-        key === 'u.warriors' ? unitSprite : key === 'unit.stack2' ? stackSprite : null,
-    };
+    const tilesetLoader = createSquareUnitTileset((key: string) =>
+      key === 'u.warriors' ? unitSprite : key === 'unit.stack' ? stackSprite : null
+    );
     const renderer = new UnitRenderer(context, tilesetLoader as never, 96, 48);
     const unit: Unit = {
       id: 'warrior',
@@ -437,7 +536,7 @@ describe('MapRenderer live-state updates', () => {
       },
     });
 
-    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 16, -11);
+    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 19, -14);
     expect(context.drawImage).toHaveBeenCalledWith(stackSprite, 0, -31);
     expect(context.fillText).not.toHaveBeenCalled();
   });
@@ -446,10 +545,9 @@ describe('MapRenderer live-state updates', () => {
     const context = createContext();
     const unitSprite = {} as HTMLImageElement;
     const shieldSprite = {} as HTMLImageElement;
-    const tilesetLoader = {
-      getSprite: (key: string) =>
-        key === 'u.warriors' ? unitSprite : key === 'f.shield.rome' ? shieldSprite : null,
-    };
+    const tilesetLoader = createSquareUnitTileset((key: string) =>
+      key === 'u.warriors' ? unitSprite : key === 'f.shield.rome' ? shieldSprite : null
+    );
     const renderer = new UnitRenderer(context, tilesetLoader as never, 96, 48);
     const unit: Unit = {
       id: 'roman-warrior',
@@ -475,18 +573,17 @@ describe('MapRenderer live-state updates', () => {
       units: { [unit.id]: unit },
     });
 
-    expect(context.drawImage).toHaveBeenCalledWith(shieldSprite, 25, -15);
-    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 16, -11);
+    expect(context.drawImage).toHaveBeenCalledWith(shieldSprite, 25, -16);
+    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 19, -14);
   });
 
   it('normalizes object worker activities to their active indicator sprites', () => {
     const context = createContext();
     const unitSprite = {} as HTMLImageElement;
     const activitySprite = {} as HTMLImageElement;
-    const tilesetLoader = {
-      getSprite: (key: string) =>
-        key === 'u.worker' ? unitSprite : key === 'unit.irrigate' ? activitySprite : null,
-    };
+    const tilesetLoader = createSquareUnitTileset((key: string) =>
+      key === 'u.worker' ? unitSprite : key === 'unit.irrigate' ? activitySprite : null
+    );
     const renderer = new UnitRenderer(context, tilesetLoader as never, 96, 48);
     const unit: Unit = {
       id: 'worker',
@@ -508,23 +605,22 @@ describe('MapRenderer live-state updates', () => {
     expect(context.drawImage).toHaveBeenCalledWith(activitySprite, 55, -25);
   });
 
-  it('draws the connect badge only when a matching activity has queued orders', () => {
+  it('does not add modern queued-order badges to square-isometric units', () => {
     const context = createContext();
     const unitSprite = {} as HTMLImageElement;
     const activitySprite = {} as HTMLImageElement;
     const connectSprite = {} as HTMLImageElement;
     const renderer = new UnitRenderer(
       context,
-      {
-        getSprite: (key: string) =>
-          key === 'u.worker'
-            ? unitSprite
-            : key === 'unit.road'
-              ? activitySprite
-              : key === 'unit.connect'
-                ? connectSprite
-                : null,
-      } as never,
+      createSquareUnitTileset((key: string) =>
+        key === 'u.worker'
+          ? unitSprite
+          : key === 'unit.road'
+            ? activitySprite
+            : key === 'unit.connect'
+              ? connectSprite
+              : null
+      ) as never,
       96,
       48
     );
@@ -548,48 +644,199 @@ describe('MapRenderer live-state updates', () => {
       ...createRenderState(),
       units: { [unit.id]: { ...unit, orders: [{ type: 'activity' }] } },
     });
-    expect(context.drawImage).toHaveBeenCalledWith(connectSprite, -6, -6);
+    expect(context.drawImage).not.toHaveBeenCalledWith(connectSprite, -6, -6);
   });
 
-  it('anchors queued movement segments to their absolute interpolated positions', () => {
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/unit.js:289-343
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:674-705,895-965
+   * @assertion Square-isometric movement consumes the reference eight-step
+   * tuple once for the body, once for the nation shield, and once for HP in
+   * each composed frame; stack and veteran badges remain tile-anchored.
+   */
+  it('samples square-isometric movement in the reference sprite-composition sequence', () => {
     const context = createContext();
-    const unitSprite = {} as HTMLImageElement;
+    const sprites = new Map<string, HTMLImageElement>();
+    for (const key of ['u.warriors', 'f.shield.rome', 'unit.hp_50', 'unit.stack', 'unit.vet_2']) {
+      sprites.set(key, {} as HTMLImageElement);
+    }
     const renderer = new UnitRenderer(
       context,
-      { getSprite: (key: string) => (key === 'u.warriors' ? unitSprite : null) } as never,
+      createSquareUnitTileset((key: string) => sprites.get(key) ?? null) as never,
       96,
       48
     );
     const unit: Unit = {
-      id: 'rapid-unit',
+      id: 'moving-unit',
       playerId: 'player-1',
       unitTypeId: 'warriors',
       x: 0,
       y: 0,
-      hp: 100,
+      hp: 50,
+      maxHp: 100,
+      movesLeft: 1,
+      veteranLevel: 2,
+    };
+    const players = {
+      'player-1': {
+        name: 'Caesar',
+        nation: 'roman',
+        nationGraphic: 'rome',
+        color: '#ff0000',
+      },
+    };
+
+    renderer.renderUnits(createUnitState(unit, { players }));
+    (context.drawImage as unknown as ReturnType<typeof vi.fn>).mockClear();
+    renderer.renderUnits({
+      ...createUnitState({ ...unit, x: 1 }, { players }),
+      units: {
+        [unit.id]: { ...unit, x: 1 },
+        stacked: { ...unit, id: 'stacked', x: 1, unitTypeId: 'settlers' },
+      },
+    });
+
+    expect(context.drawImage).toHaveBeenCalledWith(sprites.get('u.warriors'), 49, 1);
+    expect(context.drawImage).toHaveBeenCalledWith(sprites.get('f.shield.rome'), 61, 2);
+    expect(context.drawImage).toHaveBeenCalledWith(sprites.get('unit.hp_50'), 36, -13);
+    expect(context.drawImage).toHaveBeenCalledWith(sprites.get('unit.stack'), 48, -7);
+    expect(context.drawImage).toHaveBeenCalledWith(sprites.get('unit.vet_2'), 83, -11);
+
+    // The next frame consumes another three reference samples (2/8, 1/8,
+    // 1/8) from the same mutable destination tuple.
+    (context.drawImage as unknown as ReturnType<typeof vi.fn>).mockClear();
+    renderer.renderUnits({
+      ...createUnitState({ ...unit, x: 1 }, { players }),
+      units: {
+        [unit.id]: { ...unit, x: 1 },
+        stacked: { ...unit, id: 'stacked', x: 1, unitTypeId: 'settlers' },
+      },
+    });
+    expect(context.drawImage).toHaveBeenCalledWith(sprites.get('u.warriors'), 55, 4);
+    expect(context.drawImage).toHaveBeenCalledWith(sprites.get('f.shield.rome'), 67, 5);
+    expect(context.drawImage).toHaveBeenCalledWith(sprites.get('unit.hp_50'), 42, -10);
+    expect(context.drawImage).toHaveBeenCalledWith(sprites.get('unit.stack'), 48, -7);
+    expect(context.drawImage).toHaveBeenCalledWith(sprites.get('unit.vet_2'), 83, -11);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:674-705
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/unit.js:289-343
+   * @assertion Each translated copy of a moving unit on a wrapped square map
+   * invokes the mutable body/shield/HP sampling sequence independently.
+   */
+  it('advances square movement samples for every wrapped map copy', () => {
+    const context = createContext();
+    const sprites = new Map<string, HTMLImageElement>();
+    for (const key of ['u.warriors', 'f.shield.rome', 'unit.hp_50']) {
+      sprites.set(key, {} as HTMLImageElement);
+    }
+    const renderer = new UnitRenderer(
+      context,
+      createSquareUnitTileset((key: string) => sprites.get(key) ?? null) as never,
+      96,
+      48
+    );
+    const unit: Unit = {
+      id: 'wrapped-moving-unit',
+      playerId: 'player-1',
+      unitTypeId: 'warriors',
+      x: 0,
+      y: 0,
+      hp: 50,
+      maxHp: 100,
       movesLeft: 1,
       veteranLevel: 0,
     };
-    let now = 1000;
-    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const players = {
+      'player-1': {
+        name: 'Caesar',
+        nation: 'roman',
+        nationGraphic: 'rome',
+        color: '#ff0000',
+      },
+    };
 
-    renderer.renderUnits(createUnitState(unit));
+    renderer.renderUnits(createUnitState(unit, { players }));
+    (context.drawImage as unknown as ReturnType<typeof vi.fn>).mockClear();
+
+    const movedState = createUnitState({ ...unit, x: 1 }, { players });
+    const tile = movedState.map.tiles['1,0'];
+    renderer.renderUnitLayerEntries([
+      { state: movedState, tile },
+      {
+        state: {
+          ...movedState,
+          viewport: { ...movedState.viewport, x: 96 },
+        },
+        tile,
+      },
+    ]);
+
+    expect(context.drawImage).toHaveBeenCalledWith(sprites.get('u.warriors'), 49, 1);
+    expect(context.drawImage).toHaveBeenCalledWith(sprites.get('f.shield.rome'), 61, 2);
+    expect(context.drawImage).toHaveBeenCalledWith(sprites.get('unit.hp_50'), 36, -13);
+    expect(context.drawImage).toHaveBeenCalledWith(sprites.get('u.warriors'), -41, 4);
+    expect(context.drawImage).toHaveBeenCalledWith(sprites.get('f.shield.rome'), -29, 5);
+    expect(context.drawImage).toHaveBeenCalledWith(sprites.get('unit.hp_50'), -54, -10);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:674-705,895-913,944-955
+   * @assertion A foreign Flagless square unit skips the shield helper and
+   * therefore consumes only the body and HP movement-counter samples.
+   */
+  it('does not consume a square movement sample for an omitted Flagless shield', () => {
+    const context = createContext();
+    const sprites = new Map<string, HTMLImageElement>([
+      ['u.storm', {} as HTMLImageElement],
+      ['unit.hp_50', {} as HTMLImageElement],
+    ]);
+    const renderer = new UnitRenderer(
+      context,
+      createSquareUnitTileset((key: string) => sprites.get(key) ?? null) as never,
+      96,
+      48
+    );
+    renderer.setUnitGraphics({ storm: { graphic: 'u.storm', flagless: true } });
+    const unit: Unit = {
+      id: 'foreign-flagless',
+      playerId: 'player-2',
+      unitTypeId: 'storm',
+      x: 0,
+      y: 0,
+      hp: 50,
+      maxHp: 100,
+      movesLeft: 1,
+      veteranLevel: 0,
+    };
+    const players = {
+      'player-2': {
+        name: 'Foreign',
+        nation: 'roman',
+        nationGraphic: 'rome',
+        color: '#ff0000',
+      },
+    };
+
+    renderer.renderUnits(createUnitState(unit, { players, currentPlayerId: 'player-1' }));
     renderer.renderUnits({
-      ...createUnitState({ ...unit, x: 1 }),
+      ...createUnitState({ ...unit, x: 1 }, { players, currentPlayerId: 'player-1' }),
+      units: { [unit.id]: { ...unit, x: 1 } },
     });
+
     (context.drawImage as unknown as ReturnType<typeof vi.fn>).mockClear();
     renderer.renderUnits({
-      ...createUnitState({ ...unit, x: 2 }),
+      ...createUnitState({ ...unit, x: 1 }, { players, currentPlayerId: 'player-1' }),
+      units: { [unit.id]: { ...unit, x: 1 } },
     });
 
-    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 16, -11);
-
-    now += 180;
-    (context.drawImage as unknown as ReturnType<typeof vi.fn>).mockClear();
-    renderer.renderUnits({
-      ...createUnitState({ ...unit, x: 2 }),
-    });
-    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 64, 13);
+    expect(context.drawImage).toHaveBeenCalledWith(sprites.get('u.storm'), 55, 4);
+    expect(context.drawImage).toHaveBeenCalledWith(sprites.get('unit.hp_50'), 36, -13);
+    expect(context.drawImage).toHaveBeenCalledTimes(2);
   });
 
   /**
@@ -603,7 +850,7 @@ describe('MapRenderer live-state updates', () => {
     const unitSprite = {} as HTMLImageElement;
     const renderer = new UnitRenderer(
       context,
-      { getSprite: (key: string) => (key === 'u.warriors' ? unitSprite : null) } as never,
+      createSquareUnitTileset((key: string) => (key === 'u.warriors' ? unitSprite : null)) as never,
       96,
       48
     );
@@ -632,7 +879,7 @@ describe('MapRenderer live-state updates', () => {
       reducedMotion: true,
     });
     expect(renderer.hasActiveMovementAnimations()).toBe(false);
-    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 64, 13);
+    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 67, 10);
 
     now += 10;
     (context.drawImage as unknown as ReturnType<typeof vi.fn>).mockClear();
@@ -640,7 +887,7 @@ describe('MapRenderer live-state updates', () => {
       ...createUnitState({ ...unit, x: 2, transportedBy: 'transport-1' }),
     });
     expect(renderer.hasActiveMovementAnimations()).toBe(false);
-    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 112, 37);
+    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 115, 34);
   });
 
   it('does not start a full-map RAF loop for selection pulsing', () => {
@@ -672,10 +919,9 @@ describe('MapRenderer live-state updates', () => {
     const targetActivitySprite = {} as HTMLImageElement;
     const renderer = new UnitRenderer(
       context,
-      {
-        getSprite: (key: string) =>
-          key === 'u.worker' ? unitSprite : key === 'unit.farmland' ? targetActivitySprite : null,
-      } as never,
+      createSquareUnitTileset((key: string) =>
+        key === 'u.worker' ? unitSprite : key === 'unit.farmland' ? targetActivitySprite : null
+      ) as never,
       96,
       48
     );
@@ -706,22 +952,20 @@ describe('MapRenderer live-state updates', () => {
     expect(context.drawImage).toHaveBeenCalledWith(targetActivitySprite, 55, -25);
   });
 
-  it('renders reference-positioned HP, movement, veteran, and stack overlays', () => {
+  it('renders only the reference HP, veteran, stack, and action-decision overlays', () => {
     const context = createContext();
     const sprites = new Map<string, HTMLImageElement>();
     for (const key of [
       'u.warriors',
-      'unit.hp_35',
       'unit.hp_50',
       'unit.vet_2',
-      'unit.stk_shld_l',
-      'unit.stack2',
+      'unit.stack',
       'unit.action_decision_want',
     ])
       sprites.set(key, {} as HTMLImageElement);
     const renderer = new UnitRenderer(
       context,
-      { getSprite: (key: string) => sprites.get(key) ?? null } as never,
+      createSquareUnitTileset((key: string) => sprites.get(key) ?? null) as never,
       96,
       48
     );
@@ -741,7 +985,6 @@ describe('MapRenderer live-state updates', () => {
 
     renderer.renderUnits({
       ...createRenderState(),
-      showUnitMovePoints: true,
       units: {
         [unit.id]: unit,
         second: { ...unit, id: 'second' },
@@ -749,11 +992,9 @@ describe('MapRenderer live-state updates', () => {
     });
 
     const drawCalls = (context.drawImage as unknown as { mock: { calls: unknown[][] } }).mock.calls;
-    expect(drawCalls).toContainEqual([sprites.get('unit.hp_35'), 0, -31]);
-    expect(drawCalls).toContainEqual([sprites.get('unit.hp_50'), 0, -36]);
+    expect(drawCalls).toContainEqual([sprites.get('unit.hp_50'), 0, -31]);
     expect(drawCalls).toContainEqual([sprites.get('unit.vet_2'), 35, -35]);
-    expect(drawCalls).toContainEqual([sprites.get('unit.stk_shld_l'), 0, -31]);
-    expect(drawCalls).toContainEqual([sprites.get('unit.stack2'), 0, -31]);
+    expect(drawCalls).toContainEqual([sprites.get('unit.stack'), 0, -31]);
     expect(drawCalls).toContainEqual([sprites.get('unit.action_decision_want'), 55, -25]);
   });
 
@@ -762,7 +1003,7 @@ describe('MapRenderer live-state updates', () => {
     const unitSprite = {} as HTMLImageElement;
     const renderer = new UnitRenderer(
       context,
-      { getSprite: (key: string) => (key === 'u.warriors' ? unitSprite : null) } as never,
+      createSquareUnitTileset((key: string) => (key === 'u.warriors' ? unitSprite : null)) as never,
       96,
       48
     );
@@ -789,8 +1030,8 @@ describe('MapRenderer live-state updates', () => {
       units: { [unit.id]: unit },
     });
 
-    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 16, -11);
-    expect(context.fillRect).toHaveBeenCalledWith(25, -15, 14, 14);
+    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 19, -14);
+    expect(context.fillRect).toHaveBeenCalledWith(25, -16, 14, 14);
   });
 
   it('keeps a neutral identity marker while owner metadata is still missing', () => {
@@ -798,7 +1039,7 @@ describe('MapRenderer live-state updates', () => {
     const unitSprite = {} as HTMLImageElement;
     const renderer = new UnitRenderer(
       context,
-      { getSprite: (key: string) => (key === 'u.warriors' ? unitSprite : null) } as never,
+      createSquareUnitTileset((key: string) => (key === 'u.warriors' ? unitSprite : null)) as never,
       96,
       48
     );
@@ -818,13 +1059,18 @@ describe('MapRenderer live-state updates', () => {
       units: { [unit.id]: unit },
     });
 
-    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 16, -11);
-    expect(context.fillRect).toHaveBeenCalledWith(25, -15, 14, 14);
+    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 19, -14);
+    expect(context.fillRect).toHaveBeenCalledWith(25, -16, 14, 14);
   });
 
   it('does not add a custom selected-unit annotation above the sprite', () => {
     const context = createContext();
-    const renderer = new UnitRenderer(context, { getSprite: () => undefined } as never, 96, 48);
+    const renderer = new UnitRenderer(
+      context,
+      createSquareUnitTileset(() => undefined) as never,
+      96,
+      48
+    );
     const unit: Unit = {
       id: 'selected-warrior',
       playerId: 'player-1',
@@ -854,9 +1100,9 @@ describe('MapRenderer live-state updates', () => {
   it('keeps unit sprites in the overdraw margin while panning', () => {
     const context = createContext();
     const unitSprite = {} as HTMLImageElement;
-    const tilesetLoader = {
-      getSprite: (key: string) => (key === 'u.warriors' ? unitSprite : null),
-    };
+    const tilesetLoader = createSquareUnitTileset((key: string) =>
+      key === 'u.warriors' ? unitSprite : null
+    );
     const renderer = new UnitRenderer(context, tilesetLoader as never, 96, 48);
     const unit: Unit = {
       id: 'edge-unit',
@@ -875,7 +1121,7 @@ describe('MapRenderer live-state updates', () => {
       units: { [unit.id]: unit },
     });
 
-    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, -84, -11);
+    expect(context.drawImage).toHaveBeenCalledWith(unitSprite, -81, -14);
   });
 
   it('culls known tiles that are outside the canvas overdraw margin', () => {

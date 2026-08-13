@@ -72,7 +72,9 @@ export class BorderRenderer extends BaseRenderer {
 
     this.options = {
       drawBorders: true,
-      drawDashedBorders: false,
+      // update_map_canvas() enables [4,4] dashes for SPECIAL1 before border
+      // commands are emitted. Keep this as the production default.
+      drawDashedBorders: true,
       drawTertiaryColors: false,
       drawThickBorders: false,
       drawMovingBorders: false,
@@ -324,6 +326,9 @@ export class BorderRenderer extends BaseRenderer {
         break;
     }
 
+    // The browser painter closes even its one-segment border path before
+    // stroking it. This retraces the segment and is pixel-visible with dashes.
+    ctx.closePath();
     ctx.stroke();
 
     // Restore canvas state to avoid affecting subsequent renders

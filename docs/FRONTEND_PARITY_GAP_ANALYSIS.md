@@ -14,13 +14,13 @@ matches the submodule, so this audit incorporates the latest available
 upstream additions without changing the pin.
 
 This is a behavior and integration audit with strict pixel comparisons for
-deterministic terrain/fog scenes. CivJS uses a typed Zustand snapshot and a
-provider-backed Canvas renderer; the browser client uses globals, generated
-sprite tables, and imperative DOM/canvas state, while native Freeciv parses
-tilespec packages and paints its declared layer sequence. Square-ISO fixtures
-continue to compare directly with the pinned freeciv-web painter. Production
-C2C3 fixtures now select the pinned Freeciv Hexemplio assets and native
-ISO-hex geometry.
+deterministic terrain/fog, entity, wrapping, and transient-effect scenes.
+CivJS uses a typed Zustand snapshot and a provider-backed Canvas renderer; the
+browser client uses globals, generated sprite tables, and imperative
+DOM/canvas state, while native Freeciv parses tilespec packages and paints its
+declared layer sequence. Square-ISO fixtures continue to compare directly with
+the pinned freeciv-web painter. Production C2C3 fixtures now select the pinned
+Freeciv Hexemplio assets and native ISO-hex geometry.
 
 The overview has the same split. Square-ISO compatibility fixtures retain
 freeciv-web's rectangular one-cell bitmap. C2C3 uses Freeciv's staggered
@@ -40,15 +40,16 @@ native ISO-hex path is no longer routed through the square-ISO painter, but its
 source-mapped tests are not yet an independent native-Freeciv world-pixel
 comparison:
 
-| Boundary                                                | Result                                                    | Reason                                                                                                                                                                                                                        |
-| ------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Finite square-isometric terrain and feature composition | Direct zero-diff reference coverage                       | The harness runs the pinned browser painter with the same deterministic tile data and compares final pixels.                                                                                                                  |
-| Painter layers and wrapped-copy ordering                | Source-mapped command coverage                            | Every wrapped copy participates in one global painter walk; GOTO feedback remains drawable over unknown terrain as in the reference. A seam-centered reference pixel oracle is still missing.                                 |
-| Minimap palette raster                                  | Direct zero-diff coverage for both renderer paths         | Square ISO matches `overview.js`; C2C3's final `256x256` raster matches an independent implementation of Freeciv's staggered natural `2x1` cells.                                                                             |
-| Displayed ISO minimap and camera outline                | Implemented with end-to-end interaction coverage          | One physical scale is used on both axes. A browser test clicks a native cell, verifies the board camera resolves to that tile through the active Hexemplio inverse, and samples the corresponding sloped white outline.       |
-| Unit/city composition                                   | Source-mapped command coverage, not direct pixel equality | Native offsets, focus/non-focus layers, stack/status overlays, city layers, and Auto fog use the generated Hexemplio package. There is not yet an independent native-client entity pixel capture.                             |
-| Observer map presentation                               | Initial and live render state covered                     | Observers receive an omniscient initial snapshot and a dedicated live room for terrain/resources, units, cities, borders, combat, and nuclear effects. Owner-only automation tasks and worker action choices remain excluded. |
-| C2C3 ISO+HEX gameplay topology                          | Implemented through the native Hexemplio pipeline         | Topology `3` selects the generated Hexemplio provider, native/logical projection, six valid directions, native layer order, and matching `126x64`/hex-side geometry. Amplio2 remains isolated to compatible square-ISO maps.  |
+| Boundary                                                | Result                                            | Reason                                                                                                                                                                                                                        |
+| ------------------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Finite square-isometric terrain and feature composition | Direct zero-diff reference coverage               | The harness runs the pinned browser painter with the same deterministic tile data and compares final pixels.                                                                                                                  |
+| Square-ISO painter layers and wrapped-copy ordering     | Direct zero-diff reference coverage               | Every wrapped copy participates in one global painter walk; a seam-centered fixture compares terrain, fog, roads/rail, borders, labels, and displayed canvas pixels exactly.                                                  |
+| Minimap palette raster                                  | Direct zero-diff coverage for both renderer paths | Square ISO matches `overview.js`; C2C3's final `256x256` raster matches an independent implementation of Freeciv's staggered natural `2x1` cells.                                                                             |
+| Displayed ISO minimap and camera outline                | Implemented with end-to-end interaction coverage  | One physical scale is used on both axes. A browser test clicks a native cell, verifies the board camera resolves to that tile through the active Hexemplio inverse, and samples the corresponding sloped white outline.       |
+| Square-ISO unit/city/effect composition                 | Direct zero-diff reference coverage               | The browser oracle covers city/walls/production, stacked units, activity/action/HP/veteran cues, city bars, fog/painter overlap, and first-frame combat/nuclear sprites.                                                      |
+| Native ISO-hex unit/city composition                    | Source-mapped command and CivJS baseline coverage | Native offsets, focus/non-focus layers, stack/status overlays, city layers, and Auto fog use the generated Hexemplio package. There is not yet an independent native-client entity pixel capture.                             |
+| Observer map presentation                               | Initial and live render state covered             | Observers receive an omniscient initial snapshot and a dedicated live room for terrain/resources, units, cities, borders, combat, and nuclear effects. Owner-only automation tasks and worker action choices remain excluded. |
+| C2C3 ISO+HEX gameplay topology                          | Implemented through the native Hexemplio pipeline | Topology `3` selects the generated Hexemplio provider, native/logical projection, six valid directions, native layer order, and matching `126x64`/hex-side geometry. Amplio2 remains isolated to compatible square-ISO maps.  |
 
 The former topology/tileset incompatibility is resolved. The main remaining
 rendering evidence gap is a headless native Freeciv capture for complete
@@ -59,8 +60,8 @@ visual baselines, and the independent minimap-raster oracle.
 ## Method
 
 The comparison covered the current submodule sources, the CivJS rendering and
-interaction tests, the carried Amplio2 config/spec/atlas, and these focused
-checks:
+interaction tests, the generated Amplio2 and Hexemplio packages, and these
+focused checks:
 
 ```sh
 git ls-remote https://github.com/freeciv/freeciv-web.git refs/heads/develop
@@ -91,12 +92,13 @@ foreign-owner colors, animation redraw and cleanup are exercised through the
 renderer lifecycle, touch pan and long-press behavior are exercised through
 `MapCanvas`, provider reloads are checked for stale sprite eviction, and the
 browser fixture validates canvas color diversity plus the active provider's
-topology, geometry, source revision, generated manifest, and sprite tags. The terrain and unit
-renderer contracts now also cover native terrain blends, six-direction rivers
-and coast outlets, ruleset-ordered extras, roads/railways, resources, borders,
-Auto fog boundaries, native unit/city offsets, stack/status overlays, activity
-targets, and reduced-motion selection frames. The mounted minimap overlay and
-Escape target-action cancellation are covered as lifecycle behaviors.
+topology, geometry, source revision, generated manifest, and sprite tags. The
+terrain and unit renderer contracts now also cover native terrain blends,
+six-direction rivers and coast outlets, ruleset-ordered extras,
+roads/railways, resources, borders, Auto fog boundaries, native unit/city
+offsets, stack/status overlays, activity targets, and reduced-motion selection
+frames. The mounted minimap overlay and Escape target-action cancellation are
+covered as lifecycle behaviors.
 
 The map-only pixel suite seeds deterministic `48x48` and `32x64` maps. Its
 production geometry case uses the C2C3 topology and wrapping contract
@@ -108,8 +110,9 @@ The CivJS suite uses strict zero-diff baselines for native terrain, extras,
 borders, fog, and unit/city overlays. The separate
 `freeciv-web-pixel.spec.ts` suite loads the pinned reference JavaScript and
 generated sprite table directly into a blank browser page, without starting a
-Freeciv server or full client. It compares terrain-only world pixels and the
-physically scaled overview base with zero channel tolerance. A separate
+Freeciv server or full client. It compares terrain/features, entities,
+wrapped seams, and transient-effect world pixels plus the physically scaled
+overview base with zero channel tolerance. A separate
 `32x64` C2C3 case compares the final `256x256` minimap byte-for-byte with an
 independent native natural-raster oracle. The actual painted outline is sampled
 after a click-to-camera round trip through Hexemplio's `126x64` hex hit-test.
@@ -119,17 +122,17 @@ topology coverage cannot weaken the existing freeciv-web world-pixel assertion.
 
 ## Findings
 
-| ID     | Frontend surface                                            | Current status                                                                                                                        | Reference evidence                                                                                                                                                                                                                                                                        | CivJS evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| FE-001 | Board painter order and layer separation                    | Implemented for square ISO and native ISO-hex; command and seam-order regression coverage exists                                      | freeciv-web `mapview_common.js:251-402` defines the browser passes. Freeciv `data/hexemplio.tilespec:111-143` and `client/tilespec.c:6139-6465` define Hexemplio's native sequence and extra families.                                                                                    | `MapRenderer.ts` merges wrapped copies into one depth-sorted walk, then selects the provider's layer policy. Native tests protect Terrain1/2, Darkness, Terrain3, Water, Roads, Special1/2/3, Grid1, City1/2, Fog boundaries, Unit/FocusUnit, overlays, labels, city bars, and GOTO behavior.                                                                                                                                                                   |
-| FE-002 | Isometric projection, finite edges, and wrapping            | Implemented; native/logical projection and physical overview geometry have regression coverage                                        | Freeciv `common/map.h:170-190`, `client/mapview_common.c:594-668`, and `client/overview_common.c:51-108,324-483` define native/logical/GUI conversion, hex hit-testing, wrapping, and the natural overview.                                                                               | `mapTopologyGeometry.ts`, `MapRenderer.ts`, and `minimapGeometry.ts` share native dimensions, six ISO-hex directions, `126x64` Hexemplio projection, pointer inversion, staggered `2x1` overview cells, and wrapped copies. Unit tests round-trip every `32x64` tile; browser tests cover the click/camera/outline round trip.                                                                                                                                  |
-| FE-003 | Overview terrain palette and marker precedence              | Resolved in this audit                                                                                                                | `overview.js:304-335` builds terrain/player palettes; `overview.js:342-379` resolves city, visible unit, known owner, terrain, and unknown colors in that order. Its observer path treats every visible unit as foreign.                                                                  | `GameUI/minimapVisibility.ts` and `GameUI/Minimap.tsx` implement the same precedence and C2C3 terrain palette. Own city/unit, foreign city/unit, observer unit, owner, terrain, and unknown cases are source-mapped in `Minimap.test.tsx`; the mounted minimap test also verifies the overlay draw lifecycle.                                                                                                                                                   |
-| FE-004 | Overview viewport outline and click-to-center               | Implemented; continuous geometry and end-to-end pixel regression exist                                                                | `overview.js:194-275,387-400` supplies the separate overlay, map-axis transform, wrapping copies, and click mapping, but its `gui_to_map_pos()` floors camera corners. Freeciv `client/overview_common.c:51-79,153-177` retains fractional corner precision before overview conversion.   | `minimapGeometry.ts` uses the continuous inverse projection for camera corners while retaining integer tile selection for board interaction. `Minimap.tsx` draws the pale-white wrapped polygons on a separate canvas and maps clicks through the same physical transform. `renderer-pixel.spec.ts` clicks a `32x64` minimap, verifies the board camera centers on that tile, then confirms the painted outline is centered there and samples its sloped edges. |
-| FE-005 | Sprite sheets, tags, frame suffixes, and offsets            | Resolved for C2C3 Hexemplio; legacy Amplio2 provenance remains partial                                                                | Freeciv `data/hexemplio.tilespec` and its ordered spec files define geometry, layers, styles, offsets, tags, source rectangles, and standalone assets.                                                                                                                                    | `generate-hexemplio-tileset.mjs` creates a revisioned schema-2 package from pinned Freeciv, copying exact PNGs and GPL metadata. `HexemplioTilesetProvider` preloads sheets, lazily loads standalone sprites, and applies native offsets. `check:hexemplio-tileset` rejects drift. The older Amplio2 compatibility package retains its separate provenance limitation.                                                                                          |
-| FE-006 | Mouse click, goto, touch, and right-drag selection          | Right-drag, core touch lifecycle, and target-action cancellation coverage resolved in this audit; broader interaction remains partial | `2dcanvas/mapctrl.js:54-127` defines click/mousedown modes; `mapctrl.js:131-190` handles touch pan/long-press; `control.js:367-374` activates right rectangle selection only after both axes exceed 45 px and 200 ms; `control.js:2199-2221` aborts active goto/target actions on Escape. | `MapCanvas.tsx` preserves existing left/Alt drag and touch behavior, while `mapInteraction.ts:isRightDragSelectionReady` and `MapCanvas.tsx` apply the delayed right-drag gate, touch pan commit, stationary long-press context interaction, and Escape cleanup of target-action feedback. Normal right clicks still resolve to context/tile information.                                                                                                       |
-| FE-007 | Keyboard listener lifecycle and map actions                 | Lifecycle bug resolved in this audit; action parity remains partial                                                                   | `control.js:80-91` installs/removes the global keyboard listener and `control.js:380-416` updates cursor/action state.                                                                                                                                                                    | `KeyboardController.ts` now removes the same bound handler it registered, preventing duplicate actions after map-tab/session transitions. Key bindings and action dispatch are covered by the existing controller tests; a full browser-level action parity claim is not made.                                                                                                                                                                                  |
-| FE-008 | Animations, sprites, and visual effects                     | Partial; native static composition and selection cadence are source-mapped, movement timing is not exact                              | Freeciv `client/tilespec.c:4744-4970` defines native unit flags, body, activity, orders, HP, stack, veteran, and focus composition; freeciv-web supplies the six-Hz selection cadence.                                                                                                    | CivJS uses Hexemplio's unit offsets and native tags for flags, stack/status sprites, orders, body, activity, HP, veteran, selection, and FocusUnit separation. Movement fragment handling is consistent across reply/broadcast packets, but CivJS's cubic movement interpolation remains different from freeciv-web's frame-stepped algorithm.                                                                                                                  |
-| FE-009 | Render-only reference snapshots and cross-client comparison | Implemented for browser terrain/overview and native C2C3 minimap; native world/entity oracle remains open                             | `mapview_common.js:266-450` and `overview.js:117-379` supply the browser capture. Freeciv `overview_common.c:324-483` supplies the independent native minimap raster rule.                                                                                                                | Browser terrain and square overview remain direct zero-diff comparisons. The C2C3 `32x64` minimap is zero-diff against an independent staggered `2x1` oracle, and native world/minimap snapshots plus click/camera/outline behavior are locked. A headless native-Freeciv world/entity capture and seam-centered native differential remain required.                                                                                                           |
+| ID     | Frontend surface                                            | Current status                                                                                                                             | Reference evidence                                                                                                                                                                                                                                                                                                            | CivJS evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FE-001 | Board painter order and layer separation                    | Implemented; square ISO has command plus finite/entity/wrapped zero-diff coverage, while native ISO-hex has source-mapped command coverage | freeciv-web `mapview_common.js:251-402` defines the browser passes. Freeciv `data/hexemplio.tilespec:111-143` and `client/tilespec.c:6139-6465` define Hexemplio's native sequence and extra families.                                                                                                                        | `MapRenderer.ts` merges wrapped copies into one depth-sorted walk, then selects the provider's layer policy. Browser fixtures certify square terrain/entities/seams exactly; native tests protect Terrain1/2, Darkness, Terrain3, Water, Roads, Special1/2/3, Grid1, City1/2, Fog boundaries, Unit/FocusUnit, overlays, labels, city bars, and GOTO behavior.                                                                                                   |
+| FE-002 | Isometric projection, finite edges, and wrapping            | Implemented; native/logical projection and physical overview geometry have regression coverage                                             | Freeciv `common/map.h:170-190`, `client/mapview_common.c:594-668`, and `client/overview_common.c:51-108,324-483` define native/logical/GUI conversion, hex hit-testing, wrapping, and the natural overview.                                                                                                                   | `mapTopologyGeometry.ts`, `MapRenderer.ts`, and `minimapGeometry.ts` share native dimensions, six ISO-hex directions, `126x64` Hexemplio projection, pointer inversion, staggered `2x1` overview cells, and wrapped copies. Unit tests round-trip every `32x64` tile; browser tests cover the click/camera/outline round trip.                                                                                                                                  |
+| FE-003 | Overview terrain palette and marker precedence              | Resolved in this audit                                                                                                                     | `overview.js:304-335` builds terrain/player palettes; `overview.js:342-379` resolves city, visible unit, known owner, terrain, and unknown colors in that order. Its observer path treats every visible unit as foreign.                                                                                                      | `GameUI/minimapVisibility.ts` and `GameUI/Minimap.tsx` implement the same precedence and C2C3 terrain palette. Own city/unit, foreign city/unit, observer unit, owner, terrain, and unknown cases are source-mapped in `Minimap.test.tsx`; the mounted minimap test also verifies the overlay draw lifecycle.                                                                                                                                                   |
+| FE-004 | Overview viewport outline and click-to-center               | Implemented; continuous geometry and end-to-end pixel regression exist                                                                     | `overview.js:194-275,387-400` supplies the separate overlay, map-axis transform, wrapping copies, and click mapping, but its `gui_to_map_pos()` floors camera corners. Freeciv `client/overview_common.c:51-79,153-177` retains fractional corner precision before overview conversion.                                       | `minimapGeometry.ts` uses the continuous inverse projection for camera corners while retaining integer tile selection for board interaction. `Minimap.tsx` draws the pale-white wrapped polygons on a separate canvas and maps clicks through the same physical transform. `renderer-pixel.spec.ts` clicks a `32x64` minimap, verifies the board camera centers on that tile, then confirms the painted outline is centered there and samples its sloped edges. |
+| FE-005 | Sprite sheets, tags, frame suffixes, and offsets            | Resolved for both built-in providers                                                                                                       | Pinned freeciv-web config/extractor output defines Amplio2; Freeciv `data/hexemplio.tilespec` and ordered spec files define Hexemplio.                                                                                                                                                                                        | Both generators emit revisioned manifests with exact PNGs, source hashes/specs, geometry, offsets, rectangles, and GPL metadata. Both package checks run in `verify`; providers load only their own topology-compatible package.                                                                                                                                                                                                                                |
+| FE-006 | Mouse click, goto, touch, and right-drag selection          | Right-drag, core touch lifecycle, and target-action cancellation coverage resolved in this audit; broader interaction remains partial      | `2dcanvas/mapctrl.js:54-127` defines click/mousedown modes; `mapctrl.js:131-190` handles touch pan/long-press; `control.js:367-374` activates right rectangle selection only after both axes exceed 45 px and 200 ms; `control.js:2199-2221` aborts active goto/target actions on Escape.                                     | `MapCanvas.tsx` preserves existing left/Alt drag and touch behavior, while `mapInteraction.ts:isRightDragSelectionReady` and `MapCanvas.tsx` apply the delayed right-drag gate, touch pan commit, stationary long-press context interaction, and Escape cleanup of target-action feedback. Normal right clicks still resolve to context/tile information.                                                                                                       |
+| FE-007 | Keyboard listener lifecycle and map actions                 | Lifecycle bug resolved in this audit; action parity remains partial                                                                        | `control.js:80-91` installs/removes the global keyboard listener and `control.js:380-416` updates cursor/action state.                                                                                                                                                                                                        | `KeyboardController.ts` now removes the same bound handler it registered, preventing duplicate actions after map-tab/session transitions. Key bindings and action dispatch are covered by the existing controller tests; a full browser-level action parity claim is not made.                                                                                                                                                                                  |
+| FE-008 | Animations, sprites, and visual effects                     | Square ISO matched to the pinned browser; native presentation remains separately source-mapped                                             | freeciv-web's unit tuple advances through eight mutable steps while composing body/shield/HP; lethal combat uses five explosion frames for five logical-tile paints each; nuke persists for 60 tile paints. Every wrapped GUI copy consumes the same unit/tile state again. Native Freeciv defines the richer Hexemplio path. | The square path reproduces those counters, per-copy samples, offsets, lethal-only rule, and direct camera behavior; unit tests cover cadence, wrapped-copy advancement, tile-scoped effect reset, and a strict browser effect fixture is zero-diff. Hexemplio retains native elapsed-time/custom presentation where browser semantics do not apply.                                                                                                             |
+| FE-009 | Render-only reference snapshots and cross-client comparison | Implemented for complete covered browser-map scenes and native C2C3 minimap; native world/entity oracle remains open                       | `mapview_common.js:266-450`, `tilespec.js`, and `overview.js:117-379` supply the browser capture. Freeciv `overview_common.c:324-483` supplies the independent native minimap raster rule.                                                                                                                                    | Browser terrain/features, entities, wrapped seam, transients, and square overview are direct zero-diff comparisons. The C2C3 `32x64` minimap is zero-diff against an independent staggered `2x1` oracle; native world/minimap baselines and click/camera/outline behavior are locked. A headless native-Freeciv world/entity capture remains required.                                                                                                          |
 
 ## Latest-reference additions that must stay on the audit list
 
@@ -176,6 +179,9 @@ The focused frontend regression set passed during this audit:
 - Terrain, border, and unit renderer parity contracts for roads, rivers, coast
   outlets, irrigation/farmland, resources, player-colored borders, native
   layer/fog boundaries, unit overlays, activity targets, and selection frames.
+- Generated Amplio2 validation against pinned freeciv-web and its historical
+  Freeciv source, including 2,770 sprite tags, exact source images, and source
+  hashes.
 - Generated Hexemplio manifest/package validation against pinned Freeciv,
   including 3,263 sprite tags and exact copied source images.
 - Active Hexemplio provider identity, exact topology compatibility, geometry,
@@ -186,41 +192,40 @@ The focused frontend regression set passed during this audit:
 - Map-only pixel baselines for the isometric world map and physical-aspect
   minimap, including the sloped pale-white viewport outline; no UI-panel pixels
   are included.
-- The render-only reference suite: strict zero-diff browser terrain-world and
-  square-overview comparisons, native Hexemplio visual baselines, full
-  displayed-pixel parity for a `32x64` C2C3 natural overview, and an exact
-  click-to-camera-to-outline round trip.
+- The render-only reference suite: strict zero-diff browser terrain/features,
+  entities, wrapped seam, transient effects, and square-overview comparisons;
+  native Hexemplio visual baselines; full displayed-pixel parity for a `32x64`
+  C2C3 natural overview; and an exact click-to-camera-to-outline round trip.
 - Client TypeScript type-check.
 - Repository-wide `npm run verify` (including client/server lint, type-check,
   formatting, and unit suites).
 
-The focused native map/minimap/movement batch passed 101 tests. The final
-combined Chromium run passed all 10 tests: 4 renderer/UI and active-provider
-contract checks, 3 render-only reference comparisons, and 3 strict native
-map/minimap pixel and click-camera-outline tests. Repository-wide `npm run
-verify` passed 68 client suites (365 tests) and 180 server suites (1,899 passed,
-15 intentionally skipped). The production client and server build also passed.
+The final focused desktop Chromium run passed all 13 tests: four renderer/UI
+and active-provider contract checks, six render-only reference comparisons,
+and three strict native map/minimap pixel and click-camera-outline tests. The
+complete desktop/mobile E2E matrix passed 21 tests and deliberately skipped
+nine fixed-pixel tests on the mobile viewport. Repository-wide `npm run verify`
+passed 68 client suites (387 tests) and 180 server suites (1,899 passed, 15
+intentionally skipped), while validating 361 parity declarations and 10 stack
+declarations across 268 test files. The production client and server build also
+passed.
 
 ## Known limitations
 
-- The strict cross-client pixel comparison intentionally covers a terrain/fog
-  scene plus terrain features, but the harness disables units and cities.
-  Entity composition has source-mapped command tests; exact sprite-by-sprite
-  cross-client equality is not yet claimed.
+- The strict cross-client square-ISO comparison covers terrain/features,
+  cities/units, a wrapped seam, minimap/camera geometry, and transient effects.
+  It intentionally excludes custom HUD/dialog/panel pixels.
 - Square-ISO overview color rasterization matches freeciv-web for covered
   fixtures. C2C3 instead follows Freeciv's staggered natural `2x1` raster; it
   has a byte-exact independent oracle, but not a native GUI process capture.
-- The strict browser world-pixel oracle is finite square ISO because the pinned
-  freeciv-web harness has neither Hexemplio nor a complete wrapped
-  `map_pos_to_tile()` adapter. Production C2C3 wrapped-board behavior is covered
-  by native renderer tests and CivJS baselines, but a seam-centered
-  native-Freeciv zero-diff world capture remains a test-harness gap.
+- The strict browser world-pixel oracle is square ISO because the pinned
+  browser painter does not provide native ISO-hex rendering. It includes a
+  direct X-wrapped seam oracle. A native-Freeciv ISO-hex world/entity capture
+  remains a test-harness gap.
 - The CivJS renderer intentionally uses typed snapshots and separate overlay
   canvases instead of the legacy global `overview_canvas`/DOM lifecycle.
 - The C2C3 topology/Amplio2 mismatch is resolved by selecting Hexemplio for
-  `ISO|HEX`. The Amplio2 config/spec/atlas remains a customized CivJS-carried
-  compatibility snapshot. It does not share one reproducible revision with the
-  pinned reference painter, and its exact entity-pixel provenance is still not
-  claimed.
-- Selection cadence is exact, but movement interpolation, all cursor states,
-  and every keyboard/action branch remain broader parity work.
+  `ISO|HEX`. Amplio2 is an exact reproducible package tied to the pinned
+  browser and its historical Freeciv revision.
+- Square selection, movement stepping, and transient counters are source-mapped;
+  all cursor states and every keyboard/action branch remain broader parity work.

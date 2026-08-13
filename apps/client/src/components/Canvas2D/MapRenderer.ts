@@ -20,7 +20,6 @@ import {
   createMapGeometry,
   guiToMapPosition,
   guiToNativePosition,
-  getProjectedMapBounds,
   mapToGuiPosition,
   nativeAxisGuiPeriod,
   nativeToGuiPosition,
@@ -61,6 +60,7 @@ export class MapRenderer {
   private stopChecking = false;
   private calibrateThreshold = 1000000000;
   private isSmallScreen = false;
+  private readonly usesReferenceSquareTiming: boolean;
 
   /** Layer-specific renderers, invoked in Freeciv draw order. */
   private terrainRenderer: TerrainRenderer;
@@ -86,6 +86,10 @@ export class MapRenderer {
   ) {
     this.ctx = ctx;
     this.tilesetLoader = tilesetProvider;
+    this.usesReferenceSquareTiming =
+      tilesetProvider.metadata.projection === 'isometric' &&
+      tilesetProvider.metadata.topologyId === 1;
+    this.MAPVIEW_REFRESH_INTERVAL = this.usesReferenceSquareTiming ? 10 : 35;
     this.tilesetLoader.setSpriteReadyListener?.(() => {
       if (!this.isDisposed && this.renderState) this.render(this.renderState, true);
     });
@@ -265,6 +269,7 @@ export class MapRenderer {
     this.presentationEffectRenderer.setMapGeometry?.(state.map);
     this.fogRenderer.setMapGeometry?.(state.map);
     this.pathRenderer.setMapGeometry?.(state.map);
+    this.presentationEffectRenderer.beginFrame?.(state);
 
     /**
      * Implement freeciv-web's map boundary handling to fix diamond-shaped map edges.
@@ -320,7 +325,7 @@ export class MapRenderer {
     this.meanTime = (this.meanTime * (this.totalDraws - 1) + elapsed) / this.totalDraws;
     this.notifyRenderComplete(state.viewport);
 
-    if (!this.stopChecking && this.totalDraws % 100 === 0) {
+    if (!this.usesReferenceSquareTiming && !this.stopChecking && this.totalDraws % 100 === 0) {
       this.MAPVIEW_REFRESH_INTERVAL = Math.max(12, Math.min(140, this.meanTime + 10));
 
       if (this.totalDraws > this.calibrateThreshold) {
@@ -469,7 +474,14 @@ export class MapRenderer {
     forEachPaintTile((viewState, tile) =>
       this.terrainRenderer.renderTileLabels?.(viewState, [tile])
     );
-    this.cityRenderer.renderCityOverlayEntries(renderEntries);
+    // CITYBAR is one source layer. For each tile Freeciv emits the city text
+    // first, then that same tile's worked-output/unavailable sprites. Keeping
+    // the operations adjacent is observable when a worked-cell sprite overlaps
+    // a neighboring city bar, including across wrapped copies.
+    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:449-472
+    forEachPaintTile((viewState, tile) =>
+      this.cityRenderer.renderCityOverlayEntries([{ state: viewState, tile }])
+    );
 
     this.pathRenderer.renderPathLayerEntries(gotoEntries, (viewState, tile) => {
       const active =
@@ -872,21 +884,25 @@ export class MapRenderer {
   }
 
   /**
-   * Change the mapview origin, clip it, and apply boundary constraints.
-   * This is the main function for handling viewport movement and boundary enforcement.
+   * Change the mapview origin, preserving finite-map positions and normalizing
+   * only wrapped axes exactly as Freeciv does.
    * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:103-111
    * @param guiX0 - Proposed GUI X coordinate for viewport origin
    * @param guiY0 - Proposed GUI Y coordinate for viewport origin
-   * @param viewportWidth - Width of the viewport in pixels (default: 800)
-   * @param viewportHeight - Height of the viewport in pixels (default: 600)
-   * @returns Constrained GUI coordinates that respect map boundaries
+   * @param _viewportWidth - Retained for the existing camera API
+   * @param _viewportHeight - Retained for the existing camera API
+   * @returns The finite origin or its wrapped-map equivalent
    */
   setMapviewOrigin(
     guiX0: number,
     guiY0: number,
-    viewportWidth: number = 800,
-    viewportHeight: number = 600
+    _viewportWidth: number = 800,
+    _viewportHeight: number = 600
   ): { x: number; y: number } {
+    // Retain the public camera signature. Freeciv's finite/wrapped origin
+    // normalization itself is independent of viewport dimensions.
+    void _viewportWidth;
+    void _viewportHeight;
     const mapWidth = this.currentMap.xsize ?? this.currentMap.width;
     const mapHeight = this.currentMap.ysize ?? this.currentMap.height;
 
@@ -905,40 +921,11 @@ export class MapRenderer {
       return { x: constrainedX, y: constrainedY };
     }
 
-    // For non-wrapping maps, apply very generous boundary constraints
-    // Allow panning to see the entire map with reasonable padding
+    // normalize_gui_pos() preserves the exact GUI pixel offset on finite maps;
+    // there is no generic camera clamp in set_mapview_origin().
+    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:103-181
     if ((this.currentMap.wrap_id ?? 0) === 0) {
-      const geometry = this.getCurrentGeometry();
-      const projectedBounds = getProjectedMapBounds(geometry, this.tileWidth, this.tileHeight);
-      const mapWidthGui = geometry.isIsometric ? projectedBounds.width : mapWidth * this.tileWidth;
-      const mapHeightGui = geometry.isIsometric
-        ? projectedBounds.height
-        : mapHeight * this.tileHeight;
-
-      // Very generous bounds - allow seeing entire map plus lots of padding
-      // This matches freeciv-web's behavior which is quite permissive
-      // Use consistent minimum padding to prevent snap-back on small screens
-      const padding = Math.max(viewportWidth * 2, viewportHeight * 2, 2000); // Much more generous padding
-
-      const minX = -(mapWidthGui + padding);
-      const maxX = padding;
-      const minY = -(mapHeightGui + padding);
-      const maxY = padding;
-
-      const constrainedX = Math.max(minX, Math.min(maxX, guiX0));
-      const constrainedY = Math.max(minY, Math.min(maxY, guiY0));
-
-      // Only apply constraints if we're really far out of bounds
-      // This prevents snap-back when dragging near edges
-      const tolerance = 100; // pixels of tolerance before snapping
-      if (
-        Math.abs(constrainedX - guiX0) < tolerance &&
-        Math.abs(constrainedY - guiY0) < tolerance
-      ) {
-        return { x: guiX0, y: guiY0 }; // Keep original position if close to bounds
-      }
-
-      return { x: constrainedX, y: constrainedY };
+      return { x: guiX0, y: guiY0 };
     }
 
     // For wrapping maps, use the full normalize_gui_pos logic
@@ -1037,7 +1024,8 @@ export class MapRenderer {
   }
 
   private getVisibleTiles(mapTiles: Tile[], viewport: MapViewport, includeUnknown = false): Tile[] {
-    if (this.currentGeometry.isIsometric && !this.currentGeometry.isHex && !this.isWrappedMap()) {
+    const geometry = this.getCurrentGeometry();
+    if (geometry.isIsometric && !geometry.isHex) {
       return this.getReferenceIsometricTiles(mapTiles, viewport, includeUnknown);
     }
 

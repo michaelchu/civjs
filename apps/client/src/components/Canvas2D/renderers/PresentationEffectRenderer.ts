@@ -10,8 +10,28 @@ import { BaseRenderer, type RenderState } from './BaseRenderer';
  * authoritative unit/city snapshot.
  */
 export class PresentationEffectRenderer extends BaseRenderer {
+  /**
+   * freeciv-web stores square-ISO explosion state per logical tile and advances
+   * it whenever that tile is painted. Keep those counters separate from the
+   * elapsed-time presentation used by the native Hexemplio renderer.
+   */
+  private squareEffectSteps = new Map<string, { effectKey: string; remaining: number }>();
+
+  /** Remove counters only after their source presentation effect is gone. */
+  beginFrame(state: RenderState): void {
+    const activeIds = new Set(
+      (state.presentationEffects ?? []).map(effect => this.effectKey(effect))
+    );
+    for (const [key, counter] of this.squareEffectSteps) {
+      if (!activeIds.has(counter.effectKey)) this.squareEffectSteps.delete(key);
+    }
+  }
+
   getUnitOverrides(state: RenderState, now = performance.now()): Record<string, Unit> {
-    if (state.reducedMotion) return {};
+    // The pinned 2D browser client applies authoritative UNIT_INFO updates
+    // directly. It does not synthesize or interpolate combatants while the
+    // five explosion sprites play.
+    if (state.reducedMotion || this.isSquareIsometric()) return {};
 
     const overrides: Record<string, Unit> = {};
     for (const effect of state.presentationEffects ?? []) {
@@ -65,6 +85,10 @@ export class PresentationEffectRenderer extends BaseRenderer {
     layer: 'unit' | 'goto',
     tile?: Pick<Tile, 'x' | 'y'>
   ): boolean {
+    if (this.isSquareIsometric()) {
+      return this.renderSquareEffectsForLayer(state, layer, tile);
+    }
+
     const effects = state.presentationEffects ?? [];
     const now = performance.now();
     let hasActiveEffects = false;
@@ -87,6 +111,139 @@ export class PresentationEffectRenderer extends BaseRenderer {
     }
 
     return hasActiveEffects;
+  }
+
+  /**
+   * Paint the pinned freeciv-web 2D effect state machine.
+   *
+   * Combat explosions start at 25 tile-paint steps and use five frames for five
+   * paints each. Nuclear explosions retain one native-size sprite for 60 tile
+   * paints. Wrapped copies therefore advance the same logical-tile counter
+   * independently on every fill_sprite_array() call. A nuclear packet identifies
+   * one target tile; CivJS's affected blast-area list is visibility metadata and
+   * must not duplicate the sprite.
+   *
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/packhand.js:720-728,1001-1018
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:397-423,477-487
+   */
+  private renderSquareEffectsForLayer(
+    state: RenderState,
+    layer: 'unit' | 'goto',
+    tile?: Pick<Tile, 'x' | 'y'>
+  ): boolean {
+    let needsAnotherFrame = false;
+
+    for (const { effect, location } of this.getSquareEffectLocations(state, layer)) {
+      if (tile && (location.x !== tile.x || location.y !== tile.y)) continue;
+      const initialSteps = effect.type === 'nuclear' ? 60 : 25;
+      const counter = this.getSquareCounter(effect, location, initialSteps);
+      const renderRemaining = state.reducedMotion ? initialSteps : counter.remaining;
+      if (renderRemaining <= 0) continue;
+      if (!state.reducedMotion) counter.remaining -= 1;
+
+      if (effect.type === 'nuclear') {
+        this.renderSquareNuclearEffect(location, state);
+      } else {
+        const frame = Math.min(4, Math.floor((initialSteps - renderRemaining) / 5));
+        this.renderSquareCombatEffect(location, frame, state);
+      }
+
+      // The frame that consumes the final positive step still paints the last
+      // sprite. Schedule one more pass so the cleared canvas can omit it.
+      needsAnotherFrame = needsAnotherFrame || !state.reducedMotion;
+    }
+
+    return needsAnotherFrame;
+  }
+
+  private getSquareEffectLocations(
+    state: RenderState,
+    layer: 'unit' | 'goto'
+  ): Array<{ effect: PresentationEffect; location: { x: number; y: number } }> {
+    // explosion_anim_map and ptile.nuke are tile fields in the pinned client.
+    // A later packet for the same tile replaces/resets that tile's animation;
+    // it does not create a second independently composited sprite.
+    const latestByTile = new Map<
+      string,
+      { effect: PresentationEffect; location: { x: number; y: number } }
+    >();
+    for (const effect of state.presentationEffects ?? []) {
+      if (effect.type === 'marker') continue;
+      if ((effect.type === 'nuclear') !== (layer === 'goto')) continue;
+      const locations =
+        effect.type === 'nuclear'
+          ? [{ x: effect.x, y: effect.y }]
+          : this.getDestroyedCombatantTiles(effect);
+      for (const location of locations) {
+        latestByTile.set(`${effect.type}@${location.x},${location.y}`, { effect, location });
+      }
+    }
+    return [...latestByTile.values()];
+  }
+
+  private getDestroyedCombatantTiles(effect: PresentationEffect): Array<{ x: number; y: number }> {
+    // A local attack reply predating the rich server broadcast has no
+    // combatants. It is only created for a lethal result, so its anchor remains
+    // a valid fallback. Rich events can distinguish non-lethal combat exactly.
+    const locations = effect.combatants
+      ? effect.combatants
+          .filter(combatant => combatant.destroyed)
+          .map(combatant => ({ x: combatant.x, y: combatant.y }))
+      : [{ x: effect.x, y: effect.y }];
+    return locations.filter(
+      (location, index) =>
+        locations.findIndex(
+          candidate => candidate.x === location.x && candidate.y === location.y
+        ) === index
+    );
+  }
+
+  private getSquareCounter(
+    effect: PresentationEffect,
+    location: Pick<Tile, 'x' | 'y'>,
+    initialSteps: number
+  ): { effectKey: string; remaining: number } {
+    const effectKey = this.effectKey(effect);
+    const key = `${effect.type}@${location.x},${location.y}`;
+    const existing = this.squareEffectSteps.get(key);
+    if (existing?.effectKey === effectKey) return existing;
+    const counter = { effectKey, remaining: initialSteps };
+    this.squareEffectSteps.set(key, counter);
+    return counter;
+  }
+
+  private effectKey(effect: PresentationEffect): string {
+    return `${effect.type}:${effect.correlationKey ?? effect.id}`;
+  }
+
+  private isSquareIsometric(): boolean {
+    return (
+      this.tilesetLoader.metadata?.projection === 'isometric' &&
+      this.tilesetLoader.metadata?.topologyId === 1
+    );
+  }
+
+  private renderSquareCombatEffect(
+    location: Pick<Tile, 'x' | 'y'>,
+    frame: number,
+    state: RenderState
+  ): void {
+    const sprite = this.tilesetLoader.getSprite(`explode.unit_${frame}`);
+    if (!sprite) return;
+    const screen = this.mapToScreen(location.x, location.y, state.viewport);
+    const offsets = this.tilesetLoader.getPresentationOffsets?.();
+    this.ctx.drawImage(
+      sprite,
+      screen.x + (offsets?.unitX ?? 19),
+      screen.y - (offsets?.unitY ?? -14)
+    );
+  }
+
+  private renderSquareNuclearEffect(location: Pick<Tile, 'x' | 'y'>, state: RenderState): void {
+    const sprite = this.tilesetLoader.getSprite('explode.nuke');
+    if (!sprite) return;
+    const screen = this.mapToScreen(location.x, location.y, state.viewport);
+    this.ctx.drawImage(sprite, screen.x - 45, screen.y - 45);
   }
 
   private effectCoversTile(effect: PresentationEffect, tile: Pick<Tile, 'x' | 'y'>): boolean {
