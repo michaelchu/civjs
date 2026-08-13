@@ -482,11 +482,10 @@ export class TurnManager {
 
         await this.broadcastCultureData(playerIds);
 
-        // Broadcast updated city data to all players with current production rates
-        this.broadcastManager.broadcastCityData(this.gameId);
-        // Research may reveal previously hidden strategic resources. Refresh
-        // each player's map packet after the research phase completes.
-        this.broadcastManager.broadcastVisibilityState?.(this.gameId);
+        // Production, growth, research reveals, visibility, units, and borders
+        // are all part of the cached player projection. One incremental pass
+        // replaces the old full city broadcast plus full playermap snapshot.
+        this.broadcastManager.broadcastVisibilityDelta?.(this.gameId);
       } else {
         logger.error('Turn processing failed', {
           gameId: this.gameId,

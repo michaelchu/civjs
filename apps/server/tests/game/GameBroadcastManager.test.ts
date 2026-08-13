@@ -15,14 +15,21 @@ describe('GameBroadcastManager visibility sync', () => {
   let emitted: Array<{ room: string; event: string; data: any }>;
   let manager: GameBroadcastManager;
   let availableWorkerActions: string[];
+  let spectatorSockets: Set<string>;
 
   beforeEach(() => {
     emitted = [];
     availableWorkerActions = [];
+    spectatorSockets = new Set(['spectator-socket']);
     const io = {
       to: jest.fn((room: string) => ({
         emit: (event: string, data: any) => emitted.push({ room, event, data }),
       })),
+      sockets: {
+        adapter: {
+          rooms: new Map([[`game:${gameId}:spectators`, spectatorSockets]]),
+        },
+      },
     };
     manager = new GameBroadcastManager(io as any);
 
@@ -361,6 +368,20 @@ describe('GameBroadcastManager visibility sync', () => {
           )
       )
     ).toBe(false);
+  });
+
+  it('skips omniscient projection work when no spectator is connected', () => {
+    spectatorSockets.clear();
+    const projectTiles = jest.spyOn(manager as any, 'getSpectatorMapTiles');
+    const projectUnits = jest.spyOn(manager as any, 'getSpectatorUnits');
+    const projectCities = jest.spyOn(manager as any, 'sendSpectatorCityData');
+
+    manager.broadcastVisibilityDelta(gameId);
+
+    expect(projectTiles).not.toHaveBeenCalled();
+    expect(projectUnits).not.toHaveBeenCalled();
+    expect(projectCities).not.toHaveBeenCalled();
+    expect(emitted.some(emission => emission.room === `game:${gameId}:spectators`)).toBe(false);
   });
 
   it('routes nuclear effects by visible affected tiles without exposing a hidden center', () => {

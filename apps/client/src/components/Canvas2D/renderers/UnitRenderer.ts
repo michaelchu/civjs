@@ -4,7 +4,7 @@
  */
 import type { Unit, MapViewport, Tile } from '../../../types';
 import type { GraphicDefinition, UnitOverlayOffsets } from '../../../services/RulesetService';
-import { BaseRenderer, type RenderState } from './BaseRenderer';
+import { BaseRenderer, type RenderState, type TileRenderDecorator } from './BaseRenderer';
 import { sortMapPointsInPainterOrder } from '../mapTopologyGeometry';
 import type { TilesetGeometry } from '../tilesets/TilesetProvider';
 
@@ -112,28 +112,34 @@ export class UnitRenderer extends BaseRenderer {
    */
   renderUnitLayerEntries(
     entries: readonly UnitRenderEntry[],
-    afterTile?: (state: RenderState, tile: Tile) => void
+    afterTile?: (state: RenderState, tile: Tile) => void,
+    decorateTile?: TileRenderDecorator
   ): void {
-    this.renderUnitLayerEntriesByFocus(entries, 'all', afterTile);
+    this.renderUnitLayerEntriesByFocus(entries, 'all', afterTile, decorateTile);
   }
 
   /** Paint UNIT while reserving the focused unit for Freeciv's later FOCUSUNIT layer. */
   renderNonFocusedUnitLayerEntries(
     entries: readonly UnitRenderEntry[],
-    afterTile?: (state: RenderState, tile: Tile) => void
+    afterTile?: (state: RenderState, tile: Tile) => void,
+    decorateTile?: TileRenderDecorator
   ): void {
-    this.renderUnitLayerEntriesByFocus(entries, 'non-focused', afterTile);
+    this.renderUnitLayerEntriesByFocus(entries, 'non-focused', afterTile, decorateTile);
   }
 
   /** Paint selection plus the focused unit at Freeciv's late FOCUSUNIT layer. */
-  renderFocusedUnitLayerEntries(entries: readonly UnitRenderEntry[]): void {
-    this.renderUnitLayerEntriesByFocus(entries, 'focused');
+  renderFocusedUnitLayerEntries(
+    entries: readonly UnitRenderEntry[],
+    decorateTile?: TileRenderDecorator
+  ): void {
+    this.renderUnitLayerEntriesByFocus(entries, 'focused', undefined, decorateTile);
   }
 
   private renderUnitLayerEntriesByFocus(
     entries: readonly UnitRenderEntry[],
     mode: 'all' | 'non-focused' | 'focused',
-    afterTile?: (state: RenderState, tile: Tile) => void
+    afterTile?: (state: RenderState, tile: Tile) => void,
+    decorateTile?: TileRenderDecorator
   ): void {
     const first = entries[0];
     if (!first) return;
@@ -144,31 +150,35 @@ export class UnitRenderer extends BaseRenderer {
     if (prepared.focusedIds.length === 0) this.resetSelectionAnimation();
 
     for (const { state, tile } of entries) {
-      if (!tile.known || !this.isInViewport(tile.x, tile.y, state.viewport)) {
+      const renderTile = () => {
+        if (!tile.known || !this.isInViewport(tile.x, tile.y, state.viewport)) {
+          afterTile?.(state, tile);
+          return;
+        }
+
+        const key = `${tile.x},${tile.y}`;
+        const focused = prepared.focusedAtPosition.get(key);
+        if (focused && mode !== 'non-focused') {
+          this.renderUnitSelectionOutline(
+            focused,
+            state.viewport,
+            focused.id === prepared.focusedIds[0],
+            state.reducedMotion
+          );
+        }
+
+        const units = prepared.unitsAtPosition.get(key) ?? [];
+        const topUnit = this.selectDrawableUnit(units, state, prepared.cityPositions.has(key));
+        const topIsFocused = Boolean(topUnit && prepared.focusedIds.includes(topUnit.id));
+        const shouldDraw =
+          mode === 'all' ||
+          (mode === 'focused' && topIsFocused) ||
+          (mode === 'non-focused' && !topIsFocused);
+        if (topUnit && shouldDraw) this.renderUnit(topUnit, state.viewport, units.length, state);
         afterTile?.(state, tile);
-        continue;
-      }
-
-      const key = `${tile.x},${tile.y}`;
-      const focused = prepared.focusedAtPosition.get(key);
-      if (focused && mode !== 'non-focused') {
-        this.renderUnitSelectionOutline(
-          focused,
-          state.viewport,
-          focused.id === prepared.focusedIds[0],
-          state.reducedMotion
-        );
-      }
-
-      const units = prepared.unitsAtPosition.get(key) ?? [];
-      const topUnit = this.selectDrawableUnit(units, state, prepared.cityPositions.has(key));
-      const topIsFocused = Boolean(topUnit && prepared.focusedIds.includes(topUnit.id));
-      const shouldDraw =
-        mode === 'all' ||
-        (mode === 'focused' && topIsFocused) ||
-        (mode === 'non-focused' && !topIsFocused);
-      if (topUnit && shouldDraw) this.renderUnit(topUnit, state.viewport, units.length, state);
-      afterTile?.(state, tile);
+      };
+      if (decorateTile) decorateTile(state, tile, renderTile);
+      else renderTile();
     }
   }
 

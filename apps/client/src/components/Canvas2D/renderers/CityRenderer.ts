@@ -3,7 +3,7 @@
  * Implements the City Renderer canvas rendering stage.
  */
 import type { City, MapViewport, Tile } from '../../../types';
-import { BaseRenderer, type RenderState } from './BaseRenderer';
+import { BaseRenderer, type RenderState, type TileRenderDecorator } from './BaseRenderer';
 import type { CityStyle, GraphicDefinition, NationStyle } from '../../../services/RulesetService';
 import { resolveCityGraphic } from '../../../services/PresentationResolver';
 import { sortMapPointsInPainterOrder } from '../mapTopologyGeometry';
@@ -91,7 +91,7 @@ export class CityRenderer extends BaseRenderer {
   }
 
   /** Paint CITY1 for one globally ordered tile/copy walk. */
-  renderCityEntries(entries: readonly CityRenderEntry[]): void {
+  renderCityEntries(entries: readonly CityRenderEntry[], decorateTile?: TileRenderDecorator): void {
     const first = entries[0];
     if (!first) return;
     const cityByPosition = this.indexCities(first.state);
@@ -99,7 +99,10 @@ export class CityRenderer extends BaseRenderer {
     for (const { state, tile } of entries) {
       if (!tile.known || !this.isInViewport(tile.x, tile.y, state.viewport)) continue;
       const city = cityByPosition.get(`${tile.x},${tile.y}`);
-      if (city) this.renderCitySprite(city, state.viewport, state);
+      if (!city) continue;
+      const renderTile = () => this.renderCitySprite(city, state.viewport, state);
+      if (decorateTile) decorateTile(state, tile, renderTile);
+      else renderTile();
     }
   }
 
@@ -132,7 +135,10 @@ export class CityRenderer extends BaseRenderer {
   }
 
   /** Paint selected-city output overlays on Freeciv's OVERLAYS layer. */
-  renderWorkedTileOverlayEntries(entries: readonly CityRenderEntry[]): void {
+  renderWorkedTileOverlayEntries(
+    entries: readonly CityRenderEntry[],
+    decorateTile?: TileRenderDecorator
+  ): void {
     const first = entries[0];
     if (!first) return;
     const selectedCity = first.state.selectedCityId
@@ -145,9 +151,10 @@ export class CityRenderer extends BaseRenderer {
     for (const { state, tile } of entries) {
       if (!tile.known || !this.isInViewport(tile.x, tile.y, state.viewport)) continue;
       const workable = workableByPosition.get(`${tile.x},${tile.y}`);
-      if (workable) {
-        this.renderWorkedTileOutput(workable, state.viewport);
-      }
+      if (!workable) continue;
+      const renderTile = () => this.renderWorkedTileOutput(workable, state.viewport);
+      if (decorateTile) decorateTile(state, tile, renderTile);
+      else renderTile();
     }
   }
 

@@ -87,6 +87,7 @@ function createRenderState(cities: RenderState['cities'] = {}): RenderState {
 
 type RenderEntry = { state: RenderState; tile: Tile };
 type AfterTile = (state: RenderState, tile: Tile) => void;
+type DecorateTile = (state: RenderState, tile: Tile, render: () => void) => void;
 type RendererDouble = Record<string, unknown>;
 
 function createPipelineDoubles(
@@ -1199,42 +1200,70 @@ describe('MapRenderer live-state updates', () => {
       },
     } as unknown as ConstructorParameters<typeof MapRenderer>[1];
     const renderer = new MapRenderer(context, provider);
+    const state = createRenderState();
+    state.map.topology_id = 3;
+    state.map.tiles['0,0'] = { ...state.map.tiles['0,0'], visible: false };
+    const tile = state.map.tiles['0,0'];
+    const recordDecorated = (layer: string, decorateTile?: DecorateTile) => {
+      const render = record(layer);
+      if (decorateTile) decorateTile(state, tile, render);
+      else render();
+    };
     const terrainRenderer = {
       setMapGeometry: vi.fn(),
       invalidateTileCache: vi.fn(),
-      renderTerrainLayerEntries: vi.fn((_entries: RenderEntry[], layer: number) =>
-        calls.push({ layer: `terrain${layer + 1}`, filter: context.filter })
+      renderTerrainLayerEntries: vi.fn(
+        (_entries: RenderEntry[], layer: number, decorateTile?: DecorateTile) =>
+          recordDecorated(`terrain${layer + 1}`, decorateTile)
       ),
-      renderDarknessEntries: vi.fn(record('darkness')),
-      renderWaterEntries: vi.fn(record('water')),
-      renderRoadEntries: vi.fn(record('roads')),
+      renderDarknessEntries: vi.fn((_entries: RenderEntry[], decorateTile?: DecorateTile) =>
+        recordDecorated('darkness', decorateTile)
+      ),
+      renderWaterEntries: vi.fn((_entries: RenderEntry[], decorateTile?: DecorateTile) =>
+        recordDecorated('water', decorateTile)
+      ),
+      renderRoadEntries: vi.fn((_entries: RenderEntry[], decorateTile?: DecorateTile) =>
+        recordDecorated('roads', decorateTile)
+      ),
       renderSpecials: vi.fn(record('special1')),
       renderSpecial2: vi.fn(record('special2')),
       renderSpecial3: vi.fn(record('special3')),
       renderTileLabels: vi.fn(record('tileLabel')),
     };
-    const state = createRenderState();
-    state.map.topology_id = 3;
-    state.map.tiles['0,0'] = { ...state.map.tiles['0,0'], visible: false };
-    const tile = state.map.tiles['0,0'];
     Object.assign(renderer as unknown as Record<string, unknown>, {
       isInitialized: true,
       ...createPipelineDoubles({
         terrainRenderer,
         borderRenderer: { render: vi.fn(record('grid1')) },
         cityRenderer: {
-          renderCityEntries: vi.fn(record('city1')),
-          renderWorkedTileOverlayEntries: vi.fn(record('overlays')),
+          renderCityEntries: vi.fn((_entries: RenderEntry[], decorateTile?: DecorateTile) =>
+            recordDecorated('city1', decorateTile)
+          ),
+          renderWorkedTileOverlayEntries: vi.fn(
+            (_entries: RenderEntry[], decorateTile?: DecorateTile) =>
+              recordDecorated('overlays', decorateTile)
+          ),
           renderCityBarEntries: vi.fn(record('cityBar')),
         },
         unitRenderer: {
           renderNonFocusedUnitLayerEntries: vi.fn(
-            (_entries: readonly RenderEntry[], afterTile?: AfterTile) => {
-              calls.push({ layer: 'unit', filter: context.filter });
-              afterTile?.(state, tile);
+            (
+              _entries: readonly RenderEntry[],
+              afterTile?: AfterTile,
+              decorateTile?: DecorateTile
+            ) => {
+              const render = () => {
+                calls.push({ layer: 'unit', filter: context.filter });
+                afterTile?.(state, tile);
+              };
+              if (decorateTile) decorateTile(state, tile, render);
+              else render();
             }
           ),
-          renderFocusedUnitLayerEntries: vi.fn(record('focusUnit')),
+          renderFocusedUnitLayerEntries: vi.fn(
+            (_entries: readonly RenderEntry[], decorateTile?: DecorateTile) =>
+              recordDecorated('focusUnit', decorateTile)
+          ),
         },
         pathRenderer: { renderPathLayerEntries: vi.fn(record('goto')) },
       }),
@@ -1270,6 +1299,61 @@ describe('MapRenderer live-state updates', () => {
       expect(call.filter).toBe(unfogged.has(call.layer) ? 'none' : 'brightness(65%)');
     }
     expect(context.filter).toBe('none');
+  });
+
+  it('batches native entity and terrain setup once per layer instead of once per tile', () => {
+    const context = createContext();
+    const renderer = new MapRenderer(context);
+    const state = createRenderState();
+    state.map.topology_id = 3;
+    const tiles = Array.from({ length: 24 }, (_, index) => ({
+      x: index % 8,
+      y: Math.floor(index / 8),
+      terrain: 'plains',
+      known: true,
+      visible: true,
+    }));
+    state.map.tiles = Object.fromEntries(tiles.map(tile => [`${tile.x},${tile.y}`, tile]));
+
+    const renderTerrainLayerEntries = vi.fn();
+    const renderCityEntries = vi.fn();
+    const renderWorkedTileOverlayEntries = vi.fn();
+    const renderNonFocusedUnitLayerEntries = vi.fn(
+      (entries: readonly RenderEntry[], afterTile?: AfterTile) => {
+        for (const entry of entries) afterTile?.(entry.state, entry.tile);
+      }
+    );
+    const renderFocusedUnitLayerEntries = vi.fn();
+    Object.assign(renderer as unknown as Record<string, unknown>, {
+      isInitialized: true,
+      ...createPipelineDoubles({
+        terrainRenderer: { renderTerrainLayerEntries },
+        cityRenderer: { renderCityEntries, renderWorkedTileOverlayEntries },
+        unitRenderer: {
+          renderNonFocusedUnitLayerEntries,
+          renderFocusedUnitLayerEntries,
+        },
+      }),
+      getWrappedRenderViews: () => [
+        { viewport: state.viewport, visibleTiles: tiles, isPrimary: true },
+      ],
+      checkViewportBounds: () => false,
+    });
+
+    renderer.render(state, true);
+
+    expect(renderTerrainLayerEntries).toHaveBeenCalledTimes(3);
+    expect(renderTerrainLayerEntries).toHaveBeenNthCalledWith(
+      1,
+      expect.arrayContaining([expect.objectContaining({ tile: tiles[0] })]),
+      0,
+      expect.any(Function)
+    );
+    expect(renderTerrainLayerEntries.mock.calls[0]?.[0]).toHaveLength(tiles.length);
+    expect(renderCityEntries).toHaveBeenCalledTimes(1);
+    expect(renderWorkedTileOverlayEntries).toHaveBeenCalledTimes(1);
+    expect(renderNonFocusedUnitLayerEntries).toHaveBeenCalledTimes(1);
+    expect(renderFocusedUnitLayerEntries).toHaveBeenCalledTimes(1);
   });
 
   it('reveals unknown terrain and skips the fog layer when debug fog is disabled', () => {

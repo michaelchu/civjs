@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { MapSnapshotAssembler } from '../MapSnapshotAssembler';
 import { mapTileFromWire } from '../MapTileReducer';
 
@@ -82,6 +82,32 @@ describe('map snapshot boundaries', () => {
       '0,0': expect.objectContaining({ terrain: 'plains' }),
       '1,0': expect.objectContaining({ visible: true }),
     });
+  });
+
+  it('copies the tile index once for an incremental batch', () => {
+    const assembler = new MapSnapshotAssembler();
+    const applySingleTile = vi.spyOn(assembler, 'applyTile');
+    const map = {
+      ...assembler.begin({ xsize: 3, ysize: 1 }),
+      tiles: {
+        '0,0': mapTileFromWire({ x: 0, y: 0, terrain: 'plains', known: 2 }),
+        '1,0': mapTileFromWire({ x: 1, y: 0, terrain: 'plains', known: 1 }),
+        '2,0': mapTileFromWire({ x: 2, y: 0, terrain: 'ocean', known: 1 }),
+      },
+    };
+
+    const updated = assembler.applyBatch(map, {
+      tiles: [
+        { x: 1, y: 0, terrain: 'hills', known: 2 },
+        { x: 2, y: 0, terrain: 'ocean', known: 2 },
+      ],
+      fullSnapshot: false,
+    });
+
+    expect(applySingleTile).not.toHaveBeenCalled();
+    expect(updated?.tiles['0,0']).toBe(map.tiles['0,0']);
+    expect(updated?.tiles['1,0']).toMatchObject({ terrain: 'hills', visible: true });
+    expect(updated?.tiles['2,0']).toMatchObject({ terrain: 'ocean', visible: true });
   });
 
   it('keeps an interleaved delta newer than a staged full snapshot', () => {

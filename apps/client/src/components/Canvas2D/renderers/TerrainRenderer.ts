@@ -14,7 +14,7 @@ import {
   CELL_CORNER,
   DIR4_TO_DIR8,
 } from '../../../constants/freeciv';
-import { BaseRenderer, type RenderState } from './BaseRenderer';
+import { BaseRenderer, type RenderState, type TileRenderDecorator } from './BaseRenderer';
 import {
   getCardinalMapDirections,
   getValidMapDirections,
@@ -103,22 +103,30 @@ export class TerrainRenderer extends BaseRenderer {
   }
 
   /** Paint one native terrain layer across the complete GUI painter walk. */
-  renderTerrainLayerEntries(entries: TerrainRenderEntry[], layer: 0 | 1 | 2): void {
+  renderTerrainLayerEntries(
+    entries: TerrainRenderEntry[],
+    layer: 0 | 1 | 2,
+    decorateTile?: TileRenderDecorator
+  ): void {
     const first = entries[0];
     if (!first) return;
     this.setMapTopology(first.state);
     this.invalidateTileCache(first.state.map.tiles);
 
     for (const { state, tile } of entries) {
-      const screenPos = this.mapToScreen(tile.x, tile.y, state.viewport);
-      const sprites = this.fillTerrainSpriteArraySimple(layer, tile);
-      if (layer === 0 && sprites.length === 0) this.drawTerrainFallback(tile, screenPos);
-      this.drawSprites(sprites, screenPos);
+      const renderTile = () => {
+        const screenPos = this.mapToScreen(tile.x, tile.y, state.viewport);
+        const sprites = this.fillTerrainSpriteArraySimple(layer, tile);
+        if (layer === 0 && sprites.length === 0) this.drawTerrainFallback(tile, screenPos);
+        this.drawSprites(sprites, screenPos);
+      };
+      if (decorateTile) decorateTile(state, tile, renderTile);
+      else renderTile();
     }
   }
 
   /** Paint CardinalSingle unknown-neighbor masks between TERRAIN2 and TERRAIN3. */
-  renderDarknessEntries(entries: TerrainRenderEntry[]): void {
+  renderDarknessEntries(entries: TerrainRenderEntry[], decorateTile?: TileRenderDecorator): void {
     const first = entries[0];
     if (!first || this.tilesetLoader.getRenderProfile?.()?.darknessStyle !== 'cardinal-single') {
       return;
@@ -127,47 +135,58 @@ export class TerrainRenderer extends BaseRenderer {
     this.invalidateTileCache(first.state.map.tiles);
 
     for (const { state, tile } of entries) {
-      const screenPos = this.mapToScreen(tile.x, tile.y, state.viewport);
-      for (const direction of getCardinalMapDirections(this.topologyId)) {
-        const neighbor = this.getDirectionalNeighborTile(tile, direction.dx, direction.dy);
-        if (neighbor && !neighbor.known) {
-          this.drawSprites([{ key: `tx.darkness_${direction.name}` }], screenPos);
+      const renderTile = () => {
+        const screenPos = this.mapToScreen(tile.x, tile.y, state.viewport);
+        for (const direction of getCardinalMapDirections(this.topologyId)) {
+          const neighbor = this.getDirectionalNeighborTile(tile, direction.dx, direction.dy);
+          if (neighbor && !neighbor.known) {
+            this.drawSprites([{ key: `tx.darkness_${direction.name}` }], screenPos);
+          }
         }
-      }
+      };
+      if (decorateTile) decorateTile(state, tile, renderTile);
+      else renderTile();
     }
   }
 
   /** Paint Hexemplio's WATER layer: outlets, irrigation, then river bodies. */
-  renderWaterEntries(entries: TerrainRenderEntry[]): void {
+  renderWaterEntries(entries: TerrainRenderEntry[], decorateTile?: TileRenderDecorator): void {
     const first = entries[0];
     if (!first) return;
     this.setMapTopology(first.state);
     this.invalidateTileCache(first.state.map.tiles);
     for (const { state, tile } of entries) {
-      const screenPos = this.mapToScreen(tile.x, tile.y, state.viewport);
-      const nativeStyles = this.tilesetLoader.getTerrainComposition()?.extraStyles;
-      if (nativeStyles && Object.keys(nativeStyles).length > 0) {
-        // Freeciv's WATER layer is ordered as river-style shoreline outlets,
-        // Cardinal-style irrigation, then river-style bodies. Hexemplio uses
-        // River style for irrigation and farmland as well as actual rivers.
-        // @reference reference/freeciv/client/tilespec.c:6139-6190
-        this.drawSprites(this.getNativeRiverOutletSprites(tile, nativeStyles), screenPos);
-        this.drawInfrastructure(tile, screenPos, 'terrain');
-        this.drawSprites(this.getNativeRiverBodySprites(tile, nativeStyles), screenPos);
-      } else {
-        this.drawInfrastructure(tile, screenPos, 'terrain');
-        this.drawRiver(tile, screenPos);
-      }
+      const renderTile = () => {
+        const screenPos = this.mapToScreen(tile.x, tile.y, state.viewport);
+        const nativeStyles = this.tilesetLoader.getTerrainComposition()?.extraStyles;
+        if (nativeStyles && Object.keys(nativeStyles).length > 0) {
+          // Freeciv's WATER layer is ordered as river-style shoreline outlets,
+          // Cardinal-style irrigation, then river-style bodies. Hexemplio uses
+          // River style for irrigation and farmland as well as actual rivers.
+          // @reference reference/freeciv/client/tilespec.c:6139-6190
+          this.drawSprites(this.getNativeRiverOutletSprites(tile, nativeStyles), screenPos);
+          this.drawInfrastructure(tile, screenPos, 'terrain');
+          this.drawSprites(this.getNativeRiverBodySprites(tile, nativeStyles), screenPos);
+        } else {
+          this.drawInfrastructure(tile, screenPos, 'terrain');
+          this.drawRiver(tile, screenPos);
+        }
+      };
+      if (decorateTile) decorateTile(state, tile, renderTile);
+      else renderTile();
     }
   }
 
-  renderRoadEntries(entries: TerrainRenderEntry[]): void {
+  renderRoadEntries(entries: TerrainRenderEntry[], decorateTile?: TileRenderDecorator): void {
     const first = entries[0];
     if (!first) return;
     this.setMapTopology(first.state);
     this.invalidateTileCache(first.state.map.tiles);
     for (const { state, tile } of entries) {
-      this.drawInfrastructure(tile, this.mapToScreen(tile.x, tile.y, state.viewport), 'roads');
+      const renderTile = () =>
+        this.drawInfrastructure(tile, this.mapToScreen(tile.x, tile.y, state.viewport), 'roads');
+      if (decorateTile) decorateTile(state, tile, renderTile);
+      else renderTile();
     }
   }
 

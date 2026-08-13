@@ -3653,10 +3653,7 @@ export class UnitManager {
   }> {
     const unit = this.units.get(unitId);
     const fromTile = unit ? { x: unit.x, y: unit.y } : { x: 0, y: 0 };
-    if (
-      !unit ||
-      !this.getUnitsWithRandomMovement(unit.playerId).some(candidate => candidate.id === unitId)
-    ) {
+    if (!unit || unit.transportedBy || unit.movementLeft <= 0 || !this.isRandomMovementUnit(unit)) {
       return { success: false, fromTile, movementPointsUsed: 0 };
     }
 

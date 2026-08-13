@@ -1674,8 +1674,10 @@ describe('UnitManager', () => {
       expect(manager.getUnitsWithRandomMovement('player-123')).toEqual([storm]);
       expect(manager.canUnitPerformAction(storm.id, ActionType.GOTO, 11, 10)).toBe(false);
       expect((manager as any).getPathStepCost(storm, 10, 10, 11, 10, true)).toBe(-1);
+      const scanRandomUnits = jest.spyOn(manager, 'getUnitsWithRandomMovement');
       const result = await manager.executeRandomMovement(storm.id);
 
+      expect(scanRandomUnits).not.toHaveBeenCalled();
       expect(result).toMatchObject({
         success: true,
         fromTile: { x: 10, y: 10 },

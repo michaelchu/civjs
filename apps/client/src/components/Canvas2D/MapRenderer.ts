@@ -18,6 +18,7 @@ import { resolveGraphic } from '../../services/PresentationResolver';
 import type { RenderState } from './renderers/BaseRenderer';
 import {
   createMapGeometry,
+  getProjectedMapBounds,
   guiToMapPosition,
   guiToNativePosition,
   mapToGuiPosition,
@@ -498,6 +499,12 @@ export class MapRenderer {
     renderEntries: Array<{ state: RenderState; tile: Tile }>,
     gotoEntries: Array<{ state: RenderState; tile: Tile }>
   ): boolean {
+    const decorateFoggedTile = (_state: RenderState, tile: Tile, render: () => void) =>
+      this.renderWithNativeAutoFog(tile, render);
+    const presentationEntries = paintTileEntries.map(({ presentationState, tile }) => ({
+      state: presentationState,
+      tile,
+    }));
     const forEachFoggedTile = (
       render: (state: RenderState, tile: Tile, presentationState: RenderState) => void
     ) => {
@@ -508,42 +515,35 @@ export class MapRenderer {
       }
     };
 
-    const renderFoggedEntries = (
-      render: (entries: Array<{ state: RenderState; tile: Tile }>) => void
-    ) => forEachFoggedTile((state, tile) => render([{ state, tile }]));
-
-    renderFoggedEntries(entries => this.terrainRenderer.renderTerrainLayerEntries(entries, 0));
-    renderFoggedEntries(entries => this.terrainRenderer.renderTerrainLayerEntries(entries, 1));
-    renderFoggedEntries(entries => this.terrainRenderer.renderDarknessEntries(entries));
-    renderFoggedEntries(entries => this.terrainRenderer.renderTerrainLayerEntries(entries, 2));
-    renderFoggedEntries(entries => this.terrainRenderer.renderWaterEntries(entries));
-    renderFoggedEntries(entries => this.terrainRenderer.renderRoadEntries(entries));
+    this.terrainRenderer.renderTerrainLayerEntries(renderEntries, 0, decorateFoggedTile);
+    this.terrainRenderer.renderTerrainLayerEntries(renderEntries, 1, decorateFoggedTile);
+    this.terrainRenderer.renderDarknessEntries(renderEntries, decorateFoggedTile);
+    this.terrainRenderer.renderTerrainLayerEntries(renderEntries, 2, decorateFoggedTile);
+    this.terrainRenderer.renderWaterEntries(renderEntries, decorateFoggedTile);
+    this.terrainRenderer.renderRoadEntries(renderEntries, decorateFoggedTile);
     forEachFoggedTile((state, tile) => this.terrainRenderer.renderSpecials(state, [tile]));
     forEachFoggedTile((state, tile) => this.borderRenderer.render(state, [tile]));
-    renderFoggedEntries(entries => this.cityRenderer.renderCityEntries(entries));
+    this.cityRenderer.renderCityEntries(renderEntries, decorateFoggedTile);
     forEachFoggedTile((state, tile) => this.terrainRenderer.renderSpecial2(state, [tile]));
 
     let hasActivePresentationEffects = false;
-    forEachFoggedTile((_state, tile, presentationState) => {
-      this.unitRenderer.renderNonFocusedUnitLayerEntries(
-        [{ state: presentationState, tile }],
-        (effectState, effectTile) => {
-          const active =
-            this.presentationEffectRenderer?.renderUnitEffectsForTile?.(effectState, effectTile) ??
-            false;
-          hasActivePresentationEffects = hasActivePresentationEffects || active;
-        }
-      );
-    });
+    this.unitRenderer.renderNonFocusedUnitLayerEntries(
+      presentationEntries,
+      (effectState, effectTile) => {
+        const active =
+          this.presentationEffectRenderer?.renderUnitEffectsForTile?.(effectState, effectTile) ??
+          false;
+        hasActivePresentationEffects = hasActivePresentationEffects || active;
+      },
+      decorateFoggedTile
+    );
     forEachFoggedTile((state, tile) => this.terrainRenderer.renderSpecial3(state, [tile]));
-    renderFoggedEntries(entries => this.cityRenderer.renderWorkedTileOverlayEntries(entries));
+    this.cityRenderer.renderWorkedTileOverlayEntries(renderEntries, decorateFoggedTile);
     // TILELABEL and CITYBAR are client text layers, intentionally outside Auto fog.
     for (const { state, tile } of renderEntries)
       this.terrainRenderer.renderTileLabels(state, [tile]);
     this.cityRenderer.renderCityBarEntries(renderEntries);
-    forEachFoggedTile((_state, tile, presentationState) =>
-      this.unitRenderer.renderFocusedUnitLayerEntries([{ state: presentationState, tile }])
-    );
+    this.unitRenderer.renderFocusedUnitLayerEntries(presentationEntries, decorateFoggedTile);
     this.pathRenderer.renderPathLayerEntries(gotoEntries, (state, tile) => {
       const active =
         this.presentationEffectRenderer?.renderGotoEffectsForTile?.(state, tile) ?? false;
@@ -814,10 +814,16 @@ export class MapRenderer {
           y: viewport.y - xOffset * xPeriod.y - yOffset * yPeriod.y,
         };
 
+        // Most entries in the conservative wrap-offset grid are entirely
+        // outside the canvas. Reject them from projected map bounds before an
+        // O(map-size) tile scan; the exact culler below still decides which
+        // tiles from an intersecting copy are paintable.
+        const isPrimary = xOffset === 0 && yOffset === 0;
+        if (!isPrimary && !this.projectedMapIntersectsViewport(copyViewport)) continue;
+
         // Include unknown tiles when deciding whether a copy is needed. Fog
         // still has to cover a copy even when terrain itself is hidden.
         const copyTiles = this.getVisibleTiles(mapTiles, copyViewport, true);
-        const isPrimary = xOffset === 0 && yOffset === 0;
         if (copyTiles.length === 0 && !isPrimary) continue;
 
         views.push({
@@ -837,6 +843,25 @@ export class MapRenderer {
             isPrimary: true,
           },
         ];
+  }
+
+  private projectedMapIntersectsViewport(viewport: MapViewport): boolean {
+    const bounds = getProjectedMapBounds(
+      this.getCurrentGeometry(),
+      this.tileWidth,
+      this.tileHeight
+    );
+    const canvasWidth = this.ctx.canvas?.width || viewport.width;
+    const canvasHeight = this.ctx.canvas?.height || viewport.height;
+    const horizontalMargin = this.tileWidth;
+    const verticalMargin = this.tileHeight * 2;
+
+    return (
+      bounds.right >= viewport.x - horizontalMargin &&
+      bounds.left <= viewport.x + canvasWidth + horizontalMargin &&
+      bounds.bottom >= viewport.y - verticalMargin &&
+      bounds.top <= viewport.y + canvasHeight + verticalMargin
+    );
   }
 
   /**

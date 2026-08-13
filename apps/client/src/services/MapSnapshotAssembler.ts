@@ -56,12 +56,15 @@ export class MapSnapshotAssembler {
 
   applyBatch(map: GameMap, data: MapTileBatchWireData): GameMap | null {
     if (data.fullSnapshot === false) {
-      if (this.pendingOverrides) {
-        for (const tile of data.tiles) {
-          this.pendingOverrides[`${tile.x},${tile.y}`] = mapTileFromWire(tile);
-        }
+      if (data.tiles.length === 0) return map;
+      const tiles = { ...map.tiles };
+      for (const tile of data.tiles) {
+        const key = `${tile.x},${tile.y}`;
+        const mappedTile = mapTileFromWire(tile);
+        tiles[key] = mappedTile;
+        if (this.pendingOverrides) this.pendingOverrides[key] = mappedTile;
       }
-      return data.tiles.reduce((nextMap, tile) => this.applyTile(nextMap, tile), map);
+      return { ...map, tiles };
     }
 
     if (data.startIndex === 0 || !this.pendingTiles) {

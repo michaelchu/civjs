@@ -109,6 +109,8 @@ describe('TurnManager', () => {
       broadcastToPlayer: jest.fn(),
       broadcastToAllPlayers: jest.fn(),
       broadcastCityData: jest.fn(),
+      broadcastVisibilityDelta: jest.fn(),
+      broadcastVisibilityState: jest.fn(),
     } as any;
 
     turnManager = new TurnManager(
@@ -237,6 +239,11 @@ describe('TurnManager', () => {
         -4000, // current year
         ['player1', 'player2'] // player IDs
       );
+      expect((turnManager as any).broadcastManager.broadcastVisibilityDelta).toHaveBeenCalledWith(
+        'test-game-id'
+      );
+      expect((turnManager as any).broadcastManager.broadcastVisibilityState).not.toHaveBeenCalled();
+      expect((turnManager as any).broadcastManager.broadcastCityData).not.toHaveBeenCalled();
 
       // Should advance to next turn
       expect(turnManager.getCurrentTurn()).toBe(2);

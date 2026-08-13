@@ -478,6 +478,8 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
    * snapshot to the dedicated live observer room.
    */
   private sendSpectatorMapSnapshot(gameInstance: GameInstance, gameId: string, mapData: any): void {
+    if (!this.hasSpectators(gameId)) return;
+
     for (const player of gameInstance.players.values()) {
       if (!player.color) continue;
       this.sendPacketToSpectators(
@@ -523,12 +525,15 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     gameId: string,
     mapData: any
   ): void {
+    if (!this.hasSpectators(gameId)) return;
+
     const cached = this.getVisibilityCache(gameId, SPECTATOR_CACHE_ID);
 
     const tiles = this.getSpectatorMapTiles(gameInstance, mapData);
-    const nextTiles = this.indexWireState(tiles, tile => `${tile.x},${tile.y}`);
-    const changedTiles = tiles.filter(
-      tile => cached.tiles.get(`${tile.x},${tile.y}`) !== JSON.stringify(tile)
+    const { next: nextTiles, changed: changedTiles } = this.diffWireState(
+      cached.tiles,
+      tiles,
+      tile => `${tile.x},${tile.y}`
     );
     if (changedTiles.length > 0) {
       this.sendSpectatorTileDataInBatches(gameId, changedTiles, false);
@@ -536,8 +541,11 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     cached.tiles = nextTiles;
 
     const units = this.getSpectatorUnits(gameInstance);
-    const nextUnits = this.indexWireState(units, unit => unit.id);
-    const changedUnits = units.filter(unit => cached.units.get(unit.id) !== JSON.stringify(unit));
+    const { next: nextUnits, changed: changedUnits } = this.diffWireState(
+      cached.units,
+      units,
+      unit => unit.id
+    );
     if (changedUnits.length > 0) {
       this.sendPacketToSpectators(gameId, PacketType.UNIT_INFO, {
         units: changedUnits,
@@ -554,9 +562,10 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     this.sendSpectatorCityData(gameInstance, gameId, true);
 
     const borders = this.getSpectatorBorders(gameInstance);
-    const nextBorders = this.indexWireState(borders, tile => `${tile.x},${tile.y}`);
-    const changedBorders = borders.filter(
-      tile => cached.borders.get(`${tile.x},${tile.y}`) !== JSON.stringify(tile)
+    const { next: nextBorders, changed: changedBorders } = this.diffWireState(
+      cached.borders,
+      borders,
+      tile => `${tile.x},${tile.y}`
     );
     for (const key of cached.borders.keys()) {
       if (!nextBorders.has(key)) {
@@ -575,6 +584,8 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   }
 
   private sendSpectatorUnitInfo(gameInstance: GameInstance, gameId: string, unit: any): void {
+    if (!this.hasSpectators(gameId)) return;
+
     const formatted = this.formatUnitForClient(
       unit,
       gameInstance.unitManager,
@@ -948,9 +959,10 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       new Set(gameInstance.researchManager.getResearchedTechs(playerId))
     );
     const cached = this.getVisibilityCache(gameId, playerId);
-    const nextTiles = this.indexWireState(tiles, tile => `${tile.x},${tile.y}`);
-    const changedTiles = tiles.filter(
-      tile => cached.tiles.get(`${tile.x},${tile.y}`) !== JSON.stringify(tile)
+    const { next: nextTiles, changed: changedTiles } = this.diffWireState(
+      cached.tiles,
+      tiles,
+      tile => `${tile.x},${tile.y}`
     );
     if (changedTiles.length > 0) {
       this.sendTileDataInBatches(gameInstance, playerId, changedTiles, false);
@@ -978,8 +990,11 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         gameInstance.config.ruleset ?? DEFAULT_RULESET
       )
     );
-    const nextUnits = this.indexWireState(units, unit => unit.id);
-    const changedUnits = units.filter(unit => cached.units.get(unit.id) !== JSON.stringify(unit));
+    const { next: nextUnits, changed: changedUnits } = this.diffWireState(
+      cached.units,
+      units,
+      unit => unit.id
+    );
     if (changedUnits.length > 0) {
       this.sendPacketToPlayer(gameInstance, playerId, PacketType.UNIT_INFO, {
         units: changedUnits,
@@ -1003,9 +1018,10 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       rememberedTiles,
       debug
     );
-    const nextBorders = this.indexWireState(borders, tile => `${tile.x},${tile.y}`);
-    const changedBorders = borders.filter(
-      tile => cached.borders.get(`${tile.x},${tile.y}`) !== JSON.stringify(tile)
+    const { next: nextBorders, changed: changedBorders } = this.diffWireState(
+      cached.borders,
+      borders,
+      tile => `${tile.x},${tile.y}`
     );
     for (const key of cached.borders.keys()) {
       if (!nextBorders.has(key)) {
@@ -1069,7 +1085,30 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   }
 
   private indexWireState<T>(items: T[], key: (item: T) => string): Map<string, string> {
-    return new Map(items.map(item => [key(item), JSON.stringify(item)]));
+    const indexed = new Map<string, string>();
+    for (const item of items) indexed.set(key(item), JSON.stringify(item));
+    return indexed;
+  }
+
+  /** Serialize each projected item once while constructing its next delta cache. */
+  private diffWireState<T>(
+    previous: Map<string, string>,
+    items: T[],
+    key: (item: T) => string
+  ): { next: Map<string, string>; changed: T[] } {
+    const next = new Map<string, string>();
+    const changed: T[] = [];
+    for (const item of items) {
+      const itemKey = key(item);
+      const serialized = JSON.stringify(item);
+      next.set(itemKey, serialized);
+      if (previous.get(itemKey) !== serialized) changed.push(item);
+    }
+    return { next, changed };
+  }
+
+  private hasSpectators(gameId: string): boolean {
+    return (this.io.sockets?.adapter.rooms.get(getSpectatorRoom(gameId))?.size ?? 0) > 0;
   }
 
   private getAllTileKeys(mapData: any): Set<string> {
@@ -1546,12 +1585,12 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
 
     const cached = this.getVisibilityCache(gameId, playerId);
     const cityEntries = Object.entries(clientCityData);
-    const nextCities = this.indexWireState(cityEntries, ([cityId]) => cityId);
-    const changedCities = Object.fromEntries(
-      cityEntries.filter(
-        ([cityId, city]) => cached.cities.get(cityId) !== JSON.stringify([cityId, city])
-      )
+    const { next: nextCities, changed: changedCityEntries } = this.diffWireState(
+      cached.cities,
+      cityEntries,
+      ([cityId]) => cityId
     );
+    const changedCities = Object.fromEntries(changedCityEntries);
     const removedCityIds = [...cached.cities.keys()].filter(cityId => !nextCities.has(cityId));
     cached.cities = nextCities;
     if (incremental && Object.keys(changedCities).length === 0 && removedCityIds.length === 0) {
@@ -1579,6 +1618,8 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     gameId: string,
     incremental: boolean
   ): void {
+    if (!this.hasSpectators(gameId)) return;
+
     const cities = gameInstance.cityManager.getAllCities();
     const rulesetName = gameInstance.config?.ruleset ?? DEFAULT_RULESET;
     const presentations = resolveCityPresentations(
@@ -1597,12 +1638,12 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
 
     const cached = this.getVisibilityCache(gameId, SPECTATOR_CACHE_ID);
     const entries = Object.entries(clientCityData);
-    const nextCities = this.indexWireState(entries, ([cityId]) => cityId);
-    const changedCities = Object.fromEntries(
-      entries.filter(
-        ([cityId, city]) => cached.cities.get(cityId) !== JSON.stringify([cityId, city])
-      )
+    const { next: nextCities, changed: changedCityEntries } = this.diffWireState(
+      cached.cities,
+      entries,
+      ([cityId]) => cityId
     );
+    const changedCities = Object.fromEntries(changedCityEntries);
     const removedCityIds = [...cached.cities.keys()].filter(cityId => !nextCities.has(cityId));
     cached.cities = nextCities;
     if (incremental && Object.keys(changedCities).length === 0 && removedCityIds.length === 0) {

@@ -2,7 +2,7 @@
  * @module client/components/Canvas2D/renderers/BaseRenderer
  * Implements the Base Renderer canvas rendering stage.
  */
-import type { MapViewport, Unit, City, GameState, PresentationEffect } from '../../../types';
+import type { MapViewport, Unit, City, GameState, PresentationEffect, Tile } from '../../../types';
 import type { GotoPath } from '../../../services/PathfindingService';
 import type { TilesetProvider } from '../tilesets/TilesetProvider';
 import {
@@ -30,6 +30,9 @@ export interface RenderState {
   presentationEffects?: PresentationEffect[];
   reducedMotion?: boolean;
 }
+
+/** Apply a canvas effect around one tile without splitting a global painter pass. */
+export type TileRenderDecorator = (state: RenderState, tile: Tile, render: () => void) => void;
 
 export abstract class BaseRenderer {
   protected ctx: CanvasRenderingContext2D;
