@@ -57,6 +57,10 @@ export class CityRenderer extends BaseRenderer {
   private nationStyles: Record<string, string> = {};
   private unitGraphics: Record<string, GraphicDefinition> = {};
   private buildingGraphics: Record<string, GraphicDefinition> = {};
+  private indexedCitiesSource: RenderState['cities'] | null = null;
+  private cityByPosition = new Map<string, City>();
+  private occupancyUnitsSource: RenderState['units'] | null = null;
+  private unitCountByPosition = new Map<string, number>();
 
   /**
    * Initialize city styles from ruleset
@@ -178,7 +182,13 @@ export class CityRenderer extends BaseRenderer {
   }
 
   private indexCities(state: RenderState): Map<string, City> {
-    return new Map(Object.values(state.cities).map(city => [`${city.x},${city.y}`, city] as const));
+    if (this.indexedCitiesSource !== state.cities) {
+      this.indexedCitiesSource = state.cities;
+      this.cityByPosition = new Map(
+        Object.values(state.cities).map(city => [`${city.x},${city.y}`, city] as const)
+      );
+    }
+    return this.cityByPosition;
   }
 
   private renderCitySprite(city: City, viewport: MapViewport, state: RenderState): void {
@@ -483,9 +493,15 @@ export class CityRenderer extends BaseRenderer {
   }
 
   private getCityOccupancySprite(city: City, state: RenderState): HTMLCanvasElement | null {
-    const visibleUnitCount = Object.values(state.units ?? {}).filter(
-      unit => unit.x === city.x && unit.y === city.y
-    ).length;
+    if (this.occupancyUnitsSource !== state.units) {
+      this.occupancyUnitsSource = state.units;
+      this.unitCountByPosition = new Map();
+      for (const unit of Object.values(state.units ?? {})) {
+        const key = `${unit.x},${unit.y}`;
+        this.unitCountByPosition.set(key, (this.unitCountByPosition.get(key) ?? 0) + 1);
+      }
+    }
+    const visibleUnitCount = this.unitCountByPosition.get(`${city.x},${city.y}`) ?? 0;
     const isForeign = Boolean(state.currentPlayerId && city.playerId !== state.currentPlayerId);
     const key =
       isForeign && city.occupied

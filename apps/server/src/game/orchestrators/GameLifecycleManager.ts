@@ -1563,8 +1563,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
       broadcastVisibilityState: (gameId: string) => {
         this.broadcastManager?.broadcastVisibilityState(gameId);
       },
-      broadcastVisibilityDelta: (gameId: string) => {
-        this.broadcastManager?.broadcastVisibilityDelta(gameId);
+      broadcastVisibilityDelta: (gameId: string, fullTileScan = false) => {
+        this.broadcastManager?.broadcastVisibilityDelta(gameId, fullTileScan);
       },
       syncGameStateToPlayer: (gameId: string, playerId: string) => {
         this.broadcastManager?.syncGameStateToPlayer(gameId, playerId);

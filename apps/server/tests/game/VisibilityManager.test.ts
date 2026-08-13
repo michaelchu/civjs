@@ -148,6 +148,37 @@ describe('VisibilityManager', () => {
       expect(persist).toHaveBeenCalledWith('player-123', ['3,4'], [], {}, {});
     });
 
+    it('coalesces visibility persistence while a write is in flight', async () => {
+      let releaseFirstWrite!: () => void;
+      let writeCount = 0;
+      const persist = jest.fn(async () => {
+        writeCount += 1;
+        if (writeCount === 1) {
+          await new Promise<void>(resolve => {
+            releaseFirstWrite = resolve;
+          });
+        }
+      });
+      const persistentManager = new VisibilityManager(
+        gameId,
+        unitManager,
+        mapManager,
+        undefined,
+        undefined,
+        persist
+      );
+
+      persistentManager.updatePlayerVisibility('player-123');
+      await new Promise(resolve => setImmediate(resolve));
+      persistentManager.updatePlayerVisibility('player-123');
+      persistentManager.updatePlayerVisibility('player-123');
+      releaseFirstWrite();
+      await new Promise(resolve => setImmediate(resolve));
+      await new Promise(resolve => setImmediate(resolve));
+
+      expect(persist).toHaveBeenCalledTimes(2);
+    });
+
     it('serves the last observed tile state while a tile is fogged', () => {
       visibilityManager.setCityVisionProvider(playerId =>
         playerId === 'player-123' ? [{ x: 10, y: 10 }] : []
@@ -214,6 +245,19 @@ describe('VisibilityManager', () => {
       expect(visibleTiles.size).toBeGreaterThan(0);
       expect(exploredTiles.size).toBeGreaterThan(0);
       expect(exploredTiles.size).toBeGreaterThanOrEqual(visibleTiles.size);
+    });
+
+    it('uses the bounded topology radius iterator for vision sources', async () => {
+      const radiusIterator = jest.spyOn(
+        mapManager.getTopology(),
+        'getPositionsWithinSquaredRadius'
+      );
+      await unitManager.createUnit('player-123', 'warriors', 10, 10);
+
+      visibilityManager.updatePlayerVisibility('player-123');
+
+      expect(radiusIterator).toHaveBeenCalledWith(10, 10, expect.any(Number));
+      expect(radiusIterator).toHaveBeenCalledTimes(1);
     });
 
     it('includes allied unit vision when shared vision is enabled', async () => {

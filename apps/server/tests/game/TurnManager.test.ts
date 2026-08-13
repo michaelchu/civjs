@@ -240,7 +240,8 @@ describe('TurnManager', () => {
         ['player1', 'player2'] // player IDs
       );
       expect((turnManager as any).broadcastManager.broadcastVisibilityDelta).toHaveBeenCalledWith(
-        'test-game-id'
+        'test-game-id',
+        true
       );
       expect((turnManager as any).broadcastManager.broadcastVisibilityState).not.toHaveBeenCalled();
       expect((turnManager as any).broadcastManager.broadcastCityData).not.toHaveBeenCalled();

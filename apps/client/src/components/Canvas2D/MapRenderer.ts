@@ -74,6 +74,12 @@ export class MapRenderer {
   private fogOfWarEnabled = true;
   private currentMap: GameState['map'] = { width: 0, height: 0, tiles: {} };
   private currentGeometry: MapGeometry = createMapGeometry(0, 0);
+  private mapTilesSource: GameState['map']['tiles'] | null = null;
+  private mapTilesCache: Tile[] = [];
+  private nativeHexRowsSource: Tile[] | null = null;
+  private nativeHexRows: Tile[][] = [];
+  private indexedTilesSource: Tile[] | null = null;
+  private tileByIndex = new Map<number, Tile>();
   private renderCompleteListener: ((viewport: MapViewport) => void) | null = null;
 
   /**
@@ -253,7 +259,7 @@ export class MapRenderer {
 
     const mapWidth = state.map.xsize ?? state.map.width;
     const mapHeight = state.map.ysize ?? state.map.height;
-    const mapTiles = Object.values(state.map.tiles);
+    const mapTiles = this.getMapTiles(state.map.tiles);
     if (!mapWidth || !mapHeight || mapTiles.length === 0) {
       this.clearCanvas();
       this.renderEmptyMap();
@@ -1043,6 +1049,12 @@ export class MapRenderer {
       this.movementAnimationFrameId = null;
     }
     this.renderState = null;
+    this.mapTilesSource = null;
+    this.mapTilesCache = [];
+    this.nativeHexRowsSource = null;
+    this.nativeHexRows = [];
+    this.indexedTilesSource = null;
+    this.tileByIndex.clear();
     this.tilesetLoader.setSpriteReadyListener?.(null);
     this.tilesetLoader.dispose();
     this.isInitialized = false;
@@ -1054,6 +1066,10 @@ export class MapRenderer {
       return this.getReferenceIsometricTiles(mapTiles, viewport, includeUnknown);
     }
 
+    const usesNativeHexRows = usesNativeLogicalProjection(geometry.topologyId);
+    const candidateTiles = usesNativeHexRows
+      ? this.getNativeHexRowCandidates(mapTiles, viewport)
+      : mapTiles;
     const tiles: Tile[] = [];
     const canvasWidth = this.ctx.canvas?.width || viewport.width;
     const canvasHeight = this.ctx.canvas?.height || viewport.height;
@@ -1063,7 +1079,7 @@ export class MapRenderer {
     const horizontalMargin = this.tileWidth;
     const verticalMargin = this.tileHeight * 2;
 
-    for (const tile of mapTiles) {
+    for (const tile of candidateTiles) {
       const position = this.nativeToGuiPosition(tile.x, tile.y);
       const screenX = position.guiDx - viewport.x;
       const screenY = position.guiDy - viewport.y;
@@ -1090,7 +1106,87 @@ export class MapRenderer {
       }
     }
 
-    return sortMapPointsInPainterOrder(tiles, this.currentMap.topology_id ?? 0);
+    // Native ISO-hex rows are already cached in painter order (native y/x).
+    return usesNativeHexRows
+      ? tiles
+      : sortMapPointsInPainterOrder(tiles, this.currentMap.topology_id ?? 0);
+  }
+
+  /** Reuse the stable map snapshot while the camera produces many scroll frames. */
+  private getMapTiles(tileRecord: GameState['map']['tiles']): Tile[] {
+    if (this.mapTilesSource !== tileRecord) {
+      this.mapTilesSource = tileRecord;
+      this.mapTilesCache = Object.values(tileRecord);
+    }
+    return this.mapTilesCache;
+  }
+
+  /**
+   * ISO-hex GUI Y is determined solely by native Y, while GUI X is a direct
+   * affine projection of native X plus the row stagger. Restrict culling to
+   * the native coordinate window that can intersect the canvas instead of
+   * projecting the entire map on every drag frame. Rows retain y/x order.
+   */
+  private getNativeHexRowCandidates(mapTiles: Tile[], viewport: MapViewport): Tile[] {
+    const mapWidth = this.currentMap.xsize ?? this.currentMap.width;
+    const mapHeight = this.currentMap.ysize ?? this.currentMap.height;
+    if (!mapWidth || !mapHeight || this.tileHeight <= 0) return mapTiles;
+
+    if (this.nativeHexRowsSource !== mapTiles) {
+      this.nativeHexRowsSource = mapTiles;
+      this.nativeHexRows = Array.from({ length: mapHeight }, () => []);
+      for (const tile of mapTiles) {
+        if (tile.y >= 0 && tile.y < mapHeight) this.nativeHexRows[tile.y].push(tile);
+      }
+      for (const row of this.nativeHexRows) row.sort((left, right) => left.x - right.x);
+    }
+
+    const canvasWidth = this.ctx.canvas?.width || viewport.width;
+    const canvasHeight = this.ctx.canvas?.height || viewport.height;
+    const horizontalMargin = this.tileWidth;
+    const verticalMargin = this.tileHeight * 2;
+    const minimumGuiX = viewport.x - horizontalMargin - this.tileWidth;
+    const maximumGuiX = viewport.x + canvasWidth + horizontalMargin;
+    const minimumGuiY = viewport.y - verticalMargin - this.tileHeight;
+    const maximumGuiY = viewport.y + canvasHeight + verticalMargin;
+    // nativeToGuiPosition() gives guiY = (nativeY + mapWidth) * tileHeight / 2.
+    // Keep a one-row numerical cushion around the exact inclusive bounds.
+    const firstRow = Math.max(0, Math.floor((minimumGuiY * 2) / this.tileHeight - mapWidth) - 1);
+    const lastRow = Math.min(
+      mapHeight - 1,
+      Math.ceil((maximumGuiY * 2) / this.tileHeight - mapWidth) + 1
+    );
+    if (firstRow > lastRow) return [];
+
+    const candidates: Tile[] = [];
+    for (let y = firstRow; y <= lastRow; y++) {
+      // guiX = (2 * nativeX + rowParity - mapWidth) * tileWidth / 2.
+      const rowParity = y & 1;
+      const firstX = Math.max(
+        0,
+        Math.ceil(((minimumGuiX * 2) / this.tileWidth + mapWidth - rowParity) / 2) - 1
+      );
+      const lastX = Math.min(
+        mapWidth - 1,
+        Math.floor(((maximumGuiX * 2) / this.tileWidth + mapWidth - rowParity) / 2) + 1
+      );
+      const row = this.nativeHexRows[y];
+      const start = this.lowerBoundTileX(row, firstX);
+      const end = this.lowerBoundTileX(row, lastX + 1);
+      candidates.push(...row.slice(start, end));
+    }
+    return candidates;
+  }
+
+  private lowerBoundTileX(row: readonly Tile[], x: number): number {
+    let low = 0;
+    let high = row.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (row[middle].x < x) low = middle + 1;
+      else high = middle;
+    }
+    return low;
   }
 
   /**
@@ -1116,7 +1212,10 @@ export class MapRenderer {
 
     const canvasWidth = this.ctx.canvas?.width || viewport.width;
     const canvasHeight = this.ctx.canvas?.height || viewport.height;
-    const tileByIndex = new Map(mapTiles.map(tile => [tile.x + tile.y * mapWidth, tile] as const));
+    if (this.indexedTilesSource !== mapTiles) {
+      this.indexedTilesSource = mapTiles;
+      this.tileByIndex = new Map(mapTiles.map(tile => [tile.x + tile.y * mapWidth, tile] as const));
+    }
     const guiWidth = canvasWidth + (this.tileWidth >> 1);
     const guiHeight = canvasHeight + (this.tileHeight >> 1);
     let guiX0 = viewport.x;
@@ -1172,7 +1271,7 @@ export class MapRenderer {
         const tileIndex = mapX + lookupY * mapWidth;
         const tile =
           tileIndex >= 0 && tileIndex < mapWidth * mapHeight
-            ? tileByIndex.get(tileIndex)
+            ? this.tileByIndex.get(tileIndex)
             : undefined;
 
         if (tile?.terrain && (includeUnknown || !this.fogOfWarEnabled || tile.known)) {

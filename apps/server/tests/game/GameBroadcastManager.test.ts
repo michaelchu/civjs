@@ -384,6 +384,36 @@ describe('GameBroadcastManager visibility sync', () => {
     expect(emitted.some(emission => emission.room === `game:${gameId}:spectators`)).toBe(false);
   });
 
+  it('reuses each visibility calculation for the matching city delta', () => {
+    spectatorSockets.clear();
+    const game = (manager as any).games.get(gameId);
+
+    manager.broadcastVisibilityDelta(gameId);
+
+    expect(game.visibilityManager.updatePlayerVisibility).toHaveBeenCalledTimes(2);
+  });
+
+  it('projects only currently relevant tiles for a primed movement delta', () => {
+    spectatorSockets.clear();
+    manager.broadcastVisibilityState(gameId);
+    const createTileInfo = jest.spyOn(manager as any, 'createTileInfo');
+
+    manager.broadcastVisibilityDelta(gameId);
+
+    expect(createTileInfo).toHaveBeenCalledTimes(2);
+
+    emitted = [];
+    createTileInfo.mockClear();
+    manager.broadcastVisibilityDelta(gameId, true);
+
+    expect(createTileInfo).toHaveBeenCalledTimes(4);
+    expect(
+      emitted.some(
+        emission => emission.event === 'packet' && emission.data.type === PacketType.TILE_INFO
+      )
+    ).toBe(false);
+  });
+
   it('routes nuclear effects by visible affected tiles without exposing a hidden center', () => {
     manager.broadcastNuclearExplosion(gameId, {
       eventId: 'nuke-1',

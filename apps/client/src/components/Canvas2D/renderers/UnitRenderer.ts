@@ -69,6 +69,12 @@ export class UnitRenderer extends BaseRenderer {
       hp: { x: number; y: number };
     }
   >();
+  private indexedUnitsSource: RenderState['units'] | null = null;
+  private unitsAtPosition = new Map<string, Unit[]>();
+  private indexedCitiesSource: RenderState['cities'] | null = null;
+  private cityPositions = new Set<string>();
+  private animationUnitsSource: RenderState['units'] | null = null;
+  private animationReducedMotion = false;
 
   /**
    * Render all units visible in the viewport with proper stacking behavior.
@@ -183,12 +189,19 @@ export class UnitRenderer extends BaseRenderer {
   }
 
   private prepareUnitLayer(state: RenderState): PreparedUnitLayer {
-    const unitsAtPosition = new Map<string, Unit[]>();
-    for (const unit of Object.values(state.units)) {
-      const key = `${unit.x},${unit.y}`;
-      const units = unitsAtPosition.get(key) ?? [];
-      units.push(unit);
-      unitsAtPosition.set(key, units);
+    if (this.indexedUnitsSource !== state.units) {
+      this.indexedUnitsSource = state.units;
+      this.unitsAtPosition = new Map();
+      for (const unit of Object.values(state.units)) {
+        const key = `${unit.x},${unit.y}`;
+        const units = this.unitsAtPosition.get(key) ?? [];
+        units.push(unit);
+        this.unitsAtPosition.set(key, units);
+      }
+    }
+    if (this.indexedCitiesSource !== state.cities) {
+      this.indexedCitiesSource = state.cities;
+      this.cityPositions = new Set(Object.values(state.cities).map(city => `${city.x},${city.y}`));
     }
 
     const focusedIds = state.focusedUnits?.length
@@ -205,17 +218,27 @@ export class UnitRenderer extends BaseRenderer {
     }
 
     return {
-      unitsAtPosition,
-      cityPositions: new Set(Object.values(state.cities).map(city => `${city.x},${city.y}`)),
+      unitsAtPosition: this.unitsAtPosition,
+      cityPositions: this.cityPositions,
       focusedIds,
       focusedAtPosition,
     };
   }
 
   private updateMovementAnimations(state: RenderState): void {
+    const reducedMotion = Boolean(state.reducedMotion);
+    if (
+      this.animationUnitsSource === state.units &&
+      this.animationReducedMotion === reducedMotion
+    ) {
+      return;
+    }
+    this.animationUnitsSource = state.units;
+    this.animationReducedMotion = reducedMotion;
+
     const now = performance.now();
     const activeIds = new Set(Object.keys(state.units));
-    if (state.reducedMotion) {
+    if (reducedMotion) {
       this.movementAnimations.clear();
     }
     for (const unit of Object.values(state.units)) {

@@ -485,7 +485,7 @@ export class TurnManager {
         // Production, growth, research reveals, visibility, units, and borders
         // are all part of the cached player projection. One incremental pass
         // replaces the old full city broadcast plus full playermap snapshot.
-        this.broadcastManager.broadcastVisibilityDelta?.(this.gameId);
+        this.broadcastManager.broadcastVisibilityDelta?.(this.gameId, true);
       } else {
         logger.error('Turn processing failed', {
           gameId: this.gameId,

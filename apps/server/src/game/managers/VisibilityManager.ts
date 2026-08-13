@@ -71,7 +71,7 @@ export class VisibilityManager {
   private cityLocationProvider: CityLocationProvider = () => [];
   private visibilityPersistence?: VisibilityPersistence;
   private persistenceQueues = new Map<string, Promise<void>>();
-  private lastQueuedSnapshots = new Map<string, string>();
+  private persistenceDirtyPlayers = new Set<string>();
   private readonly initialVisionRadiusSq = rulesetLoader.getGameParameters().init_vis_radius_sq;
 
   constructor(
@@ -222,6 +222,7 @@ export class VisibilityManager {
   }
 
   private addUnitVision(sourcePlayerId: string, visibility: PlayerVisibility): void {
+    const playerTechs = new Set(this.playerTechsProvider(sourcePlayerId));
     for (const unit of this.unitManager.getPlayerUnits(sourcePlayerId)) {
       const unitType = this.unitManager.getUnitType(unit.unitTypeId);
       if (!unitType) continue;
@@ -246,22 +247,19 @@ export class VisibilityManager {
         tileExtras: new Set(tile.improvements),
         tileIsCityCenter: Boolean(tile.cityId),
         maxUnitsOnTile: tile.unitIds.length,
-        playerTechs: new Set(this.playerTechsProvider(sourcePlayerId)),
+        playerTechs,
       });
-      const unitVisibleTiles = this.calculateTileVisibility(
-        unit.x,
-        unit.y,
-        (unitType.vision_radius_sq || unitType.sight) + visionEffect.value
-      );
+      const visionRadiusSq = (unitType.vision_radius_sq || unitType.sight) + visionEffect.value;
+      const unitVisibleTiles = this.calculateTileVisibility(unit.x, unit.y, visionRadiusSq);
 
       for (const tileKey of unitVisibleTiles) {
         visibility.visibleTiles.add(tileKey);
       }
-      const detectionTiles = this.calculateTileVisibility(
-        unit.x,
-        unit.y,
-        Math.min(2, Math.max(0, (unitType.vision_radius_sq || unitType.sight) + visionEffect.value))
-      );
+      const detectionRadiusSq = Math.min(2, Math.max(0, visionRadiusSq));
+      const detectionTiles =
+        detectionRadiusSq === visionRadiusSq
+          ? unitVisibleTiles
+          : this.calculateTileVisibility(unit.x, unit.y, detectionRadiusSq);
       for (const tileKey of detectionTiles) {
         visibility.invisibleDetectionTiles.add(tileKey);
         visibility.subsurfaceDetectionTiles.add(tileKey);
@@ -295,20 +293,21 @@ export class VisibilityManager {
     centerY: number,
     visionRadiusSq: number
   ): Set<string> {
-    const visibleTiles = new Set<string>();
-    const mapData = this.mapManager.getMapData();
-    if (!mapData) return visibleTiles;
+    if (!this.mapManager.getMapData()) return new Set();
 
-    const topology = this.mapManager.getTopology();
-    for (let x = 0; x < mapData.width; x++) {
-      for (let y = 0; y < mapData.height; y++) {
-        if (topology.squaredDistance(centerX, centerY, x, y) <= visionRadiusSq) {
-          visibleTiles.add(`${x},${y}`);
-        }
-      }
-    }
-
-    return visibleTiles;
+    // Freeciv's circle iterator visits only the small coordinate square that
+    // can intersect the requested radius. The old implementation instead
+    // tested every tile on the map for every unit and city vision source,
+    // making ordinary movement increasingly expensive as empires grew.
+    // MapTopology retains the exact squared-distance and wrapping checks while
+    // bounding the search to O(radius^2), independent of total map size.
+    // @reference reference/freeciv/common/map.h:396-424 circle_iterate()
+    return new Set(
+      this.mapManager
+        .getTopology()
+        .getPositionsWithinSquaredRadius(centerX, centerY, visionRadiusSq)
+        .map(({ x, y }) => `${x},${y}`)
+    );
   }
 
   private getAllTileKeys(): Set<string> {
@@ -436,58 +435,74 @@ export class VisibilityManager {
   private queuePersistence(visibility: PlayerVisibility): void {
     if (!this.visibilityPersistence) return;
 
-    const exploredTiles = [...visibility.exploredTiles].sort();
-    const visibleTiles = [...visibility.visibleTiles].sort();
-    const lastSeenByTile = Object.fromEntries(
-      [...visibility.lastSeenByTile.entries()]
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([tile, timestamp]) => [tile, timestamp.toISOString()])
-    );
-    const rememberedTiles = Object.fromEntries(
-      [...visibility.rememberedTiles.entries()].sort(([left], [right]) => left.localeCompare(right))
-    );
-    const snapshot = JSON.stringify([exploredTiles, visibleTiles, lastSeenByTile, rememberedTiles]);
-    if (this.lastQueuedSnapshots.get(visibility.playerId) === snapshot) return;
-    this.lastQueuedSnapshots.set(visibility.playerId, snapshot);
+    const playerId = visibility.playerId;
+    this.persistenceDirtyPlayers.add(playerId);
+    if (this.persistenceQueues.has(playerId)) return;
 
-    const previous = this.persistenceQueues.get(visibility.playerId) ?? Promise.resolve();
-    const next = previous
-      .then(() =>
-        this.visibilityPersistence!(
-          visibility.playerId,
-          exploredTiles,
-          visibleTiles,
-          lastSeenByTile,
-          rememberedTiles
-        )
-      )
-      .catch(error => {
-        if (this.lastQueuedSnapshots.get(visibility.playerId) === snapshot) {
-          this.lastQueuedSnapshots.delete(visibility.playerId);
+    // Persist the latest authoritative snapshot, coalescing any number of
+    // visibility updates that arrive while the database write is in flight.
+    // Previously every intermediate movement eagerly sorted, serialized, and
+    // queued the player's entire explored map, producing an ever-growing DB
+    // backlog during AI turns.
+    const drain = Promise.resolve()
+      .then(async () => {
+        while (this.persistenceDirtyPlayers.delete(playerId)) {
+          const current = this.playerVisibility.get(playerId);
+          if (!current) continue;
+          const exploredTiles = [...current.exploredTiles];
+          const visibleTiles = [...current.visibleTiles];
+          const lastSeenByTile = Object.fromEntries(
+            [...current.lastSeenByTile].map(([tile, timestamp]) => [tile, timestamp.toISOString()])
+          );
+          const rememberedTiles = Object.fromEntries(current.rememberedTiles);
+
+          try {
+            await this.visibilityPersistence!(
+              playerId,
+              exploredTiles,
+              visibleTiles,
+              lastSeenByTile,
+              rememberedTiles
+            );
+          } catch (error) {
+            logger.error('Failed to persist player visibility', {
+              gameId: this.gameId,
+              playerId,
+              error: error instanceof Error ? error.message : error,
+            });
+          }
         }
-        logger.error('Failed to persist player visibility', {
-          gameId: this.gameId,
-          playerId: visibility.playerId,
-          error: error instanceof Error ? error.message : error,
-        });
+      })
+      .finally(() => {
+        this.persistenceQueues.delete(playerId);
+        const current = this.playerVisibility.get(playerId);
+        if (current && this.persistenceDirtyPlayers.has(playerId)) this.queuePersistence(current);
       });
-    this.persistenceQueues.set(visibility.playerId, next);
+    this.persistenceQueues.set(playerId, drain);
   }
 
   /**
    * Check if a tile is visible to a player
    */
   public isTileVisible(playerId: string, x: number, y: number): boolean {
-    const visibleTiles = this.getVisibleTiles(playerId);
-    return visibleTiles.has(`${x},${y}`);
+    const visibility = this.playerVisibility.get(playerId);
+    if (!visibility) {
+      this.initializePlayerVisibility(playerId);
+      return false;
+    }
+    return visibility.visibleTiles.has(`${x},${y}`);
   }
 
   /**
    * Check if a tile has been explored by a player
    */
   public isTileExplored(playerId: string, x: number, y: number): boolean {
-    const exploredTiles = this.getExploredTiles(playerId);
-    return exploredTiles.has(`${x},${y}`);
+    const visibility = this.playerVisibility.get(playerId);
+    if (!visibility) {
+      this.initializePlayerVisibility(playerId);
+      return false;
+    }
+    return visibility.exploredTiles.has(`${x},${y}`);
   }
 
   /**
@@ -636,6 +651,7 @@ export class VisibilityManager {
    */
   public cleanup(): void {
     this.playerVisibility.clear();
+    this.persistenceDirtyPlayers.clear();
     logger.debug(`Visibility manager cleaned up for game ${this.gameId}`);
   }
 }

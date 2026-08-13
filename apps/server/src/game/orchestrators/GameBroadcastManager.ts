@@ -33,7 +33,7 @@ export interface BroadcastService {
   broadcastUnitInfo(gameId: string, unit: any): void;
   broadcastCombatOccurred(gameId: string, event: CombatPresentationEvent): void;
   broadcastVisibilityState(gameId: string): void;
-  broadcastVisibilityDelta(gameId: string): void;
+  broadcastVisibilityDelta(gameId: string, fullTileScan?: boolean): void;
   broadcastCityData(gameId: string): void;
   broadcastCityDataToPlayer(gameId: string, playerId: string): void;
   syncGameStateToPlayer(gameId: string, playerId: string): void;
@@ -284,13 +284,20 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
    * @reference reference/freeciv/server/maphand.c:442-683
    * @reference reference/freeciv/server/unittools.c:2089-2147
    */
-  broadcastVisibilityDelta(gameId: string): void {
+  broadcastVisibilityDelta(gameId: string, fullTileScan = false): void {
     const gameInstance = this.games.get(gameId);
     const mapData = gameInstance?.mapManager.getMapData();
     if (!gameInstance || !mapData) return;
 
     for (const [playerId] of gameInstance.players) {
-      this.sendVisibilityDeltaToPlayer(gameInstance, gameId, playerId, mapData);
+      this.sendVisibilityDeltaToPlayer(
+        gameInstance,
+        gameId,
+        playerId,
+        mapData,
+        undefined,
+        fullTileScan
+      );
     }
     this.sendSpectatorVisibilityDelta(gameInstance, gameId, mapData);
   }
@@ -920,7 +927,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     });
     cached.units = this.indexWireState(units, unit => unit.id);
 
-    this.broadcastCityDataToPlayer(gameId, playerId);
+    this.broadcastCityDataToPlayer(gameId, playerId, false, { visibleTiles, exploredTiles });
 
     const borderTiles = this.getBorderTilesForPlayer(
       gameInstance,
@@ -942,28 +949,47 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     gameId: string,
     playerId: string,
     mapData: any,
-    unitHint?: any
+    unitHint?: any,
+    fullTileScan = false
   ): void {
-    gameInstance.visibilityManager.updatePlayerVisibility(playerId);
     const debug = this.isDebugVisibilityEnabled(gameId, playerId);
+    const previouslyVisibleTiles = debug
+      ? undefined
+      : gameInstance.visibilityManager.getVisibleTiles(playerId);
+    gameInstance.visibilityManager.updatePlayerVisibility(playerId);
     const allTiles = debug ? this.getAllTileKeys(mapData) : undefined;
     const visibleTiles = allTiles ?? gameInstance.visibilityManager.getVisibleTiles(playerId);
     const exploredTiles = allTiles ?? gameInstance.visibilityManager.getExploredTiles(playerId);
     const rememberedTiles = this.getRememberedTiles(gameInstance, playerId, mapData, exploredTiles);
-    const tiles = this.processMapTilesForPlayer(
-      mapData,
-      visibleTiles,
-      exploredTiles,
-      rememberedTiles,
-      gameInstance.config.ruleset ?? DEFAULT_RULESET,
-      new Set(gameInstance.researchManager.getResearchedTechs(playerId))
-    );
     const cached = this.getVisibilityCache(gameId, playerId);
-    const { next: nextTiles, changed: changedTiles } = this.diffWireState(
-      cached.tiles,
-      tiles,
-      tile => `${tile.x},${tile.y}`
-    );
+    const rulesetName = gameInstance.config.ruleset ?? DEFAULT_RULESET;
+    const researchedTechs = new Set(gameInstance.researchManager.getResearchedTechs(playerId));
+    // Ordinary unit movement can only change the wire state of tiles that
+    // entered or left current sight. Keep turn boundaries and unprimed caches
+    // on a complete scan so research reveals and world changes still fan out.
+    const changedVisibilityKeys = new Set([...(previouslyVisibleTiles ?? []), ...visibleTiles]);
+    const partialTileScan = !debug && !fullTileScan && cached.tiles.size > 0;
+    const tiles = partialTileScan
+      ? this.processMapTileKeysForPlayer(
+          mapData,
+          changedVisibilityKeys,
+          visibleTiles,
+          exploredTiles,
+          rememberedTiles,
+          rulesetName,
+          researchedTechs
+        )
+      : this.processMapTilesForPlayer(
+          mapData,
+          visibleTiles,
+          exploredTiles,
+          rememberedTiles,
+          rulesetName,
+          researchedTechs
+        );
+    const { next: nextTiles, changed: changedTiles } = partialTileScan
+      ? this.diffWireStateSubset(cached.tiles, tiles, tile => `${tile.x},${tile.y}`)
+      : this.diffWireState(cached.tiles, tiles, tile => `${tile.x},${tile.y}`);
     if (changedTiles.length > 0) {
       this.sendTileDataInBatches(gameInstance, playerId, changedTiles, false);
     }
@@ -1009,7 +1035,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     }
     cached.units = nextUnits;
 
-    this.broadcastCityDataToPlayer(gameId, playerId, true);
+    this.broadcastCityDataToPlayer(gameId, playerId, true, { visibleTiles, exploredTiles });
 
     const borders = this.getBorderTilesForPlayer(
       gameInstance,
@@ -1107,6 +1133,23 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     return { next, changed };
   }
 
+  /** Update only the keys visited by a bounded delta scan while retaining the full cache. */
+  private diffWireStateSubset<T>(
+    previous: Map<string, string>,
+    items: T[],
+    key: (item: T) => string
+  ): { next: Map<string, string>; changed: T[] } {
+    const next = new Map(previous);
+    const changed: T[] = [];
+    for (const item of items) {
+      const itemKey = key(item);
+      const serialized = JSON.stringify(item);
+      next.set(itemKey, serialized);
+      if (previous.get(itemKey) !== serialized) changed.push(item);
+    }
+    return { next, changed };
+  }
+
   private hasSpectators(gameId: string): boolean {
     return (this.io.sockets?.adapter.rooms.get(getSpectatorRoom(gameId))?.size ?? 0) > 0;
   }
@@ -1178,6 +1221,33 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
           clientTiles.push(tileInfo);
         }
       }
+    }
+    return clientTiles;
+  }
+
+  private processMapTileKeysForPlayer(
+    mapData: any,
+    tileKeys: ReadonlySet<string>,
+    currentlyVisibleTiles: Set<string>,
+    exploredTiles: Set<string>,
+    rememberedTiles: Map<string, any>,
+    rulesetName: string,
+    researchedTechs: ReadonlySet<string>
+  ): any[] {
+    const clientTiles = [];
+    for (const tileKey of tileKeys) {
+      const [x, y] = tileKey.split(',').map(Number);
+      const tileInfo = this.createTileInfo(
+        mapData,
+        x,
+        y,
+        currentlyVisibleTiles.has(tileKey),
+        exploredTiles.has(tileKey),
+        rememberedTiles.get(tileKey),
+        rulesetName,
+        researchedTechs
+      );
+      if (tileInfo) clientTiles.push(tileInfo);
     }
     return clientTiles;
   }
@@ -1513,16 +1583,24 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   /**
    * Broadcast city data to a specific player
    */
-  broadcastCityDataToPlayer(gameId: string, playerId: string, incremental = false): void {
+  broadcastCityDataToPlayer(
+    gameId: string,
+    playerId: string,
+    incremental = false,
+    visibilitySnapshot?: { visibleTiles: Set<string>; exploredTiles: Set<string> }
+  ): void {
     const gameInstance = this.games.get(gameId);
     if (!gameInstance) {
       this.logger.warn('Attempted to broadcast city data to non-existent game', { gameId });
       return;
     }
 
-    gameInstance.visibilityManager.updatePlayerVisibility(playerId);
-    const visibleTiles = gameInstance.visibilityManager.getVisibleTiles(playerId);
-    const exploredTiles = gameInstance.visibilityManager.getExploredTiles(playerId);
+    if (!visibilitySnapshot) gameInstance.visibilityManager.updatePlayerVisibility(playerId);
+    const visibleTiles =
+      visibilitySnapshot?.visibleTiles ?? gameInstance.visibilityManager.getVisibleTiles(playerId);
+    const exploredTiles =
+      visibilitySnapshot?.exploredTiles ??
+      gameInstance.visibilityManager.getExploredTiles(playerId);
     const allCities = gameInstance.cityManager.getAllCities();
     const debugVisibility = this.isDebugVisibilityEnabled(gameId, playerId);
     const rulesetName = gameInstance.config?.ruleset ?? 'civ2civ3';

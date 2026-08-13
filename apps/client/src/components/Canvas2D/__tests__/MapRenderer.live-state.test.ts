@@ -1154,6 +1154,42 @@ describe('MapRenderer live-state updates', () => {
     expect(visible).toEqual([nearTile]);
   });
 
+  it('limits native ISO-hex culling to rows that intersect the viewport', () => {
+    const renderer = new MapRenderer(createContext());
+    const tiles = Array.from({ length: 80 }, (_, y) =>
+      Array.from({ length: 100 }, (__, x) => ({
+        x,
+        y,
+        terrain: 'plains',
+        known: true,
+        visible: true,
+      }))
+    ).flat();
+    const internals = renderer as unknown as {
+      currentMap: RenderState['map'];
+      nativeToGuiPosition: (x: number, y: number) => { guiDx: number; guiDy: number };
+      getVisibleTiles: (tiles: Tile[], viewport: RenderState['viewport']) => Tile[];
+    };
+    internals.currentMap = {
+      width: 100,
+      height: 80,
+      topology_id: 3,
+      wrap_id: 0,
+      tiles: Object.fromEntries(tiles.map(tile => [`${tile.x},${tile.y}`, tile])),
+    };
+    const projectTile = vi.spyOn(internals, 'nativeToGuiPosition');
+
+    const visible = internals.getVisibleTiles(tiles, {
+      x: -400,
+      y: 3000,
+      width: 800,
+      height: 600,
+    });
+
+    expect(visible.length).toBeGreaterThan(0);
+    expect(projectTile.mock.calls.length).toBeLessThan(tiles.length / 10);
+  });
+
   /**
    * @evidence parity
    * @reference reference/freeciv/data/hexemplio.tilespec:111-143
