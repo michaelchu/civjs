@@ -66,9 +66,11 @@ export const getMinimapCellAppearance = (
   ) {
     return {
       color:
-        marker.ownerId === currentPlayerId
+        currentPlayerId && marker.ownerId === currentPlayerId
           ? MINIMAP_COLORS.myUnit
-          : marker.ownerColor || MINIMAP_COLORS.foreignUnit,
+          : currentPlayerId
+            ? marker.ownerColor || MINIMAP_COLORS.foreignUnit
+            : MINIMAP_COLORS.foreignUnit,
     };
   }
 

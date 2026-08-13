@@ -26,6 +26,7 @@ import {
   nativeAxisGuiPeriod,
   nativeToGuiPosition,
   normalizeMapPosition,
+  sortMapPointsInPainterOrder,
   type MapGeometry,
 } from './mapTopologyGeometry';
 
@@ -153,6 +154,7 @@ export class MapRenderer {
       this.cityRenderer.setTerrainGraphics(terrainGraphics);
       this.unitRenderer.setUnitGraphics(presentation.units);
       this.unitRenderer.setActivityGraphics(presentation.extras);
+      this.cityRenderer.setProductionGraphics(presentation.units, presentation.buildings);
       this.cityRenderer.setCityStyles(
         presentation.city_styles,
         presentation.nation_styles,
@@ -274,41 +276,24 @@ export class MapRenderer {
     const viewportExceedsMapBounds =
       !this.isWrappedMap() && this.checkViewportBounds(state.viewport);
 
-    if (this.fogOfWarEnabled) {
-      // Unknown space includes both unrevealed map tiles and any finite-map
-      // padding visible around the isometric diamond. Start from opaque black
-      // so the decorative ocean padding cannot leak around the fog sprites.
+    if (this.fogOfWarEnabled || viewportExceedsMapBounds) {
+      // Freeciv-web clears finite out-of-map pixels to black. Fog also needs
+      // the same opaque base so unknown tiles cannot expose stale frame data.
       this.clearCanvas(true, '#000');
-    } else if (viewportExceedsMapBounds) {
-      // Clear canvas without background fill (freeciv-web uses rgb(0,0,0) black)
-      // We improve on this by rendering actual ocean tiles instead of solid color
-      this.clearCanvas(false);
-
-      // Render ocean tiles in out-of-bounds areas (enhancement over freeciv-web's black fill)
-      // This creates a more seamless infinite world appearance
-      this.terrainRenderer.renderOceanPadding(state);
     } else {
       // Normal ocean background when viewport is entirely within map bounds
       this.clearCanvas(true, '#4682B4');
     }
 
-    const renderViews = this.getWrappedRenderViews(mapTiles, state.viewport);
-    let hasActivePresentationEffects = false;
-    for (const renderView of renderViews) {
-      const renderState =
-        renderView.viewport === state.viewport
-          ? state
-          : { ...state, viewport: renderView.viewport };
-      // Always render every wrapped copy. `||=` would short-circuit the
-      // renderMapLayers call after the first copy reports an active marker or
-      // combat effect, leaving the remaining terrain copies undrawn.
-      const viewHasActivePresentationEffects = this.renderMapLayers(
-        renderState,
-        renderView.visibleTiles
-      );
-      hasActivePresentationEffects =
-        hasActivePresentationEffects || viewHasActivePresentationEffects;
-    }
+    const renderViews = this.getWrappedRenderViews(mapTiles, state.viewport).map(renderView => ({
+      state: renderView.isPrimary ? state : { ...state, viewport: renderView.viewport },
+      visibleTiles: renderView.visibleTiles,
+      isPrimary: renderView.isPrimary,
+    }));
+    const hasActivePresentationEffects =
+      renderViews.length === 1 && renderViews[0].isPrimary
+        ? this.renderMapLayers(renderViews[0].state, renderViews[0].visibleTiles)
+        : this.renderMapViews(renderViews);
     const hasActiveBorderAnimation =
       this.borderRenderer.hasActiveAnimation?.(state.reducedMotion) ?? false;
 
@@ -365,46 +350,134 @@ export class MapRenderer {
   }
 
   /**
-   * Draw one map copy in the same layer order as the reference client.
-   * Wrapped maps call this once for every periodic copy that intersects the
-   * canvas. The renderers continue to consume the authoritative finite tile
-   * and entity coordinates; only the viewport origin is translated.
+   * Advance all periodic map copies through one source layer at a time.
+   * freeciv-web normalizes coordinates inside one global layer pass; this is
+   * the equivalent for CivJS's explicit translated-copy representation.
    */
-  private renderMapLayers(state: RenderState, visibleTiles: Tile[]): boolean {
+  private renderMapViews(
+    views: Array<{ state: RenderState; visibleTiles: Tile[]; isPrimary?: boolean }>
+  ): boolean {
     /*
-     * Freeciv draws terrain and specials before borders, cities, units, fog,
-     * and interaction overlays. Keep that order so each layer occludes only
-     * the information it is permitted to hide.
-     * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:251-387
+     * Preserve every source layer boundary. In particular, borders terminate
+     * SPECIAL1, base middlegrounds follow cities, and base foregrounds follow
+     * fog. Collapsing those passes changes occlusion even when sprite geometry
+     * is otherwise exact.
+     * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/tilespec.js:287-453
+     * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:292-387
      */
-    this.terrainRenderer.renderTerrain(state, visibleTiles);
+    const preparedViews = views.map(view => {
+      /* During combat, preserve short-lived visual unit copies after server removal. */
+      const overrides = this.presentationEffectRenderer?.getUnitOverrides?.(view.state) ?? {};
+      return {
+        ...view,
+        presentationState: Object.keys(overrides).length
+          ? { ...view.state, units: { ...view.state.units, ...overrides } }
+          : view.state,
+      };
+    });
+    /*
+     * Freeciv performs one GUI painter walk per source layer. Explicit map
+     * copies therefore have to be merged before painting: batching copy A and
+     * then copy B lets B's shallower sprite cover A's deeper unit at a seam.
+     * A tile entry retains a translated viewport, so the existing renderers
+     * can still address canonical server entities without duplicating state.
+     */
+    const tileEntries = preparedViews
+      .flatMap((view, viewIndex) =>
+        view.visibleTiles.map((tile, tileIndex) => {
+          const gui = nativeToGuiPosition(
+            tile.x,
+            tile.y,
+            this.getCurrentGeometry(),
+            this.tileWidth,
+            this.tileHeight
+          );
+          return {
+            ...view,
+            tile,
+            screenX: gui.x - view.state.viewport.x,
+            screenY: gui.y - view.state.viewport.y,
+            stableOrder: viewIndex * Math.max(1, view.visibleTiles.length) + tileIndex,
+          };
+        })
+      )
+      .sort(
+        (first, second) =>
+          first.screenY - second.screenY ||
+          first.screenX - second.screenX ||
+          first.stableOrder - second.stableOrder
+      );
+    const seenTileOrigins = new Set<string>();
+    const uniqueTileEntries = tileEntries.filter(entry => {
+      const key = `${entry.tile.x},${entry.tile.y}@${entry.screenX},${entry.screenY}`;
+      if (seenTileOrigins.has(key)) return false;
+      seenTileOrigins.add(key);
+      return true;
+    });
+    const paintTileEntries = uniqueTileEntries.filter(
+      entry => !this.fogOfWarEnabled || Boolean(entry.tile.known)
+    );
+    const forEachPaintTile = (
+      render: (state: RenderState, tile: Tile, presentationState: RenderState) => void
+    ) => {
+      for (const entry of paintTileEntries) {
+        render(entry.state, entry.tile, entry.presentationState);
+      }
+    };
 
-    this.borderRenderer.render(state);
-    this.terrainRenderer.renderSpecials(state, visibleTiles);
+    const renderEntries = paintTileEntries.map(entry => ({ state: entry.state, tile: entry.tile }));
+    const presentationEntries = paintTileEntries.map(entry => ({
+      state: entry.presentationState,
+      tile: entry.tile,
+    }));
+    // freeciv-web's put_one_tile() skips unknown tiles for every normal layer,
+    // but explicitly still invokes LAYER_GOTO. Keep those geometry-visible
+    // entries available only to the final path/effect pass.
+    const gotoEntries = uniqueTileEntries.map(entry => ({
+      state: entry.presentationState,
+      tile: entry.tile,
+    }));
+    this.terrainRenderer.renderTerrainEntries(renderEntries);
 
-    this.cityRenderer.renderCities(state);
+    // SPECIAL1 and UNIT contain multiple source operations which must remain
+    // adjacent for each tile, rather than becoming independent global passes.
+    forEachPaintTile((viewState, tile) => {
+      this.terrainRenderer.renderSpecials(viewState, [tile]);
+      this.borderRenderer.render(viewState, [tile]);
+    });
+    this.cityRenderer.renderCityEntries(renderEntries);
+    forEachPaintTile((viewState, tile) => this.terrainRenderer.renderSpecial2(viewState, [tile]));
 
-    /* During combat, preserve short-lived visual unit copies after server removal. */
-    const presentationUnitOverrides =
-      this.presentationEffectRenderer?.getUnitOverrides?.(state) ?? {};
-    const presentationState = Object.keys(presentationUnitOverrides).length
-      ? {
-          ...state,
-          units: { ...state.units, ...presentationUnitOverrides },
-        }
-      : state;
-    this.unitRenderer.renderUnits(presentationState);
+    let hasActivePresentationEffects = false;
+    this.unitRenderer.renderUnitLayerEntries(presentationEntries, (presentationState, tile) => {
+      const active =
+        this.presentationEffectRenderer?.renderUnitEffectsForTile?.(presentationState, tile) ??
+        false;
+      hasActivePresentationEffects = hasActivePresentationEffects || active;
+    });
+    const primaryView = preparedViews.find(view => view.isPrimary) ?? preparedViews[0];
+    if (this.fogOfWarEnabled && primaryView) this.fogRenderer.render(primaryView.state);
+    forEachPaintTile((viewState, tile) => this.terrainRenderer.renderSpecial3(viewState, [tile]));
+    forEachPaintTile((viewState, tile) =>
+      this.terrainRenderer.renderTileLabels?.(viewState, [tile])
+    );
+    this.cityRenderer.renderCityOverlayEntries(renderEntries);
 
-    const hasActivePresentationEffects = this.presentationEffectRenderer?.render(state) ?? false;
-    if (this.fogOfWarEnabled) {
-      this.fogRenderer.render(state);
-    }
-
-    this.pathRenderer.renderPaths(state);
-    this.unitRenderer.renderUnitSelection(presentationState);
-    this.unitRenderer.renderSelectedUnit?.(presentationState);
+    this.pathRenderer.renderPathLayerEntries(gotoEntries, (viewState, tile) => {
+      const active =
+        this.presentationEffectRenderer?.renderGotoEffectsForTile?.(viewState, tile) ?? false;
+      hasActivePresentationEffects = hasActivePresentationEffects || active;
+    });
 
     return hasActivePresentationEffects;
+  }
+
+  /**
+   * Render one canonical map copy through the same global layer compositor
+   * used for wrapped copies. Kept as a focused seam for painter-order tests.
+   */
+  private renderMapLayers(state: RenderState, visibleTiles: Tile[]): boolean {
+    return this.renderMapViews([{ state, visibleTiles, isPrimary: true }]);
   }
 
   private renderEmptyMap() {
@@ -474,11 +547,11 @@ export class MapRenderer {
   }
 
   /**
-   * Check if viewport extends beyond map boundaries to determine if ocean padding is needed.
+   * Check if the viewport extends beyond finite map boundaries.
    *
    * This implements the boundary detection logic from freeciv-web to fix the diamond-shaped
-   * map edges issue. When the viewport extends beyond map bounds, we need to render ocean
-   * tiles in the out-of-bounds areas to create a rectangular world appearance.
+   * map edges issue. When the viewport extends beyond map bounds, the uncovered
+   * canvas pixels must be cleared to the reference client's black background.
    *
    * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:282-291
    * @param viewport - The current viewport containing x, y, width, height
@@ -603,9 +676,11 @@ export class MapRenderer {
   private getWrappedRenderViews(
     mapTiles: Tile[],
     viewport: MapViewport
-  ): Array<{ viewport: MapViewport; visibleTiles: Tile[] }> {
+  ): Array<{ viewport: MapViewport; visibleTiles: Tile[]; isPrimary: boolean }> {
     if (!this.isWrappedMap()) {
-      return [{ viewport, visibleTiles: this.getVisibleTiles(mapTiles, viewport) }];
+      return [
+        { viewport, visibleTiles: this.getVisibleTiles(mapTiles, viewport, true), isPrimary: true },
+      ];
     }
 
     const xPeriod = this.getGuiWrapPeriod('x');
@@ -616,7 +691,7 @@ export class MapRenderer {
     const yOffsets = this.wrapHasFlag(MapRenderer.WRAP_Y)
       ? this.getWrapOffsets(yPeriod, viewport)
       : [0];
-    const views: Array<{ viewport: MapViewport; visibleTiles: Tile[] }> = [];
+    const views: Array<{ viewport: MapViewport; visibleTiles: Tile[]; isPrimary: boolean }> = [];
 
     for (const xOffset of xOffsets) {
       for (const yOffset of yOffsets) {
@@ -629,18 +704,26 @@ export class MapRenderer {
         // Include unknown tiles when deciding whether a copy is needed. Fog
         // still has to cover a copy even when terrain itself is hidden.
         const copyTiles = this.getVisibleTiles(mapTiles, copyViewport, true);
-        if (copyTiles.length === 0) continue;
+        const isPrimary = xOffset === 0 && yOffset === 0;
+        if (copyTiles.length === 0 && !isPrimary) continue;
 
         views.push({
           viewport: copyViewport,
-          visibleTiles: this.fogOfWarEnabled ? copyTiles.filter(tile => tile.known) : copyTiles,
+          visibleTiles: copyTiles,
+          isPrimary,
         });
       }
     }
 
     return views.length > 0
       ? views
-      : [{ viewport, visibleTiles: this.getVisibleTiles(mapTiles, viewport) }];
+      : [
+          {
+            viewport,
+            visibleTiles: this.getVisibleTiles(mapTiles, viewport, true),
+            isPrimary: true,
+          },
+        ];
   }
 
   /**
@@ -765,15 +848,16 @@ export class MapRenderer {
   /**
    * Set the scaling factors for different sprite types
    * @param resourceScale - Scale factor for resource sprites (0.1 to 2.0)
-   * @param cityScale - Scale factor for city sprites (0.1 to 2.0)
+   * @param cityScale - Retained for API compatibility; city atlas pixels are native-sized.
    */
   setSpriteScales(resourceScale?: number, cityScale?: number) {
-    // Note: resourceScale is now fixed at 0.7 in TerrainRenderer for consistency
+    // Resource sprites are drawn at their native atlas dimensions, matching
+    // freeciv-web's mapview_put_tile(). Keep the argument for API compatibility.
     if (resourceScale !== undefined) {
-      console.warn('Resource scale is now fixed in terrain rendering for performance');
+      console.warn('Resource scale is fixed at the reference tileset size');
     }
     if (cityScale !== undefined) {
-      this.cityRenderer.setCityScale(cityScale);
+      console.warn('City scale is fixed at the reference tileset size');
     }
   }
 
@@ -782,8 +866,8 @@ export class MapRenderer {
    */
   getSpriteScales() {
     return {
-      resourceScale: 0.7, // Fixed value as per original implementation
-      cityScale: this.cityRenderer.getCityScale(),
+      resourceScale: 1,
+      cityScale: 1,
     };
   }
 
@@ -891,7 +975,7 @@ export class MapRenderer {
       }
     }
 
-    return tiles;
+    return sortMapPointsInPainterOrder(tiles, this.currentMap.topology_id ?? 0);
   }
 
   /**
@@ -938,7 +1022,7 @@ export class MapRenderer {
     const painterRadius = 2;
     const painterScale = painterRadius * 2;
     const referenceFloor = (numerator: number, denominator: number): number =>
-      Math.floor(numerator / denominator - (numerator < 0 && numerator % denominator < 0 ? 1 : 0));
+      Math.trunc(numerator / denominator - (numerator < 0 && numerator % denominator < 0 ? 1 : 0));
     const painterX0 = referenceFloor(guiX0 * painterScale, this.tileWidth) - painterRadius / 2;
     const painterY0 = referenceFloor(guiY0 * painterScale, this.tileHeight) - painterRadius / 2;
     const painterX1 =

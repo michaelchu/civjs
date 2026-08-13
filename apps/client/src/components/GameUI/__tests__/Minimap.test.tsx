@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGameStore } from '../../../store/gameStore';
 import type { City, Player } from '../../../types';
+import { TOPOLOGY_HEX, TOPOLOGY_ISO } from '../../Canvas2D/mapTopologyGeometry';
 import { Minimap } from '../Minimap';
 import {
   getMinimapCellAppearance,
@@ -10,6 +11,7 @@ import {
 } from '../minimapVisibility';
 import {
   getMinimapLayout,
+  getMinimapCellWidth,
   getMinimapSourceTileOrigins,
   getMinimapTileOrigins,
   getMinimapViewportPolygons,
@@ -21,6 +23,8 @@ import {
   VIEWPORT_OUTLINE_COLOR,
   VIEWPORT_OUTLINE_WIDTH,
 } from '../minimapGeometry';
+
+const C2C3_TOPOLOGY = TOPOLOGY_ISO | TOPOLOGY_HEX;
 
 describe('Minimap', () => {
   afterEach(() => {
@@ -57,14 +61,14 @@ describe('Minimap', () => {
     expect(screen.queryByText('Overview')).not.toBeInTheDocument();
   });
 
-  it('renders a 32x64 ISO map using Freeciv-web overview bounds', () => {
+  it('renders a 32x64 ISO map with Freeciv physical overview proportions', () => {
     useGameStore.setState({
       map: {
         width: 32,
         height: 64,
         xsize: 32,
         ysize: 64,
-        topology_id: 12,
+        topology_id: 3,
         wrap_id: 3,
         tiles: {},
       },
@@ -72,8 +76,8 @@ describe('Minimap', () => {
 
     render(<Minimap />);
     const canvas = screen.getByLabelText('Minimap overview');
-    expect(canvas).toHaveAttribute('width', '224');
-    expect(canvas).toHaveAttribute('height', '300');
+    expect(canvas).toHaveAttribute('width', '256');
+    expect(canvas).toHaveAttribute('height', '256');
   });
 
   it('dispatches a map-centering request when clicked', () => {
@@ -218,6 +222,13 @@ describe('Minimap', () => {
     expect(
       getMinimapCellAppearance({ ...visibleTile, visible: false }, '#0b8a04', 'player-1', '#d946ef')
     ).toEqual({ color: '#d946ef' });
+    expect(
+      getMinimapCellAppearance(visibleTile, '#0b8a04', '', '#d946ef', {
+        kind: 'unit',
+        ownerId: 'player-2',
+        ownerColor: '#d946ef',
+      })
+    ).toEqual({ color: MINIMAP_COLORS.foreignUnit });
   });
 
   /**
@@ -371,7 +382,7 @@ describe('Minimap', () => {
 
     expect(context.clearRect).toHaveBeenCalled();
     expect(context.strokeStyle).toBe(VIEWPORT_OUTLINE_COLOR);
-    expect(context.lineWidth).toBe(4 / 200);
+    expect(context.lineWidth).toBe(1);
     expect(context.beginPath).toHaveBeenCalled();
     expect(context.stroke).toHaveBeenCalled();
 
@@ -379,18 +390,22 @@ describe('Minimap', () => {
     expect(cancelFrame).toHaveBeenCalledWith(expect.any(Number));
   });
 
-  it('uses Freeciv-web rectangular overview dimensions for ISO maps', () => {
-    expect(getMinimapLayout(32, 64)).toEqual({
+  it('uses an aspect-preserving 2x1 physical overview for ISO maps', () => {
+    expect(getMinimapLayout(32, 64, C2C3_TOPOLOGY)).toEqual({
       tileSize: 7,
-      width: 224,
-      height: 300,
-      scaleX: 7,
-      scaleY: 4.6875,
-      coordinateWidth: 32,
+      sourceWidth: 224,
+      sourceHeight: 448,
+      width: 256,
+      height: 256,
+      scaleX: 4,
+      scaleY: 4,
+      coordinateWidth: 64,
       coordinateHeight: 64,
     });
     expect(getMinimapLayout(80, 50)).toEqual({
       tileSize: 3,
+      sourceWidth: 240,
+      sourceHeight: 150,
       width: 240,
       height: 150,
       scaleX: 3,
@@ -398,99 +413,104 @@ describe('Minimap', () => {
       coordinateWidth: 80,
       coordinateHeight: 50,
     });
-    expect(getMinimapLayout(100, 400)).toEqual({
+    expect(getMinimapLayout(100, 400, C2C3_TOPOLOGY)).toEqual({
       tileSize: 2,
-      width: 200,
+      sourceWidth: 200,
+      sourceHeight: 800,
+      width: 150,
       height: 300,
-      scaleX: 2,
+      scaleX: 0.75,
       scaleY: 0.75,
-      coordinateWidth: 100,
+      coordinateWidth: 200,
       coordinateHeight: 400,
     });
 
-    expect(getMinimapLayout(80, 50)).toMatchObject({
-      width: 240,
-      height: 150,
-      scaleX: 3,
-      scaleY: 3,
-      coordinateWidth: 80,
+    expect(getMinimapLayout(80, 50, C2C3_TOPOLOGY)).toMatchObject({
+      width: 288,
+      height: 90,
+      scaleX: 1.8,
+      scaleY: 1.8,
+      coordinateWidth: 160,
       coordinateHeight: 50,
     });
 
-    const isoLayout = getMinimapLayout(32, 64);
-    expect(isoLayout.scaleX).toBe(7);
-    expect(isoLayout.scaleY).toBe(300 / 64);
-    expect(isoLayout.scaleX).not.toBe(isoLayout.scaleY);
+    const isoLayout = getMinimapLayout(32, 64, C2C3_TOPOLOGY);
+    expect(getMinimapCellWidth(C2C3_TOPOLOGY)).toBe(2);
+    expect(isoLayout.scaleX).toBe(isoLayout.scaleY);
+    expect(isoLayout.width / isoLayout.height).toBe(
+      isoLayout.coordinateWidth / isoLayout.coordinateHeight
+    );
   });
 
-  it('maps rectangular overview clicks back to native ISO tile storage', () => {
-    const layout = getMinimapLayout(32, 64);
+  it('maps physical overview clicks back to the same ISO tile storage', () => {
+    const layout = getMinimapLayout(32, 64, C2C3_TOPOLOGY);
     const native = { x: 16, y: 32 };
-    const display = nativeToMinimapPosition(native.x, native.y);
-    const pixel = nativeToMinimapPixelPosition(16, 32, layout);
-    expect(minimapPointToMapTile(pixel.x, pixel.y, 32, 64, layout, 3)).toEqual(native);
-    expect(display).toEqual(native);
+    const display = nativeToMinimapPosition(native.x, native.y, C2C3_TOPOLOGY);
+    const pixel = nativeToMinimapPixelPosition(16, 32, layout, C2C3_TOPOLOGY);
+    expect(minimapPointToMapTile(pixel.x, pixel.y, 32, 64, layout, C2C3_TOPOLOGY, 3)).toEqual(
+      native
+    );
+    expect(display).toEqual({ x: 32, y: 32 });
   });
 
-  it('places native ISO tiles in rectangular overview coordinates', () => {
-    expect(nativeToMinimapPosition(0, 0)).toEqual({ x: 0, y: 0 });
-    expect(nativeToMinimapPosition(0, 1)).toEqual({ x: 0, y: 1 });
-    expect(nativeToMinimapPosition(0, 2)).toEqual({ x: 0, y: 2 });
-    expect(nativeToMinimapPosition(16, 32)).toEqual({ x: 16, y: 32 });
-    expect(nativeToMinimapPosition(31, 63)).toEqual({ x: 31, y: 63 });
+  it('places browser map tiles in 2x1 ISO overview coordinates', () => {
+    expect(nativeToMinimapPosition(0, 0, C2C3_TOPOLOGY)).toEqual({ x: 0, y: 0 });
+    expect(nativeToMinimapPosition(0, 1, C2C3_TOPOLOGY)).toEqual({ x: 0, y: 1 });
+    expect(nativeToMinimapPosition(0, 2, C2C3_TOPOLOGY)).toEqual({ x: 0, y: 2 });
+    expect(nativeToMinimapPosition(16, 32, C2C3_TOPOLOGY)).toEqual({ x: 32, y: 32 });
+    expect(nativeToMinimapPosition(31, 63, C2C3_TOPOLOGY)).toEqual({ x: 62, y: 63 });
   });
 
-  it('keeps native ISO east and south adjacent in rectangular overview coordinates', () => {
-    const base = nativeToMinimapPosition(10, 20);
-    const east = nativeToMinimapPosition(11, 20);
-    const south = nativeToMinimapPosition(10, 21);
+  it('keeps ISO east and south adjacent in physical overview coordinates', () => {
+    const base = nativeToMinimapPosition(10, 20, C2C3_TOPOLOGY);
+    const east = nativeToMinimapPosition(11, 20, C2C3_TOPOLOGY);
+    const south = nativeToMinimapPosition(10, 21, C2C3_TOPOLOGY);
 
-    expect(east).toEqual({ x: base.x + 1, y: base.y });
+    expect(east).toEqual({ x: base.x + 2, y: base.y });
     expect(south).toEqual({ x: base.x, y: base.y + 1 });
   });
 
-  it('maps every native ISO tile to exactly one rectangular overview position and back', () => {
-    const layout = getMinimapLayout(32, 64);
+  it('maps every ISO tile to exactly one physical overview position and back', () => {
+    const layout = getMinimapLayout(32, 64, C2C3_TOPOLOGY);
     const positions = new Set<string>();
 
     for (let y = 0; y < 64; y += 1) {
       for (let x = 0; x < 32; x += 1) {
-        const position = nativeToMinimapPosition(x, y);
+        const position = nativeToMinimapPosition(x, y, C2C3_TOPOLOGY);
         expect(position.x).toBeGreaterThanOrEqual(0);
         expect(position.x).toBeLessThan(layout.coordinateWidth);
         expect(position.y).toBeGreaterThanOrEqual(0);
         expect(position.y).toBeLessThan(layout.coordinateHeight);
         positions.add(`${position.x},${position.y}`);
-        expect(minimapPositionToNative(position.x, position.y, 32, 64, 3)).toEqual({
-          x,
-          y,
-        });
+        expect(
+          minimapPositionToNative(position.x + 1, position.y, 32, 64, C2C3_TOPOLOGY, 3)
+        ).toEqual({ x, y });
       }
     }
 
     expect(positions.size).toBe(32 * 64);
   });
 
-  it('centers ISO markers in the same rectangular cells as their terrain', () => {
-    const layout = getMinimapLayout(32, 64);
-    const cell = nativeToMinimapPosition(16, 32);
+  it('centers ISO markers in the same 2x1 cells as their terrain', () => {
+    const layout = getMinimapLayout(32, 64, C2C3_TOPOLOGY);
+    const cell = nativeToMinimapPosition(16, 32, C2C3_TOPOLOGY);
 
-    expect(nativeToMinimapPixelPosition(16, 32, layout)).toEqual({
-      x: (cell.x + 0.5) * layout.scaleX,
+    expect(nativeToMinimapPixelPosition(16, 32, layout, C2C3_TOPOLOGY)).toEqual({
+      x: (cell.x + 1) * layout.scaleX,
       y: (cell.y + 0.5) * layout.scaleY,
     });
   });
 
-  it('draws wrapped ISO tiles and markers across the rectangular horizontal seam', () => {
-    const layout = getMinimapLayout(4, 4);
-    const origins = getMinimapTileOrigins(3, 1, 4, 4, 3, layout);
+  it('draws wrapped ISO cells across the physical horizontal seam', () => {
+    const layout = getMinimapLayout(4, 4, C2C3_TOPOLOGY);
+    const origins = getMinimapTileOrigins(3, 1, 4, 4, C2C3_TOPOLOGY, 3, layout);
 
-    expect(origins).toContainEqual({ x: -50, y: 50 });
-    expect(origins).toContainEqual({ x: 150, y: 50 });
+    expect(origins).toContainEqual({ x: -50, y: 25 });
+    expect(origins).toContainEqual({ x: 150, y: 25 });
   });
 
   it('keeps wrapped cells on integer Freeciv source-raster origins', () => {
-    const layout = getMinimapLayout(32, 64);
+    const layout = getMinimapLayout(32, 64, C2C3_TOPOLOGY);
     const origins = getMinimapSourceTileOrigins(31, 63, 32, 64, 3, layout);
 
     expect(origins).toContainEqual({ x: -7, y: 441 });
@@ -518,7 +538,7 @@ describe('Minimap', () => {
   });
 
   it('projects an ISO viewport as a rotated diamond', () => {
-    const layout = getMinimapLayout(32, 64);
+    const layout = getMinimapLayout(32, 64, C2C3_TOPOLOGY);
     const polygons = getMinimapViewportPolygons(
       { x: -432, y: 1296, width: 960, height: 480 },
       32,
@@ -527,14 +547,14 @@ describe('Minimap', () => {
       layout,
       96,
       48,
-      12
+      C2C3_TOPOLOGY
     );
 
     expect(polygons[0]).toEqual([
-      { x: 154, y: 150 },
-      { x: 224, y: 103.125 },
-      { x: 294, y: 150 },
-      { x: 224, y: 196.875 },
+      { x: 176, y: 128 },
+      { x: 256, y: 88 },
+      { x: 336, y: 128 },
+      { x: 256, y: 168 },
     ]);
     expect(polygons).toHaveLength(9);
   });

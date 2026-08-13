@@ -12,16 +12,18 @@
  */
 
 /**
- * Serialized Freeciv topology flags. Bits zero and one are retained for the
- * legacy WrapX/WrapY topology values, so ISO and HEX start at bits two and
- * three on the wire.
+ * Serialized Freeciv topology flags. `SPECENUM_BITWISE` converts each enum
+ * ordinal to `1 << ordinal`, so ISO and HEX occupy bits zero and one. The
+ * obsolete embedded WrapX/WrapY topology flags occupy bits two and three;
+ * current wrapping is carried independently by `wrap_id`.
  *
- * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:35-38
- * @reference reference/freeciv/common/fc_types.h:452-465
+ * @reference reference/freeciv/utility/generate_specenum.py:168-185
+ * @reference reference/freeciv/common/fc_types.h:453-470
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:35-39
  */
 export const TopologyFlag = {
-  ISO: 1 << 2,
-  HEX: 1 << 3,
+  ISO: 1 << 0,
+  HEX: 1 << 1,
 } as const;
 
 export const WrapFlag = {
@@ -72,18 +74,17 @@ export function nativeToMapPosition(
 }
 
 /**
- * Translate the topology values written by CivJS before it adopted Freeciv's
- * serialized flag positions. Those values were only ever used internally:
- * 1 = ISO, 2 = HEX, and 3 = ISO|HEX. Freeciv's topology packet has always
- * used 4 and 8 for ISO and HEX respectively.
+ * Repair map data written while CivJS incorrectly shifted ISO/HEX into the
+ * obsolete topology-wrap bit positions. Values 1/2/3 are Freeciv's canonical
+ * ISO/HEX/ISO|HEX representation; 4/8/12 are CivJS migration inputs only.
  */
 export function normalizeTopologyId(topologyId: number): number {
   switch (topologyId) {
-    case 1:
+    case 4:
       return TopologyFlag.ISO;
-    case 2:
+    case 8:
       return TopologyFlag.HEX;
-    case 3:
+    case 12:
       return TopologyFlag.ISO | TopologyFlag.HEX;
     default:
       return topologyId;
@@ -130,8 +131,14 @@ export class MapTopology {
     return this.hasTopologyFlag(TopologyFlag.HEX);
   }
 
+  /** True when TF_ISO selects the iso-hex diagonal orientation. */
   isIsometric(): boolean {
     return this.hasTopologyFlag(TopologyFlag.ISO);
+  }
+
+  /** Mirror Freeciv MAP_IS_ISOMETRIC for native/logical conversions. */
+  usesIsometricCoordinates(): boolean {
+    return this.hasTopologyFlag(TopologyFlag.ISO | TopologyFlag.HEX);
   }
 
   isValidCoordinate(x: number, y: number): boolean {
@@ -190,14 +197,14 @@ export class MapTopology {
 
   getPositionsWithinRadius(x: number, y: number, radius: number): MapPosition[] {
     const positions = new Map<string, MapPosition>();
-    const origin = nativeToMapPosition(x, y, this.width, this.isIsometric());
+    const origin = nativeToMapPosition(x, y, this.width, this.usesIsometricCoordinates());
     for (let dx = -radius; dx <= radius; dx++) {
       for (let dy = -radius; dy <= radius; dy++) {
         const candidate = mapToNativePosition(
           origin.x + dx,
           origin.y + dy,
           this.width,
-          this.isIsometric()
+          this.usesIsometricCoordinates()
         );
         const position = this.normalize(candidate.x, candidate.y);
         if (position && this.realDistance(x, y, position.x, position.y) <= radius) {
@@ -220,14 +227,14 @@ export class MapTopology {
   getPositionsWithinSquareRadius(x: number, y: number, radius: number): MapPosition[] {
     const positions = new Map<string, MapPosition>();
     const boundedRadius = Math.max(0, Math.floor(radius));
-    const origin = nativeToMapPosition(x, y, this.width, this.isIsometric());
+    const origin = nativeToMapPosition(x, y, this.width, this.usesIsometricCoordinates());
     for (let dx = -boundedRadius; dx <= boundedRadius; dx++) {
       for (let dy = -boundedRadius; dy <= boundedRadius; dy++) {
         const candidate = mapToNativePosition(
           origin.x + dx,
           origin.y + dy,
           this.width,
-          this.isIsometric()
+          this.usesIsometricCoordinates()
         );
         const position = this.normalize(candidate.x, candidate.y);
         if (position) positions.set(`${position.x},${position.y}`, position);
@@ -249,14 +256,14 @@ export class MapTopology {
   getPositionsWithinSquaredRadius(x: number, y: number, radiusSquared: number): MapPosition[] {
     const positions = new Map<string, MapPosition>();
     const radius = Math.floor(Math.sqrt(Math.max(0, radiusSquared)));
-    const origin = nativeToMapPosition(x, y, this.width, this.isIsometric());
+    const origin = nativeToMapPosition(x, y, this.width, this.usesIsometricCoordinates());
     for (let dx = -radius; dx <= radius; dx++) {
       for (let dy = -radius; dy <= radius; dy++) {
         const candidate = mapToNativePosition(
           origin.x + dx,
           origin.y + dy,
           this.width,
-          this.isIsometric()
+          this.usesIsometricCoordinates()
         );
         const position = this.normalize(candidate.x, candidate.y);
         if (position && this.squaredDistance(x, y, position.x, position.y) <= radiusSquared) {
@@ -273,14 +280,14 @@ export class MapTopology {
     directions: ReadonlyArray<MapVector>
   ): MapPosition[] {
     const neighbors = new Map<string, MapPosition>();
-    const origin = nativeToMapPosition(x, y, this.width, this.isIsometric());
+    const origin = nativeToMapPosition(x, y, this.width, this.usesIsometricCoordinates());
 
     for (const { dx, dy } of directions) {
       const candidate = mapToNativePosition(
         origin.x + dx,
         origin.y + dy,
         this.width,
-        this.isIsometric()
+        this.usesIsometricCoordinates()
       );
       const position = this.normalize(candidate.x, candidate.y);
       if (!position || (position.x === x && position.y === y)) continue;
@@ -301,12 +308,12 @@ export class MapTopology {
       nativeDy = this.minimumWrappedDelta(nativeDy, this.height);
     }
 
-    const from = nativeToMapPosition(fromX, fromY, this.width, this.isIsometric());
+    const from = nativeToMapPosition(fromX, fromY, this.width, this.usesIsometricCoordinates());
     const to = nativeToMapPosition(
       fromX + nativeDx,
       fromY + nativeDy,
       this.width,
-      this.isIsometric()
+      this.usesIsometricCoordinates()
     );
     return { dx: to.x - from.x, dy: to.y - from.y };
   }

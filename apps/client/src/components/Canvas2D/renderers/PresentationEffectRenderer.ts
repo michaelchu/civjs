@@ -2,7 +2,7 @@
  * @module client/components/Canvas2D/renderers/PresentationEffectRenderer
  * Implements the Presentation Effect Renderer canvas rendering stage.
  */
-import type { PresentationEffect, Unit } from '../../../types';
+import type { PresentationEffect, Tile, Unit } from '../../../types';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
 
 /**
@@ -42,18 +42,43 @@ export class PresentationEffectRenderer extends BaseRenderer {
   }
 
   render(state: RenderState): boolean {
+    return this.renderEffectsForLayer(state, 'unit');
+  }
+
+  /** Paint UNIT-layer effects belonging to one tile in the global painter walk. */
+  renderUnitEffectsForTile(state: RenderState, tile: Pick<Tile, 'x' | 'y'>): boolean {
+    return this.renderEffectsForLayer(state, 'unit', tile);
+  }
+
+  /** Nuclear effects share Freeciv-web's final GOTO layer. */
+  renderGotoLayer(state: RenderState): boolean {
+    return this.renderEffectsForLayer(state, 'goto');
+  }
+
+  /** Paint final-layer effects belonging to one tile in the painter walk. */
+  renderGotoEffectsForTile(state: RenderState, tile: Pick<Tile, 'x' | 'y'>): boolean {
+    return this.renderEffectsForLayer(state, 'goto', tile);
+  }
+
+  private renderEffectsForLayer(
+    state: RenderState,
+    layer: 'unit' | 'goto',
+    tile?: Pick<Tile, 'x' | 'y'>
+  ): boolean {
     const effects = state.presentationEffects ?? [];
     const now = performance.now();
     let hasActiveEffects = false;
 
     for (const effect of effects) {
+      if ((effect.type === 'nuclear') !== (layer === 'goto')) continue;
+      if (tile && !this.effectCoversTile(effect, tile)) continue;
       const duration = this.getDuration(effect);
       const progress = state.reducedMotion ? 0 : (now - effect.startedAt) / duration;
       if (progress < 0 || progress >= 1) continue;
 
       hasActiveEffects = !state.reducedMotion;
       if (effect.type === 'nuclear') {
-        this.renderNuclearEffect(effect, progress, state);
+        this.renderNuclearEffect(effect, progress, state, tile);
       } else if (effect.type === 'marker') {
         this.renderMarkerEffect(effect, progress, state);
       } else {
@@ -62,6 +87,13 @@ export class PresentationEffectRenderer extends BaseRenderer {
     }
 
     return hasActiveEffects;
+  }
+
+  private effectCoversTile(effect: PresentationEffect, tile: Pick<Tile, 'x' | 'y'>): boolean {
+    if (effect.type === 'nuclear' && effect.tiles?.length) {
+      return effect.tiles.some(affected => affected.x === tile.x && affected.y === tile.y);
+    }
+    return effect.x === tile.x && effect.y === tile.y;
   }
 
   private getDuration(effect: PresentationEffect): number {
@@ -95,22 +127,24 @@ export class PresentationEffectRenderer extends BaseRenderer {
     );
   }
 
-  private renderNuclearEffect(effect: PresentationEffect, progress: number, state: RenderState) {
+  private renderNuclearEffect(
+    effect: PresentationEffect,
+    progress: number,
+    state: RenderState,
+    tile?: Pick<Tile, 'x' | 'y'>
+  ) {
     const sprite = this.tilesetLoader.getSprite('explode.nuke');
-    const tiles = effect.tiles?.length ? effect.tiles : [{ x: effect.x, y: effect.y }];
+    const tiles = tile
+      ? [tile]
+      : effect.tiles?.length
+        ? effect.tiles
+        : [{ x: effect.x, y: effect.y }];
     for (const tile of tiles) {
       const screen = this.mapToScreen(tile.x, tile.y, state.viewport);
       if (sprite) {
-        const scale = 0.6 + progress * 0.4;
-        const width = sprite.width * scale;
-        const height = sprite.height * scale;
-        this.ctx.drawImage(
-          sprite,
-          screen.x + this.tileWidth / 2 - width / 2,
-          screen.y + this.tileHeight / 2 - height / 2,
-          width,
-          height
-        );
+        // Freeciv-web advances the effect lifetime, not the sprite scale. The
+        // atlas image is always painted at its native size from this offset.
+        this.ctx.drawImage(sprite, screen.x - 45, screen.y - 45);
       } else {
         this.renderFallbackBurst(
           screen.x + this.tileWidth / 2,

@@ -21,8 +21,10 @@ import { resolveNationGraphic } from '@game/services/NationPresentationService';
 import type { CombatPresentationEvent, NuclearPresentationEvent } from '@app-types/presentation';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
 import { getRulesetMoveFragments } from '@game/constants/MovementConstants';
+import { getSpectatorRoom } from '@network/SocketRooms';
 
 const LOBBY_EVENTS = new Set(['player-joined', 'player-connection-changed']);
+const SPECTATOR_CACHE_ID = '@spectators';
 
 export interface BroadcastService {
   broadcastToGame(gameId: string, event: string, data: any): void;
@@ -158,6 +160,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     });
 
     this.broadcastMapDataToPlayers(gameInstance, gameId, mapData);
+    this.sendSpectatorMapSnapshot(gameInstance, gameId, mapData);
 
     this.broadcastToGame(gameId, 'game_ready', {
       gameId,
@@ -186,6 +189,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     for (const [playerId] of gameInstance.players) {
       this.sendVisibilityDeltaToPlayer(gameInstance, gameId, playerId, mapData, unit);
     }
+    this.sendSpectatorUnitInfo(gameInstance, gameId, unit);
   }
 
   broadcastCombatOccurred(gameId: string, event: CombatPresentationEvent): void {
@@ -213,6 +217,18 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         combatants,
       });
     }
+    this.io.to(getSpectatorRoom(gameId)).emit('combat_occurred', {
+      gameId,
+      eventId: event.eventId,
+      x: event.x,
+      y: event.y,
+      style: event.style ?? 'explosion',
+      attackerDamage: event.attackerDamage,
+      defenderDamage: event.defenderDamage,
+      attackerDestroyed: event.attackerDestroyed,
+      defenderDestroyed: event.defenderDestroyed,
+      combatants: event.combatants,
+    });
   }
 
   broadcastNuclearExplosion(gameId: string, event: NuclearPresentationEvent): void {
@@ -239,6 +255,13 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         tiles: visibleAffectedTiles,
       });
     }
+    this.io.to(getSpectatorRoom(gameId)).emit('nuclear_explosion', {
+      gameId,
+      eventId: event.eventId,
+      x: event.x,
+      y: event.y,
+      tiles: event.affectedTiles,
+    });
   }
 
   /**
@@ -253,6 +276,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     for (const [playerId] of gameInstance.players) {
       this.sendVisibilitySnapshotToPlayer(gameInstance, gameId, playerId, mapData);
     }
+    this.sendSpectatorVisibilityDelta(gameInstance, gameId, mapData);
   }
 
   /**
@@ -268,6 +292,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     for (const [playerId] of gameInstance.players) {
       this.sendVisibilityDeltaToPlayer(gameInstance, gameId, playerId, mapData);
     }
+    this.sendSpectatorVisibilityDelta(gameInstance, gameId, mapData);
   }
 
   setDebugVisibility(gameId: string, playerId: string, enabled: boolean): boolean {
@@ -315,6 +340,14 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       });
       this.getVisibilityCache(gameId, playerId).units.delete(unit.id);
     }
+    this.io.to(getSpectatorRoom(gameId)).emit('unit_destroyed', {
+      gameId,
+      unitId: unit.id,
+    });
+    // Remove it before the general delta walk so cached observers receive
+    // exactly one destruction event, while an unprimed observer room still
+    // receives the authoritative removal above.
+    this.getVisibilityCache(gameId, SPECTATOR_CACHE_ID).units.delete(unit.id);
     this.broadcastVisibilityDelta(gameId);
   }
 
@@ -438,6 +471,164 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         playerId,
       });
     }
+  }
+
+  /**
+   * Send the same omniscient presentation state used by an initial observer
+   * snapshot to the dedicated live observer room.
+   */
+  private sendSpectatorMapSnapshot(gameInstance: GameInstance, gameId: string, mapData: any): void {
+    for (const player of gameInstance.players.values()) {
+      if (!player.color) continue;
+      this.sendPacketToSpectators(
+        gameId,
+        PacketType.PLAYER_INFO,
+        this.formatPlayerInfo(player, gameInstance)
+      );
+    }
+
+    this.sendPacketToSpectators(gameId, PacketType.MAP_INFO, {
+      xsize: mapData.width,
+      ysize: mapData.height,
+      wrap_id: mapData.wrapId ?? 0,
+      topology_id: mapData.topologyId ?? 0,
+    });
+
+    const tiles = this.getSpectatorMapTiles(gameInstance, mapData);
+    this.sendSpectatorTileDataInBatches(gameId, tiles, true);
+
+    const units = this.getSpectatorUnits(gameInstance);
+    this.sendPacketToSpectators(gameId, PacketType.UNIT_INFO, {
+      units,
+      fullSnapshot: true,
+    });
+
+    const borders = this.getSpectatorBorders(gameInstance);
+    this.sendPacketToSpectators(gameId, PacketType.BORDER_UPDATE, {
+      type: 'border_update',
+      updateType: 'full_update',
+      tiles: borders,
+    });
+
+    const cached = this.getVisibilityCache(gameId, SPECTATOR_CACHE_ID);
+    cached.tiles = this.indexWireState(tiles, tile => `${tile.x},${tile.y}`);
+    cached.units = this.indexWireState(units, unit => unit.id);
+    cached.borders = this.indexWireState(borders, tile => `${tile.x},${tile.y}`);
+    this.sendSpectatorCityData(gameInstance, gameId, false);
+  }
+
+  /** Keep active observers synchronized without applying any player's fog of war. */
+  private sendSpectatorVisibilityDelta(
+    gameInstance: GameInstance,
+    gameId: string,
+    mapData: any
+  ): void {
+    const cached = this.getVisibilityCache(gameId, SPECTATOR_CACHE_ID);
+
+    const tiles = this.getSpectatorMapTiles(gameInstance, mapData);
+    const nextTiles = this.indexWireState(tiles, tile => `${tile.x},${tile.y}`);
+    const changedTiles = tiles.filter(
+      tile => cached.tiles.get(`${tile.x},${tile.y}`) !== JSON.stringify(tile)
+    );
+    if (changedTiles.length > 0) {
+      this.sendSpectatorTileDataInBatches(gameId, changedTiles, false);
+    }
+    cached.tiles = nextTiles;
+
+    const units = this.getSpectatorUnits(gameInstance);
+    const nextUnits = this.indexWireState(units, unit => unit.id);
+    const changedUnits = units.filter(unit => cached.units.get(unit.id) !== JSON.stringify(unit));
+    if (changedUnits.length > 0) {
+      this.sendPacketToSpectators(gameId, PacketType.UNIT_INFO, {
+        units: changedUnits,
+        fullSnapshot: false,
+      });
+    }
+    for (const unitId of cached.units.keys()) {
+      if (!nextUnits.has(unitId)) {
+        this.io.to(getSpectatorRoom(gameId)).emit('unit_destroyed', { gameId, unitId });
+      }
+    }
+    cached.units = nextUnits;
+
+    this.sendSpectatorCityData(gameInstance, gameId, true);
+
+    const borders = this.getSpectatorBorders(gameInstance);
+    const nextBorders = this.indexWireState(borders, tile => `${tile.x},${tile.y}`);
+    const changedBorders = borders.filter(
+      tile => cached.borders.get(`${tile.x},${tile.y}`) !== JSON.stringify(tile)
+    );
+    for (const key of cached.borders.keys()) {
+      if (!nextBorders.has(key)) {
+        const [x, y] = key.split(',').map(Number);
+        changedBorders.push({ x, y, owner: null, strength: 0 });
+      }
+    }
+    if (changedBorders.length > 0) {
+      this.sendPacketToSpectators(gameId, PacketType.BORDER_UPDATE, {
+        type: 'border_update',
+        updateType: 'incremental',
+        tiles: changedBorders,
+      });
+    }
+    cached.borders = nextBorders;
+  }
+
+  private sendSpectatorUnitInfo(gameInstance: GameInstance, gameId: string, unit: any): void {
+    const formatted = this.formatUnitForClient(
+      unit,
+      gameInstance.unitManager,
+      undefined,
+      gameInstance.config.ruleset ?? DEFAULT_RULESET
+    );
+    this.sendPacketToSpectators(gameId, PacketType.UNIT_INFO, {
+      units: [formatted],
+      fullSnapshot: false,
+    });
+    this.getVisibilityCache(gameId, SPECTATOR_CACHE_ID).units.set(
+      formatted.id,
+      JSON.stringify(formatted)
+    );
+  }
+
+  private getSpectatorMapTiles(gameInstance: GameInstance, mapData: any): any[] {
+    const allTiles = this.getAllTileKeys(mapData);
+    const tiles = this.processMapTilesForPlayer(
+      mapData,
+      allTiles,
+      allTiles,
+      new Map(),
+      gameInstance.config.ruleset ?? DEFAULT_RULESET,
+      new Set()
+    );
+
+    // A global observer has no research owner. Freeciv observers receive the
+    // authoritative resource value instead of inheriting one player's tech
+    // visibility filter.
+    return tiles.map(tile => ({
+      ...tile,
+      resource: mapData.tiles[tile.x]?.[tile.y]?.resource ?? undefined,
+    }));
+  }
+
+  private getSpectatorUnits(gameInstance: GameInstance): any[] {
+    return Array.from(gameInstance.unitManager.getAllUnits().values()).map((unit: any) =>
+      this.formatUnitForClient(
+        unit,
+        gameInstance.unitManager,
+        undefined,
+        gameInstance.config.ruleset ?? DEFAULT_RULESET
+      )
+    );
+  }
+
+  private getSpectatorBorders(gameInstance: GameInstance): any[] {
+    return gameInstance.borderManager.getAllTileOwnership().map((ownership: any) => ({
+      x: ownership.x,
+      y: ownership.y,
+      owner: ownership.playerId,
+      strength: ownership.strength,
+    }));
   }
 
   private getPlayerMapVisibility(
@@ -995,6 +1186,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       cityId: explored.cityId,
       owner: explored.owner,
       claimer: explored.claimer,
+      label: explored.label,
       known: isVisible ? 2 : isExplored ? 1 : 0,
       seen: isVisible ? 1 : 0,
       player: explored.owner ?? null,
@@ -1021,6 +1213,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         cityId: undefined,
         owner: undefined,
         claimer: undefined,
+        label: undefined,
       };
     }
     return {
@@ -1038,6 +1231,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       cityId: this.tileValue(tile, 'cityId'),
       owner: this.tileValue(tile, 'owner'),
       claimer: this.tileValue(tile, 'claimer'),
+      label: this.tileValue(tile, 'label'),
     };
   }
 
@@ -1101,6 +1295,33 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     });
   }
 
+  private sendPacketToSpectators(gameId: string, packetType: PacketType, data: any): void {
+    this.io.to(getSpectatorRoom(gameId)).emit('packet', {
+      version: PROTOCOL_VERSION,
+      type: packetType,
+      data,
+      timestamp: Date.now(),
+    });
+  }
+
+  private sendSpectatorTileDataInBatches(
+    gameId: string,
+    tiles: any[],
+    fullSnapshot: boolean
+  ): void {
+    const BATCH_SIZE = 100;
+    for (let startIndex = 0; startIndex < tiles.length; startIndex += BATCH_SIZE) {
+      const batch = tiles.slice(startIndex, startIndex + BATCH_SIZE);
+      this.sendPacketToSpectators(gameId, PacketType.TILE_INFO, {
+        tiles: batch,
+        startIndex,
+        endIndex: startIndex + batch.length,
+        total: tiles.length,
+        fullSnapshot,
+      });
+    }
+  }
+
   /**
    * Format unit data for client transmission
    * @reference Original GameManager.ts:800-832 formatUnitForClient()
@@ -1115,6 +1336,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     const unitType =
       unitManager.getUnitType?.(unitTypeId) ??
       rulesetUnitsService.getUnitType(unitTypeId, rulesetName);
+    const hasFullUnitInfo = recipientPlayerId === undefined || recipientPlayerId === unit.playerId;
     return {
       id: unit.id,
       owner: unit.playerId,
@@ -1129,20 +1351,22 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       maxFuel: this.unitValue(unitType?.fuel, 0),
       transportCapacity: this.unitValue(unitType?.transport_capacity, 0),
       hp: this.unitValue(unit.health, 100),
-      maxHp: this.unitValue(unitType?.hp, 100),
+      maxHp: this.unitValue(unitType?.hitpoints, 100),
       ...this.getUnitCombatStats(unitType),
       veteran: this.unitValue(unit.veteranLevel, false),
       homeCity: this.unitValue(unit.homeCity, null),
       activity: this.unitValue(unit.activity, 'idle'),
       fortified: this.unitValue(unit.fortified, false),
       orders: this.unitValue(unit.orders, null),
-      automation: recipientPlayerId === unit.playerId ? unit.automation : undefined,
+      automation: hasFullUnitInfo ? unit.automation : undefined,
       automationTask: recipientPlayerId === unit.playerId ? unit.automationTask : undefined,
       transportedBy: unit.transportedBy,
       cargoUnits: this.unitValue(unit.cargoUnits, []),
       capabilities: this.getUnitCapabilities(
         unitType,
-        unitManager.getAvailableWorkerActions?.(unit.id),
+        recipientPlayerId === unit.playerId
+          ? unitManager.getAvailableWorkerActions?.(unit.id)
+          : undefined,
         rulesetName,
         recipientPlayerId === unit.playerId ? unitManager.getUnitUpgradeInfo?.(unit.id) : undefined
       ),
@@ -1238,6 +1462,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     for (const [playerId] of gameInstance.players) {
       this.broadcastCityDataToPlayer(gameId, playerId);
     }
+    this.sendSpectatorCityData(gameInstance, gameId, false);
 
     this.logger.debug('Broadcasted city data to game', {
       gameId,
@@ -1346,6 +1571,50 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       gameId,
       playerId,
       cityCount: visibleCities.length,
+    });
+  }
+
+  private sendSpectatorCityData(
+    gameInstance: GameInstance,
+    gameId: string,
+    incremental: boolean
+  ): void {
+    const cities = gameInstance.cityManager.getAllCities();
+    const rulesetName = gameInstance.config?.ruleset ?? DEFAULT_RULESET;
+    const presentations = resolveCityPresentations(
+      cities,
+      gameInstance.players,
+      playerId => gameInstance.researchManager?.getResearchedTechs(playerId) ?? []
+    );
+    const clientCityData = CityDataService.transformCitiesForClient(
+      cities,
+      rulesetName,
+      undefined,
+      presentations,
+      gameInstance.unitManager.getAllUnits?.().values() ?? [],
+      undefined
+    );
+
+    const cached = this.getVisibilityCache(gameId, SPECTATOR_CACHE_ID);
+    const entries = Object.entries(clientCityData);
+    const nextCities = this.indexWireState(entries, ([cityId]) => cityId);
+    const changedCities = Object.fromEntries(
+      entries.filter(
+        ([cityId, city]) => cached.cities.get(cityId) !== JSON.stringify([cityId, city])
+      )
+    );
+    const removedCityIds = [...cached.cities.keys()].filter(cityId => !nextCities.has(cityId));
+    cached.cities = nextCities;
+    if (incremental && Object.keys(changedCities).length === 0 && removedCityIds.length === 0) {
+      return;
+    }
+
+    this.io.to(getSpectatorRoom(gameId)).emit('cities_updated', {
+      gameId,
+      cities: incremental ? changedCities : clientCityData,
+      removedCityIds: incremental ? removedCityIds : [],
+      fullSnapshot: !incremental,
+      timestamp: Date.now(),
     });
   }
 

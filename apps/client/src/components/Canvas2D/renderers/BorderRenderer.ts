@@ -12,6 +12,7 @@
 import { BaseRenderer } from './BaseRenderer';
 import type { RenderState } from './BaseRenderer';
 import type { Tile } from '../../../types';
+import { sortMapPointsInPainterOrder, stepNativeMapPosition } from '../mapTopologyGeometry';
 
 // Direction constants from freeciv
 // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/fc_types.js
@@ -38,8 +39,6 @@ interface BorderSprite {
   key: string;
   dir: Direction;
   color: string;
-  color2: string;
-  color3: string;
 }
 
 interface BorderRenderOptions {
@@ -113,12 +112,6 @@ export class BorderRenderer extends BaseRenderer {
     secondary: string;
     tertiary: string;
   } {
-    // Try to get from cached colors first
-    const cached = this.playerColors.get(playerId);
-    if (cached) {
-      return cached;
-    }
-
     // Try to get from game state players (like freeciv-web nations[players[owner]['nation']])
     if (players && players[playerId]) {
       const playerColor = players[playerId].color;
@@ -133,6 +126,11 @@ export class BorderRenderer extends BaseRenderer {
         this.playerColors.set(playerId, colors);
         return colors;
       }
+    }
+
+    const cached = this.playerColors.get(playerId);
+    if (cached) {
+      return cached;
     }
 
     // Fallback to default colors if no player data available
@@ -194,21 +192,17 @@ export class BorderRenderer extends BaseRenderer {
         return null;
     }
 
-    const mapWidth = map.xsize ?? map.width;
-    const mapHeight = map.ysize ?? map.height;
-    // Match freeciv-web's map_pos_to_tile() flat-array lookup. The ISO edge
-    // adjustment is applied before indexing, and mapstep does not synthesize
-    // a neighbor when the resulting array index is outside the map.
-    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:215-219,343-350
-    const candidateX = tile.x + dx;
-    let candidateY = tile.y + dy;
-    if (candidateX >= mapWidth) candidateY -= 1;
-    else if (candidateX < 0) candidateY += 1;
-    const flatIndex = candidateX + candidateY * mapWidth;
-    if (flatIndex < 0 || flatIndex >= mapWidth * mapHeight) return null;
-    const lookupX = ((flatIndex % mapWidth) + mapWidth) % mapWidth;
-    const lookupY = Math.floor(flatIndex / mapWidth);
-    return map.tiles[`${lookupX},${lookupY}`] || null;
+    const position = stepNativeMapPosition(
+      tile.x,
+      tile.y,
+      dx,
+      dy,
+      map.xsize ?? map.width,
+      map.ysize ?? map.height,
+      map.topology_id ?? 0,
+      map.wrap_id ?? 0
+    );
+    return position ? (map.tiles[`${position.x},${position.y}`] ?? null) : null;
   }
 
   /**
@@ -236,7 +230,7 @@ export class BorderRenderer extends BaseRenderer {
       // sprite in the reference renderer.
       const shouldDrawBorder =
         neighbor !== null &&
-        neighbor.owner !== null &&
+        neighbor.owner != null &&
         tile.owner !== neighbor.owner &&
         tile.owner !== '255' &&
         players?.[tile.owner] != null;
@@ -248,8 +242,6 @@ export class BorderRenderer extends BaseRenderer {
           key: 'border',
           dir,
           color: colors.primary,
-          color2: colors.secondary,
-          color3: colors.tertiary,
         });
       }
     }
@@ -261,17 +253,9 @@ export class BorderRenderer extends BaseRenderer {
    * Draw a border line on the canvas
    * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:705-820 mapview_put_border_line
    */
-  private drawBorderLine(
-    dir: Direction,
-    color: string,
-    color2: string,
-    color3: string,
-    canvasX: number,
-    canvasY: number
-  ): void {
+  private drawBorderLine(dir: Direction, color: string, canvasX: number, canvasY: number): void {
     const ctx = this.ctx;
-    const { drawDashedBorders, drawTertiaryColors, drawThickBorders, drawMovingBorders } =
-      this.options;
+    const { drawDashedBorders, drawThickBorders, drawMovingBorders } = this.options;
 
     // Save canvas state before modifying any properties
     ctx.save();
@@ -281,7 +265,10 @@ export class BorderRenderer extends BaseRenderer {
     const x = canvasX + 47; // Fixed offset matching freeciv-web
     const y = canvasY + 3;
 
-    const lineWidth = drawThickBorders ? 3.5 : 2.5;
+    // update_map_canvas() sets SPECIAL1 to a 2 px butt-capped line before
+    // emitting border commands. Optional settings remain available to callers,
+    // but the production defaults now paint exactly one nation-color stroke.
+    const lineWidth = drawThickBorders ? 3.5 : 2;
     ctx.lineWidth = lineWidth;
     ctx.lineCap = 'butt';
 
@@ -297,11 +284,10 @@ export class BorderRenderer extends BaseRenderer {
     // Set up line style
     if (drawDashedBorders) {
       ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = color;
     } else {
       ctx.setLineDash([]);
-      ctx.strokeStyle = drawTertiaryColors ? color3 : color;
     }
+    ctx.strokeStyle = color;
 
     ctx.beginPath();
 
@@ -333,74 +319,7 @@ export class BorderRenderer extends BaseRenderer {
         break;
     }
 
-    // Add a modest dark contrast edge so low-contrast nation colors remain
-    // readable over both bright terrain and dark terrain.
-    ctx.lineWidth = lineWidth + 2;
-    ctx.strokeStyle = 'rgba(8, 15, 28, 0.72)';
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
     ctx.stroke();
-
-    ctx.lineWidth = lineWidth;
-    ctx.strokeStyle = drawTertiaryColors ? color3 : color;
-    ctx.stroke();
-
-    // Draw secondary and tertiary colors following freeciv-web pattern
-    if (!drawDashedBorders) {
-      // Secondary color layer
-      ctx.strokeStyle = color2;
-      ctx.setLineDash([6, 6]);
-      ctx.beginPath();
-
-      // Redraw the same path for secondary color
-      switch (dir) {
-        case Direction.DIR8_NORTH:
-          ctx.moveTo(x, y - 2);
-          ctx.lineTo(x + this.tileWidth / 2, y + this.tileHeight / 2 - 2);
-          break;
-        case Direction.DIR8_EAST:
-          ctx.moveTo(x - 3, y + this.tileHeight - 3);
-          ctx.lineTo(x + this.tileWidth / 2 - 3, y + this.tileHeight / 2 - 3);
-          break;
-        case Direction.DIR8_SOUTH:
-          ctx.moveTo(x - this.tileWidth / 2 + 3, y + this.tileHeight / 2 - 3);
-          ctx.lineTo(x + 3, y + this.tileHeight - 3);
-          break;
-        case Direction.DIR8_WEST:
-          ctx.moveTo(x - this.tileWidth / 2 + 3, y + this.tileHeight / 2 - 3);
-          ctx.lineTo(x + 3, y - 3);
-          break;
-      }
-      ctx.stroke();
-
-      // Tertiary color layer if enabled
-      if (drawTertiaryColors) {
-        ctx.strokeStyle = color;
-        ctx.setLineDash([6, 18]);
-        ctx.beginPath();
-
-        // Redraw the same path for tertiary color
-        switch (dir) {
-          case Direction.DIR8_NORTH:
-            ctx.moveTo(x, y - 2);
-            ctx.lineTo(x + this.tileWidth / 2, y + this.tileHeight / 2 - 2);
-            break;
-          case Direction.DIR8_EAST:
-            ctx.moveTo(x - 3, y + this.tileHeight - 3);
-            ctx.lineTo(x + this.tileWidth / 2 - 3, y + this.tileHeight / 2 - 3);
-            break;
-          case Direction.DIR8_SOUTH:
-            ctx.moveTo(x - this.tileWidth / 2 + 3, y + this.tileHeight / 2 - 3);
-            ctx.lineTo(x + 3, y + this.tileHeight - 3);
-            break;
-          case Direction.DIR8_WEST:
-            ctx.moveTo(x - this.tileWidth / 2 + 3, y + this.tileHeight / 2 - 3);
-            ctx.lineTo(x + 3, y - 3);
-            break;
-        }
-        ctx.stroke();
-      }
-    }
 
     // Restore canvas state to avoid affecting subsequent renders
     ctx.restore();
@@ -441,17 +360,16 @@ export class BorderRenderer extends BaseRenderer {
    * Main render method for borders - follows freeciv-web mapview pattern
    * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js calling pattern
    */
-  public render(state: RenderState): void {
+  public render(state: RenderState, visibleTiles?: Tile[]): void {
     if (!this.options.drawBorders) {
       return;
     }
 
     const { viewport, map, players } = state;
 
-    // Iterate through visible tiles following freeciv-web pattern
-    for (const tileKey in (map as any).tiles) {
-      const tile = (map as any).tiles[tileKey] as Tile;
-
+    const orderedTiles =
+      visibleTiles ?? sortMapPointsInPainterOrder(Object.values(map.tiles), map.topology_id ?? 0);
+    for (const tile of orderedTiles) {
       // Freeciv's put_one_tile skips every normal map layer for TILE_UNKNOWN.
       // Do not leak ownership through fog by drawing a border from a tile the
       // current player has never explored.
@@ -476,14 +394,7 @@ export class BorderRenderer extends BaseRenderer {
       // Get and draw border sprites - uses real player colors from game state
       const borderSprites = this.getBorderLineSprites(tile, map, players);
       for (const sprite of borderSprites) {
-        this.drawBorderLine(
-          sprite.dir,
-          sprite.color,
-          sprite.color2,
-          sprite.color3,
-          screenPos.x,
-          screenPos.y
-        );
+        this.drawBorderLine(sprite.dir, sprite.color, screenPos.x, screenPos.y);
       }
     }
   }

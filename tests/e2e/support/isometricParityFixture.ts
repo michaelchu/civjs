@@ -8,6 +8,10 @@ import {
   getMinimapLayout,
   getMinimapTileOrigins,
 } from '../../../apps/client/src/components/GameUI/minimapGeometry';
+import {
+  TOPOLOGY_HEX,
+  TOPOLOGY_ISO,
+} from '../../../apps/client/src/components/Canvas2D/mapTopologyGeometry';
 import { PARITY_VIEWPORT, REDUCED_MOTION_PREFERENCES } from './parityConstants';
 
 export type IsometricParityMode = 'visual' | 'reference' | 'reference-base';
@@ -16,6 +20,10 @@ export interface CivJsParityFixture {
   tiles: ReferenceParityTile[];
   mapWidth: number;
   mapHeight: number;
+  topologyId: number;
+  wrapId: number;
+  /** Finite board-render fixture retained for strict legacy painter comparison. */
+  referenceBoardTopologyId: number;
   viewport: ReferenceRenderViewport;
 }
 
@@ -51,11 +59,12 @@ export const prepareIsometricFixture = async (
   await expect
     .poll(() =>
       page.evaluate(() => {
-        const fixtureMap = (window as unknown as { map?: { topology_id?: number } }).map;
-        return fixtureMap?.topology_id ?? 0;
+        const fixture = (window as unknown as { __civjsParityGeometry?: { topologyId?: number } })
+          .__civjsParityGeometry;
+        return fixture?.topologyId ?? 0;
       })
     )
-    .toBe(4);
+    .toBe(TOPOLOGY_ISO | TOPOLOGY_HEX);
   await waitForStableCanvasFrames(page);
 };
 
@@ -68,13 +77,18 @@ export const hideGameHud = async (page: Page): Promise<void> => {
 export const readCivJsParityFixture = async (page: Page): Promise<CivJsParityFixture> => {
   const fixture = await page.evaluate(() => {
     const globals = window as unknown as {
-      map?: { xsize?: number; ysize?: number };
+      map?: { xsize?: number; ysize?: number; topology_id?: number; wrap_id?: number };
       tiles?: ReferenceParityTile[];
       viewport?: ReferenceRenderViewport;
+      __civjsParityGeometry?: { topologyId?: number; wrapId?: number };
     };
+    const runtimeGeometry = globals.__civjsParityGeometry;
     return {
       mapWidth: globals.map?.xsize ?? 0,
       mapHeight: globals.map?.ysize ?? 0,
+      topologyId: globals.map?.topology_id ?? runtimeGeometry?.topologyId ?? 0,
+      wrapId: globals.map?.wrap_id ?? runtimeGeometry?.wrapId ?? 0,
+      referenceBoardTopologyId: globals.map?.topology_id ?? 0,
       tiles: globals.tiles ?? [],
       viewport: globals.viewport,
     };
@@ -96,8 +110,8 @@ export interface MinimapColorParityResult {
 }
 
 /**
- * Compare the rectangular reference overview palette to CivJS's rectangular
- * overview raster at tile centers. The reference overview does not dim
+ * Compare Freeciv-web's generated overview palette to CivJS's physically
+ * proportioned ISO overview at tile centers. The reference overview does not dim
  * known-but-not-visible terrain; those remembered-fog cells are reported
  * separately instead of being mixed into the terrain palette assertion.
  */
@@ -110,18 +124,27 @@ export const compareReferenceOverviewToCivJs = async (
     referencePage,
     fixture.tiles.map(tile => ({ x: tile.x, y: tile.y }))
   );
-  const layout = getMinimapLayout(fixture.mapWidth, fixture.mapHeight);
+  const layout = getMinimapLayout(fixture.mapWidth, fixture.mapHeight, fixture.topologyId);
   const samplePoints = fixture.tiles.map(tile => {
-    const origin = getMinimapTileOrigins(
+    const origins = getMinimapTileOrigins(
       tile.x,
       tile.y,
       fixture.mapWidth,
       fixture.mapHeight,
-      0,
+      fixture.topologyId,
+      fixture.wrapId,
       layout
-    )[0];
+    );
+    const origin = origins.reduce((nearest, candidate) =>
+      candidate.x >= 0 &&
+      candidate.x < layout.width &&
+      candidate.y >= 0 &&
+      candidate.y < layout.height
+        ? candidate
+        : nearest
+    );
     return {
-      x: Math.floor(origin.x + layout.scaleX / 2),
+      x: Math.floor(origin.x + layout.scaleX),
       y: Math.floor(origin.y + layout.scaleY / 2),
     };
   });

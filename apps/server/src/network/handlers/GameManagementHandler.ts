@@ -20,6 +20,8 @@ import { resolveCityPresentations } from '@game/services/CityPresentationService
 import { resolvePlayerScore } from '@game/services/PlayerScoreService';
 import { resolveNationGraphic } from '@game/services/NationPresentationService';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
+import { getRulesetMoveFragments } from '@game/constants/MovementConstants';
+import { getGameRoom, getSpectatorRoom } from '../SocketRooms';
 
 /**
  * Handles game management packets: creation, joining, starting, listing, deletion
@@ -286,7 +288,8 @@ export class GameManagementHandler extends BaseSocketHandler {
       // Join the socket room BEFORE joining the game so we receive broadcasts
       connection.gameId = gameId;
       connection.role = 'player';
-      socket.join(`game:${gameId}`);
+      await socket.leave(getSpectatorRoom(gameId));
+      await socket.join(getGameRoom(gameId));
 
       const result = await this.gameManager.joinGame(
         gameId,
@@ -339,7 +342,8 @@ export class GameManagementHandler extends BaseSocketHandler {
 
       connection.gameId = data.gameId;
       connection.role = 'player';
-      socket.join(`game:${data.gameId}`);
+      await socket.leave(getSpectatorRoom(data.gameId));
+      await socket.join(getGameRoom(data.gameId));
       await this.gameManager.updatePlayerConnection(result.playerId, true);
 
       handler.send(socket, PacketType.GAME_JOIN_REPLY, {
@@ -410,7 +414,8 @@ export class GameManagementHandler extends BaseSocketHandler {
 
       connection.gameId = data.gameId;
       connection.role = 'player';
-      socket.join(`game:${data.gameId}`);
+      await socket.leave(getSpectatorRoom(data.gameId));
+      await socket.join(getGameRoom(data.gameId));
       await this.gameManager.updatePlayerConnection(result.playerId, true);
 
       const joinedGame = await this.gameManager.getGame(data.gameId);
@@ -467,7 +472,8 @@ export class GameManagementHandler extends BaseSocketHandler {
 
       connection.gameId = data.gameId;
       connection.role = 'spectator';
-      socket.join(`game:${data.gameId}`);
+      await socket.join(getGameRoom(data.gameId));
+      await socket.join(getSpectatorRoom(data.gameId));
 
       await this.sendGameSnapshot(data.gameId, socket);
 
@@ -625,6 +631,7 @@ export class GameManagementHandler extends BaseSocketHandler {
   ): any[] {
     return this.getSnapshotUnits(gameInstance, playerId, visibleTiles).map((unit: any) => {
       const unitType = gameInstance.unitManager.getUnitType?.(unit.unitTypeId);
+      const hasFullUnitInfo = playerId === undefined || playerId === unit.playerId;
       return {
         id: unit.id,
         owner: unit.playerId,
@@ -632,12 +639,39 @@ export class GameManagementHandler extends BaseSocketHandler {
         x: unit.x,
         y: unit.y,
         hp: unit.health,
-        maxHp: unitType?.hp ?? 100,
+        maxHp: unitType?.hitpoints ?? 100,
         attack: unitType?.attack ?? unitType?.combat ?? 0,
         defense: unitType?.defense ?? 0,
         firepower: unitType?.firepower ?? 1,
         movesleft: unit.movementLeft,
+        maxmoves:
+          gameInstance.unitManager.getUnitMaxMovement?.(unit.unitTypeId) ??
+          (unitType?.movement ?? 1) *
+            getRulesetMoveFragments(gameInstance.config?.ruleset ?? DEFAULT_RULESET),
+        fuel: hasFullUnitInfo ? (unit.fuel ?? 0) : undefined,
+        maxFuel: hasFullUnitInfo ? (unitType?.fuel ?? 0) : undefined,
+        transportCapacity: hasFullUnitInfo ? (unitType?.transport_capacity ?? 0) : undefined,
         veteran: unit.veteranLevel,
+        homeCity: hasFullUnitInfo ? (unit.homeCityId ?? null) : undefined,
+        activity: unit.activity ?? 'idle',
+        fortified: hasFullUnitInfo ? (unit.fortified ?? false) : undefined,
+        orders: hasFullUnitInfo ? (unit.orders ?? null) : undefined,
+        automation: hasFullUnitInfo ? unit.automation : undefined,
+        automationTask: playerId === unit.playerId ? unit.automationTask : undefined,
+        transportedBy: unit.transportedBy,
+        cargoUnits: hasFullUnitInfo ? (unit.cargoUnits ?? []) : undefined,
+        actionDecisionWant: hasFullUnitInfo ? Boolean(unit.actionDecisionWant) : undefined,
+        nationality: hasFullUnitInfo ? (unit.nationality ?? unit.playerId) : undefined,
+        upkeep: hasFullUnitInfo
+          ? [unitType?.uk_food ?? 0, unitType?.uk_shield ?? 0, unitType?.uk_gold ?? 0]
+          : undefined,
+        activityTarget: unit.activityTarget ?? unit.activity?.target,
+        occupied: unit.occupied ?? (unit.cargoUnits?.length ?? 0) > 0,
+        paradropped: hasFullUnitInfo ? (unit.paradropped ?? false) : undefined,
+        doneMoving: hasFullUnitInfo ? (unit.doneMoving ?? false) : undefined,
+        stay: hasFullUnitInfo ? (unit.stay ?? false) : undefined,
+        facing: unit.facing ?? 0,
+        birthTurn: hasFullUnitInfo ? (unit.birthTurn ?? unit.createdTurn) : undefined,
       };
     });
   }
@@ -686,6 +720,8 @@ export class GameManagementHandler extends BaseSocketHandler {
     socket.emit('cities_updated', {
       gameId,
       cities: clientCities,
+      removedCityIds: [],
+      fullSnapshot: true,
       timestamp: Date.now(),
     });
   }

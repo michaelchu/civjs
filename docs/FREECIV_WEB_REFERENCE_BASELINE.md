@@ -42,8 +42,37 @@ and renderer additions that are not present as tracked files in the pinned
 upstream tree, so they remain in place and are audited through the provider
 boundary rather than replaced wholesale by the older upstream config.
 
+That retained bundle is not an exact asset baseline for the pinned painter.
+The pinned config uses unit offsets `19/14`, while the carried config uses
+`25/18` plus customized per-unit adjustments. The pinned extractor also
+currently emits four `1800x1030` sheets although its runtime config declares
+three. Before replacing the runtime bundle, the extractor, config, generated
+sprite table, image count, offsets, and source Freeciv revision must be made one
+reproducible artifact and validated together. Cross-client terrain tests
+currently run the pinned painter against the carried atlas, so they certify
+painter/rasterization equivalence for those fixtures, not official upstream
+asset provenance or unit/city pixel equality.
+
 The detailed client comparison is maintained in
 [`FRONTEND_PARITY_GAP_ANALYSIS.md`](FRONTEND_PARITY_GAP_ANALYSIS.md).
+
+For minimap parity, the pinned browser client remains the source of truth for
+the integer overview palette raster and marker precedence. Freeciv's native
+client overview code supplies the physical `2x1` isometric cell aspect and
+fractional viewport-corner conversion: the browser client independently
+stretches its axes and floors those corners, which makes non-square maps appear
+distorted and moves the outline away from the actual board viewport. CivJS
+uses one shared physical transform for the displayed raster, markers, wrapped
+copies, pointer inversion, and viewport outline while retaining the exact
+freeciv-web source bitmap.
+
+There is also a topology boundary between the two references. C2C3 defaults to
+`ISO|HEX` (`topology_id=3`), while Amplio2 declares square isometric
+(`is_hex=FALSE`). Freeciv treats that combination as hard-incompatible and
+would select an ISO-hex tileset such as Hexemplio. CivJS currently preserves
+the C2C3 topology packet while painting with the square Amplio2 strategy. Exact
+C2C3 presentation therefore requires an ISO-hex provider; using Amplio2
+exactly would require an explicit square-ISO gameplay deviation.
 
 ## Updating the pin
 

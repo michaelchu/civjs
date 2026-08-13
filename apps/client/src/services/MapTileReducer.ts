@@ -19,6 +19,7 @@ export interface MapTileWireData {
   cityId?: string;
   owner?: string;
   claimer?: string;
+  label?: string;
 }
 
 export function mapTileFromWire(data: MapTileWireData): Tile {
@@ -39,5 +40,6 @@ export function mapTileFromWire(data: MapTileWireData): Tile {
     cityId: data.cityId,
     owner: data.owner,
     claimer: data.claimer,
+    label: data.label,
   };
 }

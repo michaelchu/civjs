@@ -20,6 +20,8 @@ export interface Tile {
   cityId?: string;
   owner?: string; // Player ID who owns this tile
   claimer?: string; // Player ID who is claiming this tile
+  /** Freeciv map/scenario label painted on the TILELABEL layer. */
+  label?: string;
 }
 
 export interface Unit {
@@ -168,6 +170,8 @@ export interface City {
   x: number;
   y: number;
   size: number;
+  /** Coarse Freeciv city-bar hint; does not expose hidden defender details. */
+  occupied?: boolean;
   actualPopulation?: number; // Actual population count (server-calculated)
   presentation?: {
     graphic: string;

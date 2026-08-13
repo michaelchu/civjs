@@ -7,6 +7,7 @@ import {
   getReferenceWorldMap,
   loadFreecivWebRenderer,
   readCanvasPixels,
+  readReferenceOverviewGeometry,
   renderFreecivWebFixture,
 } from './support/freecivWebRenderHarness';
 import {
@@ -17,6 +18,17 @@ import {
 } from './support/isometricParityFixture';
 import { PARITY_VIEWPORT } from './support/parityConstants';
 import { installRulesetRoutes } from './support/rulesetRoutes';
+import {
+  getMinimapLayout,
+  getMinimapViewportPolygons,
+} from '../../apps/client/src/components/GameUI/minimapGeometry';
+import {
+  TOPOLOGY_HEX,
+  TOPOLOGY_ISO,
+} from '../../apps/client/src/components/Canvas2D/mapTopologyGeometry';
+
+const C2C3_TOPOLOGY = TOPOLOGY_ISO | TOPOLOGY_HEX;
+const C2C3_WRAP = 3;
 
 const SCREENSHOT_OPTIONS = {
   animations: 'disabled' as const,
@@ -32,7 +44,9 @@ const SCREENSHOT_OPTIONS = {
 
 const renderReferenceFixture = async (
   browser: Browser,
-  fixture: Awaited<ReturnType<typeof readCivJsParityFixture>>
+  fixture: Awaited<ReturnType<typeof readCivJsParityFixture>>,
+  minimapTopologyId: number,
+  minimapWrapId: number
 ): Promise<Page> => {
   const page = await browser.newPage();
   await loadFreecivWebRenderer(page);
@@ -41,15 +55,53 @@ const renderReferenceFixture = async (
     fixture.mapWidth,
     fixture.mapHeight
   );
+  const physicalLayout = getMinimapLayout(fixture.mapWidth, fixture.mapHeight, minimapTopologyId);
+  overviewFixture.displayWidth = physicalLayout.width;
+  overviewFixture.displayHeight = physicalLayout.height;
   await renderFreecivWebFixture(
     page,
     fixture.tiles,
     fixture.mapWidth,
     fixture.mapHeight,
     fixture.viewport,
-    overviewFixture
+    overviewFixture,
+    { topologyId: fixture.referenceBoardTopologyId, wrapId: minimapWrapId }
   );
   return page;
+};
+
+/** Compare independently evaluated continuous reference geometry. */
+const expectContinuousOverviewGeometry = async (
+  referencePage: Page,
+  fixture: Awaited<ReturnType<typeof readCivJsParityFixture>>,
+  topologyId: number,
+  wrapId: number
+): Promise<void> => {
+  const reference = await readReferenceOverviewGeometry(referencePage);
+  const layout = getMinimapLayout(fixture.mapWidth, fixture.mapHeight, topologyId);
+  const actual = getMinimapViewportPolygons(
+    fixture.viewport,
+    fixture.mapWidth,
+    fixture.mapHeight,
+    wrapId,
+    layout,
+    96,
+    48,
+    topologyId
+  );
+
+  expect({ width: reference.width, height: reference.height }).toEqual({
+    width: layout.width,
+    height: layout.height,
+  });
+  expect(actual).toHaveLength(reference.polygons.length);
+  actual.forEach((polygon, polygonIndex) => {
+    expect(polygon).toHaveLength(reference.polygons[polygonIndex].length);
+    polygon.forEach((point, pointIndex) => {
+      expect(point.x).toBeCloseTo(reference.polygons[polygonIndex][pointIndex].x, 10);
+      expect(point.y).toBeCloseTo(reference.polygons[polygonIndex][pointIndex].y, 10);
+    });
+  });
 };
 
 test.beforeEach(async ({ page }) => {
@@ -69,7 +121,12 @@ test.describe('freeciv-web render-only pixel parity', () => {
     await prepareIsometricFixture(page, 'reference-base');
     await hideGameHud(page);
     const fixture = await readCivJsParityFixture(page);
-    const referencePage = await renderReferenceFixture(browser, fixture);
+    const referencePage = await renderReferenceFixture(
+      browser,
+      fixture,
+      fixture.topologyId,
+      fixture.wrapId
+    );
 
     try {
       // This is the reference image, generated at test time by the pinned
@@ -94,32 +151,20 @@ test.describe('freeciv-web render-only pixel parity', () => {
         civJsOverviewPixels
       );
       expect(overviewDiff).toEqual({
-        width: 240,
-        height: 240,
+        width: 288,
+        height: 144,
         differingPixels: 0,
-        totalPixels: 240 * 240,
+        totalPixels: 288 * 144,
         maxChannelDelta: 0,
         meanChannelDelta: 0,
       });
 
-      expect(
-        compareCanvasPixels(
-          await readCanvasPixels(referencePage.locator('#overview_viewrect')),
-          await readCanvasPixels(
-            page
-              .locator('canvas[aria-label^="Minimap overview"]')
-              .locator('..')
-              .locator('canvas[aria-label^="Minimap overview"]')
-          )
-        )
-      ).toEqual({
-        width: 240,
-        height: 240,
-        differingPixels: 0,
-        totalPixels: 240 * 240,
-        maxChannelDelta: 0,
-        meanChannelDelta: 0,
-      });
+      await expectContinuousOverviewGeometry(
+        referencePage,
+        fixture,
+        fixture.topologyId,
+        fixture.wrapId
+      );
 
       const diff = compareCanvasPixels(
         await readCanvasPixels(page.locator('canvas[aria-label="World map"]')),
@@ -146,12 +191,18 @@ test.describe('freeciv-web render-only pixel parity', () => {
     await prepareIsometricFixture(page, 'reference');
     await hideGameHud(page);
     const fixture = await readCivJsParityFixture(page);
-    const referencePage = await renderReferenceFixture(browser, fixture);
+    const referencePage = await renderReferenceFixture(
+      browser,
+      fixture,
+      fixture.topologyId,
+      fixture.wrapId
+    );
 
     try {
       // Roads, rails, rivers, irrigation, resources, fog, and the reference
       // viewport outline are captured from the actual reference painter. The
-      // overview base and overlay are compared as displayed pixel rasters.
+      // overview base is compared as a displayed pixel raster; corrected
+      // continuous overlay geometry is checked separately below.
       await expect(getReferenceWorldMap(referencePage)).toHaveScreenshot(
         'freeciv-web-isometric-feature-world-map.png',
         SCREENSHOT_OPTIONS
@@ -175,32 +226,20 @@ test.describe('freeciv-web render-only pixel parity', () => {
           .locator('canvas[aria-hidden="true"]')
       );
       expect(compareCanvasPixels(displayedReferencePixels, displayedCivJsPixels)).toEqual({
-        width: 240,
-        height: 240,
+        width: 288,
+        height: 144,
         differingPixels: 0,
-        totalPixels: 240 * 240,
+        totalPixels: 288 * 144,
         maxChannelDelta: 0,
         meanChannelDelta: 0,
       });
 
-      expect(
-        compareCanvasPixels(
-          await readCanvasPixels(referencePage.locator('#overview_viewrect')),
-          await readCanvasPixels(
-            page
-              .locator('canvas[aria-label^="Minimap overview"]')
-              .locator('..')
-              .locator('canvas[aria-label^="Minimap overview"]')
-          )
-        )
-      ).toEqual({
-        width: 240,
-        height: 240,
-        differingPixels: 0,
-        totalPixels: 240 * 240,
-        maxChannelDelta: 0,
-        meanChannelDelta: 0,
-      });
+      await expectContinuousOverviewGeometry(
+        referencePage,
+        fixture,
+        fixture.topologyId,
+        fixture.wrapId
+      );
 
       const worldParity = compareCanvasPixels(
         await readCanvasPixels(referencePage.locator('#canvas')),
@@ -219,60 +258,74 @@ test.describe('freeciv-web render-only pixel parity', () => {
     }
   });
 
-  test('keeps non-square ISO overview raster and overlay pixels aligned with freeciv-web', async ({
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/client/overview_common.c:51-79
+   * @reference reference/freeciv/client/overview_common.c:450-483
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/overview.js:139-158
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/overview.js:194-275
+   * @assertion A 32x64 C2C3 map produces a square physical overview with exact
+   * reference palette pixels, wrapped continuous camera geometry, and no
+   * independently stretched axes or integer-corner drift.
+   */
+  test('keeps non-square native ISO data square after physical overview scaling', async ({
     page,
     browser,
   }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium-desktop', 'Pixel parity is desktop-only.');
     await prepareIsometricFixture(page, 'reference', { mapWidth: 32, mapHeight: 64 });
     const fixture = await readCivJsParityFixture(page);
-    const referencePage = await renderReferenceFixture(browser, fixture);
+    const runtimeTopologyId = C2C3_TOPOLOGY;
+    const runtimeWrapId = C2C3_WRAP;
+    const referencePage = await renderReferenceFixture(
+      browser,
+      fixture,
+      runtimeTopologyId,
+      runtimeWrapId
+    );
 
     try {
       const civJsBase = page
         .locator('canvas[aria-label^="Minimap overview"]')
         .locator('..')
         .locator('canvas[aria-hidden="true"]');
-      await expect(civJsBase).toHaveAttribute('width', '224');
-      await expect(civJsBase).toHaveAttribute('height', '300');
+      await expect(civJsBase).toHaveAttribute('width', '256');
+      await expect(civJsBase).toHaveAttribute('height', '256');
 
       const referenceOverview = getReferenceMinimap(referencePage);
-      await expect(referenceOverview).toHaveCSS('width', '224px');
-      await expect(referenceOverview).toHaveCSS('height', '300px');
+      await expect(referenceOverview).toHaveCSS('width', '256px');
+      await expect(referenceOverview).toHaveCSS('height', '256px');
 
-      const overviewParity = await compareReferenceOverviewToCivJs(page, referencePage, fixture);
+      const runtimeFixture = {
+        ...fixture,
+        topologyId: runtimeTopologyId,
+        wrapId: runtimeWrapId,
+      };
+      const overviewParity = await compareReferenceOverviewToCivJs(
+        page,
+        referencePage,
+        runtimeFixture
+      );
       expect(overviewParity.mismatches).toBe(0);
       expect(overviewParity.skippedOffscreenTiles).toBe(0);
 
       const displayedReferencePixels = await readReferenceDisplayedOverviewPixels(referencePage);
       const displayedCivJsPixels = await readCanvasPixels(civJsBase);
       expect(compareCanvasPixels(displayedReferencePixels, displayedCivJsPixels)).toEqual({
-        width: 224,
-        height: 300,
+        width: 256,
+        height: 256,
         differingPixels: 0,
-        totalPixels: 224 * 300,
+        totalPixels: 256 * 256,
         maxChannelDelta: 0,
         meanChannelDelta: 0,
       });
 
-      expect(
-        compareCanvasPixels(
-          await readCanvasPixels(referencePage.locator('#overview_viewrect')),
-          await readCanvasPixels(
-            page
-              .locator('canvas[aria-label^="Minimap overview"]')
-              .locator('..')
-              .locator('canvas[aria-label^="Minimap overview"]')
-          )
-        )
-      ).toEqual({
-        width: 224,
-        height: 300,
-        differingPixels: 0,
-        totalPixels: 224 * 300,
-        maxChannelDelta: 0,
-        meanChannelDelta: 0,
-      });
+      await expectContinuousOverviewGeometry(
+        referencePage,
+        runtimeFixture,
+        runtimeTopologyId,
+        runtimeWrapId
+      );
     } finally {
       await referencePage.close();
     }

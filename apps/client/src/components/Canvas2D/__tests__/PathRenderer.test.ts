@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { PathRenderer } from '../renderers/PathRenderer';
 
 describe('PathRenderer', () => {
-  it('marks the destination of an active goto path', () => {
+  it('draws only the reference directional segments for an active goto path', () => {
     const strokeStyles: string[] = [];
     const context = {
       canvas: { width: 800, height: 600 },
@@ -36,11 +36,13 @@ describe('PathRenderer', () => {
       },
     } as never);
 
-    expect(context.ellipse).toHaveBeenCalledWith(96, 48, 8, 4, 0, 0, 2 * Math.PI);
-    expect(context.fill).toHaveBeenCalled();
+    expect(context.moveTo).toHaveBeenCalledWith(48, 24);
+    expect(context.lineTo).toHaveBeenCalledWith(96, 48);
+    expect(context.ellipse).not.toHaveBeenCalled();
+    expect(context.fill).not.toHaveBeenCalled();
     expect(context.stroke).toHaveBeenCalled();
-    expect(strokeStyles).toContain('#ffffff');
-    expect(context.lineWidth).toBe(2);
+    expect(strokeStyles).toContain('rgba(0,168,255,0.9)');
+    expect(context.lineWidth).toBe(10);
   });
 
   it('does not render reachable movement tiles or their turn labels', () => {

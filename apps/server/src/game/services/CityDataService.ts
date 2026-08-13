@@ -44,6 +44,8 @@ export interface ClientCityData {
   x: number;
   y: number;
   size: number;
+  /** PACKET_CITY_SHORT_INFO-compatible defender-presence hint. */
+  occupied: boolean;
   actualPopulation?: number;
   presentation?: CityPresentation;
 
@@ -273,6 +275,7 @@ export class CityDataService {
       x: city.x,
       y: city.y,
       size: city.population,
+      occupied: unitSnapshots.some(unit => unit.x === city.x && unit.y === city.y),
       // Freeciv reports city_population() in thousands of citizens.
       actualPopulation: city.population * (city.population + 1) * 5_000,
       presentation,

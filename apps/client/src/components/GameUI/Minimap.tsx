@@ -1,8 +1,8 @@
 /**
  * @module client/components/GameUI/Minimap
- * Freeciv-web-compatible overview map with an independently refreshed viewport overlay.
- * The base is rendered as an integer source raster and resampled once, matching
- * the reference overview image/CSS pipeline before the viewport is stroked.
+ * Freeciv-compatible overview map with an independently refreshed viewport overlay.
+ * The base retains freeciv-web's square palette raster and is presented once
+ * through the selected uniform 2x1 physical map transform.
  *
  * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/overview.js:20-24,50-119,233-320,459-474
  * @reference reference/freeciv/client/overview_common.c:324-374,408-483
@@ -79,7 +79,7 @@ export const Minimap: React.FC = () => {
   const nativeHeight = map.ysize ?? map.height;
   const topologyId = map.topology_id ?? 0;
   const wrapId = map.wrap_id ?? 0;
-  const layout = getMinimapLayout(nativeWidth ?? 0, nativeHeight ?? 0);
+  const layout = getMinimapLayout(nativeWidth ?? 0, nativeHeight ?? 0, topologyId);
   const displayedViewport = activeRenderViewport ?? viewport;
 
   const drawBase = useCallback(() => {
@@ -95,8 +95,8 @@ export const Minimap: React.FC = () => {
 
     const sourceCanvas = sourceCanvasRef.current ?? document.createElement('canvas');
     sourceCanvasRef.current = sourceCanvas;
-    const sourceWidth = layout.tileSize * layout.coordinateWidth;
-    const sourceHeight = layout.tileSize * layout.coordinateHeight;
+    const sourceWidth = layout.sourceWidth;
+    const sourceHeight = layout.sourceHeight;
     sourceCanvas.width = sourceWidth;
     sourceCanvas.height = sourceHeight;
     const sourceContext = sourceCanvas.getContext('2d');
@@ -192,19 +192,18 @@ export const Minimap: React.FC = () => {
       topologyId
     );
     context.strokeStyle = VIEWPORT_OUTLINE_COLOR;
-    context.lineWidth = layout.coordinateWidth / layout.width;
-    context.save();
-    context.scale(layout.scaleX, layout.scaleY);
+    // One device pixel matches Freeciv's LINE_NORMAL at the final overview
+    // raster size; all geometry above is already in displayed pixels.
+    context.lineWidth = 1;
     context.beginPath();
     for (const polygon of polygons) {
-      context.moveTo(polygon[0].x / layout.scaleX, polygon[0].y / layout.scaleY);
+      context.moveTo(polygon[0].x, polygon[0].y);
       for (let index = 1; index < polygon.length; index += 1) {
-        context.lineTo(polygon[index].x / layout.scaleX, polygon[index].y / layout.scaleY);
+        context.lineTo(polygon[index].x, polygon[index].y);
       }
-      context.lineTo(polygon[0].x / layout.scaleX, polygon[0].y / layout.scaleY);
+      context.lineTo(polygon[0].x, polygon[0].y);
     }
     context.stroke();
-    context.restore();
   }, [
     layout,
     nativeHeight,
@@ -251,7 +250,15 @@ export const Minimap: React.FC = () => {
     const rect = canvas.getBoundingClientRect();
     const localX = ((clientX - rect.left) / (rect.width || layout.width)) * layout.width;
     const localY = ((clientY - rect.top) / (rect.height || layout.height)) * layout.height;
-    const point = minimapPointToMapTile(localX, localY, nativeWidth, nativeHeight, layout, wrapId);
+    const point = minimapPointToMapTile(
+      localX,
+      localY,
+      nativeWidth,
+      nativeHeight,
+      layout,
+      topologyId,
+      wrapId
+    );
     document.dispatchEvent(
       new CustomEvent('center-map-on-tile', {
         detail: {

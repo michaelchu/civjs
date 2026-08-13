@@ -12,6 +12,7 @@ export const buildRulesetPresentation = (ruleset: string) => {
   const styles = rulesetLoader.loadStylesRuleset(ruleset);
   const terrains = rulesetLoader.getTerrains(ruleset);
   const units = rulesetLoader.getUnits(ruleset);
+  const buildings = rulesetLoader.getBuildings(ruleset);
   const extras = rulesetLoader.getExtras(ruleset);
 
   return {
@@ -34,7 +35,18 @@ export const buildRulesetPresentation = (ruleset: string) => {
         {
           graphic: unit.graphic,
           graphic_alt: unit.graphic_alt,
+          flagless: unit.flags.includes('Flagless'),
           offsets: resolveUnitOverlayOffsets(unit.name ?? id),
+        },
+      ])
+    ),
+    buildings: Object.fromEntries(
+      Object.entries(buildings).map(([id, building]) => [
+        id,
+        {
+          graphic: building.graphic,
+          graphic_alt: building.graphic_alt,
+          graphic_alt2: building.graphic_alt2,
         },
       ])
     ),

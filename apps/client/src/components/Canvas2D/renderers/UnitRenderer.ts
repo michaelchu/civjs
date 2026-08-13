@@ -2,9 +2,22 @@
  * @module client/components/Canvas2D/renderers/UnitRenderer
  * Implements the Unit Renderer canvas rendering stage.
  */
-import type { Unit, MapViewport } from '../../../types';
+import type { Unit, MapViewport, Tile } from '../../../types';
 import type { GraphicDefinition, UnitOverlayOffsets } from '../../../services/RulesetService';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
+import { sortMapPointsInPainterOrder } from '../mapTopologyGeometry';
+
+export interface UnitRenderEntry {
+  state: RenderState;
+  tile: Tile;
+}
+
+interface PreparedUnitLayer {
+  unitsAtPosition: Map<string, Unit[]>;
+  cityPositions: Set<string>;
+  focusedIds: string[];
+  focusedAtPosition: Map<string, Unit>;
+}
 
 export class UnitRenderer extends BaseRenderer {
   private readonly unitActivityOffset = { x: 55, y: -25 };
@@ -23,10 +36,7 @@ export class UnitRenderer extends BaseRenderer {
     shieldRight: false,
     shieldYAligned: false,
   };
-  private unitGraphics: Record<
-    string,
-    { graphic?: string; graphic_alt?: string; offsets?: UnitOverlayOffsets }
-  > = {};
+  private unitGraphics: Record<string, GraphicDefinition> = {};
   private activityGraphics: Record<string, GraphicDefinition> = {};
   private missingNationShieldDiagnostics = new Set<string>();
   // Animation state for unit selection
@@ -48,16 +58,123 @@ export class UnitRenderer extends BaseRenderer {
    * Render all units visible in the viewport with proper stacking behavior.
    * Only renders the first unit on each tile (freeciv-web stacking behavior).
    */
-  renderUnits(state: RenderState): void {
+  renderUnits(state: RenderState, visibleTiles?: Tile[]): void {
+    this.updateMovementAnimations(state);
+    const prepared = this.prepareUnitLayer(state);
+    const orderedTiles =
+      visibleTiles ??
+      sortMapPointsInPainterOrder(Object.values(state.map.tiles), state.map.topology_id ?? 0);
+
+    for (const tile of orderedTiles) {
+      if (!tile.known || !this.isInViewport(tile.x, tile.y, state.viewport)) continue;
+      const units = prepared.unitsAtPosition.get(`${tile.x},${tile.y}`) ?? [];
+      const topUnit = this.selectDrawableUnit(
+        units,
+        state,
+        prepared.cityPositions.has(`${tile.x},${tile.y}`)
+      );
+      if (topUnit) {
+        this.renderUnit(topUnit, state.viewport, units.length, state);
+      }
+    }
+  }
+
+  /**
+   * Paint the complete UNIT layer for one tile. This preserves Freeciv's
+   * selection-then-unit ordering when MapRenderer merges wrapped copies into
+   * one global painter walk.
+   */
+  renderUnitLayerForTile(state: RenderState, tile: Tile): void {
+    this.renderUnitLayerEntries([{ state, tile }]);
+  }
+
+  /**
+   * Paint one globally ordered UNIT-layer walk. Unit/city indexes and movement
+   * state are prepared once per frame, while selection, unit sprites, and
+   * effects remain adjacent for each tile exactly as fill_sprite_array().
+   */
+  renderUnitLayerEntries(
+    entries: readonly UnitRenderEntry[],
+    afterTile?: (state: RenderState, tile: Tile) => void
+  ): void {
+    const first = entries[0];
+    if (!first) return;
+
+    this.updateMovementAnimations(first.state);
+    const prepared = this.prepareUnitLayer(first.state);
+    if (prepared.focusedIds.length === 0) this.resetSelectionAnimation();
+
+    for (const { state, tile } of entries) {
+      if (!tile.known || !this.isInViewport(tile.x, tile.y, state.viewport)) {
+        afterTile?.(state, tile);
+        continue;
+      }
+
+      const key = `${tile.x},${tile.y}`;
+      const focused = prepared.focusedAtPosition.get(key);
+      if (focused) {
+        this.renderUnitSelectionOutline(
+          focused,
+          state.viewport,
+          focused.id === prepared.focusedIds[0],
+          state.reducedMotion
+        );
+      }
+
+      const units = prepared.unitsAtPosition.get(key) ?? [];
+      const topUnit = this.selectDrawableUnit(units, state, prepared.cityPositions.has(key));
+      if (topUnit) this.renderUnit(topUnit, state.viewport, units.length, state);
+      afterTile?.(state, tile);
+    }
+  }
+
+  private prepareUnitLayer(state: RenderState): PreparedUnitLayer {
+    const unitsAtPosition = new Map<string, Unit[]>();
+    for (const unit of Object.values(state.units)) {
+      const key = `${unit.x},${unit.y}`;
+      const units = unitsAtPosition.get(key) ?? [];
+      units.push(unit);
+      unitsAtPosition.set(key, units);
+    }
+
+    const focusedIds = state.focusedUnits?.length
+      ? state.focusedUnits
+      : state.selectedUnitId
+        ? [state.selectedUnitId]
+        : [];
+    const focusedAtPosition = new Map<string, Unit>();
+    for (const id of focusedIds) {
+      const unit = state.units[id];
+      if (unit && !focusedAtPosition.has(`${unit.x},${unit.y}`)) {
+        focusedAtPosition.set(`${unit.x},${unit.y}`, unit);
+      }
+    }
+
+    return {
+      unitsAtPosition,
+      cityPositions: new Set(Object.values(state.cities).map(city => `${city.x},${city.y}`)),
+      focusedIds,
+      focusedAtPosition,
+    };
+  }
+
+  private updateMovementAnimations(state: RenderState): void {
     const now = performance.now();
     const activeIds = new Set(Object.keys(state.units));
+    if (state.reducedMotion) {
+      this.movementAnimations.clear();
+    }
     for (const unit of Object.values(state.units)) {
       const previous = this.lastPositions.get(unit.id);
       const wasTransported = this.lastTransportedState.get(unit.id) ?? false;
       const isTransported = Boolean(unit.transportedBy);
       if (isTransported || wasTransported) {
         this.movementAnimations.delete(unit.id);
-      } else if (previous && (previous.x !== unit.x || previous.y !== unit.y)) {
+      } else if (
+        !state.reducedMotion &&
+        previous &&
+        (previous.x !== unit.x || previous.y !== unit.y)
+      ) {
         const current = this.movementAnimations.get(unit.id);
         const segments = current
           ? [
@@ -87,68 +204,53 @@ export class UnitRenderer extends BaseRenderer {
         this.movementAnimations.delete(unitId);
       }
     }
-
-    // Group units by position to handle stacking
-    const unitsAtPosition = new Map<string, Unit[]>();
-
-    Object.values(state.units).forEach(unit => {
-      if (this.isInViewport(unit.x, unit.y, state.viewport)) {
-        const posKey = `${unit.x},${unit.y}`;
-        if (!unitsAtPosition.has(posKey)) {
-          unitsAtPosition.set(posKey, []);
-        }
-        unitsAtPosition.get(posKey)!.push(unit);
-      }
-    });
-
-    // Render only the first unit at each position (top of stack)
-    unitsAtPosition.forEach(unitsAtPos => {
-      if (unitsAtPos.length > 0) {
-        // Render the first unit (top of stack)
-        const topUnit = unitsAtPos[0];
-        this.renderUnit(topUnit, state.viewport, unitsAtPos.length, state);
-      }
-    });
   }
 
-  /** Render the selected unit again above map overlays. */
-  renderSelectedUnit(state: RenderState): void {
-    const selectedUnitId = state.selectedUnitId ?? state.focusedUnits?.[0];
-    if (!selectedUnitId) return;
+  /** Mirror freeciv-web's find_visible_unit() precedence. */
+  private selectDrawableUnit(units: Unit[], state: RenderState, tileHasCity: boolean): Unit | null {
+    if (units.length === 0) return null;
 
-    const selectedUnit = state.units[selectedUnitId];
-    if (!selectedUnit || !this.isInViewport(selectedUnit.x, selectedUnit.y, state.viewport)) {
-      return;
-    }
+    const focusedIds = state.focusedUnits?.length
+      ? state.focusedUnits
+      : state.selectedUnitId
+        ? [state.selectedUnitId]
+        : [];
+    const focused = focusedIds.map(id => state.units[id]).find(unit => units.includes(unit));
+    if (focused) return focused;
+    if (tileHasCity) return null;
 
-    const stackSize = Object.values(state.units).filter(
-      unit => unit.x === selectedUnit.x && unit.y === selectedUnit.y
-    ).length;
-    this.renderUnit(selectedUnit, state.viewport, stackSize, state);
+    return (
+      units.find(unit => this.movementAnimations.has(unit.id)) ??
+      units.find(unit => !unit.transportedBy) ??
+      units[0]
+    );
   }
 
   /**
    * Render unit selection outline.
    */
-  renderUnitSelection(state: RenderState): void {
-    // Render all focused units with selection outlines
-    const focusedUnits = state.focusedUnits || [];
-    if (focusedUnits.length > 0) {
-      focusedUnits.forEach((unitId, index) => {
-        const unit = state.units[unitId];
-        if (unit && this.isInViewport(unit.x, unit.y, state.viewport)) {
-          this.renderUnitSelectionOutline(unit, state.viewport, index === 0, state.reducedMotion);
-        }
-      });
-    } else if (state.selectedUnitId) {
-      // Fallback to legacy single selection
-      const selectedUnit = state.units[state.selectedUnitId];
-      if (selectedUnit && this.isInViewport(selectedUnit.x, selectedUnit.y, state.viewport)) {
-        this.renderUnitSelectionOutline(selectedUnit, state.viewport, true, state.reducedMotion);
-      }
-    } else {
+  renderUnitSelection(state: RenderState, visibleTiles?: Tile[]): void {
+    this.updateMovementAnimations(state);
+    const { focusedIds, focusedAtPosition } = this.prepareUnitLayer(state);
+    if (focusedIds.length === 0) {
       // Reset animation state when no unit is selected
       this.resetSelectionAnimation();
+      return;
+    }
+
+    const orderedTiles =
+      visibleTiles ??
+      sortMapPointsInPainterOrder(Object.values(state.map.tiles), state.map.topology_id ?? 0);
+    for (const tile of orderedTiles) {
+      const unit = focusedAtPosition.get(`${tile.x},${tile.y}`);
+      if (unit && tile.known && this.isInViewport(unit.x, unit.y, state.viewport)) {
+        this.renderUnitSelectionOutline(
+          unit,
+          state.viewport,
+          unit.id === focusedIds[0],
+          state.reducedMotion
+        );
+      }
     }
   }
 
@@ -175,7 +277,12 @@ export class UnitRenderer extends BaseRenderer {
 
     // Render unit sprites using freeciv-web approach
     // @reference reference/freeciv-web/.../tilespec.js:fill_unit_sprite_array()
-    const nationShield = this.getUnitNationFlagSprite(state.players[unit.playerId], offsets);
+    const nationShield = this.getUnitNationFlagSprite(
+      unit,
+      state.players[unit.playerId],
+      state.currentPlayerId,
+      offsets
+    );
     const unitSprites = this.fillUnitSpriteArray(
       unit,
       nationShield,
@@ -216,59 +323,18 @@ export class UnitRenderer extends BaseRenderer {
       );
     }
 
-    // Reference draws the HP/stack/veteran overlays only while stationary.
-    // During movement they remain attached to the authoritative unit sprite
-    // and are reintroduced on the next settled frame.
+    // The carried Freeciv-web painter suppresses HP/movement/stack indicators
+    // during animation, then paints the veteran badge last and keeps it bound
+    // to the moving unit.
     if (animOffset.x === 0 && animOffset.y === 0) {
       this.renderUnitIndicatorSprites(unit, stackSize, originX, originY, offsets, state);
     }
-
-    this.renderUnitAnnotation(unit, unitX, unitY, stackSize, state);
-  }
-
-  /** Render readable labels and attention markers without changing the unit sprite. */
-  private renderUnitAnnotation(
-    unit: Unit,
-    unitX: number,
-    unitY: number,
-    stackSize: number,
-    state: RenderState
-  ): void {
-    const isOwnUnit = unit.playerId === state.currentPlayerId;
-    const isFocused = state.focusedUnits?.includes(unit.id) || state.selectedUnitId === unit.id;
-    const isUrgent = state.urgentFocusQueue?.includes(unit.id);
-
-    if (isUrgent) {
-      this.ctx.fillStyle = '#fbbf24';
-      this.ctx.beginPath();
-      this.ctx.arc(unitX + this.tileWidth - 8, unitY + 8, 6, 0, 2 * Math.PI);
-      this.ctx.fill();
-      this.ctx.fillStyle = '#172033';
-      this.ctx.font = 'bold 9px Arial, sans-serif';
-      this.ctx.textAlign = 'center';
-      this.ctx.textBaseline = 'middle';
-      this.ctx.fillText('!', unitX + this.tileWidth - 8, unitY + 8);
-    }
-
-    if (!isOwnUnit || (!isFocused && !isUrgent)) return;
-
-    const label = unit.unitTypeId.replaceAll('_', ' ');
-    this.ctx.font = '600 10px system-ui, sans-serif';
-    this.ctx.textAlign = 'center';
-    this.ctx.textBaseline = 'middle';
-    const labelWidth = this.ctx.measureText(label).width + 14;
-    const labelX = unitX + this.tileWidth / 2;
-    const labelY = unitY - 5;
-
-    this.ctx.fillStyle = 'rgba(15, 23, 42, 0.86)';
-    this.ctx.fillRect(labelX - labelWidth / 2, labelY - 8, labelWidth, 16);
-    this.ctx.fillStyle = '#f8fafc';
-    this.ctx.fillText(label, labelX, labelY);
-
-    if (stackSize > 1) {
-      this.ctx.fillStyle = '#67e8f9';
-      this.ctx.font = '600 9px system-ui, sans-serif';
-      this.ctx.fillText(`×${stackSize}`, labelX + labelWidth / 2 + 8, labelY);
+    if (unit.veteranLevel > 0) {
+      this.drawUnitSpriteIfPresent(
+        `unit.vet_${Math.min(unit.veteranLevel, 9)}`,
+        originX + offsets.veteranX,
+        originY + offsets.veteranY
+      );
     }
   }
 
@@ -352,19 +418,17 @@ export class UnitRenderer extends BaseRenderer {
       }
     }
 
+    // Freeciv-web paints server-side-agent state separately from activity.
+    // This matters for workers that are actively improving a tile and for
+    // auto-explore, whose activity sprite is deliberately suppressed.
+    const agentSprite = this.getUnitAgentSprite(unit);
+    if (agentSprite) sprites.push(agentSprite);
+
     if (actionDecisionWant) {
       sprites.push({
         key: 'unit.action_decision_want',
         offset_x: this.unitActivityOffset.x,
         offset_y: this.unitActivityOffset.y,
-      });
-    }
-
-    if (unit.veteranLevel > 0) {
-      sprites.push({
-        key: `unit.vet_${Math.min(unit.veteranLevel, 9)}`,
-        offset_x: offsets.veteranX,
-        offset_y: offsets.veteranY,
       });
     }
 
@@ -380,7 +444,7 @@ export class UnitRenderer extends BaseRenderer {
     state: RenderState
   ): void {
     const maxHp = Math.max(1, unit.maxHp ?? 100);
-    const hpPercent = this.toFivePercent((unit.hp / maxHp) * 100);
+    const hpPercent = this.toFivePercentFloor((unit.hp / maxHp) * 100);
     const hpKey = `unit.hp_${hpPercent}`;
     const hasMoveBar =
       Boolean(state.showUnitMovePoints) &&
@@ -388,7 +452,7 @@ export class UnitRenderer extends BaseRenderer {
       Number.isFinite(unit.maxMoves) &&
       (unit.maxMoves ?? 0) > 0;
     const movePercent = hasMoveBar
-      ? this.toFivePercent((unit.movesLeft / (unit.maxMoves ?? 1)) * 100)
+      ? this.toFivePercentFloor((unit.movesLeft / (unit.maxMoves ?? 1)) * 100)
       : hpPercent;
 
     let drewHp = false;
@@ -425,8 +489,8 @@ export class UnitRenderer extends BaseRenderer {
     return true;
   }
 
-  private toFivePercent(percent: number): number {
-    return Math.max(0, Math.min(100, Math.round(percent / 5) * 5));
+  private toFivePercentFloor(percent: number): number {
+    return Math.max(0, Math.min(100, Math.floor(percent / 5) * 5));
   }
 
   /**
@@ -434,9 +498,16 @@ export class UnitRenderer extends BaseRenderer {
    * @reference freeciv-web: get_unit_nation_flag_sprite()
    */
   private getUnitNationFlagSprite(
+    unit: Unit,
     player: RenderState['players'][string] | undefined,
+    currentPlayerId: string | undefined,
     offsets: UnitOverlayOffsets
   ): { key: string; offset_x: number; offset_y: number; fallback?: boolean } | null {
+    const definition = this.unitGraphics[unit.unitTypeId];
+    if (definition?.flagless && currentPlayerId && unit.playerId !== currentPlayerId) {
+      return null;
+    }
+
     // A visible unit can arrive before its PLAYER_INFO packet. Keep an
     // intentional neutral identity cue in that interval rather than making
     // the flag appear intermittently based on packet order.
@@ -509,12 +580,7 @@ export class UnitRenderer extends BaseRenderer {
     return `u.${spriteName}`;
   }
 
-  setUnitGraphics(
-    graphics: Record<
-      string,
-      { graphic?: string; graphic_alt?: string; offsets?: UnitOverlayOffsets }
-    >
-  ): void {
+  setUnitGraphics(graphics: Record<string, GraphicDefinition>): void {
     this.unitGraphics = graphics;
   }
 
@@ -529,6 +595,10 @@ export class UnitRenderer extends BaseRenderer {
   private getUnitActivitySprite(
     unit: Unit
   ): { key: string; offset_x?: number; offset_y?: number; connect?: boolean } | null {
+    // The reference cannot compose an activity sprite with SSA_AUTOEXPLORE;
+    // the agent icon below is the sole overlay in that state.
+    if (unit.automation === 'explore') return null;
+
     const activity =
       typeof unit.activity === 'string'
         ? unit.activity.toLowerCase()
@@ -586,21 +656,18 @@ export class UnitRenderer extends BaseRenderer {
       ? 'unit.cargo'
       : unit.fortified
         ? 'unit.fortified'
-        : unit.automation === 'worker' && activity === 'idle'
-          ? 'unit.auto_settler'
-          : activity === 'road' || activity === 'build_road' || activity === 'building_road'
-            ? (targetGraphic ?? activitySprites[activity])
-            : activity === 'irrigate' || activity === 'irrigation' || activity === 'irrigating'
-              ? ((unit.activityTarget && unit.activityTarget !== '-1'
-                  ? targetGraphic
-                  : undefined) ?? activitySprites[activity])
-              : activity === 'mine' || activity === 'mining'
-                ? unit.activityTarget && unit.activityTarget !== '-1'
-                  ? targetGraphic
-                  : 'unit.plant'
-                : activity === 'base' || activity === 'building_base'
-                  ? (targetGraphic ?? activitySprites[activity])
-                  : activitySprites[activity];
+        : activity === 'road' || activity === 'build_road' || activity === 'building_road'
+          ? (targetGraphic ?? activitySprites[activity])
+          : activity === 'irrigate' || activity === 'irrigation' || activity === 'irrigating'
+            ? ((unit.activityTarget && unit.activityTarget !== '-1' ? targetGraphic : undefined) ??
+              activitySprites[activity])
+            : activity === 'mine' || activity === 'mining'
+              ? unit.activityTarget && unit.activityTarget !== '-1'
+                ? targetGraphic
+                : 'unit.plant'
+              : activity === 'base' || activity === 'building_base'
+                ? (targetGraphic ?? activitySprites[activity])
+                : activitySprites[activity];
     if (!key) return null;
 
     const connectingActivities = new Set([
@@ -626,6 +693,32 @@ export class UnitRenderer extends BaseRenderer {
       connect:
         connectingActivities.has(activity) && Array.isArray(unit.orders) && unit.orders.length > 0,
     };
+  }
+
+  /**
+   * Get the server-side-agent overlay independently of unit activity.
+   * @reference freeciv-web: get_unit_agent_sprite()
+   */
+  private getUnitAgentSprite(
+    unit: Unit
+  ): { key: string; offset_x: number; offset_y: number } | null {
+    if (unit.automation === 'explore') {
+      return {
+        key: 'unit.auto_explore',
+        offset_x: this.unitActivityOffset.x,
+        offset_y: this.unitActivityOffset.y,
+      };
+    }
+    if (unit.automation !== 'worker') return null;
+
+    if (this.tilesetLoader.getSprite('unit.auto_worker')) {
+      return { key: 'unit.auto_worker', offset_x: 0, offset_y: 0 };
+    }
+
+    // The currently carried customized atlas predates the upstream
+    // unit.auto_worker tag. Preserve its equivalent whole-tile marker until
+    // the atlas is regenerated from the pinned reference source.
+    return { key: 'unit.auto_settler', offset_x: 20, offset_y: this.unitActivityOffset.y };
   }
 
   private getActivityTargetGraphic(activityTarget?: string): string | null {
@@ -744,7 +837,10 @@ export class UnitRenderer extends BaseRenderer {
 
     // Prefer the atlas animation used by freeciv-web; retain the procedural
     // diamond below as a fallback for reduced/custom tilesets.
-    const selectionFrame = reducedMotion ? 0 : Math.floor(Date.now() / 125) % 4;
+    // Freeciv-web selects one of the four atlas frames from wall-clock time at
+    // exactly six frames per second. Keeping this absolute (rather than tied
+    // to selection start) also keeps multiple clients on the same cadence.
+    const selectionFrame = reducedMotion ? 0 : Math.floor((Date.now() * 6) / 1000) % 4;
     const selectionSprite = this.tilesetLoader.getSprite(`unit.select${selectionFrame}`);
     if (selectionSprite) {
       this.ctx.drawImage(selectionSprite, screenPos.x, screenPos.y);

@@ -6,7 +6,7 @@ import React, { useRef, useEffect, useCallback, useMemo, useState } from 'react'
 import { useGameStore } from '../../store/gameStore';
 import { MapRenderer } from './MapRenderer';
 import { setMapRenderTileSize } from './mapRenderMetrics';
-import { setMapRenderViewport } from './mapRenderViewport';
+import { getMapRenderViewport, setMapRenderViewport } from './mapRenderViewport';
 import { ActionFeedbackBanner, type ActionFeedback } from './ActionFeedbackBanner';
 import { UnitContextMenu } from '../GameUI/UnitContextMenu';
 import { CityNameDialog } from '../GameUI/CityNameDialog';
@@ -278,6 +278,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
   // Handle mouse and touch events - copied from freeciv-web 2D canvas behavior
   const [isDragging, setIsDragging] = useState(false);
+  // Gesture state must be synchronous. A fast mouseup can arrive before the
+  // React state update from the threshold-crossing mousemove has rendered.
+  const isDraggingRef = useRef(false);
 
   // Initialize renderer and load tileset - only once, not on viewport changes!
   useEffect(() => {
@@ -391,38 +394,46 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     rendererRef.current?.setFogOfWarEnabled(fogOfWarEnabled);
   }, [fogOfWarEnabled]);
 
-  const renderLatestSnapshot = useCallback(
-    (viewportOverride?: MapViewport, immediate = false) => {
-      const renderer = rendererRef.current;
-      if (!renderer) return;
+  // Keep the render callback stable while still rendering the latest overlay
+  // state. Recreating it on every goto/context/animation update causes the
+  // viewport-size effect below to run again and can restore the store viewport
+  // over an in-progress drag preview.
+  const renderContextMenuUnitIdRef = useRef<string | undefined>(contextMenu?.unit.id);
+  const renderGotoPathRef = useRef(gotoMode.currentPath);
+  const reducedMotionRef = useRef(reducedMotion);
+  renderContextMenuUnitIdRef.current = contextMenu?.unit.id;
+  renderGotoPathRef.current = gotoMode.currentPath;
+  reducedMotionRef.current = reducedMotion;
 
-      // Read the store once so a redraw cannot mix entities from one state
-      // revision with the viewport from another.
-      const state = useGameStore.getState();
-      const renderedViewport = viewportOverride ?? state.viewport;
-      renderer.render(
-        {
-          viewport: renderedViewport,
-          map: state.map,
-          units: state.units,
-          presentationEffects: state.presentationEffects,
-          cities: state.cities,
-          players: state.players,
-          selectedUnitId: state.selectedUnitId,
-          selectedCityId: state.selectedCityId,
-          actionDecisionUnitId: contextMenu?.unit.id,
-          focusedUnits: state.focusedUnits,
-          urgentFocusQueue: state.urgentFocusQueue,
-          gotoPath: gotoMode.currentPath,
-          currentPlayerId: state.currentPlayerId,
-          researchedTechs: state.research?.researchedTechs,
-          reducedMotion,
-        },
-        immediate
-      );
-    },
-    [contextMenu?.unit.id, gotoMode.currentPath, reducedMotion]
-  );
+  const renderLatestSnapshot = useCallback((viewportOverride?: MapViewport, immediate = false) => {
+    const renderer = rendererRef.current;
+    if (!renderer) return;
+
+    // Read the store once so a redraw cannot mix entities from one state
+    // revision with the viewport from another.
+    const state = useGameStore.getState();
+    const renderedViewport = viewportOverride ?? state.viewport;
+    renderer.render(
+      {
+        viewport: renderedViewport,
+        map: state.map,
+        units: state.units,
+        presentationEffects: state.presentationEffects,
+        cities: state.cities,
+        players: state.players,
+        selectedUnitId: state.selectedUnitId,
+        selectedCityId: state.selectedCityId,
+        actionDecisionUnitId: renderContextMenuUnitIdRef.current,
+        focusedUnits: state.focusedUnits,
+        urgentFocusQueue: state.urgentFocusQueue,
+        gotoPath: renderGotoPathRef.current,
+        currentPlayerId: state.currentPlayerId,
+        researchedTechs: state.research?.researchedTechs,
+        reducedMotion: reducedMotionRef.current,
+      },
+      immediate
+    );
+  }, []);
 
   /** Commit a camera position and immediately paint that exact snapshot. */
   const commitViewportAndRender = useCallback(
@@ -749,14 +760,17 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     if (!rendererReady || !rendererRef.current || !canvasRef.current) return;
 
     const scheduleStoreRender = () => {
+      // Do not let a store update repaint the committed viewport over a live
+      // drag preview. The drag end will render the latest complete snapshot.
+      if (isDraggingRef.current) return;
       if (storeRenderFrame.current !== null) return;
       storeRenderFrame.current = requestAnimationFrame(() => {
         storeRenderFrame.current = null;
-        renderLatestSnapshot();
+        if (!isDraggingRef.current) renderLatestSnapshot();
       });
     };
 
-    renderLatestSnapshot();
+    if (!isDraggingRef.current) renderLatestSnapshot();
     const unsubscribe = useGameStore.subscribe(
       state =>
         [
@@ -791,22 +805,25 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     (selectedUnitId && units[selectedUnitId]) || focusedUnits.some(unitId => units[unitId])
   );
 
-  // Optimized animation for selection pulsing - use a simple timer instead of continuous animation loop
+  // Redraw at the same six-frame cadence used to select Freeciv-web's atlas
+  // sprite. Other state changes still render through the store subscription.
   useEffect(() => {
-    // Don't run animation while dragging to prevent conflicts
     if (hasRenderableSelection && rendererRef.current && !isDragging) {
-      // Use setInterval with a reasonable refresh rate to avoid stuttering during scrolling
       const intervalId = setInterval(() => {
-        renderLatestSnapshot(undefined, true);
-      }, 100); // 10fps for smooth pulsing without interfering with scrolling
+        if (!isDraggingRef.current) {
+          renderLatestSnapshot(undefined, true);
+        }
+      }, 1000 / 6);
 
       return () => {
         clearInterval(intervalId);
         // Redraw from the current store revision. Rendering captured React
         // values here could restore units or a viewport from the prior effect.
-        renderLatestSnapshot(undefined, true);
+        if (!isDraggingRef.current) {
+          renderLatestSnapshot(undefined, true);
+        }
       };
-    } else if (!isDragging) {
+    } else if (!isDragging && !isDraggingRef.current) {
       renderLatestSnapshot(undefined, true);
     }
   }, [hasRenderableSelection, isDragging, renderLatestSnapshot]);
@@ -855,6 +872,68 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     [commitViewportAndRender]
   );
 
+  const updateDragFromClientPosition = useCallback(
+    (clientX: number, clientY: number) => {
+      const canvas = canvasRef.current;
+      if (!canvas || !rendererRef.current || !isDraggingRef.current) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const canvasX = clientX - rect.left;
+      const canvasY = clientY - rect.top;
+      const dragDistance = Math.hypot(canvasX - dragStart.current.x, canvasY - dragStart.current.y);
+
+      if (
+        selectionDragMode.current === 'right' &&
+        isRightDragSelectionReady(
+          dragStart.current,
+          { x: canvasX, y: canvasY },
+          dragStartTime.current
+        )
+      ) {
+        rightSelectionActive.current = true;
+      }
+
+      const isAreaSelection = selectionDragMode.current === 'left' || rightSelectionActive.current;
+      if (isAreaSelection && dragDistance > DRAG_THRESHOLD) {
+        setSelectionRect(getSelectionRect(dragStart.current, { x: canvasX, y: canvasY }));
+        return;
+      }
+      if (isAreaSelection) return;
+
+      const totalDiffX = (dragStart.current.x - canvasX) * 2;
+      const totalDiffY = (dragStart.current.y - canvasY) * 2;
+      scheduleDragRender({
+        ...dragStartViewport.current,
+        x: dragStartViewport.current.x + totalDiffX,
+        y: dragStartViewport.current.y + totalDiffY,
+      });
+    },
+    [scheduleDragRender]
+  );
+
+  const constrainDragViewport = useCallback((candidate: MapViewport): MapViewport => {
+    const renderer = rendererRef.current;
+    if (!renderer) return candidate;
+
+    // Freeciv-web keeps the raw GUI origin while dragging. Normalizing a
+    // wrapped map at mouseup changes the map period and makes the board jump
+    // even though the preview was already at the requested position.
+    const currentMap = useGameStore.getState().map;
+    if ((currentMap.wrap_id ?? 0) !== 0) return candidate;
+
+    const constrainedPosition = renderer.setMapviewOrigin(
+      candidate.x,
+      candidate.y,
+      candidate.width,
+      candidate.height
+    );
+    return {
+      ...candidate,
+      x: constrainedPosition.x,
+      y: constrainedPosition.y,
+    };
+  }, []);
+
   useEffect(
     () => () => {
       if (dragRenderFrame.current !== null) {
@@ -863,6 +942,19 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     },
     []
   );
+
+  // freeciv-web tracks the drag on window, so the camera continues following
+  // the pointer after it leaves the canvas. Ignore the bubbling canvas event;
+  // the React handler has already processed that position.
+  useEffect(() => {
+    const handleWindowMouseMove = (event: MouseEvent) => {
+      if (!isDraggingRef.current || event.target === canvasRef.current) return;
+      updateDragFromClientPosition(event.clientX, event.clientY);
+    };
+
+    window.addEventListener('mousemove', handleWindowMouseMove);
+    return () => window.removeEventListener('mousemove', handleWindowMouseMove);
+  }, [updateDragFromClientPosition]);
 
   // Deactivate goto mode
   const deactivateGotoMode = useCallback(() => {
@@ -1091,7 +1183,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       for (let y = top; y <= bottom; y += 12) ySamples.add(y);
 
       const selectedIds = new Set<string>();
-      const activeViewport = useGameStore.getState().viewport;
+      const activeViewport = getMapRenderViewport() ?? useGameStore.getState().viewport;
       for (const canvasX of xSamples) {
         for (const canvasY of ySamples) {
           const mapPos = renderer.canvasToMap(canvasX, canvasY, activeViewport);
@@ -1282,7 +1374,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         const mapPos = rendererRef.current?.canvasToMap(
           canvasX,
           canvasY,
-          useGameStore.getState().viewport
+          getMapRenderViewport() ?? useGameStore.getState().viewport
         );
         if (mapPos) openTileInfo(Math.floor(mapPos.mapX), Math.floor(mapPos.mapY));
         event.preventDefault();
@@ -1297,7 +1389,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       // viewport while React is still holding the previous selector value.
       // Resolve the fallback from Zustand so right-click tile conversion uses
       // the same origin that the renderer is displaying.
-      const interactionViewport = slideViewport ?? panViewport ?? useGameStore.getState().viewport;
+      const interactionViewport =
+        slideViewport ?? panViewport ?? getMapRenderViewport() ?? useGameStore.getState().viewport;
 
       const rect = canvas.getBoundingClientRect();
       const canvasX = event.clientX - rect.left;
@@ -1307,6 +1400,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       setContextMenu(null);
       rightPointerHandled.current = false;
       rightSelectionActive.current = false;
+      isDraggingRef.current = false;
 
       selectionDragMode.current =
         event.button === 2 || (event.altKey && !event.shiftKey && !event.ctrlKey)
@@ -1350,7 +1444,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       const isAreaSelection = selectionDragMode.current === 'left' || rightSelectionActive.current;
 
       // Check if we should start dragging or selecting a rectangle.
-      if (!isDragging && dragStartTime.current > 0 && dragDistance > DRAG_THRESHOLD) {
+      if (!isDraggingRef.current && dragStartTime.current > 0 && dragDistance > DRAG_THRESHOLD) {
+        isDraggingRef.current = true;
         setIsDragging(true);
         canvas.style.cursor = isAreaSelection ? 'crosshair' : 'move';
       }
@@ -1362,8 +1457,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       if (isAreaSelection) return;
 
       // Handle tile hover detection when not dragging
-      if (!isDragging) {
-        const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, viewport);
+      if (!isDraggingRef.current) {
+        const hoverViewport = getMapRenderViewport() ?? useGameStore.getState().viewport;
+        const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, hoverViewport);
         const tileX = Math.floor(mapPos.mapX);
         const tileY = Math.floor(mapPos.mapY);
 
@@ -1397,15 +1493,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       // Coalesce pointer events to one frame and render one atomic snapshot.
       scheduleDragRender(newViewport);
     },
-    [
-      isDragging,
-      viewport,
-      gotoMode.active,
-      gotoMode.unit,
-      gotoMode.targetTile,
-      requestGotoPath,
-      scheduleDragRender,
-    ]
+    [gotoMode.active, gotoMode.unit, gotoMode.targetTile, requestGotoPath, scheduleDragRender]
   );
 
   const handleMouseUp = useCallback(
@@ -1431,7 +1519,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       const activeAreaMode = areaMode === 'left' || rightSelectionActive.current ? areaMode : null;
       const areaWasDragged =
         activeAreaMode !== null &&
-        (isDragging ||
+        (isDraggingRef.current ||
           Math.hypot(canvasX - dragStart.current.x, canvasY - dragStart.current.y) >
             DRAG_THRESHOLD);
 
@@ -1445,6 +1533,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         rightPointerHandled.current = true;
         selectionDragMode.current = null;
         rightSelectionActive.current = false;
+        isDraggingRef.current = false;
         dragStartTime.current = 0;
         event.preventDefault();
         return;
@@ -1471,6 +1560,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         selectionDragMode.current = null;
         rightSelectionActive.current = false;
         setSelectionRect(null);
+        isDraggingRef.current = false;
         setIsDragging(false);
         canvas.style.cursor = 'crosshair';
         dragStartTime.current = 0;
@@ -1479,29 +1569,18 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       }
 
       // If we were dragging, handle the drag end
-      if (isDragging) {
+      if (isDraggingRef.current) {
         canvas.style.cursor = 'crosshair';
 
-        // Apply boundary constraints to the final viewport position
-        const constrainedPosition = rendererRef.current.setMapviewOrigin(
-          currentRenderViewport.current.x,
-          currentRenderViewport.current.y,
-          currentRenderViewport.current.width,
-          currentRenderViewport.current.height
-        );
-
-        const finalViewport = {
-          ...currentRenderViewport.current,
-          x: constrainedPosition.x,
-          y: constrainedPosition.y,
-        };
-
-        // Update state with the constrained final position
-        commitDragViewport(finalViewport);
+        // Update state with the constrained final position. Wrapped maps keep
+        // their raw drag origin so release cannot normalize into another map
+        // period.
+        commitDragViewport(constrainDragViewport(currentRenderViewport.current));
+        isDraggingRef.current = false;
         setIsDragging(false);
       } else if (dragStartTime.current > 0) {
         // Handle click (not drag)
-        const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, viewport);
+        const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, dragStartViewport.current);
         const tileX = Math.floor(mapPos.mapX);
         const tileY = Math.floor(mapPos.mapY);
 
@@ -1539,14 +1618,14 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       // Reset drag tracking
       dragStartTime.current = 0;
       rightSelectionActive.current = false;
+      isDraggingRef.current = false;
     },
     [
-      isDragging,
       commitDragViewport,
+      constrainDragViewport,
       handleMapTileClick,
       selectUnitsInCanvasRect,
       handleRightClickAtCanvasPosition,
-      viewport,
       gotoMode.active,
       executeGoto,
       targetActionMode,
@@ -1561,8 +1640,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
       const canvas = canvasRef.current;
       if (!canvas) return;
+      const panViewport = cancelMinimapPan();
       const slideViewport = cancelCameraSlide();
-      const interactionViewport = slideViewport ?? viewport;
+      const interactionViewport =
+        slideViewport ?? panViewport ?? getMapRenderViewport() ?? useGameStore.getState().viewport;
 
       const touch = event.touches[0];
       const rect = canvas.getBoundingClientRect();
@@ -1575,6 +1656,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       setSelectionRect(null);
 
       // Prepare drag like mouse: don't set dragging until we move beyond threshold
+      isDraggingRef.current = false;
       setIsDragging(false);
       dragStart.current = { x: canvasX, y: canvasY };
       dragStartViewport.current = interactionViewport;
@@ -1611,7 +1693,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       // Prevent default to avoid page scrolling
       event.preventDefault();
     },
-    [cancelCameraSlide, viewport, gotoMode.active, deactivateGotoMode, handleRightClickTile]
+    [cancelCameraSlide, cancelMinimapPan, gotoMode.active, deactivateGotoMode, handleRightClickTile]
   );
 
   const handleTouchMove = useCallback(
@@ -1627,12 +1709,13 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       const canvasY = touch.clientY - rect.top;
 
       // Decide if we should start dragging
-      if (!isDragging) {
+      if (!isDraggingRef.current) {
         const dragDistance = Math.hypot(
           canvasX - dragStart.current.x,
           canvasY - dragStart.current.y
         );
         if (dragDistance > DRAG_THRESHOLD) {
+          isDraggingRef.current = true;
           setIsDragging(true);
           // Cancel long-press if we start dragging
           if (longPressTimeoutRef.current) {
@@ -1653,12 +1736,16 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         y: dragStartViewport.current.y + totalDiffY,
       };
 
-      if (isDragging) {
+      if (isDraggingRef.current) {
         scheduleDragRender(newViewport);
       } else {
         // Not dragging: if in goto mode, show live path preview under finger
         if (gotoMode.active) {
-          const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, viewport);
+          const mapPos = rendererRef.current.canvasToMap(
+            canvasX,
+            canvasY,
+            dragStartViewport.current
+          );
           const tileX = Math.floor(mapPos.mapX);
           const tileY = Math.floor(mapPos.mapY);
           if (
@@ -1674,14 +1761,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       // Prevent default to avoid page scrolling
       event.preventDefault();
     },
-    [
-      isDragging,
-      gotoMode.active,
-      gotoMode.targetTile,
-      requestGotoPath,
-      viewport,
-      scheduleDragRender,
-    ]
+    [gotoMode.active, gotoMode.targetTile, requestGotoPath, scheduleDragRender]
   );
 
   const handleTouchEnd = useCallback(
@@ -1701,21 +1781,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       const touch = (event.changedTouches && event.changedTouches[0]) || undefined;
 
       // If we were dragging, finish the drag similar to mouse
-      if (isDragging) {
-        const constrainedPosition = rendererRef.current.setMapviewOrigin(
-          currentRenderViewport.current.x,
-          currentRenderViewport.current.y,
-          currentRenderViewport.current.width,
-          currentRenderViewport.current.height
-        );
-
-        const finalViewport = {
-          ...currentRenderViewport.current,
-          x: constrainedPosition.x,
-          y: constrainedPosition.y,
-        };
-
-        commitDragViewport(finalViewport);
+      if (isDraggingRef.current) {
+        commitDragViewport(constrainDragViewport(currentRenderViewport.current));
+        isDraggingRef.current = false;
         setIsDragging(false);
       } else if (!longPressFiredRef.current && dragStartTime.current > 0) {
         // Treat as a tap/click
@@ -1724,7 +1792,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         const canvasX = tapClientX - rect.left;
         const canvasY = tapClientY - rect.top;
 
-        const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, viewport);
+        const mapPos = rendererRef.current.canvasToMap(canvasX, canvasY, dragStartViewport.current);
         const tileX = Math.floor(mapPos.mapX);
         const tileY = Math.floor(mapPos.mapY);
 
@@ -1769,6 +1837,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       }
 
       // Reset drag tracking and long-press state
+      isDraggingRef.current = false;
       dragStartTime.current = 0;
       longPressFiredRef.current = false;
 
@@ -1776,9 +1845,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       event.preventDefault();
     },
     [
-      isDragging,
       commitDragViewport,
-      viewport,
+      constrainDragViewport,
       gotoMode.active,
       requestGotoPath,
       executeGoto,
@@ -1820,7 +1888,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         canvasX,
         canvasY,
         { x: event.clientX, y: event.clientY },
-        useGameStore.getState().viewport
+        getMapRenderViewport() ?? useGameStore.getState().viewport
       );
     },
     [handleRightClickAtCanvasPosition]
@@ -2040,7 +2108,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         const canvasY = event.clientY - rect.top;
         const areaMode = selectionDragMode.current;
         const wasDragged =
-          isDragging ||
+          isDraggingRef.current ||
           Math.hypot(canvasX - dragStart.current.x, canvasY - dragStart.current.y) > DRAG_THRESHOLD;
         if (
           areaMode === 'right' &&
@@ -2070,33 +2138,21 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         selectionDragMode.current = null;
         rightSelectionActive.current = false;
         setSelectionRect(null);
+        isDraggingRef.current = false;
         setIsDragging(false);
         canvas.style.cursor = 'crosshair';
         dragStartTime.current = 0;
         return;
       }
 
-      if (isDragging && rendererRef.current) {
+      if (isDraggingRef.current && rendererRef.current) {
         const canvas = canvasRef.current;
         if (canvas) {
           canvas.style.cursor = 'crosshair';
         }
 
-        // Apply boundary constraints to the final viewport position
-        const constrainedPosition = rendererRef.current.setMapviewOrigin(
-          currentRenderViewport.current.x,
-          currentRenderViewport.current.y,
-          currentRenderViewport.current.width,
-          currentRenderViewport.current.height
-        );
-
-        const finalViewport = {
-          ...currentRenderViewport.current,
-          x: constrainedPosition.x,
-          y: constrainedPosition.y,
-        };
-
-        commitDragViewport(finalViewport);
+        commitDragViewport(constrainDragViewport(currentRenderViewport.current));
+        isDraggingRef.current = false;
         setIsDragging(false);
       }
 
@@ -2104,11 +2160,21 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       dragStartTime.current = 0;
     };
 
-    if (isDragging || dragStartTime.current > 0) {
-      document.addEventListener('mouseup', handleGlobalMouseUp);
-      return () => document.removeEventListener('mouseup', handleGlobalMouseUp);
-    }
-  }, [commitDragViewport, handleRightClickAtCanvasPosition, isDragging, selectUnitsInCanvasRect]);
+    // Keep this listener mounted for the whole component lifetime. A quick
+    // drag can start and end between React renders, before a conditional
+    // listener keyed on isDragging would have been installed.
+    document.addEventListener('mouseup', handleGlobalMouseUp);
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => {
+      document.removeEventListener('mouseup', handleGlobalMouseUp);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [
+    commitDragViewport,
+    constrainDragViewport,
+    handleRightClickAtCanvasPosition,
+    selectUnitsInCanvasRect,
+  ]);
 
   // Removed zoom functionality to match freeciv-web 2D canvas behavior
   // Freeciv-web's 2D renderer does not support zoom - only the WebGL renderer does
@@ -2185,7 +2251,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
         onContextMenu={handleContextMenu}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}

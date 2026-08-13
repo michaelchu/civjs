@@ -12,6 +12,15 @@ synthetic-provider test. Amplio2’s legacy terrain composition tables and
 presentation offsets still need to move fully behind the provider before a Civ
 III provider is introduced.
 
+The frontend parity audit exposed a blocking geometry responsibility: C2C3
+uses Freeciv's `ISO|HEX` topology, while Amplio2 is square isometric. Freeciv
+classifies those as hard-incompatible. Provider metadata must therefore be
+enforced at runtime, and an ISO-hex provider is required before C2C3 map
+presentation can be called exact. The current Amplio2 atlas is also a
+customized three-sheet snapshot rather than a reproducible build of the pinned
+freeciv-web source; config, atlas, sprite table, offsets, and source revision
+must become one versioned package.
+
 ## Context
 
 CivJS currently renders the C2C3 ruleset with an Amplio2-derived sprite
@@ -277,6 +286,18 @@ The provider foundation is complete when:
 - A synthetic second provider can be selected in tests without changing
   renderer code.
 - Missing assets follow a tested and visible fallback chain.
+- Provider topology capabilities are validated against `MAP_INFO`; a hard
+  mismatch cannot silently render through the square-isometric strategy.
+- The built-in Amplio2 manifest records and reproducibly generates its config,
+  sprite table, every sheet, offsets, and exact Freeciv/freeciv-web revisions.
+
+C2C3 map presentation is exact only when:
+
+- A provider compatible with `ISO|HEX` topology `3` is selected.
+- Projection, culling, pointer inversion, wrapping, painter order, and minimap
+  geometry are exercised through that provider.
+- Terrain, city, unit, border, fog, path, and wrapped-seam output have direct
+  reference pixel fixtures using the same provider assets.
 
 Civilization III terrain support is complete when:
 

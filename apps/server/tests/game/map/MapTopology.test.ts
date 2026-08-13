@@ -11,16 +11,16 @@ describe('MapTopology', () => {
   /**
    * @evidence parity
    * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:35-38
-   * @assertion CivJS uses Freeciv's serialized ISO and HEX flag positions in MAP_INFO, while preserving maps written with its former internal positions.
+   * @assertion CivJS uses Freeciv's serialized ISO and HEX flag positions in MAP_INFO and repairs maps written with CivJS's former shifted values.
    * @c2c3-surface map-generation
    * @c2c3-surface-scenario boundary
    */
-  it('uses Freeciv topology packet flags and upgrades legacy CivJS map values', () => {
-    expect(TopologyFlag).toEqual({ ISO: 4, HEX: 8 });
-    expect(normalizeTopologyId(1)).toBe(TopologyFlag.ISO);
-    expect(normalizeTopologyId(2)).toBe(TopologyFlag.HEX);
-    expect(normalizeTopologyId(3)).toBe(TopologyFlag.ISO | TopologyFlag.HEX);
-    expect(new MapTopology(10, 8, { topologyId: 3 }).topologyId).toBe(
+  it('uses Freeciv topology packet flags and repairs shifted CivJS map values', () => {
+    expect(TopologyFlag).toEqual({ ISO: 1, HEX: 2 });
+    expect(normalizeTopologyId(4)).toBe(TopologyFlag.ISO);
+    expect(normalizeTopologyId(8)).toBe(TopologyFlag.HEX);
+    expect(normalizeTopologyId(12)).toBe(TopologyFlag.ISO | TopologyFlag.HEX);
+    expect(new MapTopology(10, 8, { topologyId: 12 }).topologyId).toBe(
       TopologyFlag.ISO | TopologyFlag.HEX
     );
   });
@@ -48,10 +48,20 @@ describe('MapTopology', () => {
     const topology = new MapTopology(10, 8, { topologyId: TopologyFlag.HEX });
 
     expect(topology.getDirections()).toHaveLength(6);
-    expect(topology.getNeighbors(4, 3)).not.toContainEqual({ x: 3, y: 2 });
-    expect(topology.getNeighbors(4, 3)).not.toContainEqual({ x: 5, y: 4 });
-    expect(topology.realDistance(1, 1, 4, 4)).toBe(6);
-    expect(topology.realDistance(1, 4, 4, 1)).toBe(3);
+    expect(topology.getNeighbors(4, 3)).toEqual(
+      expect.arrayContaining([
+        { x: 5, y: 2 },
+        { x: 5, y: 3 },
+        { x: 5, y: 4 },
+        { x: 4, y: 4 },
+        { x: 3, y: 3 },
+        { x: 4, y: 2 },
+      ])
+    );
+    expect(topology.getNeighbors(4, 3)).not.toContainEqual({ x: 4, y: 1 });
+    expect(topology.getNeighbors(4, 3)).not.toContainEqual({ x: 4, y: 5 });
+    expect(topology.realDistance(1, 1, 4, 4)).toBe(4);
+    expect(topology.realDistance(1, 4, 4, 1)).toBe(5);
   });
 
   it('uses the opposite diagonal pair for isometric hex maps', () => {

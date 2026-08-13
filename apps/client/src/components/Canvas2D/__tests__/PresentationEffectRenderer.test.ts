@@ -82,7 +82,7 @@ describe('PresentationEffectRenderer', () => {
     expect(context.drawImage).not.toHaveBeenCalled();
   });
 
-  it('renders a scaled nuclear sprite during the effect window', () => {
+  it('renders a native-size nuclear sprite on the final GOTO layer', () => {
     vi.spyOn(performance, 'now').mockReturnValue(360);
     const context = createContext();
     const nukeSprite = { width: 64, height: 32 } as HTMLImageElement;
@@ -93,7 +93,7 @@ describe('PresentationEffectRenderer', () => {
       48
     );
 
-    const active = renderer.render(
+    const active = renderer.renderGotoLayer(
       createState({
         id: 'nuke-1',
         type: 'nuclear',
@@ -104,7 +104,7 @@ describe('PresentationEffectRenderer', () => {
     );
 
     expect(active).toBe(true);
-    expect(context.drawImage).toHaveBeenCalledWith(nukeSprite, 70.4, 35.2, 51.2, 25.6);
+    expect(context.drawImage).toHaveBeenCalledWith(nukeSprite, 3, -21);
   });
 
   it('renders the nuclear sprite once for each server-authorized affected tile', () => {
@@ -118,7 +118,7 @@ describe('PresentationEffectRenderer', () => {
       48
     );
 
-    renderer.render(
+    renderer.renderGotoLayer(
       createState({
         id: 'nuke-multi-tile',
         type: 'nuclear',
@@ -133,8 +133,35 @@ describe('PresentationEffectRenderer', () => {
     );
 
     expect(context.drawImage).toHaveBeenCalledTimes(2);
-    expect(context.drawImage).toHaveBeenNthCalledWith(1, nukeSprite, 70.4, 35.2, 51.2, 25.6);
-    expect(context.drawImage).toHaveBeenNthCalledWith(2, nukeSprite, 118.4, 59.2, 51.2, 25.6);
+    expect(context.drawImage).toHaveBeenNthCalledWith(1, nukeSprite, 3, -21);
+    expect(context.drawImage).toHaveBeenNthCalledWith(2, nukeSprite, 51, 3);
+  });
+
+  it('renders only the requested affected tile during the global GOTO walk', () => {
+    vi.spyOn(performance, 'now').mockReturnValue(360);
+    const context = createContext();
+    const nukeSprite = {} as HTMLImageElement;
+    const renderer = new PresentationEffectRenderer(
+      context,
+      { getSprite: (key: string) => (key === 'explode.nuke' ? nukeSprite : null) } as never,
+      96,
+      48
+    );
+    const state = createState({
+      id: 'nuke-tile-local',
+      type: 'nuclear',
+      x: 1,
+      y: 0,
+      startedAt: 0,
+      tiles: [
+        { x: 1, y: 0 },
+        { x: 2, y: 0 },
+      ],
+    });
+
+    expect(renderer.renderGotoEffectsForTile(state, { x: 2, y: 0 })).toBe(true);
+    expect(context.drawImage).toHaveBeenCalledTimes(1);
+    expect(context.drawImage).toHaveBeenCalledWith(nukeSprite, 51, 3);
   });
 
   it('keeps a visible fallback when an effect sprite is unavailable', () => {

@@ -6,7 +6,10 @@ import { useEffect, useState } from 'react';
 import type { City, Tile } from '../types';
 import { useGameStore } from '../store/gameStore';
 import { GameLayout } from './GameUI/GameLayout';
-import { TOPOLOGY_ISO } from './Canvas2D/mapTopologyGeometry';
+import { TOPOLOGY_HEX, TOPOLOGY_ISO } from './Canvas2D/mapTopologyGeometry';
+
+const C2C3_TOPOLOGY = TOPOLOGY_ISO | TOPOLOGY_HEX;
+const C2C3_WRAP = 3;
 
 const makeCity = (x = 2, y = 2): City => ({
   id: 'city-kyoto',
@@ -131,8 +134,22 @@ const seedFixture = (): void => {
     tiles.find(tile => tile.x === city.x && tile.y === city.y)!.cityId = city.id;
   }
 
+  // Preserve a finite ISO board in the two strict reference-painter modes: the
+  // pinned browser harness cannot resolve wrapped map positions completely.
+  // The normal visual fixture uses the real C2C3 topology/wrap metadata; that
+  // metadata is also exposed separately so physical-overview tests can assert
+  // the production contract without weakening the finite world-pixel oracle.
   Object.assign(window, {
-    map: { xsize: mapWidth, ysize: mapHeight, topology_id: TOPOLOGY_ISO, wrap_id: 0 },
+    map: {
+      xsize: mapWidth,
+      ysize: mapHeight,
+      topology_id: referenceParityVisual ? TOPOLOGY_ISO : C2C3_TOPOLOGY,
+      wrap_id: referenceParityVisual ? 0 : C2C3_WRAP,
+    },
+    __civjsParityGeometry: {
+      topologyId: C2C3_TOPOLOGY,
+      wrapId: C2C3_WRAP,
+    },
     tiles,
   });
 
@@ -178,8 +195,8 @@ const seedFixture = (): void => {
       height: mapHeight,
       xsize: mapWidth,
       ysize: mapHeight,
-      topology_id: TOPOLOGY_ISO,
-      wrap_id: 0,
+      topology_id: referenceParityVisual ? TOPOLOGY_ISO : C2C3_TOPOLOGY,
+      wrap_id: referenceParityVisual ? 0 : C2C3_WRAP,
       tiles: Object.fromEntries(tiles.map(tile => [`${tile.x},${tile.y}`, tile])),
     },
     cities: referenceParityVisual ? {} : { [city.id]: city },

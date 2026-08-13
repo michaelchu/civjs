@@ -6,15 +6,15 @@ describe('map snapshot boundaries', () => {
   /**
    * @evidence parity
    * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:35-38
-   * @assertion The client preserves Freeciv's ISO|HEX topology value 12 and separate WrapX|WrapY value 3 from MAP_INFO.
+   * @assertion The client preserves Freeciv's ISO|HEX topology value 3 and separate WrapX|WrapY value 3 from MAP_INFO.
    * @c2c3-surface map-generation
    * @c2c3-surface-scenario normal
    */
   it('retains the Civ2Civ3 ISO-hex MAP_INFO flags', () => {
     const assembler = new MapSnapshotAssembler();
 
-    expect(assembler.begin({ xsize: 80, ysize: 50, topology_id: 12, wrap_id: 3 })).toMatchObject({
-      topology_id: 12,
+    expect(assembler.begin({ xsize: 80, ysize: 50, topology_id: 3, wrap_id: 3 })).toMatchObject({
+      topology_id: 3,
       wrap_id: 3,
     });
   });

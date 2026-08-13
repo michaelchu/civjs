@@ -683,9 +683,11 @@ describe('MapCanvas Go To feedback', () => {
       fireEvent.touchMove(canvas, { touches: [touch(40, 45)] });
     });
 
-    expect(frames).toHaveLength(1);
+    // The threshold-crossing move now starts the drag synchronously, so both
+    // moves can enqueue frames before the mocked cancellation removes them.
+    expect(frames.length).toBeGreaterThanOrEqual(1);
     await act(async () => {
-      frames.shift()?.(16);
+      frames.at(-1)?.(16);
     });
 
     await act(async () => {
@@ -707,6 +709,121 @@ describe('MapCanvas Go To feedback', () => {
     ).toEqual({
       x: 60,
       y: 40,
+      width: 100,
+      height: 100,
+    });
+  });
+
+  it('commits a mouse pan when mouseup arrives before React rerenders drag state', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+
+    render(<MapCanvas width={100} height={100} />);
+    const canvas = screen.getByLabelText('World map');
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    state.setViewport.mockClear();
+    state.selectUnit.mockClear();
+    setMapviewOrigin.mockClear();
+
+    await act(async () => {
+      fireEvent.mouseDown(canvas, { clientX: 10, clientY: 10, button: 0 });
+      fireEvent.mouseMove(canvas, { clientX: 30, clientY: 30, buttons: 1 });
+      fireEvent.mouseUp(canvas, { clientX: 30, clientY: 30, button: 0 });
+    });
+
+    expect(setMapviewOrigin).toHaveBeenCalledWith(-40, -40, 100, 100);
+    expect(state.setViewport).toHaveBeenCalledWith({
+      x: 60,
+      y: 40,
+      width: 100,
+      height: 100,
+    });
+    expect(state.selectUnit).not.toHaveBeenCalled();
+  });
+
+  it('does not republish the stored viewport when an overlay rerenders', async () => {
+    render(<MapCanvas width={100} height={100} />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    state.setViewport.mockClear();
+
+    await act(async () => {
+      document.dispatchEvent(
+        new CustomEvent('show-action-dialog', {
+          detail: { unit: state.units['unit-1'] },
+        })
+      );
+      await Promise.resolve();
+    });
+
+    expect(state.setViewport).not.toHaveBeenCalled();
+  });
+
+  it('keeps a pan active across canvas leave and commits on document mouseup', async () => {
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+
+    render(<MapCanvas width={100} height={100} />);
+    const canvas = screen.getByLabelText('World map');
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    state.setViewport.mockClear();
+    setMapviewOrigin.mockClear();
+
+    await act(async () => {
+      fireEvent.mouseDown(canvas, { clientX: 10, clientY: 10, button: 0 });
+      fireEvent.mouseMove(canvas, { clientX: 30, clientY: 30, buttons: 1 });
+      fireEvent.mouseLeave(canvas, { clientX: 30, clientY: 30 });
+      fireEvent.mouseMove(window, { clientX: 60, clientY: 70, buttons: 1 });
+    });
+
+    expect(state.setViewport).not.toHaveBeenCalled();
+
+    await act(async () => {
+      fireEvent.mouseUp(document, { clientX: 60, clientY: 70, button: 0 });
+    });
+
+    expect(setMapviewOrigin).toHaveBeenCalledWith(-100, -120, 100, 100);
+    expect(state.setViewport).toHaveBeenCalledWith({
+      x: 60,
+      y: 40,
+      width: 100,
+      height: 100,
+    });
+  });
+
+  it('does not normalize a wrapped map into another GUI period on release', async () => {
+    Object.assign(state.map, { wrap_id: 3 });
+
+    render(<MapCanvas width={100} height={100} />);
+    const canvas = screen.getByLabelText('World map');
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    state.setViewport.mockClear();
+    setMapviewOrigin.mockClear();
+
+    await act(async () => {
+      fireEvent.mouseDown(canvas, { clientX: 10, clientY: 10, button: 0 });
+      fireEvent.mouseMove(canvas, { clientX: 30, clientY: 30, buttons: 1 });
+      fireEvent.mouseUp(canvas, { clientX: 30, clientY: 30, button: 0 });
+    });
+
+    expect(setMapviewOrigin).not.toHaveBeenCalled();
+    expect(state.setViewport).toHaveBeenCalledWith({
+      x: -40,
+      y: -40,
       width: 100,
       height: 100,
     });

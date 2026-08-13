@@ -35,6 +35,19 @@ describe('GameClient management screens', () => {
     });
   });
 
+  it('clears a previous player identity when switching to observer mode', async () => {
+    socket.emit.mockImplementation(
+      (event: string, _data: unknown, callback: (value: unknown) => void) => {
+        expect(event).toBe('observe_game');
+        callback({ success: true, role: 'spectator' });
+      }
+    );
+
+    await gameClient.observeGame('game-2');
+
+    expect(useGameStore.getState().currentPlayerId).toBe('');
+  });
+
   it('sends chat messages through the canonical packet envelope', () => {
     gameClient.sendChatMessage('  Hello world  ');
 

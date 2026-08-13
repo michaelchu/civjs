@@ -92,13 +92,12 @@ describe('MapManager', () => {
       expect(wrappedMap.getDistance(0, 3, 9, 3)).toBe(1);
     });
 
-    it('upgrades legacy stored ISO-hex topology before it is reused or broadcast', () => {
+    it('repairs shifted stored ISO-hex topology before it is reused or broadcast', () => {
       mapManager.setMapData({
         width: 2,
         height: 2,
-        // CivJS used 1 and 2 internally before matching Freeciv's 4 and 8
-        // topology packet flags.
-        topologyId: 3,
+        // CivJS briefly shifted ISO/HEX to 4/8 even though Freeciv uses 1/2.
+        topologyId: 12,
         wrapId: WrapFlag.X | WrapFlag.Y,
         tiles: [[], []],
         startingPositions: [],
@@ -107,7 +106,7 @@ describe('MapManager', () => {
       });
 
       expect(mapManager.getTopology().topologyId).toBe(TopologyFlag.ISO | TopologyFlag.HEX);
-      expect(mapManager.getMapData()).toMatchObject({ topologyId: 12, wrapId: 3 });
+      expect(mapManager.getMapData()).toMatchObject({ topologyId: 3, wrapId: 3 });
     });
   });
 

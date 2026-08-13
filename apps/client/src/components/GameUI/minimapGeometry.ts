@@ -1,18 +1,25 @@
 /**
  * @module client/components/GameUI/minimapGeometry
- * Overview sizing and camera-outline geometry using the shared map projection.
+ * Overview sizing, pointer inversion, and camera-outline geometry.
  *
- * The minimap base follows freeciv-web's rectangular overview raster: each
- * map-coordinate tile occupies one rectangular cell. The camera footprint is
- * the exception: GUI corners are converted through the active map projection
- * and drawn as a polygon, so an ISO viewport remains a diamond.
+ * Freeciv-web builds the overview palette as one square source-raster cell per
+ * browser map coordinate. Freeciv's overview displays an isometric cell at
+ * twice its height, however, so the source raster must be presented through a
+ * 2x1 map-cell transform. Keeping that transform shared by terrain, markers,
+ * clicks, wrapping, and the viewport outline prevents the minimap from being
+ * stretched or disagreeing with the board camera.
  *
- * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/overview.js:139-158,233-275,387-400
- * @reference reference/freeciv/client/overview_common.c:52-111,322-374,450-483
- * @reference reference/freeciv/common/world_object.h:52-60
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/overview.js:50-54,104-109,139-158,194-275,387-400
+ * @reference reference/freeciv/client/overview_common.h:27-33
+ * @reference reference/freeciv/client/overview_common.c:450-483
+ * @reference reference/freeciv/common/world_object.h:54-60
  */
 import type { MapViewport } from '../../types';
-import { guiToMapPosition, isIsometricTopology } from '../Canvas2D/mapTopologyGeometry';
+import {
+  guiToMapPosition,
+  guiToMapPositionContinuous,
+  isIsometricTopology,
+} from '../Canvas2D/mapTopologyGeometry';
 
 export const MIN_OVERVIEW_WIDTH = 200;
 export const MAX_OVERVIEW_WIDTH = 300;
@@ -21,13 +28,16 @@ export const VIEWPORT_OUTLINE_COLOR = 'rgb(200,200,255)';
 export const VIEWPORT_OUTLINE_WIDTH = 1;
 
 export interface MinimapLayout {
-  /** Integer source-raster tile size selected by Freeciv-web. */
+  /** Integer square-cell size used by Freeciv-web's source palette raster. */
   tileSize: number;
+  sourceWidth: number;
+  sourceHeight: number;
   width: number;
   height: number;
+  /** Pixels per physical overview coordinate; equal unless integer rounding is unavoidable. */
   scaleX: number;
   scaleY: number;
-  /** Rectangular overview coordinate dimensions. */
+  /** Physical overview extents. ISO map cells occupy two X units and one Y unit. */
   coordinateWidth: number;
   coordinateHeight: number;
 }
@@ -41,18 +51,30 @@ const wrap = (value: number, range: number): number => ((value % range) + range)
 
 const axisOffsets = (enabled: boolean): number[] => (enabled ? [0, 1, -1] : [0]);
 
+const greatestCommonDivisor = (left: number, right: number): number => {
+  let a = Math.abs(Math.trunc(left));
+  let b = Math.abs(Math.trunc(right));
+  while (b !== 0) {
+    [a, b] = [b, a % b];
+  }
+  return Math.max(1, a);
+};
+
+/** Freeciv OVERVIEW_TILE_WIDTH / OVERVIEW_TILE_HEIGHT. */
+export const getMinimapCellWidth = (topologyId: number): number =>
+  isIsometricTopology(topologyId) ? 2 : 1;
+
 const getOverviewWrapTranslations = (
   nativeWidth: number,
   nativeHeight: number,
   wrapId: number
-): MinimapPoint[] => {
-  return axisOffsets((wrapId & 1) !== 0).flatMap(xOffset =>
+): MinimapPoint[] =>
+  axisOffsets((wrapId & 1) !== 0).flatMap(xOffset =>
     axisOffsets((wrapId & 2) !== 0).map(yOffset => ({
       x: xOffset * nativeWidth,
       y: yOffset * nativeHeight,
     }))
   );
-};
 
 const guiToOverviewMapPosition = (
   guiX: number,
@@ -62,32 +84,63 @@ const guiToOverviewMapPosition = (
   topologyId: number
 ): MinimapPoint => {
   if (isIsometricTopology(topologyId)) {
-    return guiToMapPosition(guiX, guiY, tileWidth, tileHeight);
+    // C Freeciv deliberately keeps these values fractional for the overview;
+    // flooring here shifts the camera footprint up/left by half a map cell.
+    return guiToMapPositionContinuous(guiX, guiY, tileWidth, tileHeight);
   }
   return {
-    x: tileWidth ? Math.floor(guiX / tileWidth) : 0,
-    y: tileHeight ? Math.floor(guiY / tileHeight) : 0,
+    x: tileWidth ? guiX / tileWidth : 0,
+    y: tileHeight ? guiY / tileHeight : 0,
+  };
+};
+
+/** Fit integer canvas dimensions without changing the physical map aspect. */
+const fitOverviewDimensions = (
+  coordinateWidth: number,
+  coordinateHeight: number,
+  preferredScale: number
+): { width: number; height: number } => {
+  const preferredWidth = coordinateWidth * preferredScale;
+  const preferredHeight = coordinateHeight * preferredScale;
+  if (preferredWidth <= MAX_OVERVIEW_WIDTH && preferredHeight <= MAX_OVERVIEW_HEIGHT) {
+    return { width: preferredWidth, height: preferredHeight };
+  }
+
+  const divisor = greatestCommonDivisor(coordinateWidth, coordinateHeight);
+  const aspectWidth = coordinateWidth / divisor;
+  const aspectHeight = coordinateHeight / divisor;
+  const multiplier = Math.floor(
+    Math.min(MAX_OVERVIEW_WIDTH / aspectWidth, MAX_OVERVIEW_HEIGHT / aspectHeight)
+  );
+  if (multiplier >= 1) {
+    return { width: aspectWidth * multiplier, height: aspectHeight * multiplier };
+  }
+
+  const scale = Math.min(
+    MAX_OVERVIEW_WIDTH / coordinateWidth,
+    MAX_OVERVIEW_HEIGHT / coordinateHeight
+  );
+  return {
+    width: Math.max(1, Math.round(coordinateWidth * scale)),
+    height: Math.max(1, Math.round(coordinateHeight * scale)),
   };
 };
 
 /**
- * Size a rectangular overview in map-coordinate space.
- *
- * Freeciv-web's overview raster does not draw the ISO sprite footprint. It
- * allocates one rectangular cell for each map-coordinate tile and scales the
- * complete raster into the overview bounds. The source raster size is chosen
- * from the map width only; the displayed width and height are then capped
- * independently. The reference CSS stretches the source image to those
- * displayed dimensions, so ISO maps can intentionally use different X/Y
- * cell scales.
- *
- * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/overview.js:50-54,104-109
- * @reference reference/freeciv-web/freeciv-web/src/main/webapp/css/civclient.css:80-85
+ * Size the square source palette and its physical 2x1 ISO presentation.
+ * The source retains Freeciv-web's integer raster; both displayed axes then
+ * share one physical scale so the finished overview is never axis-stretched.
  */
-export const getMinimapLayout = (nativeWidth: number, nativeHeight: number): MinimapLayout => {
+export const getMinimapLayout = (
+  nativeWidth: number,
+  nativeHeight: number,
+  topologyId = 0
+): MinimapLayout => {
   if (nativeWidth <= 0 || nativeHeight <= 0) {
     return {
       tileSize: 0,
+      sourceWidth: 0,
+      sourceHeight: 0,
       width: 0,
       height: 0,
       scaleX: 0,
@@ -97,55 +150,60 @@ export const getMinimapLayout = (nativeWidth: number, nativeHeight: number): Min
     };
   }
 
-  const coordinateWidth = nativeWidth;
-  const coordinateHeight = nativeHeight;
   let tileSize = 1;
-  while (tileSize * coordinateWidth < MIN_OVERVIEW_WIDTH) {
-    tileSize += 1;
-  }
+  while (tileSize * nativeWidth < MIN_OVERVIEW_WIDTH) tileSize += 1;
 
-  const width = Math.min(tileSize * coordinateWidth, MAX_OVERVIEW_WIDTH);
-  const height = Math.min(tileSize * coordinateHeight, MAX_OVERVIEW_HEIGHT);
-  const scaleX = width / coordinateWidth;
-  const scaleY = height / coordinateHeight;
+  const coordinateWidth = nativeWidth * getMinimapCellWidth(topologyId);
+  const coordinateHeight = nativeHeight;
+  let preferredScale = 1;
+  while (preferredScale * coordinateWidth < MIN_OVERVIEW_WIDTH) preferredScale += 1;
+  const { width, height } = fitOverviewDimensions(
+    coordinateWidth,
+    coordinateHeight,
+    preferredScale
+  );
+
   return {
     tileSize,
+    sourceWidth: tileSize * nativeWidth,
+    sourceHeight: tileSize * nativeHeight,
     width,
     height,
-    scaleX,
-    scaleY,
+    scaleX: width / coordinateWidth,
+    scaleY: height / coordinateHeight,
     coordinateWidth,
     coordinateHeight,
   };
 };
 
-/** Place one native tile in the rectangular overview raster. */
-export const nativeToMinimapPosition = (nativeX: number, nativeY: number): MinimapPoint => ({
-  x: nativeX,
+/** Place one browser map tile in the physical overview coordinate system. */
+export const nativeToMinimapPosition = (
+  nativeX: number,
+  nativeY: number,
+  topologyId = 0
+): MinimapPoint => ({
+  x: nativeX * getMinimapCellWidth(topologyId),
   y: nativeY,
 });
 
-/**
- * Return the top-left pixel origins for every visible copy of one tile.
- * Wrapped copies follow the rectangular overview's map-axis periods.
- */
+/** Return displayed pixel origins for the base tile and wrapped map copies. */
 export const getMinimapTileOrigins = (
   nativeX: number,
   nativeY: number,
   nativeWidth: number,
   nativeHeight: number,
+  topologyId: number,
   wrapId: number,
   layout: MinimapLayout
 ): MinimapPoint[] => {
-  const cell = nativeToMinimapPosition(nativeX, nativeY);
-
+  const cellWidth = getMinimapCellWidth(topologyId);
   return getOverviewWrapTranslations(nativeWidth, nativeHeight, wrapId).map(translation => ({
-    x: (cell.x + translation.x) * layout.scaleX,
-    y: (cell.y + translation.y) * layout.scaleY,
+    x: (nativeX + translation.x) * cellWidth * layout.scaleX,
+    y: (nativeY + translation.y) * layout.scaleY,
   }));
 };
 
-/** Return integer source-raster origins before the overview is displayed. */
+/** Return Freeciv-web square source-raster origins before physical presentation. */
 export const getMinimapSourceTileOrigins = (
   nativeX: number,
   nativeY: number,
@@ -153,37 +211,36 @@ export const getMinimapSourceTileOrigins = (
   nativeHeight: number,
   wrapId: number,
   layout: MinimapLayout
-): MinimapPoint[] => {
-  const cell = nativeToMinimapPosition(nativeX, nativeY);
-
-  return getOverviewWrapTranslations(nativeWidth, nativeHeight, wrapId).map(translation => ({
-    x: (cell.x + translation.x) * layout.tileSize,
-    y: (cell.y + translation.y) * layout.tileSize,
+): MinimapPoint[] =>
+  getOverviewWrapTranslations(nativeWidth, nativeHeight, wrapId).map(translation => ({
+    x: (nativeX + translation.x) * layout.tileSize,
+    y: (nativeY + translation.y) * layout.tileSize,
   }));
-};
 
-/** Return the pixel center of the displayed overview cell for a native tile. */
+/** Return the displayed center of the terrain/marker cell for one map tile. */
 export const nativeToMinimapPixelPosition = (
   nativeX: number,
   nativeY: number,
-  layout: MinimapLayout
+  layout: MinimapLayout,
+  topologyId = 0
 ): MinimapPoint => {
-  const cell = nativeToMinimapPosition(nativeX, nativeY);
+  const cell = nativeToMinimapPosition(nativeX, nativeY, topologyId);
   return {
-    x: (cell.x + 0.5) * layout.scaleX,
+    x: (cell.x + getMinimapCellWidth(topologyId) / 2) * layout.scaleX,
     y: (cell.y + 0.5) * layout.scaleY,
   };
 };
 
-/** Resolve a natural/display overview position back to native tile storage. */
+/** Resolve a physical overview coordinate back to browser map-tile storage. */
 export const minimapPositionToNative = (
   overviewX: number,
   overviewY: number,
   nativeWidth: number,
   nativeHeight: number,
-  wrapId: number
+  topologyId = 0,
+  wrapId = 0
 ): MinimapPoint => {
-  let x = Math.floor(overviewX);
+  let x = Math.floor(overviewX / getMinimapCellWidth(topologyId));
   let y = Math.floor(overviewY);
   if ((wrapId & 1) !== 0) x = wrap(x, nativeWidth);
   if ((wrapId & 2) !== 0) y = wrap(y, nativeHeight);
@@ -193,20 +250,22 @@ export const minimapPositionToNative = (
   };
 };
 
-/** Mirror overview_clicked() through the rectangular overview scale. */
+/** Mirror overview_clicked() through the same physical transform as the raster. */
 export const minimapPointToMapTile = (
   x: number,
   y: number,
   nativeWidth: number,
   nativeHeight: number,
   layout: MinimapLayout,
+  topologyId = 0,
   wrapId = 0
 ): MinimapPoint =>
   minimapPositionToNative(
-    (x * layout.coordinateWidth) / layout.width,
-    (y * layout.coordinateHeight) / layout.height,
+    x / layout.scaleX,
+    y / layout.scaleY,
     nativeWidth,
     nativeHeight,
+    topologyId,
     wrapId
   );
 
@@ -218,10 +277,7 @@ export const guiToMapPos = (
   tileHeight: number
 ): MinimapPoint => guiToMapPosition(guiX, guiY, tileWidth, tileHeight);
 
-/**
- * Return the base viewport footprint plus Freeciv's explicit +/- map copies.
- * The canvas clips copies outside the overview bounds.
- */
+/** Return the camera footprint and explicit +/- wrapped copies in display pixels. */
 export const getMinimapViewportPolygons = (
   viewport: MapViewport,
   nativeWidth: number,
@@ -258,12 +314,13 @@ export const getMinimapViewportPolygons = (
       topologyId
     ),
   ];
-  const translations = getOverviewWrapTranslations(nativeWidth, nativeHeight, wrapId);
+  const mapScaleX = layout.width / nativeWidth;
+  const mapScaleY = layout.height / nativeHeight;
 
-  return translations.map(translation =>
+  return getOverviewWrapTranslations(nativeWidth, nativeHeight, wrapId).map(translation =>
     mapCorners.map(point => ({
-      x: (point.x + translation.x) * layout.scaleX,
-      y: (point.y + translation.y) * layout.scaleY,
+      x: (point.x + translation.x) * mapScaleX,
+      y: (point.y + translation.y) * mapScaleY,
     }))
   );
 };

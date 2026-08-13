@@ -122,6 +122,7 @@ describe('ruleset-backed city values', () => {
     );
 
     expect(result.actualPopulation).toBe(30_000);
+    expect(result.occupied).toBe(true);
     expect(result.presentUnits).toEqual(['present']);
     expect(result.supportedUnits).toEqual(['supported']);
 
@@ -130,9 +131,14 @@ describe('ruleset-backed city values', () => {
       'civ2civ3',
       undefined,
       undefined,
-      [{ id: 'supported', x: 8, y: 8, homeCityId: 'city-1' }],
+      [
+        { id: 'hidden-defender', x: 5, y: 5 },
+        { id: 'supported', x: 8, y: 8, homeCityId: 'city-1' },
+      ],
       'player-2'
     );
+    expect(foreignView.occupied).toBe(true);
+    expect(foreignView.presentUnits).toEqual([]);
     expect(foreignView.supportedUnits).toEqual([]);
     expect(foreignView.workableTiles).toEqual([]);
   });

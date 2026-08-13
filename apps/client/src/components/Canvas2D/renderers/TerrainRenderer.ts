@@ -14,7 +14,12 @@ import {
   DIR4_TO_DIR8,
 } from '../../../constants/freeciv';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
-import { stepNativeMapPosition } from '../mapTopologyGeometry';
+import { isIsometricTopology, stepNativeMapPosition } from '../mapTopologyGeometry';
+
+export interface TerrainRenderEntry {
+  state: RenderState;
+  tile: Tile;
+}
 
 export class TerrainRenderer extends BaseRenderer {
   private extraGraphics: Record<string, { graphic?: string; graphic_alt?: string }> = {};
@@ -30,192 +35,94 @@ export class TerrainRenderer extends BaseRenderer {
 
   /**
    * Render terrain for all visible tiles in the viewport.
-   * Includes rivers and resources in LAYER_SPECIAL1 (freeciv-web layer order).
+   * Covers LAYER_TERRAIN1 through LAYER_ROADS in freeciv-web layer order.
    */
   renderTerrain(state: RenderState, visibleTiles: Tile[]): void {
-    this.setMapTopology(state);
-    this.invalidateTileCache(state.map.tiles);
+    this.renderTerrainEntries(visibleTiles.map(tile => ({ state, tile })));
+  }
 
-    const entries = visibleTiles.map(tile => ({
+  /** Paint one global Freeciv terrain walk, including translated wrap copies. */
+  renderTerrainEntries(entries: TerrainRenderEntry[]): void {
+    const first = entries[0];
+    if (!first) return;
+    this.setMapTopology(first.state);
+    this.invalidateTileCache(first.state.map.tiles);
+
+    const prepared = entries.map(({ state: entryState, tile }) => ({
       tile,
-      screenPos: this.mapToScreen(tile.x, tile.y, state.viewport),
+      screenPos: this.mapToScreen(tile.x, tile.y, entryState.viewport),
       layers: [0, 1, 2].map(layer => this.fillTerrainSpriteArraySimple(layer, tile)),
     }));
 
     // Freeciv's painter order is layer-first: every visible tile in terrain
     // layer 1, then every tile in terrain layer 2, and so on. Rendering all
     // layers tile-by-tile lets a later base tile cover an earlier overlay.
-    for (const entry of entries) {
+    for (const entry of prepared) {
       if (entry.layers.every(sprites => sprites.length === 0)) {
         this.drawTerrainFallback(entry.tile, entry.screenPos);
       }
     }
     for (let layer = 0; layer <= 2; layer++) {
-      for (const entry of entries) {
+      for (const entry of prepared) {
         this.drawSprites(entry.layers[layer], entry.screenPos);
       }
     }
 
-    // Irrigation belongs to TERRAIN3, followed by the road/rail/river layer.
-    for (const entry of entries) {
+    // Irrigation belongs to TERRAIN3, followed by the road/rail/maglev layer.
+    for (const entry of prepared) {
       this.drawInfrastructure(entry.tile, entry.screenPos, 'terrain');
     }
-    for (const entry of entries) {
-      this.drawRiver(entry.tile, entry.screenPos);
+    for (const entry of prepared) {
       this.drawInfrastructure(entry.tile, entry.screenPos, 'roads');
     }
   }
 
+  /** Draw LAYER_SPECIAL1, except borders which MapRenderer appends to this layer. */
   renderSpecials(state: RenderState, visibleTiles: Tile[]): void {
     this.setMapTopology(state);
     this.invalidateTileCache(state.map.tiles);
     for (const tile of visibleTiles) {
       const screenPos = this.mapToScreen(tile.x, tile.y, state.viewport);
-      this.drawInfrastructure(tile, screenPos, 'specials');
+      this.drawRiver(tile, screenPos);
       this.drawResource(tile, screenPos);
+      this.drawInfrastructure(tile, screenPos, 'special1');
     }
   }
 
-  /**
-   * Render ocean tiles beyond map boundaries to create seamless infinite world appearance.
-   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:305-380
-   */
-  renderOceanPadding(state: RenderState): void {
-    const mapWidth = state.map.xsize ?? state.map.width;
-    const mapHeight = state.map.ysize ?? state.map.height;
-    if (!mapWidth || !mapHeight) return;
-
-    const viewport = state.viewport;
-
-    // Copy freeciv-web's gui_rect_iterate logic exactly for proper viewport coverage
-    const gui_x0 = viewport.x;
-    const gui_y0 = viewport.y;
-    // Route transitions and resizes can update the canvas before Zustand's
-    // viewport dimensions. Fill the complete backing buffer so stale viewport
-    // dimensions cannot leave diagonal wedges of the canvas uncovered.
-    const width = this.ctx.canvas?.width || viewport.width;
-    const height = this.ctx.canvas?.height || viewport.height;
-
-    // gui_rect_iterate begin - copied from freeciv-web
-    let gui_x_0 = gui_x0;
-    let gui_y_0 = gui_y0;
-    let gui_x_w = width + (this.tileWidth >> 1);
-    let gui_y_h = height + (this.tileHeight >> 1);
-
-    if (gui_x_w < 0) {
-      gui_x_0 += gui_x_w;
-      gui_x_w = -gui_x_w;
-    }
-
-    if (gui_y_h < 0) {
-      gui_y_0 += gui_y_h;
-      gui_y_h = -gui_y_h;
-    }
-
-    if (gui_x_w > 0 && gui_y_h > 0) {
-      const ptile_r1 = 2;
-      const ptile_r2 = ptile_r1 * 2;
-      const ptile_w = this.tileWidth;
-      const ptile_h = this.tileHeight;
-
-      const ptile_x0 = Math.floor(
-        (gui_x_0 * ptile_r2) / ptile_w -
-          (gui_x_0 * ptile_r2 < 0 && (gui_x_0 * ptile_r2) % ptile_w < 0 ? 1 : 0) -
-          ptile_r1 / 2
-      );
-      const ptile_y0 = Math.floor(
-        (gui_y_0 * ptile_r2) / ptile_h -
-          (gui_y_0 * ptile_r2 < 0 && (gui_y_0 * ptile_r2) % ptile_h < 0 ? 1 : 0) -
-          ptile_r1 / 2
-      );
-      const ptile_x1 = Math.floor(
-        ((gui_x_0 + gui_x_w) * ptile_r2 + ptile_w - 1) / ptile_w -
-          ((gui_x_0 + gui_x_w) * ptile_r2 + ptile_w - 1 < 0 &&
-          ((gui_x_0 + gui_x_w) * ptile_r2 + ptile_w - 1) % ptile_w < 0
-            ? 1
-            : 0) +
-          ptile_r1
-      );
-      const ptile_y1 = Math.floor(
-        ((gui_y_0 + gui_y_h) * ptile_r2 + ptile_h - 1) / ptile_h -
-          ((gui_y_0 + gui_y_h) * ptile_r2 + ptile_h - 1 < 0 &&
-          ((gui_y_0 + gui_y_h) * ptile_r2 + ptile_h - 1) % ptile_h < 0
-            ? 1
-            : 0) +
-          ptile_r1
-      );
-      const ptile_count = (ptile_x1 - ptile_x0) * (ptile_y1 - ptile_y0);
-
-      for (let ptile_index = 0; ptile_index < ptile_count; ptile_index++) {
-        const ptile_xi = ptile_x0 + (ptile_index % (ptile_x1 - ptile_x0));
-        const ptile_yi = Math.floor(ptile_y0 + ptile_index / (ptile_x1 - ptile_x0));
-
-        if ((ptile_xi + ptile_yi) % 2 != 0) {
-          continue;
-        }
-
-        // Check if this is a tile position (not a corner)
-        if (ptile_xi % 2 == 0 && ptile_yi % 2 == 0) {
-          if ((ptile_xi + ptile_yi) % 4 == 0) {
-            // Calculate map coordinates for this tile position
-            const ptile_si = ptile_xi + ptile_yi;
-            const ptile_di = ptile_yi - ptile_xi;
-            const map_x = ptile_si / 4 - 1;
-            const map_y = ptile_di / 4;
-
-            // Only render ocean tiles for out-of-bounds positions
-            if (map_x < 0 || map_x >= mapWidth || map_y < 0 || map_y >= mapHeight) {
-              // Calculate screen position for this tile
-              const gui_x = Math.floor((ptile_xi * ptile_w) / ptile_r2 - ptile_w / 2);
-              const gui_y = Math.floor((ptile_yi * ptile_h) / ptile_r2 - ptile_h / 2);
-              const cx = gui_x - gui_x0;
-              const cy = gui_y - gui_y0;
-
-              // Create synthetic deep ocean tile for out-of-bounds position
-              const oceanTile: Tile = {
-                x: map_x,
-                y: map_y,
-                terrain: 'deep_ocean',
-                visible: true,
-                known: true,
-                units: [],
-                city: undefined,
-                elevation: 0,
-                resource: undefined,
-              };
-
-              // Render the synthetic ocean tile at the calculated screen position
-              const screenPos = { x: cx, y: cy };
-              this.renderTerrainLayers(oceanTile, screenPos);
-            }
-          }
-        }
-      }
+  /** Draw LAYER_SPECIAL2 base graphics between cities and units. */
+  renderSpecial2(state: RenderState, visibleTiles: Tile[]): void {
+    this.setMapTopology(state);
+    this.invalidateTileCache(state.map.tiles);
+    for (const tile of visibleTiles) {
+      const screenPos = this.mapToScreen(tile.x, tile.y, state.viewport);
+      this.drawInfrastructure(tile, screenPos, 'special2');
     }
   }
 
-  private renderTerrainLayers(tile: Tile, screenPos: { x: number; y: number }): void {
-    let hasAnySprites = false;
-
-    // Render all layers (0, 1, 2) like freeciv-web does
-    for (let layer = 0; layer <= 2; layer++) {
-      const sprites = this.fillTerrainSpriteArraySimple(layer, tile);
-
-      if (sprites.length > 0) {
-        hasAnySprites = true;
-      }
-
-      hasAnySprites = this.drawSprites(sprites, screenPos) || hasAnySprites;
+  /** Draw LAYER_SPECIAL3 base foregrounds after fog. */
+  renderSpecial3(state: RenderState, visibleTiles: Tile[]): void {
+    this.setMapTopology(state);
+    this.invalidateTileCache(state.map.tiles);
+    for (const tile of visibleTiles) {
+      const screenPos = this.mapToScreen(tile.x, tile.y, state.viewport);
+      this.drawInfrastructure(tile, screenPos, 'special3');
     }
+  }
 
-    hasAnySprites = this.drawRiver(tile, screenPos) || hasAnySprites;
-    hasAnySprites = this.drawInfrastructure(tile, screenPos, 'terrain') || hasAnySprites;
-    hasAnySprites = this.drawInfrastructure(tile, screenPos, 'roads') || hasAnySprites;
-    hasAnySprites = this.drawInfrastructure(tile, screenPos, 'specials') || hasAnySprites;
-    hasAnySprites = this.drawResource(tile, screenPos) || hasAnySprites;
-
-    if (!hasAnySprites) {
-      this.drawTerrainFallback(tile, screenPos);
+  /** Draw Freeciv's TILELABEL layer between foreground extras and city bars. */
+  renderTileLabels(state: RenderState, visibleTiles: Tile[]): void {
+    this.ctx.font = '16px Georgia, serif';
+    this.ctx.textBaseline = 'alphabetic';
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 1)';
+    for (const tile of visibleTiles) {
+      if (!tile.label) continue;
+      const screenPos = this.mapToScreen(tile.x, tile.y, state.viewport);
+      const textWidth = this.ctx.measureText(tile.label).width;
+      this.ctx.fillText(
+        tile.label,
+        screenPos.x + this.tileWidth / 2 - Math.floor(textWidth / 2),
+        screenPos.y + 14
+      );
     }
   }
 
@@ -234,13 +141,17 @@ export class TerrainRenderer extends BaseRenderer {
   private drawInfrastructure(
     tile: Tile,
     screenPos: { x: number; y: number },
-    layer: 'terrain' | 'roads' | 'specials'
+    layer: 'terrain' | 'roads' | 'special1' | 'special2' | 'special3'
   ): boolean {
     let rendered = false;
-    for (const key of this.getInfrastructureSprites(tile, layer)) {
-      const sprite = this.tilesetLoader.getSprite(key);
+    for (const spriteInfo of this.getInfrastructureSprites(tile, layer)) {
+      const sprite = this.tilesetLoader.getSprite(spriteInfo.key);
       if (sprite) {
-        this.ctx.drawImage(sprite, screenPos.x, screenPos.y);
+        this.ctx.drawImage(
+          sprite,
+          screenPos.x + (spriteInfo.offset_x ?? 0),
+          screenPos.y + (spriteInfo.offset_y ?? 0)
+        );
         rendered = true;
       }
     }
@@ -252,22 +163,9 @@ export class TerrainRenderer extends BaseRenderer {
     if (resourceSprite) {
       const sprite = this.tilesetLoader.getSprite(resourceSprite.key);
       if (sprite) {
-        // Keep the existing CivJS resource presentation scale. The strict
-        // reference fixture has no resource in its captured world, while the
-        // application renderer and its focused contract intentionally retain
-        // this established visual treatment.
-        const resourceScale = 0.7;
-        const scaledWidth = sprite.width * resourceScale;
-        const scaledHeight = sprite.height * resourceScale;
-        const offsetX = (sprite.width - scaledWidth) / 2;
-        const offsetY = (sprite.height - scaledHeight) / 2;
-        this.ctx.drawImage(
-          sprite,
-          screenPos.x + offsetX,
-          screenPos.y + offsetY,
-          scaledWidth,
-          scaledHeight
-        );
+        // mapview_put_tile() draws generated resource sprites without an
+        // additional presentation transform.
+        this.ctx.drawImage(sprite, screenPos.x, screenPos.y);
         return true;
       }
     }
@@ -298,7 +196,10 @@ export class TerrainRenderer extends BaseRenderer {
     this.ctx.fillRect(screenPos.x, screenPos.y, this.tileWidth, this.tileHeight);
   }
 
-  private getInfrastructureSprites(tile: Tile, layer: 'terrain' | 'roads' | 'specials'): string[] {
+  private getInfrastructureSprites(
+    tile: Tile,
+    layer: 'terrain' | 'roads' | 'special1' | 'special2' | 'special3'
+  ): Array<{ key: string; offset_x?: number; offset_y?: number }> {
     this.buildTileMap();
     const directions = [
       { dx: -1, dy: -1, name: 'nw' },
@@ -310,32 +211,122 @@ export class TerrainRenderer extends BaseRenderer {
       { dx: 0, dy: 1, name: 's' },
       { dx: 1, dy: 1, name: 'se' },
     ];
-    const sprites: string[] = [];
-    const addConnections = (property: 'hasRoad' | 'hasRailroad', prefix: string) => {
-      if (!tile[property]) return;
-      const connected = directions.filter(({ dx, dy }) =>
-        Boolean(this.getDirectionalNeighborTile(tile, dx, dy)?.[property])
-      );
-      if (connected.length === 0) {
-        sprites.push(`${prefix}_isolated`);
-      } else {
-        sprites.push(...connected.map(({ name }) => `${prefix}_${name}`));
-      }
-    };
+    const sprites: Array<{ key: string; offset_x?: number; offset_y?: number }> = [];
 
     if (layer === 'roads') {
-      addConnections('hasRoad', this.extraGraphic('road', 'road.road'));
-      addConnections('hasRailroad', this.extraGraphic('railroad', 'road.rail'));
+      return this.getPathSprites(tile, directions).map(key => ({ key }));
     }
-    for (const improvement of tile.improvements ?? []) {
-      if (tile.cityId && (improvement === 'irrigation' || improvement === 'mine')) continue;
-      const targetLayer =
-        improvement === 'irrigation' || improvement === 'farmland' ? 'terrain' : 'specials';
-      if (layer !== targetLayer) continue;
-      const graphic = this.extraGraphic(improvement);
-      if (graphic) sprites.push(graphic);
+
+    const extras = this.getNormalizedImprovements(tile);
+    const pushExtra = (name: string, fallback?: string, offsetY?: number) => {
+      if (!extras.has(name)) return;
+      const graphic = this.extraGraphic(name, fallback);
+      if (graphic) sprites.push({ key: graphic, offset_y: offsetY });
+    };
+
+    if (layer === 'terrain') {
+      if (tile.cityId) return sprites;
+      if (extras.has('farmland')) pushExtra('farmland');
+      else pushExtra('irrigation');
+      return sprites;
+    }
+
+    if (layer === 'special1') {
+      pushExtra('mine');
+      pushExtra('oil_well');
+      if (!tile.cityId && extras.has('fortress')) {
+        sprites.push({ key: 'base.fortress_bg', offset_y: -this.tileHeight / 2 });
+      }
+      pushExtra('hut');
+      pushExtra('pollution');
+      pushExtra('fallout');
+      return sprites;
+    }
+
+    if (layer === 'special2' && !tile.cityId) {
+      if (extras.has('airbase')) {
+        sprites.push({ key: 'base.airbase_mg', offset_y: -this.tileHeight / 2 });
+      }
+      if (extras.has('buoy')) {
+        sprites.push({ key: 'base.buoy_mg', offset_y: -this.tileHeight / 2 });
+      }
+      if (extras.has('ruins')) {
+        sprites.push({ key: 'extra.ruins_mg', offset_y: -this.tileHeight / 2 });
+      }
+      return sprites;
+    }
+
+    if (layer === 'special3' && !tile.cityId && extras.has('fortress')) {
+      sprites.push({ key: 'base.fortress_fg', offset_y: -this.tileHeight / 2 });
     }
     return sprites;
+  }
+
+  /** Port of freeciv-web fill_path_sprite_array(), including hidden_by rules. */
+  private getPathSprites(
+    tile: Tile,
+    directions: Array<{ dx: number; dy: number; name: string }>
+  ): string[] {
+    const hasExtra = (candidate: Tile, name: 'road' | 'railroad' | 'maglev'): boolean => {
+      const extras = this.getNormalizedImprovements(candidate);
+      if (name === 'road') return Boolean(candidate.hasRoad || extras.has('road'));
+      if (name === 'railroad') return Boolean(candidate.hasRailroad || extras.has('railroad'));
+      return extras.has('maglev');
+    };
+
+    const road = hasExtra(tile, 'road');
+    const rail = hasExtra(tile, 'railroad');
+    const maglev = hasExtra(tile, 'maglev');
+    let drawSingleRoad = tile.cityId ? false : road && !rail;
+    let drawSingleRail = tile.cityId || maglev ? false : rail;
+    let drawSingleMaglev = tile.cityId ? false : maglev;
+    const roadConnections: string[] = [];
+    const railConnections: string[] = [];
+    const maglevConnections: string[] = [];
+
+    for (const { dx, dy, name } of directions) {
+      const neighbor = this.getDirectionalNeighborTile(tile, dx, dy);
+      const known =
+        neighbor?.known === true || (typeof neighbor?.known === 'number' && neighbor.known > 0);
+      if (!neighbor || !known) continue;
+
+      const drawMaglev = maglev && hasExtra(neighbor, 'maglev');
+      const drawRail = rail && hasExtra(neighbor, 'railroad') && !drawMaglev;
+      const drawRoad = road && hasExtra(neighbor, 'road') && !drawRail && !drawMaglev;
+      if (drawRoad) roadConnections.push(name);
+      if (drawRail) railConnections.push(name);
+      if (drawMaglev) maglevConnections.push(name);
+
+      if (drawMaglev) {
+        drawSingleRoad = false;
+        drawSingleRail = false;
+        drawSingleMaglev = false;
+      } else {
+        drawSingleRail &&= !drawRail;
+        drawSingleRoad &&= !drawRail && !drawRoad;
+      }
+    }
+
+    const roadPrefix = this.extraGraphic('road', 'road.road');
+    const railPrefix = this.extraGraphic('railroad', 'road.rail');
+    const maglevPrefix = this.extraGraphic('maglev', 'road.maglev');
+    const sprites = [
+      ...roadConnections.map(name => `${roadPrefix}_${name}`),
+      ...railConnections.map(name => `${railPrefix}_${name}`),
+      ...maglevConnections.map(name => `${maglevPrefix}_${name}`),
+    ];
+    if (drawSingleMaglev) sprites.push(`${maglevPrefix}_isolated`);
+    else if (drawSingleRail) sprites.push(`${railPrefix}_isolated`);
+    else if (drawSingleRoad) sprites.push(`${roadPrefix}_isolated`);
+    return sprites;
+  }
+
+  private getNormalizedImprovements(tile: Tile): Set<string> {
+    return new Set(
+      (tile.improvements ?? []).map(improvement =>
+        improvement.toLowerCase().replaceAll(' ', '_').replaceAll('-', '_')
+      )
+    );
   }
 
   private extraGraphic(name: string, fallback?: string): string {
@@ -726,20 +717,16 @@ export class TerrainRenderer extends BaseRenderer {
       return this.tileMap.get(`${tile.x + dx},${tile.y + dy}`) as Tile | undefined;
     }
 
-    // The browser reference does not reject an ISO edge neighbor immediately.
-    // map_pos_to_tile() shifts the other native axis before indexing when x
-    // crosses either finite edge. This is what lets the last/first diagonal
-    // map rows provide the corner terrain used by CELL_CORNER sprites.
-    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:215-219
-    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:341-350
+    // map_pos_to_tile() shifts the other browser-grid axis at a finite ISO
+    // edge before resolving the flat packet index.
     const candidateX = tile.x + dx;
     let candidateY = tile.y + dy;
-    if (this.wrapId === 0 && (candidateX < 0 || candidateX >= this.mapWidth)) {
+    if (
+      isIsometricTopology(this.topologyId) &&
+      this.wrapId === 0 &&
+      (candidateX < 0 || candidateX >= this.mapWidth)
+    ) {
       candidateY += candidateX < 0 ? 1 : -1;
-
-      // Convert the reference's flat-array index back to a coordinate key.
-      // For x=-1 and x=xsize this yields the opposite edge tile while
-      // preserving the ISO diagonal seam adjustment above.
       const flatIndex = candidateX + candidateY * this.mapWidth;
       if (flatIndex < 0 || flatIndex >= this.mapWidth * this.mapHeight) return undefined;
       const lookupX = ((flatIndex % this.mapWidth) + this.mapWidth) % this.mapWidth;

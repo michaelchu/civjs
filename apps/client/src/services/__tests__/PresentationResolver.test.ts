@@ -44,6 +44,7 @@ const presentation: PresentationRuleset = {
   },
   terrains: {},
   units: {},
+  buildings: {},
   extras: {},
 };
 

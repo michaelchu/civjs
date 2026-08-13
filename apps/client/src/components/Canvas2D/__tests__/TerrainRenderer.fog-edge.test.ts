@@ -164,7 +164,7 @@ describe('TerrainRenderer fog-edge neighbors', () => {
         height: 64,
         xsize: 32,
         ysize: 64,
-        topology_id: 12,
+        topology_id: 3,
         wrap_id: 3,
         tiles: {},
       },
@@ -206,7 +206,7 @@ describe('TerrainRenderer fog-edge neighbors', () => {
         height: 3,
         xsize: 3,
         ysize: 3,
-        topology_id: 4,
+        topology_id: 1,
         wrap_id: 0,
         tiles: {},
       },
@@ -247,31 +247,5 @@ describe('TerrainRenderer fog-edge neighbors', () => {
     expect(getNeighbor({ x: 0, y: 0 }, -1, 0)).toMatchObject({ x: 2, y: 0 });
     expect(getNeighbor({ x: 0, y: 0 }, -1, 1)).toMatchObject({ x: 2, y: 1 });
     expect(getNeighbor({ x: 2, y: 0 }, 1, 0)).toMatchObject({ x: 0, y: 0 });
-  });
-
-  it('pads ocean across the full canvas when viewport dimensions lag', () => {
-    const context = {
-      canvas: { width: 500, height: 300 },
-    } as unknown as CanvasRenderingContext2D;
-    const renderer = new TerrainRenderer(context, {} as never, 96, 48);
-    const renderedPositions: Array<{ x: number; y: number }> = [];
-    (
-      renderer as unknown as {
-        renderTerrainLayers: (tile: unknown, screenPosition: { x: number; y: number }) => void;
-      }
-    ).renderTerrainLayers = vi.fn((_tile, screenPosition) => {
-      renderedPositions.push(screenPosition);
-    });
-
-    renderer.renderOceanPadding({
-      viewport: { x: 0, y: 0, width: 100, height: 100 },
-      map: { width: 1, height: 1, xsize: 1, ysize: 1, tiles: {} },
-      units: {},
-      cities: {},
-      players: {},
-    } satisfies RenderState);
-
-    expect(Math.max(...renderedPositions.map(position => position.x))).toBeGreaterThan(100);
-    expect(Math.max(...renderedPositions.map(position => position.y))).toBeGreaterThan(100);
   });
 });

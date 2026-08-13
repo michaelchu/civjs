@@ -249,7 +249,7 @@ describe('GameBroadcastManager visibility sync', () => {
    * @evidence parity
    * @reference reference/freeciv/data/civ2civ3/game.ruleset:810-815
    * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:35-38
-   * @assertion The live-map snapshot carries Civ2Civ3's independent ISO|HEX (12) and WrapX|WrapY (3) Freeciv packet flags to every player.
+   * @assertion The live-map snapshot carries Civ2Civ3's independent ISO|HEX (3) and WrapX|WrapY (3) Freeciv packet flags to every player.
    * @c2c3-surface map-generation
    * @c2c3-surface-scenario normal
    */
@@ -257,7 +257,7 @@ describe('GameBroadcastManager visibility sync', () => {
     manager.broadcastMapData(gameId, {
       width: 2,
       height: 1,
-      topologyId: 12,
+      topologyId: 3,
       wrapId: 3,
       tiles: [
         [{ terrain: 'grassland', elevation: 0, riverMask: 0 }],
@@ -268,16 +268,99 @@ describe('GameBroadcastManager visibility sync', () => {
     const mapInfoPackets = emitted.filter(
       emission => emission.event === 'packet' && emission.data.type === PacketType.MAP_INFO
     );
-    expect(mapInfoPackets).toHaveLength(2);
+    expect(mapInfoPackets).toHaveLength(3);
     expect(mapInfoPackets).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           data: expect.objectContaining({
-            data: { xsize: 2, ysize: 1, topology_id: 12, wrap_id: 3 },
+            data: { xsize: 2, ysize: 1, topology_id: 3, wrap_id: 3 },
+          }),
+        }),
+        expect.objectContaining({
+          room: `game:${gameId}:spectators`,
+          data: expect.objectContaining({
+            data: { xsize: 2, ysize: 1, topology_id: 3, wrap_id: 3 },
           }),
         }),
       ])
     );
+  });
+
+  it('keeps the live spectator presentation stream omniscient and read-only', () => {
+    const game = (manager as any).games.get(gameId);
+    game.mapManager.getMapData = () => ({
+      width: 2,
+      height: 1,
+      tiles: [
+        [{ terrain: 'grassland', resource: 'wheat', elevation: 0, riverMask: 0 }],
+        [{ terrain: 'hills', resource: 'gold', elevation: 0, riverMask: 0 }],
+      ],
+    });
+    game.borderManager.getAllTileOwnership = () => [
+      { x: 1, y: 0, playerId: playerTwo, strength: 4 },
+    ];
+    game.unitManager.getUnitType = () => ({
+      id: 'warriors',
+      hitpoints: 10,
+      movement: 1,
+      flags: [],
+      rulesetUnitClassFlags: [],
+    });
+    const spectatorUnits = game.unitManager.getAllUnits();
+    game.unitManager.getAllUnits = () => spectatorUnits;
+    const hiddenUnit = spectatorUnits.get('hidden-unit');
+    hiddenUnit.health = 7;
+    hiddenUnit.automation = 'worker';
+    hiddenUnit.automationTask = {
+      action: 'build_road',
+      targetX: 1,
+      targetY: 0,
+      assignedTurn: 1,
+    };
+    game.cityManager.getAllCities = () => [];
+
+    manager.broadcastVisibilityState(gameId);
+
+    const spectatorPackets = emitted.filter(
+      emission => emission.room === `game:${gameId}:spectators` && emission.event === 'packet'
+    );
+    expect(
+      spectatorPackets
+        .flatMap(emission => emission.data.data.tiles ?? [])
+        .filter(tile => tile.terrain)
+    ).toEqual([
+      expect.objectContaining({ x: 0, y: 0, known: 2, seen: 1, resource: 'wheat' }),
+      expect.objectContaining({ x: 1, y: 0, known: 2, seen: 1, resource: 'gold' }),
+    ]);
+    expect(
+      spectatorPackets.find(emission => emission.data.type === PacketType.UNIT_INFO)?.data.data
+        .units
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'hidden-unit',
+          hp: 7,
+          maxHp: 10,
+          automation: 'worker',
+          automationTask: undefined,
+        }),
+      ])
+    );
+    expect(
+      spectatorPackets.find(emission => emission.data.type === PacketType.BORDER_UPDATE)?.data.data
+        .tiles
+    ).toEqual([{ x: 1, y: 0, owner: playerTwo, strength: 4 }]);
+    expect(
+      emitted.some(
+        emission =>
+          emission.room === `player:${userOne}` &&
+          emission.event === 'packet' &&
+          emission.data.type === PacketType.UNIT_INFO &&
+          emission.data.data.units.some(
+            (unit: any) => unit.id === 'hidden-unit' && unit.automation === 'worker'
+          )
+      )
+    ).toBe(false);
   });
 
   it('routes nuclear effects by visible affected tiles without exposing a hidden center', () => {
@@ -914,6 +997,26 @@ describe('GameBroadcastManager visibility sync', () => {
     });
   });
 
+  it('uses the ruleset hitpoint maximum for unit presentation', () => {
+    const formatted = (manager as any).formatUnitForClient(
+      {
+        id: 'storm-1',
+        playerId: playerOne,
+        unitTypeId: 'storm',
+        x: 0,
+        y: 0,
+        movementLeft: 3,
+        health: 5,
+      },
+      {
+        getUnitMaxMovement: () => 3,
+      },
+      playerOne
+    );
+
+    expect(formatted).toMatchObject({ hp: 5, maxHp: 10 });
+  });
+
   it('visibility-scopes unit destruction using the last-known tile', () => {
     manager.broadcastUnitDestroyed(gameId, {
       id: 'lost-unit',
@@ -932,5 +1035,17 @@ describe('GameBroadcastManager visibility sync', () => {
         emission => emission.room === `player:${userTwo}` && emission.event === 'unit_destroyed'
       )
     ).toBe(false);
+    expect(
+      emitted.filter(
+        emission =>
+          emission.room === `game:${gameId}:spectators` && emission.event === 'unit_destroyed'
+      )
+    ).toEqual([
+      {
+        room: `game:${gameId}:spectators`,
+        event: 'unit_destroyed',
+        data: { gameId, unitId: 'lost-unit' },
+      },
+    ]);
   });
 });

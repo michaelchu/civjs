@@ -42,6 +42,7 @@ describe('MapRenderer tileset provider boundary', () => {
         plains: { graphic: 'plains', graphic_alt: 'grassland' },
       },
       units: {},
+      buildings: {},
       extras: {},
     });
     vi.spyOn(rulesetService, 'getNationStyles').mockResolvedValue({});

@@ -13,6 +13,13 @@ describe('ruleset presentation API', () => {
       graphic_alt2: '-',
     });
     expect(presentation.units.warriors.graphic).toBe('u.warriors');
+    expect(presentation.units.warriors.flagless).toBe(false);
+    expect(presentation.units.storm.flagless).toBe(true);
+    expect(presentation.buildings.granary).toEqual({
+      graphic: 'b.granary',
+      graphic_alt: '-',
+      graphic_alt2: '-',
+    });
     expect(presentation.units.warriors.offsets).toMatchObject({
       unitX: 13,
       unitY: -9,

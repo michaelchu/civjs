@@ -13,6 +13,15 @@ equivalence for every branch or full turn sequence. The current audit, source
 references, native-fixture count, and known differences are maintained in
 [C2C3 Parity Audit](CIV2CIV3_PARITY_AUDIT.md).
 
+Frontend map evidence is tracked separately in
+[Frontend Parity Gap Analysis](FRONTEND_PARITY_GAP_ANALYSIS.md). It now includes
+direct zero-diff terrain/feature and minimap-raster comparisons, plus
+source-mapped painter, city-bar, unit-composition, interaction, and viewport
+geometry tests. It does not certify exact end-to-end C2C3 rendering: the
+runtime still combines C2C3's ISO-hex topology with a square-isometric Amplio2
+painter, the atlas is not generated from the pinned browser baseline, and the
+direct reference harness does not yet paint units, cities, or wrapped seams.
+
 ## Historical pre-certificate snapshot (superseded)
 
 **No — at this historical snapshot, the suite was not sufficient to claim that
@@ -64,7 +73,7 @@ or a source citation that does not cover the test's actual assertion.
 | Gameplay surface                                                       | Direct parity evidence reviewed                                                                                                                                                                                                            | Functional or stack evidence reviewed                                                                                 | Audit decision                                                                                                                                                 |
 | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Ruleset data and requirements                                          | The c2c3 converter checks 12 generated ruleset files; nation, resource visibility, city founding, raw building effects, and runtime technology costs have direct cases.                                                                    | Catalogue, mutation, schema, and requirement tests are extensive.                                                     | **Partial.** Static building-effect and research-cost adapters have been removed; remaining raw effect handlers and system behavior still require parity work. |
-| Map generation, terrain, resources, and topology                       | Terrain movement cost and c2c3's `FRACTAL`, temperature-60, ISO-hex, fully wrapped map defaults are source-mapped; the `MAP_INFO` packet uses Freeciv's `12`/`3` topology/wrap values.                                                     | Map-generation, topology, smoothing, validation, scenario, packet, and client snapshot tests cover CivJS behavior.    | **Insufficient.** No deterministic Freeciv-versus-CivJS map-output corpus or distribution comparison exists.                                                   |
+| Map generation, terrain, resources, and topology                       | Terrain movement cost and c2c3's `FRACTAL`, temperature-60, ISO-hex, fully wrapped map defaults are source-mapped; the `MAP_INFO` packet uses Freeciv's `3`/`3` topology/wrap values.                                                      | Map-generation, topology, smoothing, validation, scenario, packet, and client snapshot tests cover CivJS behavior.    | **Insufficient.** No deterministic Freeciv-versus-CivJS map-output corpus or distribution comparison exists.                                                   |
 | Visibility, borders, movement, and pathing                             | Terrain fragment conversion is source-mapped.                                                                                                                                                                                              | Unit, pathfinding, visibility, border, and client feedback tests cover many outcomes.                                 | **Partial.** Important foreign-border and movement regressions are covered, but the complete Freeciv movement/restriction matrix is not source-certified.      |
 | Units, transport, combat, and action execution                         | City Walls, representative unit flags, all three Found City scenario classes, and normal/rejected/boundary cases for c2c3's three nuclear actions are source-mapped; zero-movement self-nuclear has a pinned Freeciv differential fixture. | UnitManager, action, production-validation, and integration tests cover many actions and recent regression fixes.     | **Partial.** c2c3 has 89 enablers across 62 actions; the executable matrix currently completes Found City and the three nuclear actions.                       |
 | City founding, capture, growth, production, and worklists              | Conquest population/improvement handling is source-mapped.                                                                                                                                                                                 | Founding, growth, production lifecycle, rally, name, and recovery tests cover CivJS execution.                        | **Partial.** Production, founding, and worklist rules retain functional tests but lack a complete source-mapped scenario set.                                  |
@@ -88,16 +97,16 @@ protect real reference rules without implying that their enclosing subsystem is
 complete. These representative cases show the breadth of what is protected,
 not a substitute for the action and surface matrices above.
 
-| Area                    | Selected rules protected                                                                                                      |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Map topology            | c2c3's FRACTAL/temperature/topology defaults, Freeciv `MAP_INFO` flag values, legacy-map normalization, and client retention. |
-| AI domestic economy     | Strict celebration majority; valid tax, luxury, and science rates totaling 100.                                               |
-| AI diplomacy            | Ceasefire, peace, and alliance treaty-state ladder.                                                                           |
-| Movement                | Terrain move costs convert once into Freeciv movement fragments.                                                              |
-| Research and government | City science aggregation, target-switch penalty, and random revolution length.                                                |
-| Cities and trade        | City capture outcome, government-center distance/waste, base happiness, trade multiplier, and converted city effect values.   |
-| Units and combat        | Unit-class flags, City Walls integer defense multiplier, all three nuclear actions, blast radius, and SDI team boundary.      |
-| Score and ranking       | Score categories/truncation, spaceship score, future technology weighting, and interrupted team ranking.                      |
+| Area                    | Selected rules protected                                                                                                                       |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Map topology            | c2c3's FRACTAL/temperature/topology defaults, canonical Freeciv `MAP_INFO` flag values, shifted CivJS-map normalization, and client retention. |
+| AI domestic economy     | Strict celebration majority; valid tax, luxury, and science rates totaling 100.                                                                |
+| AI diplomacy            | Ceasefire, peace, and alliance treaty-state ladder.                                                                                            |
+| Movement                | Terrain move costs convert once into Freeciv movement fragments.                                                                               |
+| Research and government | City science aggregation, target-switch penalty, and random revolution length.                                                                 |
+| Cities and trade        | City capture outcome, government-center distance/waste, base happiness, trade multiplier, and converted city effect values.                    |
+| Units and combat        | Unit-class flags, City Walls integer defense multiplier, all three nuclear actions, blast radius, and SDI team boundary.                       |
+| Score and ranking       | Score categories/truncation, spaceship score, future technology weighting, and interrupted team ranking.                                       |
 
 The corresponding test-local declarations name the exact source ranges, so a
 reference revision or a future behavioral change can be reviewed at the test

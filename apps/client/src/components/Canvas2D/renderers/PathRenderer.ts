@@ -2,13 +2,31 @@
  * @module client/components/Canvas2D/renderers/PathRenderer
  * Implements the Path Renderer canvas rendering stage.
  */
-import type { GotoPath, PathTile } from '../../../services/PathfindingService';
-import type { MapViewport } from '../../../types';
+import type { GotoPath } from '../../../services/PathfindingService';
+import type { MapViewport, Tile } from '../../../types';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
+import { createMapGeometry, nativeAxisGuiPeriod } from '../mapTopologyGeometry';
+
+export interface PathRenderEntry {
+  state: RenderState;
+  tile: Tile;
+}
 
 export class PathRenderer extends BaseRenderer {
   // Debug text rendering constants
   private static readonly DEBUG_FONT_SIZE = 10; // Font size for debug overlays
+  private mapWidth = 0;
+  private mapHeight = 0;
+  private topologyId = 0;
+  private wrapId = 0;
+
+  override setMapGeometry(map: RenderState['map']): void {
+    super.setMapGeometry(map);
+    this.mapWidth = map.xsize ?? map.width;
+    this.mapHeight = map.ysize ?? map.height;
+    this.topologyId = map.topology_id ?? 0;
+    this.wrapId = map.wrap_id ?? 0;
+  }
 
   /**
    * Render goto path and debug overlays.
@@ -31,16 +49,49 @@ export class PathRenderer extends BaseRenderer {
   }
 
   /**
+   * Paint the GOTO layer in the same globally ordered tile walk as the rest
+   * of the map. This keeps wrapped copies at their translated positions and
+   * lets callers append nuclear sprites before advancing to the next tile.
+   */
+  renderPathLayerEntries(
+    entries: readonly PathRenderEntry[],
+    afterTile?: (state: RenderState, tile: Tile) => void
+  ): void {
+    const first = entries[0];
+    if (!first) return;
+    const gotoPath = first.state.gotoPath;
+    const segmentsByOrigin = new Map<
+      string,
+      Array<{ from: GotoPath['tiles'][number]; to: GotoPath['tiles'][number] }>
+    >();
+    if (gotoPath?.tiles && gotoPath.tiles.length > 1) {
+      for (let index = 0; index < gotoPath.tiles.length - 1; index += 1) {
+        const from = gotoPath.tiles[index];
+        const to = gotoPath.tiles[index + 1];
+        const key = `${from.x},${from.y}`;
+        const segments = segmentsByOrigin.get(key) ?? [];
+        segments.push({ from, to });
+        segmentsByOrigin.set(key, segments);
+      }
+      this.setGotoLineStyle();
+    }
+
+    for (const { state, tile } of entries) {
+      for (const segment of segmentsByOrigin.get(`${tile.x},${tile.y}`) ?? []) {
+        this.renderGotoSegment(segment.from, segment.to, state.viewport);
+      }
+      afterTile?.(state, tile);
+    }
+  }
+
+  /**
    * Render goto path using freeciv-web's individual directional segments from each tile.
    * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:849-888
    */
   private renderGotoPath(gotoPath: GotoPath, viewport: MapViewport): void {
     if (!gotoPath.tiles || gotoPath.tiles.length < 2) return;
 
-    // Keep the path preview unobtrusive so the map remains readable.
-    this.ctx.strokeStyle = '#ffffff';
-    this.ctx.lineWidth = 2;
-    this.ctx.lineCap = 'round';
+    this.setGotoLineStyle();
 
     // Draw individual directional segments connecting each tile to the next
     for (let i = 0; i < gotoPath.tiles.length - 1; i++) {
@@ -52,52 +103,58 @@ export class PathRenderer extends BaseRenderer {
         continue;
       }
 
-      // Get screen positions for both tiles
-      const fromPos = this.mapToScreen(fromTile.x, fromTile.y, viewport);
-      const toPos = this.mapToScreen(toTile.x, toTile.y, viewport);
-
-      // Render segment connecting tile centers (like freeciv-web but with accurate positions)
-      this.renderGotoLineSegment(fromPos.x, fromPos.y, toPos.x, toPos.y);
-    }
-
-    this.renderDestinationMarker(
-      gotoPath.tiles[gotoPath.tiles.length - 1],
-      viewport,
-      gotoPath.valid
-    );
-
-    // Draw turn indicators at waypoints for multi-turn paths
-    if (gotoPath.estimatedTurns > 1) {
-      this.renderTurnIndicators(gotoPath, viewport);
+      this.renderGotoSegment(fromTile, toTile, viewport);
     }
   }
 
-  private renderDestinationMarker(
-    destination: PathTile,
-    viewport: MapViewport,
-    valid: boolean
-  ): void {
-    if (!this.isInViewport(destination.x, destination.y, viewport)) return;
+  private setGotoLineStyle(): void {
+    this.ctx.strokeStyle = 'rgba(0,168,255,0.9)';
+    this.ctx.lineWidth = 10;
+    this.ctx.lineCap = 'round';
+  }
 
-    const screenPos = this.mapToScreen(destination.x, destination.y, viewport);
-    const centerX = screenPos.x + this.tileWidth / 2;
-    const centerY = screenPos.y + this.tileHeight / 2;
-    this.ctx.fillStyle = valid ? 'rgba(34, 211, 238, 0.28)' : 'rgba(251, 113, 133, 0.28)';
-    this.ctx.strokeStyle = valid ? '#67e8f9' : '#fb7185';
-    this.ctx.lineWidth = 2;
-    this.ctx.beginPath();
-    // Keep the marker on the same flattened ground plane as the selection overlay.
-    this.ctx.ellipse(
-      centerX,
-      centerY,
-      this.tileWidth / 12,
-      this.tileHeight / 12,
-      0,
-      0,
-      2 * Math.PI
+  private renderGotoSegment(
+    fromTile: Pick<GotoPath['tiles'][number], 'x' | 'y'>,
+    toTile: Pick<GotoPath['tiles'][number], 'x' | 'y'>,
+    viewport: MapViewport
+  ): void {
+    const fromPos = this.mapToScreen(fromTile.x, fromTile.y, viewport);
+    const toPos = this.getNearestWrappedScreenPosition(
+      fromPos,
+      this.mapToScreen(toTile.x, toTile.y, viewport)
     );
-    this.ctx.fill();
-    this.ctx.stroke();
+    this.renderGotoLineSegment(fromPos.x, fromPos.y, toPos.x, toPos.y);
+  }
+
+  private getNearestWrappedScreenPosition(
+    from: { x: number; y: number },
+    target: { x: number; y: number }
+  ): { x: number; y: number } {
+    if (!this.wrapId || !this.mapWidth || !this.mapHeight) return target;
+
+    const geometry = createMapGeometry(this.mapWidth, this.mapHeight, this.topologyId);
+    const xPeriod = nativeAxisGuiPeriod('x', geometry, this.tileWidth, this.tileHeight);
+    const yPeriod = nativeAxisGuiPeriod('y', geometry, this.tileWidth, this.tileHeight);
+    const xOffsets = (this.wrapId & 1) !== 0 ? [-1, 0, 1] : [0];
+    const yOffsets = (this.wrapId & 2) !== 0 ? [-1, 0, 1] : [0];
+    let nearest = target;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    for (const xOffset of xOffsets) {
+      for (const yOffset of yOffsets) {
+        const candidate = {
+          x: target.x + xOffset * xPeriod.x + yOffset * yPeriod.x,
+          y: target.y + xOffset * xPeriod.y + yOffset * yPeriod.y,
+        };
+        const distance = (candidate.x - from.x) ** 2 + (candidate.y - from.y) ** 2;
+        if (distance < nearestDistance) {
+          nearest = candidate;
+          nearestDistance = distance;
+        }
+      }
+    }
+
+    return nearest;
   }
 
   /**
@@ -115,49 +172,6 @@ export class PathRenderer extends BaseRenderer {
     this.ctx.moveTo(x0, y0);
     this.ctx.lineTo(x1, y1);
     this.ctx.stroke();
-  }
-
-  /**
-   * Render turn indicators on long paths
-   */
-  private renderTurnIndicators(gotoPath: GotoPath, viewport: MapViewport): void {
-    // Find approximate points where turns end based on movement cost
-    // This is a simplified version - a full implementation would track actual movement points
-    const movementPerTurn = 3; // Assume 3 movement points per turn for most units
-    let accumulatedCost = 0;
-    let turnNumber = 1;
-
-    for (const tile of gotoPath.tiles) {
-      accumulatedCost += tile.moveCost;
-
-      if (
-        accumulatedCost >= movementPerTurn * turnNumber &&
-        this.isInViewport(tile.x, tile.y, viewport)
-      ) {
-        const screenPos = this.mapToScreen(tile.x, tile.y, viewport);
-        const canvasX = screenPos.x + this.tileWidth / 2;
-        const canvasY = screenPos.y + this.tileHeight / 2;
-
-        // Draw turn number circle
-        this.ctx.fillStyle = 'rgba(255,255,255,0.8)';
-        this.ctx.strokeStyle = 'rgba(0,0,0,0.6)';
-        this.ctx.lineWidth = 2;
-
-        this.ctx.beginPath();
-        this.ctx.arc(canvasX, canvasY, 12, 0, 2 * Math.PI);
-        this.ctx.fill();
-        this.ctx.stroke();
-
-        // Draw turn number
-        this.ctx.fillStyle = 'black';
-        this.ctx.font = '12px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-        this.ctx.fillText(turnNumber.toString(), canvasX, canvasY);
-
-        turnNumber++;
-      }
-    }
   }
 
   // Debug method to render diamond grid overlay

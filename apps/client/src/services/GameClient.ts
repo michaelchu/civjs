@@ -1515,6 +1515,10 @@ export class GameClient {
           }
           if (response.success) {
             this.currentGameId = gameId;
+            // An observer is deliberately not attached to any player. Clear a
+            // prior player identity when switching roles so map markers,
+            // shields, selection, and owner-only controls use observer rules.
+            useGameStore.getState().updateGameState({ currentPlayerId: '' });
             this.session.ready(operation);
             resolve();
           } else {

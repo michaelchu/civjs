@@ -54,7 +54,7 @@ describe('CityRenderer presentation state', () => {
       96,
       48
     );
-    const renderCity = vi.spyOn(renderer as never, 'renderCity').mockImplementation(() => {});
+    const renderCity = vi.spyOn(renderer as never, 'renderCitySprite').mockImplementation(() => {});
     const city = { id: 'hidden', x: 2, y: 2 } as City;
     const state = {
       viewport: { x: 0, y: 0, width: 800, height: 600 },
@@ -78,7 +78,7 @@ describe('CityRenderer presentation state', () => {
       96,
       48
     );
-    const renderCity = vi.spyOn(renderer as never, 'renderCity').mockImplementation(() => {});
+    const renderCity = vi.spyOn(renderer as never, 'renderCitySprite').mockImplementation(() => {});
     const city = { id: 'known', x: 2, y: 2 } as City;
     const state = {
       viewport: { x: 0, y: 0, width: 800, height: 600 },
@@ -95,10 +95,11 @@ describe('CityRenderer presentation state', () => {
     expect(renderCity).toHaveBeenCalledWith(city, state.viewport, state);
   });
 
-  it('renders production progress in the city nameplate', () => {
+  it('matches the reference city-bar drawing commands', () => {
     const context = {
       canvas: { width: 800, height: 600 },
       fillRect: vi.fn(),
+      drawImage: vi.fn(),
       strokeRect: vi.fn(),
       beginPath: vi.fn(),
       moveTo: vi.fn(),
@@ -109,7 +110,14 @@ describe('CityRenderer presentation state', () => {
       fillText: vi.fn(),
       measureText: vi.fn().mockReturnValue({ width: 32 }),
     } as unknown as CanvasRenderingContext2D;
-    const renderer = new CityRenderer(context, { getSprite: () => undefined } as never, 96, 48);
+    const granarySprite = {} as HTMLCanvasElement;
+    const renderer = new CityRenderer(
+      context,
+      { getSprite: (key: string) => (key === 'b.granary' ? granarySprite : undefined) } as never,
+      96,
+      48
+    );
+    renderer.setProductionGraphics({}, { granary: { graphic: 'b.granary' } });
     const city = {
       id: 'known',
       name: 'Alpha',
@@ -131,25 +139,38 @@ describe('CityRenderer presentation state', () => {
       },
     } as unknown as City;
 
-    renderer.renderCities({
+    renderer.renderCityOverlays({
       viewport: { x: 0, y: 0, width: 800, height: 600 },
       map: { tiles: { '0,0': { x: 0, y: 0, terrain: 'plains', known: true, visible: true } } },
       cities: { known: city },
       players: { self: { color: '#22d3ee' } },
     } as unknown as RenderState);
 
-    expect(context.fillText).toHaveBeenCalledWith(
-      'Granary · 3',
-      expect.any(Number),
-      expect.any(Number)
-    );
-    expect(context.fillText).toHaveBeenCalledWith('7', expect.any(Number), expect.any(Number));
+    expect(context.font).toBe('16px Georgia, serif');
+    expect(context.fillRect).toHaveBeenNthCalledWith(1, 15, 38, 52, 20);
+    expect(context.fillRect).toHaveBeenNthCalledWith(2, 66, 36, 67, 24);
+    expect(context.strokeStyle).toBe('#22d3ee');
+    expect(context.lineWidth).toBe(1.5);
+    expect(context.moveTo).toHaveBeenNthCalledWith(1, -17, 37);
+    expect(context.lineTo).toHaveBeenNthCalledWith(1, 106, 37);
+    expect(context.moveTo).toHaveBeenNthCalledWith(2, 106, 59);
+    expect(context.lineTo).toHaveBeenNthCalledWith(2, -17, 59);
+    expect(context.lineTo).toHaveBeenNthCalledWith(3, -17, 37);
+    expect(context.moveTo).toHaveBeenNthCalledWith(3, 14, 38);
+    expect(context.lineTo).toHaveBeenNthCalledWith(4, 14, 58);
+    expect(context.stroke).toHaveBeenCalledTimes(1);
+    expect(context.globalAlpha).toBe(1);
+    expect(context.drawImage).toHaveBeenCalledWith(granarySprite, 106, 36, 28, 24);
+    expect(context.fillText).toHaveBeenNthCalledWith(1, '3', 71, 56);
+    expect(context.fillText).toHaveBeenNthCalledWith(2, 'ALPHA', 27, 54);
+    expect(context.fillText).toHaveBeenNthCalledWith(3, '3', 69, 54);
   });
 
-  it('renders Wealth without a completion countdown', () => {
+  it('keeps conversion production text out of the reference city bar', () => {
     const context = {
       canvas: { width: 800, height: 600 },
       fillRect: vi.fn(),
+      drawImage: vi.fn(),
       strokeRect: vi.fn(),
       beginPath: vi.fn(),
       moveTo: vi.fn(),
@@ -180,14 +201,19 @@ describe('CityRenderer presentation state', () => {
       },
     } as unknown as City;
 
-    renderer.renderCities({
+    renderer.renderCityOverlays({
       viewport: { x: 0, y: 0, width: 800, height: 600 },
       map: { tiles: { '0,0': { x: 0, y: 0, terrain: 'plains', known: true, visible: true } } },
       cities: { known: city },
       players: { self: { color: '#22d3ee' } },
     } as unknown as RenderState);
 
-    expect(context.fillText).toHaveBeenCalledWith('Wealth', expect.any(Number), expect.any(Number));
+    expect(context.fillText).toHaveBeenCalledWith('ALPHA', expect.any(Number), expect.any(Number));
+    expect(context.fillText).not.toHaveBeenCalledWith(
+      'Wealth',
+      expect.any(Number),
+      expect.any(Number)
+    );
     expect(context.fillText).not.toHaveBeenCalledWith(
       'Wealth · 999',
       expect.any(Number),
@@ -195,10 +221,11 @@ describe('CityRenderer presentation state', () => {
     );
   });
 
-  it('renders the selected city workable-area tiles', () => {
+  it('renders selected-city output sprites without custom tile diamonds', () => {
     const context = {
       canvas: { width: 800, height: 600 },
       fillRect: vi.fn(),
+      drawImage: vi.fn(),
       strokeRect: vi.fn(),
       beginPath: vi.fn(),
       moveTo: vi.fn(),
@@ -209,7 +236,16 @@ describe('CityRenderer presentation state', () => {
       fillText: vi.fn(),
       measureText: vi.fn().mockReturnValue({ width: 32 }),
     } as unknown as CanvasRenderingContext2D;
-    const renderer = new CityRenderer(context, { getSprite: () => undefined } as never, 96, 48);
+    const outputSprite = {} as HTMLCanvasElement;
+    const renderer = new CityRenderer(
+      context,
+      {
+        getSprite: (key: string) =>
+          key.startsWith('city.t_') || key === 'grid.unavailable' ? outputSprite : undefined,
+      } as never,
+      96,
+      48
+    );
     const city = {
       id: 'known',
       name: 'Alpha',
@@ -226,7 +262,7 @@ describe('CityRenderer presentation state', () => {
       ],
     } as unknown as City;
 
-    renderer.renderCities({
+    renderer.renderCityOverlays({
       viewport: { x: 0, y: 0, width: 800, height: 600 },
       map: {
         tiles: {
@@ -239,7 +275,57 @@ describe('CityRenderer presentation state', () => {
       selectedCityId: 'known',
     } as unknown as RenderState);
 
-    expect(context.fill).toHaveBeenCalledTimes(2);
-    expect(context.stroke).toHaveBeenCalled();
+    expect(context.drawImage).toHaveBeenCalledTimes(3);
+    expect(context.fill).not.toHaveBeenCalled();
+    expect(context.closePath).not.toHaveBeenCalled();
+    expect(context.stroke).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the coarse occupied sprite for a foreign city without leaking units', () => {
+    const context = {
+      canvas: { width: 800, height: 600 },
+      fillRect: vi.fn(),
+      drawImage: vi.fn(),
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+      fillText: vi.fn(),
+      measureText: vi.fn().mockReturnValue({ width: 32 }),
+    } as unknown as CanvasRenderingContext2D;
+    const occupiedSprite = {} as HTMLCanvasElement;
+    const renderer = new CityRenderer(
+      context,
+      {
+        getSprite: (key: string) => (key === 'citybar.occupied' ? occupiedSprite : undefined),
+      } as never,
+      96,
+      48
+    );
+    const city = {
+      id: 'foreign',
+      name: 'Beta',
+      playerId: 'other',
+      x: 0,
+      y: 0,
+      size: 2,
+      occupied: true,
+      buildings: [],
+    } as unknown as City;
+
+    renderer.renderCityOverlays({
+      viewport: { x: 0, y: 0, width: 800, height: 600 },
+      map: { tiles: { '0,0': { x: 0, y: 0, terrain: 'plains', known: true, visible: true } } },
+      cities: { foreign: city },
+      units: {},
+      players: { other: { color: '#f00', name: 'Other', nation: 'other' } },
+      currentPlayerId: 'self',
+    } as unknown as RenderState);
+
+    expect(context.drawImage).toHaveBeenCalledWith(
+      occupiedSprite,
+      expect.any(Number),
+      expect.any(Number)
+    );
   });
 });

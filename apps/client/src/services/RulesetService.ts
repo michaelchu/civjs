@@ -32,6 +32,8 @@ export interface GraphicDefinition {
   activity_gfx?: string;
   act_gfx_alt?: string;
   act_gfx_alt2?: string;
+  /** Suppress the nation shield for foreign units while actively playing. */
+  flagless?: boolean;
   offsets?: UnitOverlayOffsets;
 }
 
@@ -68,6 +70,7 @@ export interface PresentationRuleset {
   music_styles: Record<string, MusicStyle>;
   terrains: Record<string, GraphicDefinition>;
   units: Record<string, GraphicDefinition>;
+  buildings: Record<string, GraphicDefinition>;
   extras: Record<string, GraphicDefinition>;
 }
 

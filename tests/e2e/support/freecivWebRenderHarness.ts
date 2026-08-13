@@ -14,12 +14,27 @@ export interface ReferenceMapFixture {
   tiles: ReferenceParityTile[];
   width: number;
   height: number;
+  /** Optional physical display dimensions for the generated square-cell raster. */
+  displayWidth?: number;
+  displayHeight?: number;
+}
+
+export interface ReferenceMapGeometry {
+  /** Modern Freeciv protocol topology flags (ISO=1, HEX=2). */
+  topologyId: number;
+  wrapId: number;
 }
 
 export interface CanvasPixels {
   width: number;
   height: number;
   data: number[];
+}
+
+export interface ReferenceOverviewGeometry {
+  width: number;
+  height: number;
+  polygons: Array<Array<{ x: number; y: number }>>;
 }
 
 export interface PixelDiff {
@@ -121,6 +136,59 @@ export const readReferenceOverviewTileColors = async (
       point => globals.palette[globals.overview_tile_color(point.x, point.y)] ?? [0, 0, 0]
     );
   }, coordinates);
+
+/**
+ * Read Freeciv-web's overview geometry without relying on its integer-stroked
+ * canvas pixels. CivJS intentionally uses C Freeciv's continuous corner
+ * projection, while overview.js floors those corners through gui_to_map_pos().
+ */
+export const readReferenceOverviewGeometry = async (
+  page: Page
+): Promise<ReferenceOverviewGeometry> =>
+  page.evaluate(() => {
+    const globals = window as unknown as {
+      map: { xsize: number; ysize: number; wrap_id: number };
+      mapview: { gui_x0: number; gui_y0: number; width: number; height: number };
+      tileset_tile_width: number;
+      tileset_tile_height: number;
+      __civjs_reference_overview_wrap_id?: number;
+    };
+    const overview = document.getElementById('overview_map');
+    if (!overview) throw new Error('Reference overview element is unavailable');
+    const width = Math.round(overview.getBoundingClientRect().width);
+    const height = Math.round(overview.getBoundingClientRect().height);
+    const toMap = (canvasX: number, canvasY: number) => {
+      const guiX = canvasX + globals.mapview.gui_x0;
+      const guiY = canvasY + globals.mapview.gui_y0;
+      const adjustedX = guiX - (globals.tileset_tile_width >> 1);
+      const denominator = globals.tileset_tile_width * globals.tileset_tile_height;
+      return {
+        x:
+          (adjustedX * globals.tileset_tile_height + guiY * globals.tileset_tile_width) /
+          denominator,
+        y:
+          (guiY * globals.tileset_tile_width - adjustedX * globals.tileset_tile_height) /
+          denominator,
+      };
+    };
+    const corners = [
+      toMap(0, 0),
+      toMap(globals.mapview.width, 0),
+      toMap(globals.mapview.width, globals.mapview.height),
+      toMap(0, globals.mapview.height),
+    ];
+    const offsets = (enabled: boolean) => (enabled ? [0, 1, -1] : [0]);
+    const wrapId = globals.__civjs_reference_overview_wrap_id ?? globals.map.wrap_id;
+    const polygons = offsets((wrapId & 1) !== 0).flatMap(xOffset =>
+      offsets((wrapId & 2) !== 0).map(yOffset =>
+        corners.map(point => ({
+          x: ((point.x + xOffset * globals.map.xsize) * width) / globals.map.xsize,
+          y: ((point.y + yOffset * globals.map.ysize) * height) / globals.map.ysize,
+        }))
+      )
+    );
+    return { width, height, polygons };
+  });
 
 export interface ReferenceParityTile {
   x: number;
@@ -356,7 +424,8 @@ export const renderFreecivWebFixture = async (
   mapWidth: number,
   mapHeight: number,
   viewport: ReferenceRenderViewport,
-  overviewFixture?: ReferenceMapFixture
+  overviewFixture?: ReferenceMapFixture,
+  geometry: ReferenceMapGeometry = { topologyId: 1, wrapId: 0 }
 ): Promise<void> => {
   const atlasUrls = await Promise.all(
     atlasPaths.map(async atlasPath => {
@@ -377,6 +446,8 @@ export const renderFreecivWebFixture = async (
       terrain,
       minimapSize,
       overview: overviewFixture,
+      boardTopologyId,
+      overviewWrapId,
     }) => {
       const images = await Promise.all(
         imageUrls.map(
@@ -390,12 +461,18 @@ export const renderFreecivWebFixture = async (
         )
       );
 
-      const installMapFixture = (fixtureTiles, fixtureWidth, fixtureHeight) => {
+      const installMapFixture = (
+        fixtureTiles,
+        fixtureWidth,
+        fixtureHeight,
+        fixtureWrapId,
+        fixtureTopologyId = window.TF_ISO
+      ) => {
         window.map = {
           xsize: fixtureWidth,
           ysize: fixtureHeight,
-          topology_id: window.TF_ISO,
-          wrap_id: 0,
+          topology_id: fixtureTopologyId,
+          wrap_id: fixtureWrapId,
         };
         const tileObjects = fixtureTiles.map(tile => ({
           ...tile,
@@ -414,7 +491,13 @@ export const renderFreecivWebFixture = async (
         };
       };
 
-      installMapFixture(referenceTiles, width, height);
+      // Keep the board capture on the legacy harness's finite lookup. Its
+      // map_pos_to_tile() adapter does not normalize wrapped coordinates;
+      // overview geometry is installed with the real runtime wrap below.
+      const referenceBoardTopologyId =
+        ((boardTopologyId & 1) !== 0 ? window.TF_ISO : 0) |
+        ((boardTopologyId & 2) !== 0 ? window.TF_HEX : 0);
+      installMapFixture(referenceTiles, width, height, 0, referenceBoardTopologyId);
       window.terrains = Object.fromEntries(
         Object.entries(terrain).map(([name, definition]) => [
           name,
@@ -463,7 +546,7 @@ export const renderFreecivWebFixture = async (
       const overviewWidth = overviewFixture?.width ?? width;
       const overviewHeight = overviewFixture?.height ?? height;
       if (overviewFixture) {
-        installMapFixture(overviewFixture.tiles, overviewWidth, overviewHeight);
+        installMapFixture(overviewFixture.tiles, overviewWidth, overviewHeight, overviewWrapId);
       }
 
       window.OVERVIEW_TILE_SIZE = 1;
@@ -473,8 +556,14 @@ export const renderFreecivWebFixture = async (
       window.palette = window.generate_palette();
       const grid = window.generate_overview_grid(overviewWidth, overviewHeight);
       const overview = document.getElementById('overview_map');
-      overview.style.width = `${Math.min(minimapSize, window.OVERVIEW_TILE_SIZE * overviewWidth)}px`;
-      overview.style.height = `${Math.min(minimapSize, window.OVERVIEW_TILE_SIZE * overviewHeight)}px`;
+      const displayWidth =
+        overviewFixture?.displayWidth ??
+        Math.min(minimapSize, window.OVERVIEW_TILE_SIZE * overviewWidth);
+      const displayHeight =
+        overviewFixture?.displayHeight ??
+        Math.min(minimapSize, window.OVERVIEW_TILE_SIZE * overviewHeight);
+      overview.style.width = `${displayWidth}px`;
+      overview.style.height = `${displayHeight}px`;
       window.bmp_lib.render('overview_img', grid, window.palette);
       const image = document.getElementById('overview_img');
       if (!image.complete) {
@@ -490,6 +579,9 @@ export const renderFreecivWebFixture = async (
         });
       }
       window.render_viewrect();
+      // Preserve the runtime wrap separately from window.map, which was just
+      // configured with the overview fixture used by palette lookups.
+      window.__civjs_reference_overview_wrap_id = overviewWrapId;
     },
     {
       atlasUrls,
@@ -504,8 +596,12 @@ export const renderFreecivWebFixture = async (
             tiles: overviewTiles,
             width: overviewFixture.width,
             height: overviewFixture.height,
+            displayWidth: overviewFixture.displayWidth,
+            displayHeight: overviewFixture.displayHeight,
           }
         : undefined,
+      boardTopologyId: geometry.topologyId,
+      overviewWrapId: geometry.wrapId,
     }
   );
 };

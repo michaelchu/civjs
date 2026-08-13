@@ -3,6 +3,7 @@
  * Implements the Fog Renderer canvas rendering stage.
  */
 import { BaseRenderer, type RenderState } from './BaseRenderer';
+import { isIsometricTopology } from '../mapTopologyGeometry';
 
 const TILE_UNKNOWN = 0;
 const TILE_KNOWN_UNSEEN = 1;
@@ -58,10 +59,9 @@ export class FogRenderer extends BaseRenderer {
       );
     }
 
-    const corners =
-      (state.map.topology_id ?? 0) & 4
-        ? this.getReferencePainterCorners(state, mapWidth, mapHeight, knowledgeByCoordinate)
-        : this.getRectangularCorners(state, mapWidth, mapHeight, knowledgeByCoordinate);
+    const corners = isIsometricTopology(state.map.topology_id ?? 0)
+      ? this.getReferencePainterCorners(state, mapWidth, mapHeight, knowledgeByCoordinate)
+      : this.getRectangularCorners(state, mapWidth, mapHeight, knowledgeByCoordinate);
 
     for (const corner of corners) {
       const { states, screen } = corner;
@@ -117,7 +117,7 @@ export class FogRenderer extends BaseRenderer {
     const painterRadius = 2;
     const painterScale = painterRadius * 2;
     const referenceFloor = (numerator: number, denominator: number): number =>
-      Math.floor(numerator / denominator - (numerator < 0 && numerator % denominator < 0 ? 1 : 0));
+      Math.trunc(numerator / denominator - (numerator < 0 && numerator % denominator < 0 ? 1 : 0));
     const painterX0 = referenceFloor(guiX0 * painterScale, this.tileWidth) - painterRadius / 2;
     const painterY0 = referenceFloor(guiY0 * painterScale, this.tileHeight) - painterRadius / 2;
     const painterX1 =
@@ -250,8 +250,7 @@ export class FogRenderer extends BaseRenderer {
     // Match the browser reference's finite ISO map_pos_to_tile() lookup. An
     // edge x coordinate is translated into the adjacent diagonal row before
     // indexing the flat tile array; it is not treated as an off-map unknown.
-    // @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:215-219
-    if ((this.currentTopologyId & 4) !== 0 && wrapId === 0) {
+    if (isIsometricTopology(this.currentTopologyId) && wrapId === 0) {
       if (x >= mapWidth) y -= 1;
       else if (x < 0) y += 1;
       const flatIndex = x + y * mapWidth;

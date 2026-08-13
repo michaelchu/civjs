@@ -68,6 +68,7 @@ describe('GameManagementHandler', () => {
       id: mockSocketId,
       on: jest.fn(),
       join: jest.fn(),
+      leave: jest.fn(),
       emit: jest.fn(),
       data: {},
     } as any;
@@ -712,9 +713,22 @@ describe('GameManagementHandler', () => {
                   health: 100,
                   movementLeft: 1,
                   veteranLevel: 0,
+                  activity: { type: 'building_road', target: 'road' },
+                  automation: 'worker',
+                  orders: [{ type: 'road' }],
+                  cargoUnits: ['cargo-1'],
+                  actionDecisionWant: true,
                 },
               ],
             ]),
+          getUnitType: () => ({
+            hitpoints: 10,
+            attack: 1,
+            defense: 1,
+            firepower: 1,
+            movement: 1,
+          }),
+          getUnitMaxMovement: () => 3,
         },
         visibilityManager: {
           updatePlayerVisibility: jest.fn(),
@@ -732,6 +746,9 @@ describe('GameManagementHandler', () => {
 
       await eventHandler({ gameId: mockGameId }, mockCallback);
 
+      expect(mockSocket.join).toHaveBeenCalledWith(`game:${mockGameId}`);
+      expect(mockSocket.join).toHaveBeenCalledWith(`game:${mockGameId}:spectators`);
+
       expect(mockSocket.emit).toHaveBeenCalledWith(
         'packet',
         expect.objectContaining({
@@ -745,7 +762,22 @@ describe('GameManagementHandler', () => {
         'packet',
         expect.objectContaining({
           type: PacketType.UNIT_INFO,
-          data: expect.objectContaining({ fullSnapshot: true }),
+          data: expect.objectContaining({
+            fullSnapshot: true,
+            units: [
+              expect.objectContaining({
+                id: 'unit-1',
+                maxHp: 10,
+                maxmoves: 3,
+                activity: { type: 'building_road', target: 'road' },
+                activityTarget: 'road',
+                automation: 'worker',
+                orders: [{ type: 'road' }],
+                occupied: true,
+                actionDecisionWant: true,
+              }),
+            ],
+          }),
         })
       );
       expect(mockCallback).toHaveBeenCalledWith({ success: true, role: 'spectator' });

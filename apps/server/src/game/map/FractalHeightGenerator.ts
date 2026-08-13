@@ -632,7 +632,7 @@ export class FractalHeightGenerator {
       // Switch axis for next pass
       axe = !axe;
 
-      if (!axe && this.topology.isIsometric()) {
+      if (!axe && this.topology.usesIsometricCoordinates()) {
         weight = weightIsometric;
       }
 

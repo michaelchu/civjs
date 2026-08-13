@@ -157,6 +157,8 @@ export interface MapTile {
   // Border system - tile ownership
   owner?: string; // Player ID who owns this tile (null for unclaimed)
   claimer?: string; // Player ID who claimed this tile (for diplomacy)
+  /** Optional scenario/map label rendered by clients. */
+  label?: string;
 }
 
 export interface MapData {

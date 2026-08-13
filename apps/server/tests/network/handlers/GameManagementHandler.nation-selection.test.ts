@@ -60,6 +60,7 @@ describe('GameManagementHandler - Nation Selection', () => {
     mockSocket = {
       id: mockSocketId,
       join: jest.fn(),
+      leave: jest.fn(),
       on: jest.fn(),
       emit: jest.fn(),
       data: {},

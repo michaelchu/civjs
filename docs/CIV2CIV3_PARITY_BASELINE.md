@@ -59,9 +59,10 @@ based solely on a large count of narrow unit tests.
 For map setup, CivJS resolves c2c3's source settings rather than applying the
 old neutral map defaults: `FRACTAL`, temperature `60`, `ISO|HEX`, and
 `WRAPX|WRAPY` (`data/civ2civ3/game.ruleset:810-827`). The live `MAP_INFO`
-packet carries the Freeciv wire values `topology_id: 12` and `wrap_id: 3`, and
+packet carries the Freeciv wire values `topology_id: 3` and `wrap_id: 3`, and
 the client retains both values through map-snapshot assembly. Existing CivJS
-maps written with its former internal topology values are normalized on load.
+maps written during its former shifted-bit implementation (`4`, `8`, or `12`)
+are normalized on load.
 This is source and packet-contract evidence, not a deterministic
 Freeciv-versus-CivJS terrain-output comparison.
 

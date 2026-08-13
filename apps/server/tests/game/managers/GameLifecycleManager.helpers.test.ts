@@ -250,9 +250,9 @@ describe('GameLifecycleManager helper behavior', () => {
       topologyId: TopologyFlag.ISO | TopologyFlag.HEX,
       wrapId: WrapFlag.X | WrapFlag.Y,
     });
-    // The Freeciv MAP_INFO protocol reserves bits 0-1 for legacy wrapping,
-    // leaving ISO|HEX as 4|8 and independent WrapX|WrapY as 1|2.
-    expect(gameData.gameState.terrainSettings).toMatchObject({ topologyId: 12, wrapId: 3 });
+    // Freeciv's bitwise enum assigns ISO|HEX to 1|2; current wrapping is a
+    // separate bitwise field that independently uses WrapX|WrapY as 1|2.
+    expect(gameData.gameState.terrainSettings).toMatchObject({ topologyId: 3, wrapId: 3 });
     expect(
       (manager as any)
         .createMapManager(

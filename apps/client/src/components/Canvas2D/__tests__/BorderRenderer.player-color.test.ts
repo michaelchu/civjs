@@ -145,7 +145,7 @@ describe('BorderRenderer player colors', () => {
       height: 64,
       xsize: 32,
       ysize: 64,
-      topology_id: 12,
+      topology_id: 3,
       wrap_id: 3,
       tiles: Object.fromEntries([center, ...neighbors].map(tile => [`${tile.x},${tile.y}`, tile])),
     };

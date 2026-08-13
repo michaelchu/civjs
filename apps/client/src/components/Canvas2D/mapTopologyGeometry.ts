@@ -3,28 +3,55 @@
  * Shared Freeciv native, logical, natural/display, and GUI map geometry.
  *
  * Freeciv packets and CivJS tile storage use native coordinates. Isometric
- * maps also expose logical and natural coordinate helpers for topology and
- * native-map conversions. The browser 2D client itself follows freeciv-web's
- * tile path: tile x/y values are passed directly to map_to_gui_pos() and
- * gui_to_map_pos(). Keeping that distinction explicit prevents the C
- * conversion helpers from rotating the web renderer a second time.
+ * maps also expose logical and natural helpers for topology code. The browser
+ * 2D client follows freeciv-web's direct packet-grid renderer; inserting the
+ * C client's native/logical conversion into that path rotates it a second
+ * time. This deliberate client-model boundary is tested explicitly.
  *
  * @reference reference/freeciv/common/map.h:170-190
  * @reference reference/freeciv/common/world_object.h:52-60
  * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:231-276
- * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:132-158,247-309
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:132-158,247-387
  */
 export interface MapPoint {
   x: number;
   y: number;
 }
 
-export const TOPOLOGY_ISO = 1 << 2;
-export const TOPOLOGY_HEX = 1 << 3;
+/** Freeciv `topo_flag`: ISO and HEX are bitwise enum ordinals zero and one. */
+export const TOPOLOGY_ISO = 1 << 0;
+export const TOPOLOGY_HEX = 1 << 1;
 
 /** Freeciv treats either ISO or HEX as an isometric natural map. */
 export const isIsometricTopology = (topologyId: number): boolean =>
   (topologyId & (TOPOLOGY_ISO | TOPOLOGY_HEX)) !== 0;
+
+/**
+ * Compare native tile positions in the order used by the map painter.
+ *
+ * The browser painter orders its map-grid positions by GUI Y and then GUI X.
+ * Keeping this as a shared primitive prevents object insertion order from
+ * changing terrain/entity occlusion.
+ *
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:305-387
+ */
+export const compareMapPointsInPainterOrder = (
+  first: MapPoint,
+  second: MapPoint,
+  topologyId = 0
+): number => {
+  if (!isIsometricTopology(topologyId)) {
+    return first.y - second.y || first.x - second.x;
+  }
+
+  return first.x + first.y - (second.x + second.y) || first.x - first.y - (second.x - second.y);
+};
+
+export const sortMapPointsInPainterOrder = <T extends MapPoint>(
+  points: readonly T[],
+  topologyId = 0
+): T[] =>
+  [...points].sort((first, second) => compareMapPointsInPainterOrder(first, second, topologyId));
 
 export interface MapGeometry {
   /** Dimensions used by packets, persistence, and authoritative tile storage. */
@@ -146,8 +173,16 @@ export const mapToGuiPosition = (
   y: ((mapX + mapY) * tileHeight) >> 1,
 });
 
-/** Mirror freeciv-web's gui_to_map_pos() tile selection conversion. */
-export const guiToMapPosition = (
+/**
+ * Invert the browser isometric projection without discarding sub-tile
+ * precision. Overview viewport geometry needs this continuous form so the
+ * outline describes the exact painted GUI rectangle rather than four tiles
+ * containing its corners.
+ *
+ * @reference reference/freeciv/client/overview_common.c:51-79
+ * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:192-233
+ */
+export const guiToMapPositionContinuous = (
   guiX: number,
   guiY: number,
   tileWidth: number,
@@ -157,18 +192,25 @@ export const guiToMapPosition = (
   const denominator = tileWidth * tileHeight;
   if (denominator === 0) return { x: 0, y: 0 };
   return {
-    x: Math.floor((adjustedX * tileHeight + guiY * tileWidth) / denominator),
-    y: Math.floor((guiY * tileWidth - adjustedX * tileHeight) / denominator),
+    x: (adjustedX * tileHeight + guiY * tileWidth) / denominator,
+    y: (guiY * tileWidth - adjustedX * tileHeight) / denominator,
   };
 };
 
+/** Mirror freeciv-web's gui_to_map_pos() tile selection conversion. */
+export const guiToMapPosition = (
+  guiX: number,
+  guiY: number,
+  tileWidth: number,
+  tileHeight: number
+): MapPoint => {
+  const point = guiToMapPositionContinuous(guiX, guiY, tileWidth, tileHeight);
+  return { x: Math.floor(point.x), y: Math.floor(point.y) };
+};
+
 /**
- * Project one authoritative tile into the browser 2D GUI coordinate space.
- *
- * Freeciv-web's 2D renderer stores tiles in the same x/y grid that it passes
- * to map_to_gui_pos(). The native/logical conversion helpers above are still
- * used by topology and wrapping code, but must not be inserted into this
- * rendering path.
+ * Project one authoritative tile into freeciv-web's GUI coordinate space.
+ * Its tile x/y fields already are the map grid supplied to map_to_gui_pos().
  *
  * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:81-96,243-249
  */
@@ -183,7 +225,7 @@ export const nativeToGuiPosition = (
   return mapToGuiPosition(nativeX, nativeY, tileWidth, tileHeight);
 };
 
-/** Convert canvas GUI coordinates back to the tile grid used by freeciv-web. */
+/** Convert GUI coordinates back to freeciv-web's browser tile grid. */
 export const guiToNativePosition = (
   guiX: number,
   guiY: number,
@@ -288,11 +330,15 @@ export const normalizeMapPosition = (
   topologyId: number,
   wrapId: number
 ): MapPoint => {
-  const geometry = createMapGeometry(nativeWidth, nativeHeight, topologyId);
-  const native = mapToNativePosition(mapX, mapY, nativeWidth, geometry.isIsometric);
-  if ((wrapId & 1) !== 0) native.x = wrap(native.x, nativeWidth);
-  if ((wrapId & 2) !== 0) native.y = wrap(native.y, nativeHeight);
-  return nativeToMapPosition(native.x, native.y, nativeWidth, geometry.isIsometric);
+  // The browser renderer addresses packet tiles directly.  Applying the C
+  // server's native/logical conversion here makes a drag release jump to a
+  // different GUI origin even though the pointer stayed over the same tile.
+  // Keep normalization in the same coordinate space as map_to_gui/gui_to_map.
+  void topologyId;
+  const normalized = { x: mapX, y: mapY };
+  if ((wrapId & 1) !== 0) normalized.x = wrap(normalized.x, nativeWidth);
+  if ((wrapId & 2) !== 0) normalized.y = wrap(normalized.y, nativeHeight);
+  return normalized;
 };
 
 /**

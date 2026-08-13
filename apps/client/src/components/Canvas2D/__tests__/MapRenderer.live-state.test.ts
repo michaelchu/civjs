@@ -45,6 +45,95 @@ function createRenderState(cities: RenderState['cities'] = {}): RenderState {
   };
 }
 
+type RenderEntry = { state: RenderState; tile: Tile };
+type AfterTile = (state: RenderState, tile: Tile) => void;
+type RendererDouble = Record<string, unknown>;
+
+function createPipelineDoubles(
+  overrides: {
+    terrainRenderer?: RendererDouble;
+    borderRenderer?: RendererDouble;
+    cityRenderer?: RendererDouble;
+    unitRenderer?: RendererDouble;
+    presentationEffectRenderer?: RendererDouble;
+    fogRenderer?: RendererDouble;
+    pathRenderer?: RendererDouble;
+  } = {}
+): RendererDouble {
+  const runAfterTile = (entries: readonly RenderEntry[], afterTile?: AfterTile) => {
+    for (const entry of entries) afterTile?.(entry.state, entry.tile);
+  };
+
+  return {
+    terrainRenderer: {
+      setMapGeometry: vi.fn(),
+      invalidateTileCache: vi.fn(),
+      renderTerrainEntries: vi.fn(),
+      renderSpecials: vi.fn(),
+      renderSpecial2: vi.fn(),
+      renderSpecial3: vi.fn(),
+      renderTileLabels: vi.fn(),
+      ...overrides.terrainRenderer,
+    },
+    borderRenderer: {
+      setMapGeometry: vi.fn(),
+      render: vi.fn(),
+      hasActiveAnimation: () => false,
+      ...overrides.borderRenderer,
+    },
+    cityRenderer: {
+      setMapGeometry: vi.fn(),
+      renderCityEntries: vi.fn(),
+      renderCityOverlayEntries: vi.fn(),
+      ...overrides.cityRenderer,
+    },
+    unitRenderer: {
+      setMapGeometry: vi.fn(),
+      renderUnitLayerEntries: vi.fn(runAfterTile),
+      hasActiveMovementAnimations: () => false,
+      ...overrides.unitRenderer,
+    },
+    presentationEffectRenderer: {
+      setMapGeometry: vi.fn(),
+      getUnitOverrides: () => ({}),
+      renderUnitEffectsForTile: () => false,
+      renderGotoEffectsForTile: () => false,
+      ...overrides.presentationEffectRenderer,
+    },
+    fogRenderer: {
+      setMapGeometry: vi.fn(),
+      render: vi.fn(),
+      ...overrides.fogRenderer,
+    },
+    pathRenderer: {
+      setMapGeometry: vi.fn(),
+      renderPathLayerEntries: vi.fn(runAfterTile),
+      ...overrides.pathRenderer,
+    },
+  };
+}
+
+function createUnitState(unit: Unit, overrides: Partial<RenderState> = {}): RenderState {
+  const state = createRenderState();
+  return {
+    ...state,
+    ...overrides,
+    map: {
+      ...state.map,
+      tiles: {
+        [`${unit.x},${unit.y}`]: {
+          x: unit.x,
+          y: unit.y,
+          terrain: 'plains',
+          known: true,
+          visible: true,
+        },
+      },
+    },
+    units: { [unit.id]: unit },
+  };
+}
+
 describe('MapRenderer live-state updates', () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -61,7 +150,7 @@ describe('MapRenderer live-state updates', () => {
     });
   });
 
-  it('normalizes a drag release to the reference native GUI period', () => {
+  it('keeps a wrapped drag release at the painted browser-grid origin', () => {
     const renderer = new MapRenderer(createContext());
     Object.assign(renderer as unknown as Record<string, unknown>, {
       currentMap: {
@@ -69,20 +158,19 @@ describe('MapRenderer live-state updates', () => {
         height: 50,
         xsize: 80,
         ysize: 50,
-        topology_id: 12,
+        topology_id: 3,
         wrap_id: 3,
         tiles: {},
       },
     });
 
     const viewportOrigin = { x: 368, y: 1284 };
-    expect(renderer.setMapviewOrigin(viewportOrigin.x, viewportOrigin.y, 800, 600)).toEqual({
-      x: 368,
-      y: 2484,
-    });
+    expect(renderer.setMapviewOrigin(viewportOrigin.x, viewportOrigin.y, 800, 600)).toEqual(
+      viewportOrigin
+    );
   });
 
-  it('normalizes C2C3 wrapped origins through Freeciv native coordinates', () => {
+  it('normalizes C2C3 wrapped origins in the direct browser tile grid', () => {
     const renderer = new MapRenderer(createContext());
     Object.assign(renderer as unknown as Record<string, unknown>, {
       currentMap: {
@@ -90,7 +178,7 @@ describe('MapRenderer live-state updates', () => {
         height: 50,
         xsize: 80,
         ysize: 50,
-        topology_id: 12,
+        topology_id: 3,
         wrap_id: 3,
         tiles: {},
       },
@@ -103,7 +191,7 @@ describe('MapRenderer live-state updates', () => {
       }
     ).normalizeGuiPos;
     const normalized = normalizeGuiPos.call(renderer, source.guiDx + 32, source.guiDy + 12);
-    const wrapped = renderer.mapToGuiVector(104, 25);
+    const wrapped = renderer.mapToGuiVector(79, 30);
 
     expect(normalized).toEqual({
       guiX: wrapped.guiDx + 32,
@@ -123,7 +211,7 @@ describe('MapRenderer live-state updates', () => {
         height: 50,
         xsize: 80,
         ysize: 50,
-        topology_id: 12,
+        topology_id: 3,
         wrap_id: 3,
         tiles: Object.fromEntries(tiles.map(tile => [`${tile.x},${tile.y}`, tile])),
       },
@@ -150,8 +238,10 @@ describe('MapRenderer live-state updates', () => {
   });
 
   it('renders every wrapped copy while a presentation effect is active', () => {
-    const renderTerrain = vi.fn();
+    const renderTerrainEntries = vi.fn();
     const renderSpecials = vi.fn();
+    const renderSpecial2 = vi.fn();
+    const renderSpecial3 = vi.fn();
     const renderPresentationEffect = vi.fn().mockReturnValue(true);
     const requestFrame = vi.fn();
     vi.stubGlobal('requestAnimationFrame', requestFrame);
@@ -164,42 +254,26 @@ describe('MapRenderer live-state updates', () => {
 
     Object.assign(renderer as unknown as Record<string, unknown>, {
       isInitialized: true,
-      terrainRenderer: {
-        setMapGeometry: vi.fn(),
-        renderTerrain,
-        renderSpecials,
-      },
-      borderRenderer: {
-        setMapGeometry: vi.fn(),
-        render: vi.fn(),
-        hasActiveAnimation: () => false,
-      },
-      cityRenderer: { setMapGeometry: vi.fn(), renderCities: vi.fn() },
-      unitRenderer: {
-        setMapGeometry: vi.fn(),
-        renderUnits: vi.fn(),
-        renderUnitSelection: vi.fn(),
-        renderSelectedUnit: vi.fn(),
-        hasActiveMovementAnimations: () => false,
-      },
-      presentationEffectRenderer: {
-        setMapGeometry: vi.fn(),
-        getUnitOverrides: () => ({}),
-        render: renderPresentationEffect,
-      },
-      fogRenderer: { setMapGeometry: vi.fn(), render: vi.fn() },
-      pathRenderer: { setMapGeometry: vi.fn(), renderPaths: vi.fn() },
+      ...createPipelineDoubles({
+        terrainRenderer: { renderTerrainEntries, renderSpecials, renderSpecial2, renderSpecial3 },
+        presentationEffectRenderer: {
+          renderUnitEffectsForTile: renderPresentationEffect,
+        },
+      }),
       getWrappedRenderViews: () => [
-        { viewport: firstViewport, visibleTiles: [tile] },
-        { viewport: secondViewport, visibleTiles: [tile] },
+        { viewport: firstViewport, visibleTiles: [tile], isPrimary: true },
+        { viewport: secondViewport, visibleTiles: [tile], isPrimary: false },
       ],
       checkViewportBounds: () => false,
     });
 
     renderer.render({ ...state, viewport: firstViewport }, true);
 
-    expect(renderTerrain).toHaveBeenCalledTimes(2);
+    expect(renderTerrainEntries).toHaveBeenCalledTimes(1);
+    expect(renderTerrainEntries.mock.calls[0]?.[0]).toHaveLength(2);
     expect(renderSpecials).toHaveBeenCalledTimes(2);
+    expect(renderSpecial2).toHaveBeenCalledTimes(2);
+    expect(renderSpecial3).toHaveBeenCalledTimes(2);
     expect(renderPresentationEffect).toHaveBeenCalledTimes(2);
     expect(requestFrame).toHaveBeenCalledTimes(1);
   });
@@ -224,28 +298,12 @@ describe('MapRenderer live-state updates', () => {
     const tile = Object.values(state.map.tiles)[0]!;
     Object.assign(renderer as unknown as Record<string, unknown>, {
       isInitialized: true,
-      terrainRenderer: {
-        renderTerrain: vi.fn(),
-        renderSpecials: vi.fn(),
-      },
-      borderRenderer: {
-        render: vi.fn(),
-        hasActiveAnimation: () => false,
-      },
-      cityRenderer: { renderCities: vi.fn() },
-      unitRenderer: {
-        renderUnits: vi.fn(),
-        renderUnitSelection: vi.fn(),
-        renderSelectedUnit: vi.fn(),
-        hasActiveMovementAnimations: () => movementActive,
-      },
-      presentationEffectRenderer: {
-        getUnitOverrides: () => ({}),
-        render: () => false,
-      },
-      fogRenderer: { render: vi.fn() },
-      pathRenderer: { renderPaths: vi.fn() },
-      getWrappedRenderViews: () => [{ viewport: state.viewport, visibleTiles: [tile] }],
+      ...createPipelineDoubles({
+        unitRenderer: { hasActiveMovementAnimations: () => movementActive },
+      }),
+      getWrappedRenderViews: () => [
+        { viewport: state.viewport, visibleTiles: [tile], isPrimary: true },
+      ],
       checkViewportBounds: () => false,
     });
 
@@ -276,22 +334,12 @@ describe('MapRenderer live-state updates', () => {
     const tile = Object.values(state.map.tiles)[0]!;
     Object.assign(renderer as unknown as Record<string, unknown>, {
       isInitialized: true,
-      terrainRenderer: { renderTerrain: vi.fn(), renderSpecials: vi.fn() },
-      borderRenderer: { render: vi.fn(), hasActiveAnimation: () => false },
-      cityRenderer: { renderCities: vi.fn() },
-      unitRenderer: {
-        renderUnits: vi.fn(),
-        renderUnitSelection: vi.fn(),
-        renderSelectedUnit: vi.fn(),
-        hasActiveMovementAnimations: () => true,
-      },
-      presentationEffectRenderer: {
-        getUnitOverrides: () => ({}),
-        render: () => false,
-      },
-      fogRenderer: { render: vi.fn() },
-      pathRenderer: { renderPaths: vi.fn() },
-      getWrappedRenderViews: () => [{ viewport: state.viewport, visibleTiles: [tile] }],
+      ...createPipelineDoubles({
+        unitRenderer: { hasActiveMovementAnimations: () => true },
+      }),
+      getWrappedRenderViews: () => [
+        { viewport: state.viewport, visibleTiles: [tile], isPrimary: true },
+      ],
       checkViewportBounds: () => false,
     });
 
@@ -305,24 +353,10 @@ describe('MapRenderer live-state updates', () => {
     vi.useFakeTimers();
     vi.setSystemTime(1000);
     const renderer = new MapRenderer(createContext());
-    const cityRenderer = { renderCities: vi.fn() };
+    const renderCityEntries = vi.fn();
     Object.assign(renderer as unknown as Record<string, unknown>, {
       isInitialized: true,
-      cityRenderer,
-      terrainRenderer: {
-        invalidateTileCache: vi.fn(),
-        renderTerrain: vi.fn(),
-        renderSpecials: vi.fn(),
-        renderOceanPadding: vi.fn(),
-      },
-      borderRenderer: { render: vi.fn() },
-      unitRenderer: {
-        renderUnitSelection: vi.fn(),
-        renderUnits: vi.fn(),
-        hasActiveMovementAnimations: () => false,
-      },
-      pathRenderer: { renderPaths: vi.fn() },
-      getVisibleTiles: () => [],
+      ...createPipelineDoubles({ cityRenderer: { renderCityEntries } }),
       checkViewportBounds: () => false,
     });
 
@@ -340,35 +374,21 @@ describe('MapRenderer live-state updates', () => {
 
     vi.setSystemTime(1010);
     renderer.render(latestState);
-    expect(cityRenderer.renderCities).toHaveBeenCalledTimes(1);
+    expect(renderCityEntries).toHaveBeenCalledTimes(1);
 
     vi.advanceTimersByTime(25);
-    expect(cityRenderer.renderCities).toHaveBeenCalledTimes(2);
-    expect(cityRenderer.renderCities).toHaveBeenLastCalledWith(latestState);
+    expect(renderCityEntries).toHaveBeenCalledTimes(2);
+    expect(renderCityEntries.mock.calls.at(-1)?.[0]?.[0]?.state).toBe(latestState);
   });
 
   it('cancels a pending render when the renderer is cleaned up', () => {
     vi.useFakeTimers();
     vi.setSystemTime(1000);
     const renderer = new MapRenderer(createContext());
-    const cityRenderer = { renderCities: vi.fn() };
+    const renderCityEntries = vi.fn();
     Object.assign(renderer as unknown as Record<string, unknown>, {
       isInitialized: true,
-      cityRenderer,
-      terrainRenderer: {
-        invalidateTileCache: vi.fn(),
-        renderTerrain: vi.fn(),
-        renderSpecials: vi.fn(),
-        renderOceanPadding: vi.fn(),
-      },
-      borderRenderer: { render: vi.fn() },
-      unitRenderer: {
-        renderUnitSelection: vi.fn(),
-        renderUnits: vi.fn(),
-        hasActiveMovementAnimations: () => false,
-      },
-      pathRenderer: { renderPaths: vi.fn() },
-      getVisibleTiles: () => [],
+      ...createPipelineDoubles({ cityRenderer: { renderCityEntries } }),
       checkViewportBounds: () => false,
     });
 
@@ -378,7 +398,7 @@ describe('MapRenderer live-state updates', () => {
     renderer.cleanup();
     vi.advanceTimersByTime(100);
 
-    expect(cityRenderer.renderCities).toHaveBeenCalledTimes(1);
+    expect(renderCityEntries).toHaveBeenCalledTimes(1);
   });
 
   it('uses the Amplio2 stack badge key without drawing a placeholder', () => {
@@ -545,15 +565,13 @@ describe('MapRenderer live-state updates', () => {
     let now = 1000;
     vi.spyOn(performance, 'now').mockImplementation(() => now);
 
-    renderer.renderUnits({ ...createRenderState(), units: { [unit.id]: unit } });
+    renderer.renderUnits(createUnitState(unit));
     renderer.renderUnits({
-      ...createRenderState(),
-      units: { [unit.id]: { ...unit, x: 1 } },
+      ...createUnitState({ ...unit, x: 1 }),
     });
     (context.drawImage as unknown as ReturnType<typeof vi.fn>).mockClear();
     renderer.renderUnits({
-      ...createRenderState(),
-      units: { [unit.id]: { ...unit, x: 2 } },
+      ...createUnitState({ ...unit, x: 2 }),
     });
 
     expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 16, -11);
@@ -561,8 +579,7 @@ describe('MapRenderer live-state updates', () => {
     now += 180;
     (context.drawImage as unknown as ReturnType<typeof vi.fn>).mockClear();
     renderer.renderUnits({
-      ...createRenderState(),
-      units: { [unit.id]: { ...unit, x: 2 } },
+      ...createUnitState({ ...unit, x: 2 }),
     });
     expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 64, 13);
   });
@@ -595,18 +612,16 @@ describe('MapRenderer live-state updates', () => {
     let now = 1000;
     vi.spyOn(performance, 'now').mockImplementation(() => now);
 
-    renderer.renderUnits({ ...createRenderState(), units: { [unit.id]: unit } });
+    renderer.renderUnits(createUnitState(unit));
     renderer.renderUnits({
-      ...createRenderState(),
-      units: { [unit.id]: { ...unit, x: 1 } },
+      ...createUnitState({ ...unit, x: 1 }),
     });
     expect(renderer.hasActiveMovementAnimations()).toBe(true);
 
     (context.drawImage as unknown as ReturnType<typeof vi.fn>).mockClear();
     renderer.renderUnits({
-      ...createRenderState(),
+      ...createUnitState({ ...unit, x: 1 }),
       reducedMotion: true,
-      units: { [unit.id]: { ...unit, x: 1 } },
     });
     expect(renderer.hasActiveMovementAnimations()).toBe(false);
     expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 64, 13);
@@ -614,8 +629,7 @@ describe('MapRenderer live-state updates', () => {
     now += 10;
     (context.drawImage as unknown as ReturnType<typeof vi.fn>).mockClear();
     renderer.renderUnits({
-      ...createRenderState(),
-      units: { [unit.id]: { ...unit, x: 2, transportedBy: 'transport-1' } },
+      ...createUnitState({ ...unit, x: 2, transportedBy: 'transport-1' }),
     });
     expect(renderer.hasActiveMovementAnimations()).toBe(false);
     expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 112, 37);
@@ -627,27 +641,12 @@ describe('MapRenderer live-state updates', () => {
     const renderer = new MapRenderer(createContext());
     Object.assign(renderer as unknown as Record<string, unknown>, {
       isInitialized: true,
-      terrainRenderer: {
-        invalidateTileCache: vi.fn(),
-        renderTerrain: vi.fn(),
-        renderSpecials: vi.fn(),
-        renderOceanPadding: vi.fn(),
-      },
-      borderRenderer: { render: vi.fn(), hasActiveAnimation: () => false },
-      cityRenderer: { renderCities: vi.fn() },
-      unitRenderer: {
-        renderUnitSelection: vi.fn(),
-        renderSelectedUnit: vi.fn(),
-        renderUnits: vi.fn(),
-        hasActiveMovementAnimations: () => false,
-        hasActiveSelectionAnimation: () => true,
-      },
-      presentationEffectRenderer: {
-        getUnitOverrides: () => ({}),
-        render: () => false,
-      },
-      fogRenderer: { render: vi.fn() },
-      pathRenderer: { renderPaths: vi.fn() },
+      ...createPipelineDoubles({
+        unitRenderer: {
+          hasActiveMovementAnimations: () => false,
+          hasActiveSelectionAnimation: () => true,
+        },
+      }),
       getVisibleTiles: () => [],
       checkViewportBounds: () => false,
     });
@@ -815,7 +814,7 @@ describe('MapRenderer live-state updates', () => {
     expect(context.fillRect).toHaveBeenCalledWith(25, -15, 14, 14);
   });
 
-  it('renders a selected own-unit annotation label above the sprite', () => {
+  it('does not add a custom selected-unit annotation above the sprite', () => {
     const context = createContext();
     const renderer = new UnitRenderer(context, { getSprite: () => undefined } as never, 96, 48);
     const unit: Unit = {
@@ -837,7 +836,7 @@ describe('MapRenderer live-state updates', () => {
       units: { [unit.id]: unit },
     });
 
-    expect(context.fillText).toHaveBeenCalledWith(
+    expect(context.fillText).not.toHaveBeenCalledWith(
       'warriors',
       expect.any(Number),
       expect.any(Number)
@@ -906,21 +905,17 @@ describe('MapRenderer live-state updates', () => {
     const renderFog = vi.fn();
     Object.assign(renderer as unknown as Record<string, unknown>, {
       isInitialized: true,
-      terrainRenderer: {
-        invalidateTileCache: vi.fn(),
-        renderTerrain,
-        renderSpecials: vi.fn(),
-        renderOceanPadding: vi.fn(),
-      },
-      borderRenderer: { render: vi.fn() },
-      cityRenderer: { renderCities: vi.fn() },
-      unitRenderer: {
-        renderUnitSelection: vi.fn(),
-        renderUnits: vi.fn(),
-        hasActiveMovementAnimations: () => false,
-      },
-      fogRenderer: { render: renderFog },
-      pathRenderer: { renderPaths: vi.fn() },
+      ...createPipelineDoubles({
+        terrainRenderer: {
+          renderTerrainEntries: vi.fn((entries: RenderEntry[]) => {
+            renderTerrain(
+              entries[0]?.state,
+              entries.map(entry => entry.tile)
+            );
+          }),
+        },
+        fogRenderer: { render: renderFog },
+      }),
       checkViewportBounds: () => false,
     });
 
@@ -952,37 +947,28 @@ describe('MapRenderer live-state updates', () => {
     expect(renderFog).not.toHaveBeenCalled();
   });
 
-  it('covers finite-map padding with opaque fog instead of decorative ocean', () => {
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:272-291
+   * @assertion A finite map that does not cover the viewport leaves black
+   * out-of-map pixels even when the debug fog toggle is disabled.
+   */
+  it('clears finite-map padding to black when fog is disabled', () => {
     const context = createContext();
     const renderer = new MapRenderer(context);
-    const renderOceanPadding = vi.fn();
     const renderFog = vi.fn();
     Object.assign(renderer as unknown as Record<string, unknown>, {
       isInitialized: true,
-      terrainRenderer: {
-        invalidateTileCache: vi.fn(),
-        renderTerrain: vi.fn(),
-        renderSpecials: vi.fn(),
-        renderOceanPadding,
-      },
-      borderRenderer: { render: vi.fn() },
-      cityRenderer: { renderCities: vi.fn() },
-      unitRenderer: {
-        renderUnitSelection: vi.fn(),
-        renderUnits: vi.fn(),
-        hasActiveMovementAnimations: () => false,
-      },
-      fogRenderer: { render: renderFog },
-      pathRenderer: { renderPaths: vi.fn() },
+      ...createPipelineDoubles({ fogRenderer: { render: renderFog } }),
       checkViewportBounds: () => true,
     });
 
+    renderer.setFogOfWarEnabled(false);
     renderer.render(createRenderState(), true);
 
     expect(context.fillStyle).toBe('#000');
     expect(context.fillRect).toHaveBeenCalledWith(0, 0, 800, 600);
-    expect(renderOceanPadding).not.toHaveBeenCalled();
-    expect(renderFog).toHaveBeenCalled();
+    expect(renderFog).not.toHaveBeenCalled();
   });
 
   it('checks map bounds using the full canvas when viewport dimensions lag', () => {
