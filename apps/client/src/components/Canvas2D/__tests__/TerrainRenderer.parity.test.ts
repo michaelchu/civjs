@@ -3,6 +3,7 @@ import type { Tile } from '../../../types';
 import type { RenderState } from '../renderers/BaseRenderer';
 import { TerrainRenderer } from '../renderers/TerrainRenderer';
 import type { TilesetProvider } from '../tilesets/TilesetProvider';
+import type { TerrainCompositionProfile } from '../tilesets/TilesetProvider';
 
 type Sprite = HTMLCanvasElement & { tag: string };
 
@@ -26,6 +27,7 @@ const createProvider = (tags: string[]) => {
       name: 'Terrain test tileset',
       format: 'synthetic',
       projection: 'isometric',
+      topologyId: 1,
     },
     load: vi.fn().mockResolvedValue(undefined),
     dispose: vi.fn(),
@@ -33,7 +35,62 @@ const createProvider = (tags: string[]) => {
     hasSprite: vi.fn((tag: string) => sprites.has(tag)),
     hasTerrainDefinition: vi.fn(),
     getTileSize: vi.fn(() => ({ width: 96, height: 48 })),
+    getGeometry: vi.fn(() => ({
+      tileWidth: 96,
+      tileHeight: 48,
+      fullTileWidth: 96,
+      fullTileHeight: 48,
+      hexWidth: 0,
+      hexHeight: 0,
+    })),
+    getTopologyCompatibility: vi.fn(() => 'exact'),
+    getTerrainComposition: vi.fn(() => null),
+    getPresentationOffsets: vi.fn(() => ({
+      unitFlagX: 0,
+      unitFlagY: 0,
+      cityFlagX: 0,
+      cityFlagY: 0,
+      unitX: 0,
+      unitY: 0,
+      activityX: 0,
+      activityY: 0,
+      selectX: 0,
+      selectY: 0,
+      stackX: 0,
+      stackY: 0,
+      cityX: 0,
+      cityY: 0,
+      citybarY: 0,
+      tileLabelY: 0,
+    })),
   } as unknown as TilesetProvider;
+};
+
+const createHexProvider = (tags: string[]) => {
+  const provider = createProvider(tags);
+  provider.metadata.topologyId = 3;
+  vi.mocked(provider.getGeometry).mockReturnValue({
+    tileWidth: 126,
+    tileHeight: 64,
+    fullTileWidth: 126,
+    fullTileHeight: 96,
+    hexWidth: 16,
+    hexHeight: 0,
+  });
+  return provider;
+};
+
+const setNativeComposition = (
+  provider: TilesetProvider,
+  extraStyles: Record<string, string>,
+  terrains: TerrainCompositionProfile['terrains'] = {}
+) => {
+  vi.mocked(provider.getTerrainComposition).mockReturnValue({
+    mode: 'direct-cells',
+    matchTypes: [[], [], []],
+    terrains,
+    extraStyles,
+  });
 };
 
 const createState = (tiles: Record<string, Tile>): RenderState => ({
@@ -115,6 +172,279 @@ describe('TerrainRenderer parity contracts', () => {
     renderer.renderSpecials(state, [coast]);
 
     expect(drawnTags(context)).toContain('road.river_outlet_e:0');
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/hexemplio/rivers.spec:29-104
+   * @reference reference/freeciv/client/tilespec.c:6140-6195
+   * @assertion The topology-3 renderer consumes all six river-mask bits in
+   * Hexemplio's N,E,SE,S,W,NW tag order and resolves diagonal native steps.
+   */
+  it('renders six-direction ISO-hex rivers and outlets', () => {
+    const center = tile({ x: 4, y: 3, riverMask: 0b100101 });
+    const coast = tile({ x: 2, y: 3, terrain: 'coast' });
+    // Logical NW from native (2,3) is native (2,1).
+    const northwestRiver = tile({ x: 2, y: 1, riverMask: 1 });
+    const context = createContext();
+    const renderer = new TerrainRenderer(
+      context,
+      createHexProvider(['road.river_s_n1e0se1s0w0nw1:0', 'road.river_outlet_nw:0']),
+      126,
+      64
+    );
+    const state = createState({
+      '4,3': center,
+      '2,3': coast,
+      '2,1': northwestRiver,
+    });
+    state.map.width = 10;
+    state.map.height = 8;
+    state.map.xsize = 10;
+    state.map.ysize = 8;
+    state.map.topology_id = 3;
+    renderer.setMapGeometry(state.map);
+
+    renderer.renderWaterEntries([
+      { state, tile: center },
+      { state, tile: coast },
+    ]);
+
+    expect(drawnTags(context)).toEqual(['road.river_s_n1e0se1s0w0nw1:0', 'road.river_outlet_nw:0']);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/hexemplio.tilespec:347-357
+   * @reference reference/freeciv/client/tilespec.c:6139-6190
+   * @assertion Hexemplio's River-style loop owns irrigation and farmland as
+   * well as rivers, emits every shoreline outlet in ruleset order, and only
+   * connects road-caused river bodies to adjacent copies of the same extra.
+   */
+  it('renders every native River-style outlet and body in WATER order', () => {
+    const coast = tile({ x: 2, y: 3, terrain: 'coast' });
+    const riverNeighbor = tile({ x: 3, y: 4, improvements: ['river'] });
+    const irrigationNeighbor = tile({ x: 2, y: 5, improvements: ['irrigation'] });
+    const farmlandNeighbor = tile({ x: 2, y: 2, improvements: ['farmland'] });
+    const center = tile({ x: 6, y: 3, improvements: ['river', 'irrigation', 'farmland'] });
+    const eastOcean = tile({ x: 7, y: 4, terrain: 'ocean' });
+    const southeastRiver = tile({ x: 6, y: 5, improvements: ['river'] });
+    const context = createContext();
+    const tags = [
+      'road.river_outlet_e:0',
+      'tx.irrigation_outlet_se:0',
+      'tx.farmland_outlet_w:0',
+      'road.river_s_n0e1se1s0w0nw0:0',
+      'tx.irrigation_s_n0e1se0s0w0nw0:0',
+      'tx.farmland_s_n0e1se0s0w0nw0:0',
+    ];
+    const provider = createHexProvider(tags);
+    setNativeComposition(provider, {
+      'road.river': 'River',
+      'tx.irrigation': 'River',
+      'tx.farmland': 'River',
+    });
+    const renderer = new TerrainRenderer(context, provider, 126, 64);
+    renderer.setExtraGraphics({
+      extra_river: { name: 'River', causes: 'Road', graphic: 'road.river' },
+      extra_irrigation: {
+        name: 'Irrigation',
+        causes: 'Irrigation',
+        graphic: 'tx.irrigation',
+      },
+      extra_farmland: { name: 'Farmland', causes: 'Irrigation', graphic: 'tx.farmland' },
+    });
+    const state = createState({
+      '2,3': coast,
+      '3,4': riverNeighbor,
+      '2,5': irrigationNeighbor,
+      '2,2': farmlandNeighbor,
+      '6,3': center,
+      '7,4': eastOcean,
+      '6,5': southeastRiver,
+    });
+    state.map.width = 12;
+    state.map.height = 10;
+    state.map.xsize = 12;
+    state.map.ysize = 10;
+    state.map.topology_id = 3;
+    renderer.setMapGeometry(state.map);
+
+    renderer.renderWaterEntries([
+      { state, tile: coast },
+      { state, tile: center },
+    ]);
+
+    expect(drawnTags(context)).toEqual(tags);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/client/tilespec.c:4560-4599,5362-5397
+   * @assertion Direct terrain blending crops the neighboring terrain quadrant
+   * and applies the dither mask with Freeciv's crop-relative offset.
+   */
+  it('masks direct terrain blend quadrants with t.dither_tile', () => {
+    const center = tile({ x: 1, y: 1, terrain: 'plains' });
+    const north = tile({ x: 1, terrain: 'desert' });
+    const context = createContext();
+    const provider = createProvider(['t.l0.plains1', 't.l0.desert1', 't.dither_tile']);
+    const whole = {
+      matchStyle: 0,
+      spriteType: 0,
+      matchIndices: 1,
+      matchIndex: [0],
+      dither: false,
+      matchType: 'lake',
+      matchWith: [],
+    };
+    setNativeComposition(
+      provider,
+      {},
+      {
+        plains: { numLayers: 1, blendLayer: 1, layers: [whole] },
+        desert: { numLayers: 1, blendLayer: 1, layers: [whole] },
+      }
+    );
+    const offscreenContext = {
+      drawImage: vi.fn(),
+      globalCompositeOperation: 'source-over',
+    } as unknown as CanvasRenderingContext2D;
+    const offscreen = {
+      tag: 'masked-blend',
+      width: 0,
+      height: 0,
+      getContext: vi.fn(() => offscreenContext),
+    } as unknown as Sprite;
+    const createElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation(tag => {
+      if (tag === 'canvas') return offscreen;
+      return createElement(tag);
+    });
+    const renderer = new TerrainRenderer(context, provider, 96, 48);
+    const state = createState({ '1,1': center, '1,0': north });
+    state.map.width = 3;
+    state.map.height = 3;
+    state.map.xsize = 3;
+    state.map.ysize = 3;
+    state.viewport = { ...state.viewport, x: 0, y: 48 };
+    renderer.setMapGeometry(state.map);
+
+    renderer.renderTerrainLayerEntries([{ state, tile: center }], 0);
+
+    expect(offscreen.width).toBe(48);
+    expect(offscreen.height).toBe(24);
+    expect(offscreenContext.drawImage).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ tag: 't.l0.desert1' }),
+      48,
+      0,
+      48,
+      24,
+      0,
+      0,
+      48,
+      24
+    );
+    expect(offscreenContext.drawImage).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ tag: 't.dither_tile' }),
+      -48,
+      -0
+    );
+    expect(context.drawImage).toHaveBeenCalledWith(offscreen, 48, 0);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/client/tilespec.c:6198-6262,6346-6376,6438-6465
+   * @assertion Native special layers iterate 3Layer before Single extras,
+   * include resources in Single1, and apply hidden_by from the ruleset.
+   */
+  it('renders native special style families in Freeciv loop order', () => {
+    const specialTile = tile({
+      resource: 'gold',
+      improvements: ['fort', 'mine', 'oil_well', 'pollution'],
+    });
+    const context = createContext();
+    const provider = createHexProvider([
+      'base.outpost_bg:0',
+      'base.outpost_mg:0',
+      'base.outpost_fg:0',
+      'tx.mine',
+      'tx.oil_mine',
+      'tx.pollution',
+      'ts.gold',
+    ]);
+    setNativeComposition(provider, {
+      'tx.mine': 'Single1',
+      'tx.oil_mine': 'Single1',
+      'tx.pollution': 'Single2',
+      'base.outpost': '3Layer',
+      'ts.gold': 'Single1',
+    });
+    const renderer = new TerrainRenderer(context, provider, 126, 64);
+    renderer.setExtraGraphics({
+      extra_mine: { name: 'Mine', graphic: 'tx.mine', hidden_by: 'Oil Well' },
+      extra_oil_well: { name: 'Oil Well', graphic: 'tx.oil_mine' },
+      extra_pollution: { name: 'Pollution', graphic: 'tx.pollution' },
+      extra_fort: { name: 'Fort', graphic: 'base.outpost' },
+      extra_gold: { name: 'Gold', causes: 'Resource', graphic: 'ts.gold' },
+    });
+    const state = createState({ '0,0': specialTile });
+    state.map.topology_id = 3;
+    state.viewport = { ...state.viewport, x: -126, y: 64 };
+    renderer.setMapGeometry(state.map);
+
+    renderer.renderSpecials(state, [specialTile]);
+    renderer.renderSpecial2(state, [specialTile]);
+    renderer.renderSpecial3(state, [specialTile]);
+
+    expect(drawnTags(context)).toEqual([
+      'base.outpost_bg:0',
+      'tx.oil_mine',
+      'ts.gold',
+      'base.outpost_mg:0',
+      'tx.pollution',
+      'base.outpost_fg:0',
+    ]);
+    expect(context.drawImage).toHaveBeenCalledWith(
+      expect.objectContaining({ tag: 'base.outpost_bg:0' }),
+      0,
+      -32
+    );
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/client/tilespec.c:5013-5210
+   * @assertion A city suppresses an isolated path sprite but does not suppress
+   * a connected combined railroad sprite.
+   */
+  it('keeps connected native rail graphics visible through a city', () => {
+    const center = tile({
+      x: 2,
+      y: 3,
+      cityId: 'city-1',
+      hasRailroad: true,
+      improvements: ['railroad'],
+    });
+    const east = tile({ x: 3, y: 4, hasRailroad: true, improvements: ['railroad'] });
+    const key = 'road.rail_n0e1se0s0w0nw0';
+    const context = createContext();
+    const provider = createHexProvider([key]);
+    const renderer = new TerrainRenderer(context, provider, 126, 64);
+    const state = createState({ '2,3': center, '3,4': east });
+    state.map.width = 8;
+    state.map.height = 8;
+    state.map.xsize = 8;
+    state.map.ysize = 8;
+    state.map.topology_id = 3;
+    renderer.setMapGeometry(state.map);
+
+    renderer.renderRoadEntries([{ state, tile: center }]);
+
+    expect(drawnTags(context)).toEqual([key]);
   });
 
   /**

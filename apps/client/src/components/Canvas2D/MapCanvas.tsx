@@ -34,6 +34,7 @@ import { findInitialMapCenter } from '../../utils/initialMapCenter';
 import { getNextNationCityName } from '../../utils/cityNames';
 import { shallow } from 'zustand/shallow';
 import { useCityOverlayController } from './useCityOverlayController';
+import { createTilesetProvider } from './tilesets/createTilesetProvider';
 
 interface MapCanvasProps {
   width: number;
@@ -125,6 +126,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
   const viewport = useGameStore(state => state.viewport);
   const map = useGameStore(state => state.map);
+  // C2C3 is the only runtime ruleset and its default topology is ISO-hex.
+  // Use that topology while the map-info packet is still in flight, then
+  // recreate the renderer if an explicit topology says otherwise.
+  const mapTopologyId = map.topology_id ?? 3;
   const units = useGameStore(state => state.units);
   const cities = useGameStore(state => state.cities);
   const players = useGameStore(state => state.players);
@@ -286,6 +291,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   useEffect(() => {
     let cancelled = false;
     let renderer: MapRenderer | null = null;
+    setRendererReady(false);
 
     const initRenderer = async () => {
       const canvas = canvasRef.current;
@@ -294,7 +300,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      renderer = new MapRenderer(ctx, undefined, rulesetName);
+      renderer = new MapRenderer(ctx, createTilesetProvider(mapTopologyId), rulesetName);
       renderer.setRenderCompleteListener(setMapRenderViewport);
       rendererRef.current = renderer;
       if (import.meta.env.DEV) {
@@ -359,7 +365,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         delete (window as unknown as { __civjsParityRenderer?: MapRenderer }).__civjsParityRenderer;
       }
     };
-  }, [rulesetName]);
+  }, [mapTopologyId, rulesetName]);
 
   useEffect(() => {
     const handlePreferencesChanged = (event: Event) => {

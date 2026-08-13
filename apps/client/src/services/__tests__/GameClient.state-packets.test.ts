@@ -195,6 +195,57 @@ describe('GameClient state-bearing packets', () => {
     expect(useGameStore.getState().units['settler-1']).toBeUndefined();
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/common/movement.h:33-44
+   * @assertion Unit snapshots, move replies, and movement broadcasts all keep
+   * `SINGLE_MOVE` fragments in the same client `movesLeft` field.
+   */
+  it('keeps movement fragments consistent across move replies and broadcasts', () => {
+    const socket = { on: vi.fn() };
+    (gameClient as unknown as { socket: typeof socket }).socket = socket;
+    (gameClient as unknown as { setupGameHandlers: () => void }).setupGameHandlers();
+    useGameStore.getState().updateGameState({
+      units: {
+        'unit-1': {
+          id: 'unit-1',
+          playerId: 'player-1',
+          unitTypeId: 'warriors',
+          x: 1,
+          y: 2,
+          hp: 100,
+          movesLeft: 18,
+          maxMoves: 18,
+          veteranLevel: 0,
+        },
+      },
+    });
+
+    handlePacket({
+      type: PacketType.UNIT_MOVE_REPLY,
+      data: {
+        success: true,
+        unitId: 'unit-1',
+        newX: 2,
+        newY: 2,
+        movementLeft: 11,
+      },
+    });
+    expect(useGameStore.getState().units['unit-1']).toEqual(
+      expect.objectContaining({ x: 2, y: 2, movesLeft: 11 })
+    );
+
+    const movedHandler = socket.on.mock.calls.find(([event]) => event === 'unit_moved')?.[1] as
+      ((data: { unitId: string; x: number; y: number; movementLeft: number }) => void) | undefined;
+    expect(movedHandler).toBeDefined();
+    movedHandler!({ unitId: 'unit-1', x: 3, y: 2, movementLeft: 5 });
+
+    expect(useGameStore.getState().units['unit-1']).toEqual(
+      expect.objectContaining({ x: 3, y: 2, movesLeft: 5 })
+    );
+    expect(useGameStore.getState().units['unit-1']).not.toHaveProperty('movementLeft');
+  });
+
   it('applies player, calendar, city, and turn-processing packets', () => {
     handlePacket({
       type: PacketType.PLAYER_INFO,

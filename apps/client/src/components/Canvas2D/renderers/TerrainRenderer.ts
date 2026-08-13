@@ -4,6 +4,7 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Tile } from '../../../types';
+import type { GraphicDefinition } from '../../../services/RulesetService';
 import {
   MATCH_NONE,
   MATCH_SAME,
@@ -14,7 +15,29 @@ import {
   DIR4_TO_DIR8,
 } from '../../../constants/freeciv';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
-import { isIsometricTopology, stepNativeMapPosition } from '../mapTopologyGeometry';
+import {
+  getCardinalMapDirections,
+  getValidMapDirections,
+  isIsometricTopology,
+  MAP_DIRECTIONS,
+  stepNativeMapPosition,
+  usesNativeLogicalProjection,
+} from '../mapTopologyGeometry';
+import type {
+  TerrainCompositionProfile,
+  TerrainLayerComposition,
+} from '../tilesets/TilesetProvider';
+
+interface TerrainSpriteCommand {
+  key: string;
+  mask_key?: string;
+  offset_x?: number;
+  offset_y?: number;
+  source_x?: number;
+  source_y?: number;
+  source_width?: number;
+  source_height?: number;
+}
 
 export interface TerrainRenderEntry {
   state: RenderState;
@@ -22,7 +45,9 @@ export interface TerrainRenderEntry {
 }
 
 export class TerrainRenderer extends BaseRenderer {
-  private extraGraphics: Record<string, { graphic?: string; graphic_alt?: string }> = {};
+  private extraGraphicsByName = new Map<string, GraphicDefinition>();
+  private extraGraphicsInRulesetOrder: Array<{ id: string; definition: GraphicDefinition }> = [];
+  private maskedSpriteCache = new Map<string, HTMLCanvasElement>();
   // Cached tile lookup for performance
   private tileMap: Map<string, any> = new Map();
   private tileMapBuilt = false;
@@ -77,14 +102,88 @@ export class TerrainRenderer extends BaseRenderer {
     }
   }
 
+  /** Paint one native terrain layer across the complete GUI painter walk. */
+  renderTerrainLayerEntries(entries: TerrainRenderEntry[], layer: 0 | 1 | 2): void {
+    const first = entries[0];
+    if (!first) return;
+    this.setMapTopology(first.state);
+    this.invalidateTileCache(first.state.map.tiles);
+
+    for (const { state, tile } of entries) {
+      const screenPos = this.mapToScreen(tile.x, tile.y, state.viewport);
+      const sprites = this.fillTerrainSpriteArraySimple(layer, tile);
+      if (layer === 0 && sprites.length === 0) this.drawTerrainFallback(tile, screenPos);
+      this.drawSprites(sprites, screenPos);
+    }
+  }
+
+  /** Paint CardinalSingle unknown-neighbor masks between TERRAIN2 and TERRAIN3. */
+  renderDarknessEntries(entries: TerrainRenderEntry[]): void {
+    const first = entries[0];
+    if (!first || this.tilesetLoader.getRenderProfile?.()?.darknessStyle !== 'cardinal-single') {
+      return;
+    }
+    this.setMapTopology(first.state);
+    this.invalidateTileCache(first.state.map.tiles);
+
+    for (const { state, tile } of entries) {
+      const screenPos = this.mapToScreen(tile.x, tile.y, state.viewport);
+      for (const direction of getCardinalMapDirections(this.topologyId)) {
+        const neighbor = this.getDirectionalNeighborTile(tile, direction.dx, direction.dy);
+        if (neighbor && !neighbor.known) {
+          this.drawSprites([{ key: `tx.darkness_${direction.name}` }], screenPos);
+        }
+      }
+    }
+  }
+
+  /** Paint Hexemplio's WATER layer: outlets, irrigation, then river bodies. */
+  renderWaterEntries(entries: TerrainRenderEntry[]): void {
+    const first = entries[0];
+    if (!first) return;
+    this.setMapTopology(first.state);
+    this.invalidateTileCache(first.state.map.tiles);
+    for (const { state, tile } of entries) {
+      const screenPos = this.mapToScreen(tile.x, tile.y, state.viewport);
+      const nativeStyles = this.tilesetLoader.getTerrainComposition()?.extraStyles;
+      if (nativeStyles && Object.keys(nativeStyles).length > 0) {
+        // Freeciv's WATER layer is ordered as river-style shoreline outlets,
+        // Cardinal-style irrigation, then river-style bodies. Hexemplio uses
+        // River style for irrigation and farmland as well as actual rivers.
+        // @reference reference/freeciv/client/tilespec.c:6139-6190
+        this.drawSprites(this.getNativeRiverOutletSprites(tile, nativeStyles), screenPos);
+        this.drawInfrastructure(tile, screenPos, 'terrain');
+        this.drawSprites(this.getNativeRiverBodySprites(tile, nativeStyles), screenPos);
+      } else {
+        this.drawInfrastructure(tile, screenPos, 'terrain');
+        this.drawRiver(tile, screenPos);
+      }
+    }
+  }
+
+  renderRoadEntries(entries: TerrainRenderEntry[]): void {
+    const first = entries[0];
+    if (!first) return;
+    this.setMapTopology(first.state);
+    this.invalidateTileCache(first.state.map.tiles);
+    for (const { state, tile } of entries) {
+      this.drawInfrastructure(tile, this.mapToScreen(tile.x, tile.y, state.viewport), 'roads');
+    }
+  }
+
   /** Draw LAYER_SPECIAL1, except borders which MapRenderer appends to this layer. */
   renderSpecials(state: RenderState, visibleTiles: Tile[]): void {
     this.setMapTopology(state);
     this.invalidateTileCache(state.map.tiles);
     for (const tile of visibleTiles) {
       const screenPos = this.mapToScreen(tile.x, tile.y, state.viewport);
-      this.drawRiver(tile, screenPos);
-      this.drawResource(tile, screenPos);
+      // The legacy web tileset placed rivers in SPECIAL1. Native Hexemplio
+      // declares them in WATER, which renderWaterEntries() paints earlier.
+      if (this.tilesetLoader.getGeometry().hexWidth === 0) this.drawRiver(tile, screenPos);
+      // Native resources are ordinary Single1 extras and are emitted by the
+      // same style loop as mines and villages. Legacy Amplio keeps its
+      // dedicated resource lookup here.
+      if (!this.hasNativeExtraStyles()) this.drawResource(tile, screenPos);
       this.drawInfrastructure(tile, screenPos, 'special1');
     }
   }
@@ -121,21 +220,21 @@ export class TerrainRenderer extends BaseRenderer {
       this.ctx.fillText(
         tile.label,
         screenPos.x + this.tileWidth / 2 - Math.floor(textWidth / 2),
-        screenPos.y + 14
+        screenPos.y + (this.tilesetLoader.getPresentationOffsets?.().tileLabelY ?? 14)
       );
     }
   }
 
   private drawRiver(tile: Tile, screenPos: { x: number; y: number }): boolean {
-    const riverSprite = this.getTileRiverSprite(tile);
-    if (riverSprite) {
+    let rendered = false;
+    for (const riverSprite of this.getTileRiverSprites(tile)) {
       const sprite = this.tilesetLoader.getSprite(riverSprite.key);
       if (sprite) {
         this.ctx.drawImage(sprite, screenPos.x, screenPos.y);
-        return true;
+        rendered = true;
       }
     }
-    return false;
+    return rendered;
   }
 
   private drawInfrastructure(
@@ -173,22 +272,90 @@ export class TerrainRenderer extends BaseRenderer {
   }
 
   private drawSprites(
-    sprites: Array<{ key: string; offset_x?: number; offset_y?: number }>,
+    sprites: TerrainSpriteCommand[],
     screenPos: { x: number; y: number }
   ): boolean {
     let rendered = false;
     for (const spriteInfo of sprites) {
       const sprite = this.tilesetLoader.getSprite(spriteInfo.key);
       if (sprite) {
-        this.ctx.drawImage(
-          sprite,
-          screenPos.x + (spriteInfo.offset_x || 0),
-          screenPos.y + (spriteInfo.offset_y || 0)
-        );
+        const destinationX = screenPos.x + (spriteInfo.offset_x || 0);
+        const destinationY = screenPos.y + (spriteInfo.offset_y || 0);
+        if (
+          spriteInfo.source_x !== undefined &&
+          spriteInfo.source_y !== undefined &&
+          spriteInfo.source_width !== undefined &&
+          spriteInfo.source_height !== undefined
+        ) {
+          const masked = spriteInfo.mask_key ? this.getMaskedCrop(sprite, spriteInfo) : null;
+          if (masked) {
+            this.ctx.drawImage(masked, destinationX, destinationY);
+          } else {
+            this.ctx.drawImage(
+              sprite,
+              spriteInfo.source_x,
+              spriteInfo.source_y,
+              spriteInfo.source_width,
+              spriteInfo.source_height,
+              destinationX,
+              destinationY,
+              spriteInfo.source_width,
+              spriteInfo.source_height
+            );
+          }
+        } else {
+          this.ctx.drawImage(sprite, destinationX, destinationY);
+        }
         rendered = true;
       }
     }
     return rendered;
+  }
+
+  /** Browser equivalent of Freeciv crop_sprite(..., t.dither_tile, 0, 0). */
+  private getMaskedCrop(
+    sprite: HTMLCanvasElement,
+    command: TerrainSpriteCommand
+  ): HTMLCanvasElement | null {
+    const { mask_key, source_x, source_y, source_width, source_height } = command;
+    if (
+      !mask_key ||
+      source_x === undefined ||
+      source_y === undefined ||
+      source_width === undefined ||
+      source_height === undefined
+    ) {
+      return null;
+    }
+    const mask = this.tilesetLoader.getSprite(mask_key);
+    if (!mask || typeof document === 'undefined') return null;
+    const cacheKey = [command.key, mask_key, source_x, source_y, source_width, source_height].join(
+      ':'
+    );
+    const cached = this.maskedSpriteCache.get(cacheKey);
+    if (cached) return cached;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = source_width;
+    canvas.height = source_height;
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+    context.drawImage(
+      sprite,
+      source_x,
+      source_y,
+      source_width,
+      source_height,
+      0,
+      0,
+      source_width,
+      source_height
+    );
+    context.globalCompositeOperation = 'destination-in';
+    context.drawImage(mask, -source_x, -source_y);
+    context.globalCompositeOperation = 'source-over';
+    this.maskedSpriteCache.set(cacheKey, canvas);
+    return canvas;
   }
 
   private drawTerrainFallback(tile: Tile, screenPos: { x: number; y: number }): void {
@@ -201,16 +368,7 @@ export class TerrainRenderer extends BaseRenderer {
     layer: 'terrain' | 'roads' | 'special1' | 'special2' | 'special3'
   ): Array<{ key: string; offset_x?: number; offset_y?: number }> {
     this.buildTileMap();
-    const directions = [
-      { dx: -1, dy: -1, name: 'nw' },
-      { dx: 0, dy: -1, name: 'n' },
-      { dx: 1, dy: -1, name: 'ne' },
-      { dx: -1, dy: 0, name: 'w' },
-      { dx: 1, dy: 0, name: 'e' },
-      { dx: -1, dy: 1, name: 'sw' },
-      { dx: 0, dy: 1, name: 's' },
-      { dx: 1, dy: 1, name: 'se' },
-    ];
+    const directions = getValidMapDirections(this.topologyId);
     const sprites: Array<{ key: string; offset_x?: number; offset_y?: number }> = [];
 
     if (layer === 'roads') {
@@ -218,6 +376,30 @@ export class TerrainRenderer extends BaseRenderer {
     }
 
     const extras = this.getNormalizedImprovements(tile);
+    const nativeExtraStyles = this.tilesetLoader.getTerrainComposition()?.extraStyles;
+    if (nativeExtraStyles && Object.keys(nativeExtraStyles).length > 0) {
+      if (layer === 'special1' && tile.resource) {
+        extras.add(this.normalizeExtraName(tile.resource));
+      }
+      if (layer === 'terrain') {
+        if (tile.cityId) return sprites;
+        for (const installed of this.getInstalledExtrasByStyle(
+          extras,
+          nativeExtraStyles,
+          'cardinals'
+        )) {
+          const graphic = this.extraDefinitionGraphic(installed.definition, nativeExtraStyles);
+          if (!graphic) continue;
+          if (!installed || this.extraIsHidden(installed.name, extras, installed.definition)) {
+            continue;
+          }
+          sprites.push({ key: this.getCardinalExtraKey(tile, installed.name, graphic) });
+        }
+        return sprites;
+      }
+      return this.getNativeSpecialSprites(extras, nativeExtraStyles, layer);
+    }
+
     const pushExtra = (name: string, fallback?: string, offsetY?: number) => {
       if (!extras.has(name)) return;
       const graphic = this.extraGraphic(name, fallback);
@@ -226,8 +408,13 @@ export class TerrainRenderer extends BaseRenderer {
 
     if (layer === 'terrain') {
       if (tile.cityId) return sprites;
-      if (extras.has('farmland')) pushExtra('farmland');
-      else pushExtra('irrigation');
+      if (extras.has('farmland')) {
+        const graphic = this.extraGraphic('farmland');
+        if (graphic) sprites.push({ key: this.getCardinalExtraKey(tile, 'farmland', graphic) });
+      } else if (extras.has('irrigation')) {
+        const graphic = this.extraGraphic('irrigation');
+        if (graphic) sprites.push({ key: this.getCardinalExtraKey(tile, 'irrigation', graphic) });
+      }
       return sprites;
     }
 
@@ -262,10 +449,58 @@ export class TerrainRenderer extends BaseRenderer {
     return sprites;
   }
 
+  /** Follow Hexemplio's ordered [extras].styles table for SPECIAL1/2/3. */
+  private getNativeSpecialSprites(
+    extras: ReadonlySet<string>,
+    styles: Record<string, string>,
+    layer: 'special1' | 'special2' | 'special3'
+  ): Array<{ key: string; offset_x?: number; offset_y?: number }> {
+    const sprites: Array<{ key: string; offset_x?: number; offset_y?: number }> = [];
+    const geometry = this.tilesetLoader.getGeometry();
+    const fullOffset = {
+      offset_x: (geometry.tileWidth - geometry.fullTileWidth) / 2,
+      offset_y: geometry.tileHeight - geometry.fullTileHeight,
+    };
+    const pushStyle = (wantedStyle: string) => {
+      for (const installed of this.getInstalledExtrasByStyle(extras, styles, wantedStyle)) {
+        const { name, definition } = installed;
+        if (this.extraIsHidden(name, extras, definition)) continue;
+        const graphic = this.extraDefinitionGraphic(definition, styles);
+        if (!graphic) continue;
+        if (wantedStyle === '3layer') {
+          const suffix = layer === 'special1' ? 'bg' : layer === 'special2' ? 'mg' : 'fg';
+          const key = `${graphic}_${suffix}:0`;
+          if (this.hasNativeSprite(key)) sprites.push({ key, ...fullOffset });
+        } else {
+          sprites.push({ key: graphic });
+        }
+      }
+    };
+
+    // Each style family is a separate Freeciv loop. Preserve that ordering,
+    // even though Hexemplio's style table interleaves roads, singles, bases,
+    // and resources.
+    if (layer === 'special1') {
+      pushStyle('3layer');
+      pushStyle('single1');
+    } else if (layer === 'special2') {
+      pushStyle('3layer');
+      pushStyle('single2');
+    } else {
+      pushStyle('3layer');
+    }
+    return sprites;
+  }
+
+  private hasNativeExtraStyles(): boolean {
+    const styles = this.tilesetLoader.getTerrainComposition()?.extraStyles;
+    return Boolean(styles && Object.keys(styles).length > 0);
+  }
+
   /** Port of freeciv-web fill_path_sprite_array(), including hidden_by rules. */
   private getPathSprites(
     tile: Tile,
-    directions: Array<{ dx: number; dy: number; name: string }>
+    directions: readonly { dx: number; dy: number; name: string }[]
   ): string[] {
     const hasExtra = (candidate: Tile, name: 'road' | 'railroad' | 'maglev'): boolean => {
       const extras = this.getNormalizedImprovements(candidate);
@@ -310,6 +545,22 @@ export class TerrainRenderer extends BaseRenderer {
     const roadPrefix = this.extraGraphic('road', 'road.road');
     const railPrefix = this.extraGraphic('railroad', 'road.rail');
     const maglevPrefix = this.extraGraphic('maglev', 'road.maglev');
+    if (this.tilesetLoader.getGeometry().hexWidth > 0) {
+      const combined = (prefix: string, names: string[]): string =>
+        `${prefix}_${directions.map(direction => `${direction.name}${names.includes(direction.name) ? 1 : 0}`).join('')}`;
+      const sprites = [
+        ...roadConnections.map(name => `${roadPrefix}_${name}`),
+        ...(rail && (railConnections.length > 0 || drawSingleRail)
+          ? [combined(railPrefix, railConnections)]
+          : []),
+        ...(maglev && (maglevConnections.length > 0 || drawSingleMaglev)
+          ? [combined(maglevPrefix, maglevConnections)]
+          : []),
+      ];
+      if (drawSingleRoad) sprites.push(`${roadPrefix}_isolated`);
+      return sprites;
+    }
+
     const sprites = [
       ...roadConnections.map(name => `${roadPrefix}_${name}`),
       ...railConnections.map(name => `${railPrefix}_${name}`),
@@ -321,11 +572,23 @@ export class TerrainRenderer extends BaseRenderer {
     return sprites;
   }
 
+  private getCardinalExtraKey(tile: Tile, name: string, graphic: string): string {
+    if (this.tilesetLoader.getGeometry().hexWidth === 0) return graphic;
+    const connectedNames = new Set<string>();
+    for (const direction of getCardinalMapDirections(this.topologyId)) {
+      const neighbor = this.getDirectionalNeighborTile(tile, direction.dx, direction.dy);
+      const extras = neighbor ? this.getNormalizedImprovements(neighbor) : new Set<string>();
+      if (extras.has(name)) connectedNames.add(direction.name);
+    }
+    const suffix = getCardinalMapDirections(this.topologyId)
+      .map(direction => `${direction.name}${connectedNames.has(direction.name) ? 1 : 0}`)
+      .join('');
+    return `${graphic}_s_${suffix}:0`;
+  }
+
   private getNormalizedImprovements(tile: Tile): Set<string> {
     return new Set(
-      (tile.improvements ?? []).map(improvement =>
-        improvement.toLowerCase().replaceAll(' ', '_').replaceAll('-', '_')
-      )
+      (tile.improvements ?? []).map(improvement => this.normalizeExtraName(improvement))
     );
   }
 
@@ -336,14 +599,40 @@ export class TerrainRenderer extends BaseRenderer {
       tundra_game: 'game',
       grassland_resources: 'bonus',
     };
-    const id = `extra_${aliases[name] ?? name}`;
-    const definition = this.extraGraphics[id];
+    const definition = this.findExtraDefinition(aliases[name] ?? name);
     return (
       [definition?.graphic, definition?.graphic_alt].find(
         candidate => candidate && candidate !== '-'
       ) ??
       fallback ??
       ''
+    );
+  }
+
+  private normalizeExtraName(value: string): string {
+    return value
+      .trim()
+      .toLowerCase()
+      .replace(/^extra_/, '')
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+  }
+
+  private findExtraDefinition(name: string): GraphicDefinition | undefined {
+    return this.extraGraphicsByName.get(this.normalizeExtraName(name));
+  }
+
+  private asList(value: string | string[] | undefined): string[] {
+    return value === undefined ? [] : Array.isArray(value) ? value : [value];
+  }
+
+  private extraIsHidden(
+    name: string,
+    extras: ReadonlySet<string>,
+    definition = this.findExtraDefinition(name)
+  ): boolean {
+    return this.asList(definition?.hidden_by).some(hider =>
+      extras.has(this.normalizeExtraName(hider))
     );
   }
 
@@ -713,8 +1002,28 @@ export class TerrainRenderer extends BaseRenderer {
   }
 
   private getDirectionalNeighborTile(tile: Tile, dx: number, dy: number): Tile | undefined {
+    // Every native compositor path reaches neighbor lookup directly. Keep the
+    // cache construction at this shared seam so the first WATER, darkness, or
+    // blend operation of a frame sees the authoritative map immediately.
+    this.buildTileMap();
     if (!this.mapWidth || !this.mapHeight) {
       return this.tileMap.get(`${tile.x + dx},${tile.y + dy}`) as Tile | undefined;
+    }
+
+    if (usesNativeLogicalProjection(this.topologyId)) {
+      const position = stepNativeMapPosition(
+        tile.x,
+        tile.y,
+        dx,
+        dy,
+        this.mapWidth,
+        this.mapHeight,
+        this.topologyId,
+        this.wrapId
+      );
+      return position
+        ? (this.tileMap.get(`${position.x},${position.y}`) as Tile | undefined)
+        : undefined;
     }
 
     // map_pos_to_tile() shifts the other browser-grid axis at a finite ISO
@@ -750,15 +1059,16 @@ export class TerrainRenderer extends BaseRenderer {
   }
 
   // Simplified wrapper that calls the original logic
-  private fillTerrainSpriteArraySimple(
-    layer: number,
-    tile: Tile
-  ): Array<{ key: string; offset_x?: number; offset_y?: number }> {
+  private fillTerrainSpriteArraySimple(layer: number, tile: Tile): TerrainSpriteCommand[] {
     if (!tile || !tile.terrain) {
       return [];
     }
 
     const mappedTerrain = this.mapTerrainName(tile.terrain);
+    const composition = this.tilesetLoader.getTerrainComposition();
+    if (composition?.mode === 'direct-cells') {
+      return this.fillDirectTerrainSpriteArray(layer, tile, mappedTerrain, composition);
+    }
     const pterrain = { graphic_str: mappedTerrain };
     const ptile = tile;
     const tterrain_near = this.getNeighboringTerrains(tile);
@@ -769,6 +1079,222 @@ export class TerrainRenderer extends BaseRenderer {
       console.warn(`Error in fillTerrainSpriteArray for ${tile.terrain} layer ${layer}:`, error);
       return [];
     }
+  }
+
+  /** Port of Freeciv's native terrain compositor for unflattened spec sprites. */
+  private fillDirectTerrainSpriteArray(
+    layer: number,
+    tile: Tile,
+    graphic: string,
+    profile: TerrainCompositionProfile
+  ): TerrainSpriteCommand[] {
+    const definition = profile.terrains[graphic];
+    const drawing = definition?.layers[layer];
+    if (!definition || !drawing) return [];
+
+    const result =
+      drawing.spriteType === CELL_CORNER
+        ? this.getDirectCornerTerrainSprites(layer, tile, graphic, drawing, profile)
+        : this.getDirectWholeTerrainSprites(layer, tile, graphic, drawing, profile);
+
+    if (layer + 1 === definition.blendLayer) {
+      result.push(...this.getDirectBlendSprites(tile, graphic, profile));
+    }
+    return result;
+  }
+
+  private getDirectWholeTerrainSprites(
+    layer: number,
+    tile: Tile,
+    graphic: string,
+    drawing: TerrainLayerComposition,
+    profile: TerrainCompositionProfile
+  ): TerrainSpriteCommand[] {
+    if (drawing.matchStyle === MATCH_NONE) {
+      const prefix = `t.l${layer}.${graphic}`;
+      const variants: string[] = [];
+      for (let variant = 1; ; variant += 1) {
+        const key = `${prefix}${variant}`;
+        if (!this.hasNativeSprite(key)) break;
+        variants.push(key);
+      }
+      if (variants.length === 0) return [];
+      const tileIndex = tile.x + tile.y * this.mapWidth;
+      const randomIndex = (((tileIndex % 32000) * 10007) % 1009) % variants.length;
+      return [{ key: variants[randomIndex], offset_x: drawing.offsetX, offset_y: drawing.offsetY }];
+    }
+
+    if (drawing.matchStyle === MATCH_SAME) {
+      let mask = 0;
+      const directions = getCardinalMapDirections(this.topologyId);
+      for (let index = 0; index < directions.length; index += 1) {
+        const neighborMatch = this.getNeighborTerrainMatchIndex(
+          tile,
+          directions[index].index,
+          layer,
+          graphic,
+          profile
+        );
+        if (neighborMatch === drawing.matchIndex[0]) mask |= 1 << index;
+      }
+      const key = `t.l${layer}.${graphic}_${this.directionMaskString(directions, mask)}`;
+      return this.hasNativeSprite(key) ? [{ key }] : [];
+    }
+
+    return [];
+  }
+
+  private getDirectCornerTerrainSprites(
+    layer: number,
+    tile: Tile,
+    graphic: string,
+    drawing: TerrainLayerComposition,
+    profile: TerrainCompositionProfile
+  ): TerrainSpriteCommand[] {
+    const width = this.tileWidth;
+    const height = this.tileHeight;
+    const offsets = [
+      [Math.floor(width / 4), 0],
+      [Math.floor(width / 4), Math.floor(height / 2)],
+      [Math.floor(width / 2), Math.floor(height / 4)],
+      [0, Math.floor(height / 4)],
+    ];
+    const letters = ['u', 'd', 'r', 'l'];
+    const results: TerrainSpriteCommand[] = [];
+
+    for (let corner = 0; corner < 4; corner += 1) {
+      const direction = this.counterClockwiseDirection(DIR4_TO_DIR8[corner]);
+      const match = [
+        this.getNeighborTerrainMatchIndex(
+          tile,
+          this.counterClockwiseDirection(direction),
+          layer,
+          graphic,
+          profile
+        ),
+        this.getNeighborTerrainMatchIndex(tile, direction, layer, graphic, profile),
+        this.getNeighborTerrainMatchIndex(
+          tile,
+          this.clockwiseDirection(direction),
+          layer,
+          graphic,
+          profile
+        ),
+      ];
+      let suffix = '';
+      if (drawing.matchStyle === MATCH_NONE) {
+        suffix = '';
+      } else if (drawing.matchStyle === MATCH_SAME) {
+        suffix = match.map(value => (value === drawing.matchIndex[0] ? 0 : 1)).join('');
+      } else if (drawing.matchStyle === MATCH_PAIR) {
+        const matchTypes = profile.matchTypes[layer] ?? [];
+        const first = matchTypes[drawing.matchIndex[0]]?.[0] ?? '';
+        const second = matchTypes[drawing.matchIndex[1]]?.[0] ?? first;
+        suffix = `_${match.map(value => (value === drawing.matchIndex[1] ? second : first)).join('_')}`;
+      } else {
+        continue;
+      }
+
+      const key = `t.l${layer}.${graphic}_cell_${letters[corner]}${suffix}`;
+      if (this.hasNativeSprite(key)) {
+        results.push({ key, offset_x: offsets[corner][0], offset_y: offsets[corner][1] });
+      }
+    }
+    return results;
+  }
+
+  private getDirectBlendSprites(
+    tile: Tile,
+    graphic: string,
+    profile: TerrainCompositionProfile
+  ): TerrainSpriteCommand[] {
+    const directions = DIR4_TO_DIR8;
+    const offsets = [
+      [Math.floor(this.tileWidth / 2), 0],
+      [0, Math.floor(this.tileHeight / 2)],
+      [Math.floor(this.tileWidth / 2), Math.floor(this.tileHeight / 2)],
+      [0, 0],
+    ];
+    const results: TerrainSpriteCommand[] = [];
+
+    for (let index = 0; index < directions.length; index += 1) {
+      const direction = MAP_DIRECTIONS[directions[index]];
+      const neighbor = this.getDirectionalNeighborTile(tile, direction.dx, direction.dy);
+      const known =
+        neighbor?.known === true || (typeof neighbor?.known === 'number' && neighbor.known > 0);
+      if (!neighbor?.terrain || !known) continue;
+      const otherGraphic = this.mapTerrainName(neighbor.terrain);
+      if (otherGraphic === graphic) continue;
+      const other = profile.terrains[otherGraphic];
+      if (!other) continue;
+
+      const explicit = `t.blend.${otherGraphic}`;
+      const fallback = `t.l${Math.max(0, other.blendLayer - 1)}.${otherGraphic}1`;
+      const key = this.hasNativeSprite(explicit)
+        ? explicit
+        : other.blendLayer > 0 && this.hasNativeSprite(fallback)
+          ? fallback
+          : '';
+      if (!key) continue;
+      results.push({
+        key,
+        mask_key: 't.dither_tile',
+        offset_x: offsets[index][0],
+        offset_y: offsets[index][1],
+        source_x: offsets[index][0],
+        source_y: offsets[index][1],
+        source_width: Math.floor(this.tileWidth / 2),
+        source_height: Math.floor(this.tileHeight / 2),
+      });
+    }
+    return results;
+  }
+
+  private getNeighborTerrainMatchIndex(
+    tile: Tile,
+    directionIndex: number,
+    layer: number,
+    currentGraphic: string,
+    profile: TerrainCompositionProfile
+  ): number {
+    const direction = MAP_DIRECTIONS[directionIndex];
+    const neighbor = direction
+      ? this.getDirectionalNeighborTile(tile, direction.dx, direction.dy)
+      : undefined;
+    const known =
+      neighbor?.known === true || (typeof neighbor?.known === 'number' && neighbor.known > 0);
+    const graphic =
+      neighbor?.terrain && neighbor.terrain !== 'unknown' && known
+        ? this.mapTerrainName(neighbor.terrain)
+        : currentGraphic;
+    return profile.terrains[graphic]?.layers[layer]?.matchIndex[0] ?? -1;
+  }
+
+  private hasNativeSprite(key: string): boolean {
+    return this.tilesetLoader.hasNativeSprite?.(key) ?? this.tilesetLoader.hasSprite(key);
+  }
+
+  private directionMaskString(directions: readonly { name: string }[], mask: number): string {
+    return directions.map((direction, index) => `${direction.name}${(mask >> index) & 1}`).join('');
+  }
+
+  private clockwiseDirection(direction: number): number {
+    const clockwise: Record<number, number> = { 0: 1, 1: 2, 2: 4, 4: 7, 7: 6, 6: 5, 5: 3, 3: 0 };
+    return clockwise[direction] ?? -1;
+  }
+
+  private counterClockwiseDirection(direction: number): number {
+    const counterClockwise: Record<number, number> = {
+      0: 3,
+      3: 5,
+      5: 6,
+      6: 7,
+      7: 4,
+      4: 2,
+      2: 1,
+      1: 0,
+    };
+    return counterClockwise[direction] ?? -1;
   }
 
   private getTerrainColor(terrain: string): string {
@@ -808,48 +1334,133 @@ export class TerrainRenderer extends BaseRenderer {
    * @param tile - The tile to calculate river sprite for
    * @returns Sprite info with key for river rendering, or null if no river
    */
-  private getTileRiverSprite(tile: Tile): { key: string } | null {
-    if (tile.riverMask) {
-      // Convert riverMask bitfield to directional string like freeciv-web
-      // Our bitfield: N=1, E=2, S=4, W=8
-      // freeciv-web format: "n1e0s1w0" etc.
-      let riverStr = '';
-      riverStr += tile.riverMask & 1 ? 'n1' : 'n0'; // North
-      riverStr += tile.riverMask & 2 ? 'e1' : 'e0'; // East
-      riverStr += tile.riverMask & 4 ? 's1' : 's0'; // South
-      riverStr += tile.riverMask & 8 ? 'w1' : 'w0'; // West
-
+  private getTileRiverSprites(tile: Tile): Array<{ key: string }> {
+    if (this.tileHasRiver(tile)) {
+      const directions = getCardinalMapDirections(this.topologyId);
+      const riverStr = this.directionMaskString(directions, tile.riverMask ?? 0);
       const spriteKey = `road.river_s_${riverStr}:0`;
-
-      // Debug logging for river sprite generation
-      if (import.meta.env.DEV) {
-        console.debug(
-          `River sprite requested: tile(${tile.x},${tile.y}) mask=${tile.riverMask} -> ${spriteKey}`
-        );
-      }
-
-      // Return sprite key following freeciv-web's road.river_s_XXXX:0 pattern
-      return { key: spriteKey };
+      return [{ key: spriteKey }];
     }
 
     // Freeciv draws a river outlet on a coast tile when an adjacent tile owns
-    // the river extra. The authoritative snapshot represents that extra as a
-    // non-zero riverMask on the neighboring tile.
-    if (this.mapTerrainName(tile.terrain) === 'coast') {
-      const cardinalNeighbors = [
-        { dx: 0, dy: -1, name: 'n' },
-        { dx: 1, dy: 0, name: 'e' },
-        { dx: 0, dy: 1, name: 's' },
-        { dx: -1, dy: 0, name: 'w' },
-      ];
-      for (const { dx, dy, name } of cardinalNeighbors) {
-        if (this.getDirectionalNeighborTile(tile, dx, dy)?.riverMask) {
-          return { key: `road.river_outlet_${name}:0` };
+    // the river extra. Connectivity alone cannot identify an isolated river,
+    // so use the same explicit-presence rule as the server.
+    if (this.isOceanicTerrain(tile.terrain)) {
+      const outlets: Array<{ key: string }> = [];
+      for (const { dx, dy, name } of getCardinalMapDirections(this.topologyId)) {
+        const neighbor = this.getDirectionalNeighborTile(tile, dx, dy);
+        if (neighbor && this.tileHasRiver(neighbor)) {
+          outlets.push({ key: `road.river_outlet_${name}:0` });
         }
       }
+      return outlets;
     }
 
-    return null;
+    return [];
+  }
+
+  private tileHasRiver(tile: Tile): boolean {
+    return Boolean(
+      (tile.riverMask ?? 0) !== 0 || this.getNormalizedImprovements(tile).has('river')
+    );
+  }
+
+  /**
+   * Build shoreline outlets for every installed River-style extra.
+   *
+   * The source loop is direction-major and does not apply `hidden_by`; for
+   * example a Farmland tile may also own Irrigation, with the later Farmland
+   * outlet naturally covering the Irrigation outlet.
+   */
+  private getNativeRiverOutletSprites(
+    tile: Tile,
+    styles: Record<string, string>
+  ): TerrainSpriteCommand[] {
+    if (!this.isOceanicTerrain(tile.terrain)) return [];
+    const sprites: TerrainSpriteCommand[] = [];
+
+    for (const direction of getCardinalMapDirections(this.topologyId)) {
+      const neighbor = this.getDirectionalNeighborTile(tile, direction.dx, direction.dy);
+      if (!neighbor || !this.tileIsKnown(neighbor)) continue;
+      const extras = this.getNormalizedImprovements(neighbor);
+      for (const installed of this.getInstalledExtrasByStyle(extras, styles, 'river')) {
+        const graphic = this.extraDefinitionGraphic(installed.definition, styles);
+        if (graphic) sprites.push({ key: `${graphic}_outlet_${direction.name}:0` });
+      }
+    }
+    return sprites;
+  }
+
+  /** Port of the ESTYLE_RIVER body-mask loop in Freeciv's WATER layer. */
+  private getNativeRiverBodySprites(
+    tile: Tile,
+    styles: Record<string, string>
+  ): TerrainSpriteCommand[] {
+    const extras = this.getNormalizedImprovements(tile);
+    const directions = getCardinalMapDirections(this.topologyId);
+    const sprites: TerrainSpriteCommand[] = [];
+
+    for (const installed of this.getInstalledExtrasByStyle(extras, styles, 'river')) {
+      const graphic = this.extraDefinitionGraphic(installed.definition, styles);
+      if (!graphic) continue;
+
+      const causes = this.asList(installed.definition.causes).map(value =>
+        this.normalizeExtraName(value)
+      );
+      const isRoad = causes.includes('road');
+      let mask = 0;
+      for (const [index, direction] of directions.entries()) {
+        const neighbor = this.getDirectionalNeighborTile(tile, direction.dx, direction.dy);
+        if (!neighbor || !this.tileIsKnown(neighbor)) continue;
+        if (
+          this.isOceanicTerrain(neighbor.terrain) ||
+          (isRoad &&
+            this.getInstalledExtrasByStyle(
+              this.getNormalizedImprovements(neighbor),
+              styles,
+              'river'
+            ).some(candidate => candidate.definition === installed.definition))
+        ) {
+          mask |= 1 << index;
+        }
+      }
+      sprites.push({ key: `${graphic}_s_${this.directionMaskString(directions, mask)}:0` });
+    }
+    return sprites;
+  }
+
+  private getInstalledExtrasByStyle(
+    extras: ReadonlySet<string>,
+    styles: Record<string, string>,
+    wantedStyle: string
+  ): Array<{ name: string; definition: GraphicDefinition }> {
+    return this.extraGraphicsInRulesetOrder.flatMap(({ id, definition }) => {
+      const aliases = [id, definition.name, definition.rule_name]
+        .filter((value): value is string => Boolean(value))
+        .map(value => this.normalizeExtraName(value));
+      const name = aliases.find(alias => extras.has(alias));
+      const graphic = this.extraDefinitionGraphic(definition, styles);
+      return name && graphic && styles[graphic]?.toLowerCase() === wantedStyle.toLowerCase()
+        ? [{ name, definition }]
+        : [];
+    });
+  }
+
+  private extraDefinitionGraphic(
+    definition: GraphicDefinition,
+    styles: Record<string, string>
+  ): string | undefined {
+    return [definition.graphic, definition.graphic_alt].find(
+      candidate => candidate && candidate !== '-' && styles[candidate]
+    );
+  }
+
+  private tileIsKnown(tile: Tile): boolean {
+    return tile.known === true || (typeof tile.known === 'number' && tile.known > 0);
+  }
+
+  private isOceanicTerrain(terrain: string): boolean {
+    return ['ocean', 'coast', 'deep_ocean', 'lake'].includes(terrain);
   }
 
   /**
@@ -931,7 +1542,14 @@ export class TerrainRenderer extends BaseRenderer {
     return { key: spriteKey };
   }
 
-  setExtraGraphics(graphics: Record<string, { graphic?: string; graphic_alt?: string }>): void {
-    this.extraGraphics = graphics;
+  setExtraGraphics(graphics: Record<string, GraphicDefinition>): void {
+    this.extraGraphicsByName.clear();
+    this.extraGraphicsInRulesetOrder = [];
+    for (const [id, definition] of Object.entries(graphics)) {
+      this.extraGraphicsInRulesetOrder.push({ id, definition });
+      for (const alias of [id, definition.name, definition.rule_name]) {
+        if (alias) this.extraGraphicsByName.set(this.normalizeExtraName(alias), definition);
+      }
+    }
   }
 }

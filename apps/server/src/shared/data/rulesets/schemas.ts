@@ -602,6 +602,7 @@ export const ExtraRulesetSchema = z
     category: z.string(),
     causes: z.union([z.string(), z.array(z.string())]).optional(),
     rmcauses: z.union([z.string(), z.array(z.string())]).optional(),
+    hidden_by: z.union([z.string(), z.array(z.string())]).optional(),
     flags: z.union([z.string(), z.array(z.string())]).optional(),
     buildable: z.boolean().optional(),
     build_time: z.number().min(0).optional(),

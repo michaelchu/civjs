@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 import {
   readReferenceOverviewTileColors,
+  type CanvasPixels,
   type ReferenceParityTile,
   type ReferenceRenderViewport,
 } from './freecivWebRenderHarness';
@@ -14,7 +15,7 @@ import {
 } from '../../../apps/client/src/components/Canvas2D/mapTopologyGeometry';
 import { PARITY_VIEWPORT, REDUCED_MOTION_PREFERENCES } from './parityConstants';
 
-export type IsometricParityMode = 'visual' | 'reference' | 'reference-base';
+export type IsometricParityMode = 'visual' | 'reference' | 'reference-base' | 'native-reference';
 
 export interface CivJsParityFixture {
   tiles: ReferenceParityTile[];
@@ -110,6 +111,57 @@ export interface MinimapColorParityResult {
 }
 
 /**
+ * Independently rasterize Freeciv's natural ISO overview. This deliberately
+ * does not call the production geometry helpers: each native row is staggered
+ * by one natural X unit and every tile owns a 2x1 cell.
+ *
+ * @reference reference/freeciv/common/map.h:170-190
+ * @reference reference/freeciv/client/overview_common.c:324-483
+ */
+export const createNativeOverviewOracle = (
+  fixture: CivJsParityFixture,
+  tileColors: Array<[number, number, number]>
+): CanvasPixels => {
+  const naturalWidth = fixture.mapWidth * 2;
+  const naturalHeight = fixture.mapHeight;
+  let scale = 1;
+  while (scale * naturalWidth < 200) scale += 1;
+  const sourceWidth = naturalWidth * scale;
+  const sourceHeight = naturalHeight * scale;
+  const data = new Array(sourceWidth * sourceHeight * 4).fill(0);
+  for (let index = 3; index < data.length; index += 4) data[index] = 255;
+
+  const putPixel = (x: number, y: number, color: [number, number, number, number]) => {
+    if (x < 0 || x >= sourceWidth || y < 0 || y >= sourceHeight) return;
+    const index = (y * sourceWidth + x) * 4;
+    data[index] = color[0];
+    data[index + 1] = color[1];
+    data[index + 2] = color[2];
+    data[index + 3] = color[3];
+  };
+
+  fixture.tiles.forEach((tile, tileIndex) => {
+    const referenceColor = tileColors[tileIndex] ?? [0, 0, 0];
+    const color: [number, number, number, number] = [...referenceColor, 255];
+    const naturalX = tile.x * 2 + (tile.y & 1);
+    const naturalY = tile.y;
+    for (const xWrap of [-naturalWidth, 0, naturalWidth]) {
+      for (const yWrap of [-naturalHeight, 0, naturalHeight]) {
+        const startX = (naturalX + xWrap) * scale;
+        const startY = (naturalY + yWrap) * scale;
+        for (let py = 0; py < scale; py += 1) {
+          for (let px = 0; px < scale * 2; px += 1) {
+            putPixel(startX + px, startY + py, color);
+          }
+        }
+      }
+    }
+  });
+
+  return { width: sourceWidth, height: sourceHeight, data };
+};
+
+/**
  * Compare Freeciv-web's generated overview palette to CivJS's physically
  * proportioned ISO overview at tile centers. The reference overview does not dim
  * known-but-not-visible terrain; those remembered-fog cells are reported
@@ -124,7 +176,12 @@ export const compareReferenceOverviewToCivJs = async (
     referencePage,
     fixture.tiles.map(tile => ({ x: tile.x, y: tile.y }))
   );
-  const layout = getMinimapLayout(fixture.mapWidth, fixture.mapHeight, fixture.topologyId);
+  const layout = getMinimapLayout(
+    fixture.mapWidth,
+    fixture.mapHeight,
+    fixture.topologyId,
+    fixture.wrapId
+  );
   const samplePoints = fixture.tiles.map(tile => {
     const origins = getMinimapTileOrigins(
       tile.x,

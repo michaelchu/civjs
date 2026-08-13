@@ -99,7 +99,18 @@ describe('TerrainRenderer fog-edge neighbors', () => {
     } as unknown as CanvasRenderingContext2D;
     const renderer = new TerrainRenderer(
       context,
-      { getSprite: (key: string) => ({ key }) } as never,
+      {
+        getSprite: (key: string) => ({ key }),
+        getTerrainComposition: () => null,
+        getGeometry: () => ({
+          tileWidth: 96,
+          tileHeight: 48,
+          fullTileWidth: 96,
+          fullTileHeight: 48,
+          hexWidth: 0,
+          hexHeight: 0,
+        }),
+      } as never,
       96,
       48
     );
@@ -155,7 +166,7 @@ describe('TerrainRenderer fog-edge neighbors', () => {
     expect(neighbors[4].graphic_str).toBe('plains');
   });
 
-  it('samples direct terrain neighbors from the browser map grid', () => {
+  it('steps logical terrain neighbors through the native ISO-hex grid', () => {
     const renderer = new TerrainRenderer({} as CanvasRenderingContext2D, {} as never, 96, 48);
     const state = {
       viewport: { x: 0, y: 0, width: 800, height: 600 },
@@ -174,7 +185,7 @@ describe('TerrainRenderer fog-edge neighbors', () => {
     } satisfies RenderState;
     renderer.invalidateTileCache({
       '10,10': { x: 10, y: 10, terrain: 'grassland', known: true, visible: true },
-      // Browser freeciv-web uses direct map-grid x/y for the 2D painter.
+      // Logical east from native (10,10) is native (10,11) on ISO-hex maps.
       '10,11': { x: 10, y: 11, terrain: 'plains', known: true, visible: true },
       '11,10': { x: 11, y: 10, terrain: 'desert', known: true, visible: true },
     });
@@ -194,7 +205,7 @@ describe('TerrainRenderer fog-edge neighbors', () => {
       }
     ).getNeighboringTerrains({ x: 10, y: 10, terrain: 'grassland' });
 
-    expect(neighbors[4].graphic_str).toBe('desert');
+    expect(neighbors[4].graphic_str).toBe('plains');
   });
 
   it('preserves the browser ISO edge adjustment for diagonal neighbors', () => {

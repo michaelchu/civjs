@@ -195,6 +195,18 @@ export function isLandTile(terrain: string): boolean {
 }
 
 /**
+ * River presence is an extra, while `riverMask` only records the directions
+ * that connect its sprite to neighboring rivers/ocean. An isolated river is
+ * therefore present with a zero mask.
+ */
+export function tileHasRiver(tile: {
+  riverMask?: number;
+  improvements?: readonly string[];
+}): boolean {
+  return (tile.riverMask ?? 0) !== 0 || Boolean(tile.improvements?.includes('river'));
+}
+
+/**
  * Create base tile with default properties
  * @reference freeciv/server/generator/mapgen.c create_base_tile()
  * Creates tile with default ocean terrain and properties

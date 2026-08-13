@@ -55,8 +55,10 @@ const seedFixture = (): void => {
     const value = Number.parseInt(query.get(name) ?? '', 10);
     return Number.isInteger(value) && value > 0 ? value : fallback;
   };
+  const nativeReferenceVisual = isometricVisual && parityMode === 'native-reference';
   const referenceParityVisual =
-    isometricVisual && (parityMode === 'reference' || parityMode === 'reference-base');
+    isometricVisual &&
+    (parityMode === 'reference' || parityMode === 'reference-base' || nativeReferenceVisual);
   const referenceBaseVisual = isometricVisual && parityMode === 'reference-base';
   const mapWidth = isometricVisual ? queryDimension('mapWidth', 48) : 5;
   const mapHeight = isometricVisual ? queryDimension('mapHeight', 48) : 5;
@@ -143,8 +145,8 @@ const seedFixture = (): void => {
     map: {
       xsize: mapWidth,
       ysize: mapHeight,
-      topology_id: referenceParityVisual ? TOPOLOGY_ISO : C2C3_TOPOLOGY,
-      wrap_id: referenceParityVisual ? 0 : C2C3_WRAP,
+      topology_id: referenceParityVisual && !nativeReferenceVisual ? TOPOLOGY_ISO : C2C3_TOPOLOGY,
+      wrap_id: referenceParityVisual && !nativeReferenceVisual ? 0 : C2C3_WRAP,
     },
     __civjsParityGeometry: {
       topologyId: C2C3_TOPOLOGY,
@@ -195,8 +197,8 @@ const seedFixture = (): void => {
       height: mapHeight,
       xsize: mapWidth,
       ysize: mapHeight,
-      topology_id: referenceParityVisual ? TOPOLOGY_ISO : C2C3_TOPOLOGY,
-      wrap_id: referenceParityVisual ? 0 : C2C3_WRAP,
+      topology_id: referenceParityVisual && !nativeReferenceVisual ? TOPOLOGY_ISO : C2C3_TOPOLOGY,
+      wrap_id: referenceParityVisual && !nativeReferenceVisual ? 0 : C2C3_WRAP,
       tiles: Object.fromEntries(tiles.map(tile => [`${tile.x},${tile.y}`, tile])),
     },
     cities: referenceParityVisual ? {} : { [city.id]: city },
@@ -326,7 +328,7 @@ const seedFixture = (): void => {
       : undefined,
     viewport: referenceBaseVisual
       ? { x: -400, y: -250, width: window.innerWidth, height: window.innerHeight }
-      : referenceParityVisual
+      : referenceParityVisual && !nativeReferenceVisual
         ? { x: -592, y: 1392, width: window.innerWidth, height: window.innerHeight }
         : { x: -400, y: -250, width: 800, height: 600 },
   });

@@ -28,6 +28,7 @@ import {
   type TileExplorationProvider,
 } from '@game/services/CityFoundingValidationService';
 import type { MapManager } from '@game/managers/MapManager';
+import { tileHasRiver } from '@game/map/TerrainUtils';
 import { Server as SocketServer } from 'socket.io';
 import type { TaxRates } from '@game/systems/Economic/types/EconomicTypes';
 import { DEFAULT_TAX_RATES } from '@game/systems/Economic/constants/EconomicConstants';
@@ -807,10 +808,13 @@ export class CityManager {
             : undefined,
         }
       : undefined;
-    if (centerTile && centerTile.riverMask === 0) {
+    if (centerTile && !tileHasRiver(centerTile)) {
       centerTile.hasRoad = true;
-      if (!centerTile.improvements.includes('road')) {
-        centerTile.improvements.push('road');
+      const improvements = Array.isArray(centerTile.improvements)
+        ? centerTile.improvements
+        : (centerTile.improvements = []);
+      if (!improvements.includes('road')) {
+        improvements.push('road');
       }
     }
 
@@ -861,6 +865,8 @@ export class CityManager {
         centerTile.hasRoad = previousCenterRoad.hasRoad;
         if (previousCenterRoad.improvements) {
           centerTile.improvements = previousCenterRoad.improvements;
+        } else {
+          delete (centerTile as { improvements?: string[] }).improvements;
         }
       }
       throw error;

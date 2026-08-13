@@ -15,6 +15,7 @@ import {
   OutputType,
   type EffectContext,
 } from '@game/managers/EffectsManager';
+import { tileHasRiver } from '@game/map/TerrainUtils';
 
 /**
  * CityTileManagementService - Manages city workable tiles and citizen assignments
@@ -617,7 +618,7 @@ export class CityTileManagementService extends BaseGameService {
       // must therefore remain unchanged apart from the road's +1 bonus.
       outputs.trade += Math.floor(roadTradePct / 100);
     }
-    if ((mapTile?.riverMask ?? 0) !== 0) outputs.trade += 1;
+    if (mapTile && tileHasRiver(mapTile)) outputs.trade += 1;
     return outputs;
   }
 
@@ -632,7 +633,7 @@ export class CityTileManagementService extends BaseGameService {
         ...(mapTile.improvements ?? []),
         ...(mapTile.hasRoad ? ['road'] : []),
         ...(mapTile.hasRailroad ? ['railroad'] : []),
-        ...((mapTile.riverMask ?? 0) !== 0 ? ['river'] : []),
+        ...(tileHasRiver(mapTile) ? ['river'] : []),
       ]),
     ];
   }

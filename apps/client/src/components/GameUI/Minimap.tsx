@@ -1,8 +1,8 @@
 /**
  * @module client/components/GameUI/Minimap
  * Freeciv-compatible overview map with an independently refreshed viewport overlay.
- * The base retains freeciv-web's square palette raster and is presented once
- * through the selected uniform 2x1 physical map transform.
+ * Topology-3 maps use Freeciv's staggered natural 2x1 raster directly; the
+ * topology-1 reference harness retains freeciv-web's square source palette.
  *
  * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/overview.js:20-24,50-119,233-320,459-474
  * @reference reference/freeciv/client/overview_common.c:324-374,408-483
@@ -14,6 +14,7 @@ import { getMapRenderTileSize, subscribeMapRenderTileSize } from '../Canvas2D/ma
 import { HudPanel } from './HudPanel';
 import { getMinimapCellAppearance, MINIMAP_COLORS } from './minimapVisibility';
 import {
+  getMinimapCellWidth,
   getMinimapLayout,
   getMinimapSourceTileOrigins,
   getMinimapViewportPolygons,
@@ -79,7 +80,7 @@ export const Minimap: React.FC = () => {
   const nativeHeight = map.ysize ?? map.height;
   const topologyId = map.topology_id ?? 0;
   const wrapId = map.wrap_id ?? 0;
-  const layout = getMinimapLayout(nativeWidth ?? 0, nativeHeight ?? 0, topologyId);
+  const layout = getMinimapLayout(nativeWidth ?? 0, nativeHeight ?? 0, topologyId, wrapId);
   const displayedViewport = activeRenderViewport ?? viewport;
 
   const drawBase = useCallback(() => {
@@ -122,6 +123,7 @@ export const Minimap: React.FC = () => {
         tile.y,
         nativeWidth,
         nativeHeight,
+        topologyId,
         wrapId,
         layout
       );
@@ -144,7 +146,12 @@ export const Minimap: React.FC = () => {
               : undefined
         );
         sourceContext.fillStyle = appearance.color;
-        sourceContext.fillRect(origin.x, origin.y, layout.tileSize, layout.tileSize);
+        sourceContext.fillRect(
+          origin.x,
+          origin.y,
+          layout.tileSize * (topologyId === 3 ? getMinimapCellWidth(topologyId) : 1),
+          layout.tileSize
+        );
       }
     }
     // Freeciv-web leaves the overview image at the browser's default filtered
@@ -169,6 +176,7 @@ export const Minimap: React.FC = () => {
     nativeHeight,
     nativeWidth,
     players,
+    topologyId,
     wrapId,
     units,
   ]);

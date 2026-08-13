@@ -17,7 +17,7 @@ import { IslandMapService } from './IslandMapService';
 import { Position } from './MapValidator';
 import { type MapTopologyOptions } from './MapTopology';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
-import { createBaseTile, isLandTile, setTerrainGameProperties } from './TerrainUtils';
+import { createBaseTile, isLandTile, setTerrainGameProperties, tileHasRiver } from './TerrainUtils';
 
 /**
  * Resource balance validation result
@@ -288,7 +288,10 @@ export class FairIslandsService extends BaseMapGenerationService {
         tile.elevation = entry.elevation;
         tile.continentId = islandIndex + 1;
         tile.resource = entry.resource;
-        tile.improvements = entry.hasHut ? ['hut'] : [];
+        tile.improvements = [
+          ...(entry.hasHut ? ['hut'] : []),
+          ...(entry.hasRiver ? ['river'] : []),
+        ];
         tile.riverMask = entry.hasRiver ? 1 : 0;
         setTerrainGameProperties(tile);
       }
@@ -450,15 +453,22 @@ export class FairIslandsService extends BaseMapGenerationService {
   }
 
   private connectFairRivers(tiles: MapTile[][]): void {
+    const riverTiles = new Set<string>();
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
-        if (tiles[x][y].riverMask === 0) continue;
+        if (tileHasRiver(tiles[x][y])) riverTiles.add(`${x},${y}`);
+      }
+    }
+
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.height; y++) {
+        if (!riverTiles.has(`${x},${y}`)) continue;
         let mask = 0;
         for (const [index, direction] of this.topology.getCardinalDirections().entries()) {
-          const position = this.topology.normalize(x + direction.dx, y + direction.dy);
-          if (position && tiles[position.x][position.y].riverMask > 0) mask |= 1 << index;
+          const position = this.topology.step(x, y, direction);
+          if (position && riverTiles.has(`${position.x},${position.y}`)) mask |= 1 << index;
         }
-        tiles[x][y].riverMask = mask || 1;
+        tiles[x][y].riverMask = mask;
       }
     }
   }

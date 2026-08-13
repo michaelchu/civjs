@@ -187,6 +187,25 @@ export class MapTopology {
     return SQUARE_DIRECTIONS.filter(({ dx, dy }) => dx === 0 || dy === 0);
   }
 
+  /**
+   * Apply one logical Freeciv direction to a native storage coordinate.
+   * Keeping this conversion public prevents render/generation masks from
+   * accidentally adding logical direction vectors directly to native x/y.
+   *
+   * @reference reference/freeciv/common/map.c:1383-1466
+   * @reference reference/freeciv/common/map.h:170-190
+   */
+  step(x: number, y: number, direction: MapVector): MapPosition | null {
+    const origin = nativeToMapPosition(x, y, this.width, this.usesIsometricCoordinates());
+    const candidate = mapToNativePosition(
+      origin.x + direction.dx,
+      origin.y + direction.dy,
+      this.width,
+      this.usesIsometricCoordinates()
+    );
+    return this.normalize(candidate.x, candidate.y);
+  }
+
   getNeighbors(x: number, y: number): MapPosition[] {
     return this.positionsForDirections(x, y, this.getDirections());
   }
@@ -280,16 +299,9 @@ export class MapTopology {
     directions: ReadonlyArray<MapVector>
   ): MapPosition[] {
     const neighbors = new Map<string, MapPosition>();
-    const origin = nativeToMapPosition(x, y, this.width, this.usesIsometricCoordinates());
 
-    for (const { dx, dy } of directions) {
-      const candidate = mapToNativePosition(
-        origin.x + dx,
-        origin.y + dy,
-        this.width,
-        this.usesIsometricCoordinates()
-      );
-      const position = this.normalize(candidate.x, candidate.y);
+    for (const direction of directions) {
+      const position = this.step(x, y, direction);
       if (!position || (position.x === x && position.y === y)) continue;
       neighbors.set(`${position.x},${position.y}`, position);
     }

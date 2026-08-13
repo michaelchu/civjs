@@ -2,31 +2,27 @@
 
 ## Status
 
-Accepted design direction. The initial provider boundary is implemented for
-Amplio2; the normalized composition contract, package manifests, fallback
-chain, and Civ III importer remain future work.
+Implemented for the two built-in Freeciv presentation paths. Provider identity,
+lifecycle, topology compatibility, geometry, sprite lookup, terrain metadata,
+native layer policy, presentation offsets, and runtime selection are active.
+Square-isometric maps use Amplio2; C2C3's `ISO|HEX` topology `3` selects the
+native Hexemplio provider.
 
-The implemented checkpoint includes provider identity, lifecycle, sprite
-lookup, terrain-definition lookup, tile dimensions, renderer injection, and a
-synthetic-provider test. Amplio2’s legacy terrain composition tables and
-presentation offsets still need to move fully behind the provider before a Civ
-III provider is introduced.
+Hexemplio is a reproducible package generated from pinned Freeciv revision
+`eb8c7033aa6a70dfcd4aee828c3ac1ba33092afc`. Its manifest and exact source PNGs
+are checked by `npm run check:hexemplio-tileset`, which is part of the root
+verification gate. The remaining package-provenance limitation applies to the
+older customized Amplio2 compatibility atlas, not the C2C3 runtime.
 
-The frontend parity audit exposed a blocking geometry responsibility: C2C3
-uses Freeciv's `ISO|HEX` topology, while Amplio2 is square isometric. Freeciv
-classifies those as hard-incompatible. Provider metadata must therefore be
-enforced at runtime, and an ISO-hex provider is required before C2C3 map
-presentation can be called exact. The current Amplio2 atlas is also a
-customized three-sheet snapshot rather than a reproducible build of the pinned
-freeciv-web source; config, atlas, sprite table, offsets, and source revision
-must become one versioned package.
+General manifest discovery, user-selectable fallback chains, and the Civ III
+importer remain future work.
 
 ## Context
 
-CivJS currently renders the C2C3 ruleset with an Amplio2-derived sprite
-atlas and legacy-compatible JavaScript sprite tables. Amplio2 is the only
-tileset that CivJS needs to support as a complete, built-in presentation set
-for now.
+CivJS renders the C2C3 ruleset with Freeciv's Hexemplio assets and native
+ISO-hex geometry. Amplio2 remains the complete built-in compatibility path for
+square-isometric maps and the architectural fallback candidate for future
+partial custom tilesets.
 
 Future visual customization must not require replacing or forking the map
 renderer. In particular, CivJS should be able to use terrain artwork from
@@ -110,13 +106,13 @@ Shared map renderer
     |
     v
 Tileset provider contract
-    |-----------------------------|
-    v                             v
-Amplio2 provider          Civ III terrain provider
-Freeciv tags/layers       PCX transitions/overlays
-    |                             |
-    v                             v
-Normalized draw commands and sprites
+    |-----------------------------|-----------------------------|
+    v                             v                             v
+Amplio2 provider          Hexemplio provider            Civ III provider
+freeciv-web package       Freeciv tilespec package      PCX transitions
+    |                             |                             |
+    v                             v                             v
+Normalized geometry, composition metadata, and sprites
 ```
 
 ## Provider responsibilities
@@ -157,36 +153,55 @@ interface TilesetProvider {
   load(): Promise<void>;
   dispose(): void;
 
-  getGeometry(): MapGeometryStrategy;
-  getSprite(tag: string): CanvasImageSource | null;
+  getGeometry(): TilesetGeometry;
+  getTopologyCompatibility(topologyId: number): TilesetTopologyCompatibility;
+  getSprite(tag: string): HTMLCanvasElement | null;
   hasSprite(tag: string): boolean;
-
-  composeTerrain(context: TerrainCompositionContext): DrawCommand[];
-  composeExtras(context: ExtraCompositionContext): DrawCommand[];
-  composeCity(context: CityCompositionContext): DrawCommand[];
-  composeUnit(context: UnitCompositionContext): DrawCommand[];
+  hasTerrainDefinition(graphic: string): boolean;
+  getTerrainComposition(): TerrainCompositionProfile | null;
+  getPresentationOffsets(): TilesetPresentationOffsets;
+  getRenderProfile?(): TilesetRenderProfile | null;
 }
 ```
 
 The exact interfaces may be split as implementation needs become clearer, but
 format-specific globals and parsing must remain behind this boundary.
 
-Map projection should be a separate strategy owned or selected by the
-provider. The first implementation only needs an Amplio2-compatible isometric
-strategy, while preserving a clean path for overhead projections.
+Map projection remains shared code selected by provider/topology metadata.
+The implemented strategies preserve freeciv-web's square-ISO compatibility
+path and Freeciv's native/logical ISO-hex path. Overhead projections remain a
+future extension.
 
 ## Amplio2 provider
 
-`Amplio2TilesetProvider` will:
+`Amplio2TilesetProvider`:
 
 - Preserve current Amplio2 behavior and visual output.
 - Encapsulate the existing configuration, sprite tables, sheets, dimensions,
   offsets, layer matching, and fallback tags.
-- Replace direct renderer access to Amplio2 browser globals.
-- Act as the complete fallback provider for partial custom tilesets.
+- Replaces direct renderer access to Amplio2 browser globals.
+- Is the intended complete fallback provider for future partial custom
+  tilesets.
 
-Moving existing behavior behind the provider must be covered by visual and
-sprite-selection regression tests before behavior is changed.
+Visual and sprite-selection regression tests protect that compatibility path.
+
+## Hexemplio provider
+
+`HexemplioTilesetProvider` is selected whenever `MAP_INFO.topology_id` is
+exactly `ISO|HEX` (`3`). It:
+
+- Loads a schema-2 manifest generated from the pinned Freeciv submodule.
+- Uses Hexemplio's `126x64` tile, `126x96` full-sprite, and 16-pixel hex-side
+  geometry.
+- Supplies native terrain composition, extra-style, presentation-offset,
+  layer-order, darkness, and Auto-fog metadata.
+- Preloads declared sprite sheets and lazily loads standalone flags/buildings,
+  requesting a redraw when one becomes available.
+- Never silently falls back to Amplio2, because Freeciv classifies that
+  topology mismatch as hard-incompatible.
+
+The package generator copies the exact referenced PNGs and `COPYING`, records
+the source revision/spec list, and is reproducibility-checked during `verify`.
 
 ## Civilization III terrain provider
 
@@ -247,9 +262,10 @@ Each installed tileset should have a manifest containing at least:
 - Tile dimensions and provider-specific asset entry points.
 - Attribution, license, and source information.
 
-The client should discover validated manifests rather than hard-code asset
-filenames. Selection may later be exposed as a user preference, but Amplio2
-remains the default.
+The built-in providers use validated manifests/configuration and topology-based
+selection. General package discovery and a user preference may be added later;
+C2C3 topology `3` must not allow selection of a hard-incompatible square-ISO
+tileset.
 
 ## Licensing and distribution
 
@@ -264,40 +280,55 @@ its authors and must not silently depend on proprietary base-game files.
 
 ## Delivery sequence
 
-1. Define the provider, manifest, geometry, and normalized draw-command types.
-2. Move current Amplio2 loading and composition behind
-   `Amplio2TilesetProvider` without visual changes.
-3. Add a minimal synthetic provider in tests to prove that renderer behavior
-   is not tied to Amplio2 filenames or browser globals.
-4. Add manifest discovery, validation, fallback, and selection plumbing.
-5. Prototype PCX decoding and one Civilization III base-terrain transition
+Completed:
+
+1. Define provider, topology, geometry, composition, render-profile, and offset
+   contracts.
+2. Move Amplio2 loading behind `Amplio2TilesetProvider` and protect it with a
+   synthetic provider plus visual regressions.
+3. Add topology-compatible runtime selection and the generated Hexemplio
+   package/provider.
+4. Port native projection, terrain/extras, layer/fog, unit/city, border, and
+   minimap behavior with source-mapped tests.
+
+Remaining for custom packages:
+
+1. Add general manifest discovery, validation, fallback, and selection UI.
+2. Prototype PCX decoding and one Civilization III base-terrain transition
    family.
-6. Add coast and water transitions, followed by forests, hills, mountains,
+3. Add coast and water transitions, followed by forests, hills, mountains,
    rivers, roads, and other overlays.
-7. Add package tooling, diagnostics, visual fixtures, and licensing metadata.
+4. Add importer diagnostics, visual fixtures, and licensing metadata.
 
 ## Acceptance criteria
 
-The provider foundation is complete when:
+The built-in provider foundation now satisfies:
 
 - Amplio2 renders with no intentional visual regression.
 - The renderer contains no hard-coded Amplio2 asset paths.
 - Amplio2-specific matching data and offsets are provider-owned.
 - A synthetic second provider can be selected in tests without changing
   renderer code.
-- Missing assets follow a tested and visible fallback chain.
 - Provider topology capabilities are validated against `MAP_INFO`; a hard
   mismatch cannot silently render through the square-isometric strategy.
-- The built-in Amplio2 manifest records and reproducibly generates its config,
-  sprite table, every sheet, offsets, and exact Freeciv/freeciv-web revisions.
+- The built-in Hexemplio manifest records and reproducibly generates its spec
+  list, sprites, offsets, policy, assets, license, and exact Freeciv revision.
 
-C2C3 map presentation is exact only when:
+Explicit cross-provider missing-asset fallback and reproducible Amplio2 package
+provenance remain future acceptance items for user-selectable custom tilesets.
+
+C2C3 map presentation now has:
 
 - A provider compatible with `ISO|HEX` topology `3` is selected.
 - Projection, culling, pointer inversion, wrapping, painter order, and minimap
   geometry are exercised through that provider.
-- Terrain, city, unit, border, fog, path, and wrapped-seam output have direct
-  reference pixel fixtures using the same provider assets.
+- Source-mapped terrain, city, unit, border, fog, path, and wrapped-copy command
+  coverage using exact provider assets.
+- Native CivJS map/minimap visual baselines, an independent byte-exact minimap
+  raster oracle, and an end-to-end click/camera/outline test.
+
+An independent native-Freeciv world/entity pixel capture, including a wrapped
+seam, remains required before claiming complete cross-client pixel equality.
 
 Civilization III terrain support is complete when:
 
@@ -311,8 +342,7 @@ Civilization III terrain support is complete when:
 
 ## Consequences
 
-This design adds a provider and manifest abstraction before a second production
-tileset exists. In return, it prevents Amplio2 and Civilization III composition
-rules from becoming intertwined, makes partial visual overrides practical, and
-keeps future tileset formats possible without replacing the shared game-state
-or rendering architecture.
+The provider/manifest abstraction now supports two production Freeciv paths and
+prevents square-ISO Amplio2 logic from leaking into C2C3's native ISO-hex
+pipeline. It also keeps future Civ III/custom formats possible without
+replacing the shared game-state or rendering architecture.

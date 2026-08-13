@@ -29,6 +29,10 @@ describe('ruleset presentation API', () => {
       veteranY: -33,
     });
     expect(presentation.extras.extra_gold.graphic).toBe('ts.gold');
+    expect(presentation.extras.extra_mine).toMatchObject({
+      causes: 'Mine',
+      hidden_by: 'Oil Well',
+    });
   });
 
   it('fails closed for unknown rulesets', () => {

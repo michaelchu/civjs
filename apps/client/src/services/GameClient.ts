@@ -135,7 +135,8 @@ export class GameClient {
               ...units[data.unitId],
               x: data.x,
               y: data.y,
-              movesLeft: Math.floor(data.movementLeft / 3), // Convert from fragments to moves
+              // The state packet and movement event both use Freeciv move fragments.
+              movesLeft: data.movementLeft,
             },
           },
         });
@@ -468,7 +469,7 @@ export class GameClient {
                   ...units[packet.data.unitId],
                   x: packet.data.newX,
                   y: packet.data.newY,
-                  movementLeft: packet.data.movementLeft,
+                  movesLeft: packet.data.movementLeft,
                 },
               },
             });

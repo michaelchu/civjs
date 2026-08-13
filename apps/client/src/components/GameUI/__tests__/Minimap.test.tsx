@@ -391,10 +391,10 @@ describe('Minimap', () => {
   });
 
   it('uses an aspect-preserving 2x1 physical overview for ISO maps', () => {
-    expect(getMinimapLayout(32, 64, C2C3_TOPOLOGY)).toEqual({
-      tileSize: 7,
-      sourceWidth: 224,
-      sourceHeight: 448,
+    expect(getMinimapLayout(32, 64, C2C3_TOPOLOGY, 3)).toEqual({
+      tileSize: 4,
+      sourceWidth: 256,
+      sourceHeight: 256,
       width: 256,
       height: 256,
       scaleX: 4,
@@ -413,10 +413,10 @@ describe('Minimap', () => {
       coordinateWidth: 80,
       coordinateHeight: 50,
     });
-    expect(getMinimapLayout(100, 400, C2C3_TOPOLOGY)).toEqual({
-      tileSize: 2,
+    expect(getMinimapLayout(100, 400, C2C3_TOPOLOGY, 3)).toEqual({
+      tileSize: 1,
       sourceWidth: 200,
-      sourceHeight: 800,
+      sourceHeight: 400,
       width: 150,
       height: 300,
       scaleX: 0.75,
@@ -425,7 +425,7 @@ describe('Minimap', () => {
       coordinateHeight: 400,
     });
 
-    expect(getMinimapLayout(80, 50, C2C3_TOPOLOGY)).toMatchObject({
+    expect(getMinimapLayout(80, 50, C2C3_TOPOLOGY, 3)).toMatchObject({
       width: 288,
       height: 90,
       scaleX: 1.8,
@@ -434,7 +434,7 @@ describe('Minimap', () => {
       coordinateHeight: 50,
     });
 
-    const isoLayout = getMinimapLayout(32, 64, C2C3_TOPOLOGY);
+    const isoLayout = getMinimapLayout(32, 64, C2C3_TOPOLOGY, 3);
     expect(getMinimapCellWidth(C2C3_TOPOLOGY)).toBe(2);
     expect(isoLayout.scaleX).toBe(isoLayout.scaleY);
     expect(isoLayout.width / isoLayout.height).toBe(
@@ -443,22 +443,22 @@ describe('Minimap', () => {
   });
 
   it('maps physical overview clicks back to the same ISO tile storage', () => {
-    const layout = getMinimapLayout(32, 64, C2C3_TOPOLOGY);
+    const layout = getMinimapLayout(32, 64, C2C3_TOPOLOGY, 3);
     const native = { x: 16, y: 32 };
     const display = nativeToMinimapPosition(native.x, native.y, C2C3_TOPOLOGY);
-    const pixel = nativeToMinimapPixelPosition(16, 32, layout, C2C3_TOPOLOGY);
+    const pixel = nativeToMinimapPixelPosition(16, 32, layout, C2C3_TOPOLOGY, 3);
     expect(minimapPointToMapTile(pixel.x, pixel.y, 32, 64, layout, C2C3_TOPOLOGY, 3)).toEqual(
       native
     );
     expect(display).toEqual({ x: 32, y: 32 });
   });
 
-  it('places browser map tiles in 2x1 ISO overview coordinates', () => {
+  it('places C2C3 native tiles in staggered 2x1 natural coordinates', () => {
     expect(nativeToMinimapPosition(0, 0, C2C3_TOPOLOGY)).toEqual({ x: 0, y: 0 });
-    expect(nativeToMinimapPosition(0, 1, C2C3_TOPOLOGY)).toEqual({ x: 0, y: 1 });
+    expect(nativeToMinimapPosition(0, 1, C2C3_TOPOLOGY)).toEqual({ x: 1, y: 1 });
     expect(nativeToMinimapPosition(0, 2, C2C3_TOPOLOGY)).toEqual({ x: 0, y: 2 });
     expect(nativeToMinimapPosition(16, 32, C2C3_TOPOLOGY)).toEqual({ x: 32, y: 32 });
-    expect(nativeToMinimapPosition(31, 63, C2C3_TOPOLOGY)).toEqual({ x: 62, y: 63 });
+    expect(nativeToMinimapPosition(31, 63, C2C3_TOPOLOGY)).toEqual({ x: 63, y: 63 });
   });
 
   it('keeps ISO east and south adjacent in physical overview coordinates', () => {
@@ -467,11 +467,11 @@ describe('Minimap', () => {
     const south = nativeToMinimapPosition(10, 21, C2C3_TOPOLOGY);
 
     expect(east).toEqual({ x: base.x + 2, y: base.y });
-    expect(south).toEqual({ x: base.x, y: base.y + 1 });
+    expect(south).toEqual({ x: base.x + 1, y: base.y + 1 });
   });
 
   it('maps every ISO tile to exactly one physical overview position and back', () => {
-    const layout = getMinimapLayout(32, 64, C2C3_TOPOLOGY);
+    const layout = getMinimapLayout(32, 64, C2C3_TOPOLOGY, 3);
     const positions = new Set<string>();
 
     for (let y = 0; y < 64; y += 1) {
@@ -492,29 +492,29 @@ describe('Minimap', () => {
   });
 
   it('centers ISO markers in the same 2x1 cells as their terrain', () => {
-    const layout = getMinimapLayout(32, 64, C2C3_TOPOLOGY);
+    const layout = getMinimapLayout(32, 64, C2C3_TOPOLOGY, 3);
     const cell = nativeToMinimapPosition(16, 32, C2C3_TOPOLOGY);
 
-    expect(nativeToMinimapPixelPosition(16, 32, layout, C2C3_TOPOLOGY)).toEqual({
+    expect(nativeToMinimapPixelPosition(16, 32, layout, C2C3_TOPOLOGY, 3)).toEqual({
       x: (cell.x + 1) * layout.scaleX,
       y: (cell.y + 0.5) * layout.scaleY,
     });
   });
 
   it('draws wrapped ISO cells across the physical horizontal seam', () => {
-    const layout = getMinimapLayout(4, 4, C2C3_TOPOLOGY);
+    const layout = getMinimapLayout(4, 4, C2C3_TOPOLOGY, 3);
     const origins = getMinimapTileOrigins(3, 1, 4, 4, C2C3_TOPOLOGY, 3, layout);
 
-    expect(origins).toContainEqual({ x: -50, y: 25 });
-    expect(origins).toContainEqual({ x: 150, y: 25 });
+    expect(origins).toContainEqual({ x: -25, y: 25 });
+    expect(origins).toContainEqual({ x: 175, y: 25 });
   });
 
   it('keeps wrapped cells on integer Freeciv source-raster origins', () => {
-    const layout = getMinimapLayout(32, 64, C2C3_TOPOLOGY);
-    const origins = getMinimapSourceTileOrigins(31, 63, 32, 64, 3, layout);
+    const layout = getMinimapLayout(32, 64, C2C3_TOPOLOGY, 3);
+    const origins = getMinimapSourceTileOrigins(31, 63, 32, 64, C2C3_TOPOLOGY, 3, layout);
 
-    expect(origins).toContainEqual({ x: -7, y: 441 });
-    expect(origins).toContainEqual({ x: 217, y: 441 });
+    expect(origins).toContainEqual({ x: -4, y: 252 });
+    expect(origins).toContainEqual({ x: 252, y: 252 });
   });
 
   it('projects GUI coordinates with the active tileset half-tile origin', () => {
@@ -538,7 +538,7 @@ describe('Minimap', () => {
   });
 
   it('projects an ISO viewport as a rotated diamond', () => {
-    const layout = getMinimapLayout(32, 64, C2C3_TOPOLOGY);
+    const layout = getMinimapLayout(32, 64, C2C3_TOPOLOGY, 3);
     const polygons = getMinimapViewportPolygons(
       { x: -432, y: 1296, width: 960, height: 480 },
       32,
@@ -551,10 +551,10 @@ describe('Minimap', () => {
     );
 
     expect(polygons[0]).toEqual([
-      { x: 176, y: 128 },
-      { x: 256, y: 88 },
-      { x: 336, y: 128 },
-      { x: 256, y: 168 },
+      { x: 52, y: 126 },
+      { x: 132, y: 86 },
+      { x: 212, y: 126 },
+      { x: 132, y: 166 },
     ]);
     expect(polygons).toHaveLength(9);
   });

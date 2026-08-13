@@ -81,6 +81,16 @@ describe('MapTopology', () => {
       ])
     );
     expect(topology.getNeighbors(4, 3)).toHaveLength(6);
+    expect(
+      topology.getCardinalDirections().map(direction => topology.step(4, 3, direction))
+    ).toEqual([
+      { x: 5, y: 2 },
+      { x: 5, y: 4 },
+      { x: 4, y: 5 },
+      { x: 4, y: 4 },
+      { x: 4, y: 2 },
+      { x: 4, y: 1 },
+    ]);
   });
 
   /**

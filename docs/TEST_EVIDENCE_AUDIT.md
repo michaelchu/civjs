@@ -18,9 +18,12 @@ Frontend map evidence is tracked separately in
 direct zero-diff terrain/feature and minimap-raster comparisons, plus
 source-mapped painter, city-bar, unit-composition, interaction, and viewport
 geometry tests. It does not certify exact end-to-end C2C3 rendering: the
-runtime still combines C2C3's ISO-hex topology with a square-isometric Amplio2
-painter, the atlas is not generated from the pinned browser baseline, and the
-direct reference harness does not yet paint units, cities, or wrapped seams.
+runtime now selects a generated native Hexemplio package for C2C3's ISO-hex
+topology, but there is not yet an independent native-Freeciv world/entity pixel
+capture. The direct browser reference harness remains finite square ISO and
+does not paint units, cities, or wrapped seams. C2C3's final `32x64` minimap is
+byte-exact against an independent implementation of Freeciv's natural `2x1`
+raster, and its click, camera, and outline are tested end to end.
 
 ## Historical pre-certificate snapshot (superseded)
 
@@ -153,9 +156,11 @@ than “does Freeciv produce the same gameplay outcome?”
 5. **The strongest non-parity evidence is still incomplete.** Global server
    unit coverage is below 70 percent, and coverage cannot expose a
    source-behavior mismatch in the lines it does execute.
-6. **Client compatibility has only a narrow direct freeciv-web contract.** The
-   client now proves preservation of the map topology/wrap packet values, but
-   rendering and control behavior still lack source-mapped invariants.
+6. **Client compatibility has stronger but bounded rendering evidence.** The
+   client preserves topology/wrap packets, selects topology-compatible
+   Hexemplio assets, and has source-mapped geometry, layer, fog, extras,
+   unit/city, minimap, and interaction invariants. Complete native-Freeciv
+   world/entity pixel equality is still not established.
 7. **Resolved gameplay-gap entries are regression records, not certificates.**
    The 33 numbered entries in GAMEPLAY_GAPS.md informed this audit, but a
    resolved entry proves its reported symptom is covered, not that the entire

@@ -2,11 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   createMapGeometry,
   displayToNativePosition,
+  getCardinalMapDirections,
   getProjectedMapBounds,
+  getValidMapDirections,
+  guiToMapPosition,
   guiToMapPositionContinuous,
   guiToNativePosition,
   nativeToDisplayPosition,
   nativeToGuiPosition,
+  nativeToMapPosition,
+  sortMapPointsInPainterOrder,
+  stepNativeMapPosition,
   TOPOLOGY_HEX,
   TOPOLOGY_ISO,
 } from '../mapTopologyGeometry';
@@ -26,7 +32,36 @@ describe('map topology geometry', () => {
       displayWidth: 64,
       displayHeight: 64,
       isIsometric: true,
+      isHex: true,
+      topologyId: 3,
     });
+  });
+
+  it('uses the six clockwise Freeciv directions for ISO-hex composition', () => {
+    const topology = TOPOLOGY_ISO | TOPOLOGY_HEX;
+
+    expect(getValidMapDirections(topology).map(direction => direction.name)).toEqual([
+      'n',
+      'e',
+      'se',
+      's',
+      'w',
+      'nw',
+    ]);
+    expect(getCardinalMapDirections(topology).map(direction => direction.name)).toEqual([
+      'n',
+      'e',
+      'se',
+      's',
+      'w',
+      'nw',
+    ]);
+  });
+
+  it('uses Hexemplio side geometry when selecting a tile near sloped hex edges', () => {
+    expect(guiToMapPosition(0, 0, 126, 64, 16)).toEqual({ x: -1, y: 0 });
+    expect(guiToMapPosition(63, 32, 126, 64, 16)).toEqual({ x: 0, y: 0 });
+    expect(guiToMapPosition(125, 0, 126, 64, 16)).toEqual({ x: 0, y: -1 });
   });
 
   it('projects a 32x64 native ISO map into landscape GUI bounds', () => {
@@ -58,8 +93,8 @@ describe('map topology geometry', () => {
 
     for (let nativeY = 0; nativeY < geometry.nativeHeight; nativeY += 1) {
       for (let nativeX = 0; nativeX < geometry.nativeWidth; nativeX += 1) {
-        const gui = nativeToGuiPosition(nativeX, nativeY, geometry, 96, 48);
-        expect(guiToNativePosition(gui.x + 48, gui.y + 24, geometry, 96, 48)).toEqual({
+        const gui = nativeToGuiPosition(nativeX, nativeY, geometry, 126, 64);
+        expect(guiToNativePosition(gui.x + 63, gui.y + 32, geometry, 126, 64, 16)).toEqual({
           x: nativeX,
           y: nativeY,
         });
@@ -67,13 +102,71 @@ describe('map topology geometry', () => {
     }
   });
 
+  it('projects C2C3 native rows through Freeciv logical coordinates', () => {
+    const geometry = createMapGeometry(32, 64, TOPOLOGY_ISO | TOPOLOGY_HEX);
+    const native = { x: 21, y: 37 };
+    const logical = nativeToMapPosition(native.x, native.y, geometry.nativeWidth, true);
+
+    expect(logical).toEqual({ x: 40, y: 29 });
+    expect(nativeToGuiPosition(native.x, native.y, geometry, 126, 64)).toEqual({
+      x: 693,
+      y: 2208,
+    });
+  });
+
+  it('steps ISO-hex neighbors in logical space and returns native storage positions', () => {
+    const topology = TOPOLOGY_ISO | TOPOLOGY_HEX;
+    const positions = getCardinalMapDirections(topology).map(direction =>
+      stepNativeMapPosition(4, 3, direction.dx, direction.dy, 10, 12, topology, 0)
+    );
+
+    expect(positions).toEqual([
+      { x: 5, y: 2 },
+      { x: 5, y: 4 },
+      { x: 4, y: 5 },
+      { x: 4, y: 4 },
+      { x: 4, y: 2 },
+      { x: 4, y: 1 },
+    ]);
+    expect(stepNativeMapPosition(31, 3, 1, 0, 32, 64, topology, 0)).toBeNull();
+    expect(stepNativeMapPosition(31, 3, 1, 0, 32, 64, topology, 1)).toEqual({ x: 0, y: 4 });
+  });
+
+  it('sorts ISO-hex native tiles in projected row-major painter order', () => {
+    const topology = TOPOLOGY_ISO | TOPOLOGY_HEX;
+    const points = [
+      { x: 3, y: 2 },
+      { x: 1, y: 3 },
+      { x: 2, y: 2 },
+      { x: 0, y: 1 },
+    ];
+
+    expect(sortMapPointsInPainterOrder(points, topology)).toEqual([
+      { x: 0, y: 1 },
+      { x: 2, y: 2 },
+      { x: 3, y: 2 },
+      { x: 1, y: 3 },
+    ]);
+  });
+
   it('retains sub-tile precision for overview viewport corners', () => {
     const geometry = createMapGeometry(32, 64, TOPOLOGY_ISO | TOPOLOGY_HEX);
     const tile = nativeToGuiPosition(21, 37, geometry, 96, 48);
 
     expect(guiToMapPositionContinuous(tile.x + 48, tile.y + 24, 96, 48)).toEqual({
-      x: 21.5,
-      y: 37.5,
+      x: 40.5,
+      y: 29.5,
+    });
+  });
+
+  it('retains freeciv-web direct packet-grid projection for topology 1 snapshots', () => {
+    const geometry = createMapGeometry(32, 64, TOPOLOGY_ISO);
+    const gui = nativeToGuiPosition(21, 37, geometry, 96, 48);
+
+    expect(gui).toEqual({ x: -768, y: 1392 });
+    expect(guiToNativePosition(gui.x + 48, gui.y + 24, geometry, 96, 48)).toEqual({
+      x: 21,
+      y: 37,
     });
   });
 

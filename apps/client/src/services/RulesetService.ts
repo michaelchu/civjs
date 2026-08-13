@@ -26,6 +26,9 @@ export interface RulesetRequirement {
 export interface GraphicDefinition {
   name?: string;
   rule_name?: string;
+  category?: string;
+  causes?: string | string[];
+  hidden_by?: string | string[];
   graphic?: string;
   graphic_alt?: string;
   graphic_alt2?: string;
@@ -48,7 +51,7 @@ export interface UnitOverlayOffsets {
   stackY: number;
   stackRingX: number;
   stackRingY: number;
-  stackRingKey: 'unit.stk_shld_l' | 'unit.stk_shld_r';
+  stackRingKey: 'unit.stk_shld_l' | 'unit.stk_shld_r' | 'unit.stack';
   shieldRight: boolean;
   shieldYAligned: boolean;
 }

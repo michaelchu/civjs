@@ -3,11 +3,23 @@ import type { City } from '../../../types';
 import { CityRenderer } from '../renderers/CityRenderer';
 import type { RenderState } from '../renderers/BaseRenderer';
 
+const createLegacyTileset = (getSprite: (key: string) => unknown = () => undefined) => ({
+  getSprite,
+  getGeometry: () => ({
+    tileWidth: 96,
+    tileHeight: 48,
+    fullTileWidth: 96,
+    fullTileHeight: 48,
+    hexWidth: 0,
+    hexHeight: 0,
+  }),
+});
+
 describe('CityRenderer presentation state', () => {
   it('uses server-resolved style, wall, overlay, and status sprites', () => {
     const renderer = new CityRenderer(
       {} as CanvasRenderingContext2D,
-      { getSprite: () => ({}) } as never,
+      createLegacyTileset(() => ({})) as never,
       96,
       48
     );
@@ -50,7 +62,7 @@ describe('CityRenderer presentation state', () => {
   it('does not render a leaked city on an unknown tile', () => {
     const renderer = new CityRenderer(
       { canvas: { width: 800, height: 600 } } as CanvasRenderingContext2D,
-      { getSprite: () => undefined } as never,
+      createLegacyTileset() as never,
       96,
       48
     );
@@ -74,7 +86,7 @@ describe('CityRenderer presentation state', () => {
   it('renders a city once its tile is known', () => {
     const renderer = new CityRenderer(
       { canvas: { width: 800, height: 600 } } as CanvasRenderingContext2D,
-      { getSprite: () => undefined } as never,
+      createLegacyTileset() as never,
       96,
       48
     );
@@ -113,7 +125,7 @@ describe('CityRenderer presentation state', () => {
     const granarySprite = {} as HTMLCanvasElement;
     const renderer = new CityRenderer(
       context,
-      { getSprite: (key: string) => (key === 'b.granary' ? granarySprite : undefined) } as never,
+      createLegacyTileset(key => (key === 'b.granary' ? granarySprite : undefined)) as never,
       96,
       48
     );
@@ -181,7 +193,7 @@ describe('CityRenderer presentation state', () => {
       fillText: vi.fn(),
       measureText: vi.fn().mockReturnValue({ width: 32 }),
     } as unknown as CanvasRenderingContext2D;
-    const renderer = new CityRenderer(context, { getSprite: () => undefined } as never, 96, 48);
+    const renderer = new CityRenderer(context, createLegacyTileset() as never, 96, 48);
     const city = {
       id: 'known',
       name: 'Alpha',
@@ -239,10 +251,9 @@ describe('CityRenderer presentation state', () => {
     const outputSprite = {} as HTMLCanvasElement;
     const renderer = new CityRenderer(
       context,
-      {
-        getSprite: (key: string) =>
-          key.startsWith('city.t_') || key === 'grid.unavailable' ? outputSprite : undefined,
-      } as never,
+      createLegacyTileset(key =>
+        key.startsWith('city.t_') || key === 'grid.unavailable' ? outputSprite : undefined
+      ) as never,
       96,
       48
     );
@@ -296,9 +307,9 @@ describe('CityRenderer presentation state', () => {
     const occupiedSprite = {} as HTMLCanvasElement;
     const renderer = new CityRenderer(
       context,
-      {
-        getSprite: (key: string) => (key === 'citybar.occupied' ? occupiedSprite : undefined),
-      } as never,
+      createLegacyTileset(key =>
+        key === 'citybar.occupied' ? occupiedSprite : undefined
+      ) as never,
       96,
       48
     );

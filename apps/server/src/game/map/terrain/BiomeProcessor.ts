@@ -5,7 +5,12 @@
  * Handles biome-based terrain grouping, natural transitions, and wetness calculations
  */
 import { MapTile, TemperatureType, TerrainType } from '@game/map/MapTypes';
-import { isOceanTerrain, isLandTile, setTerrainGameProperties } from '@game/map/TerrainUtils';
+import {
+  isOceanTerrain,
+  isLandTile,
+  setTerrainGameProperties,
+  tileHasRiver,
+} from '@game/map/TerrainUtils';
 import { MapTopology, type MapTopologyOptions } from '@game/map/MapTopology';
 
 /**
@@ -631,7 +636,7 @@ export class BiomeProcessor {
       if (isOceanTerrain(tile.terrain)) {
         const contribution = Math.max(0, 30 - distance * 8);
         wetnessBonus += contribution;
-      } else if (tile.riverMask > 0) {
+      } else if (tileHasRiver(tile)) {
         const contribution = Math.max(0, 15 - distance * 4);
         wetnessBonus += contribution;
       }

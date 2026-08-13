@@ -49,6 +49,10 @@ test('renders the authoritative Civ2Civ3 presentation and supported game screens
 });
 
 test('loads the sprite contract required by the active board renderers', async ({ page }) => {
+  const manifestResponse = page.waitForResponse(
+    response =>
+      response.url().endsWith('/tilesets/hexemplio/manifest.json') && response.status() === 200
+  );
   await page.goto('/test/browser-parity');
   await expect(page.locator('canvas[aria-label="World map"]')).toHaveAttribute(
     'data-renderer-ready',
@@ -58,72 +62,91 @@ test('loads the sprite contract required by the active board renderers', async (
   const requiredTags = [
     'u.warriors',
     'u.worker',
-    'unit.select0',
-    'unit.select1',
-    'unit.select2',
-    'unit.select3',
+    'unit.select:0',
+    'unit.select:1',
+    'unit.select:2',
+    'unit.select:3',
     'unit.fortified',
     'unit.sentry',
     'unit.goto',
     'unit.road',
     'unit.irrigate',
     'unit.connect',
-    'unit.stack2',
+    'unit.stack',
     'unit.hp_50',
     'unit.vet_2',
     'city.asian_city_0',
     'city.asian_wall_3',
-    'road.road_n',
-    'road.rail_n',
-    'road.river_s_n0e0s0w0',
-    'road.river_s_n1e1s1w1',
-    'road.river_outlet_n',
-    'road.river_outlet_w',
-    'tx.fog',
+    'road.road_n:0',
+    'road.rail_n0e0se0s0w0nw0:0',
+    'road.river_s_n0e0se0s0w0nw0:0',
+    'road.river_s_n1e1se1s1w1nw1:0',
+    'road.river_outlet_n:0',
+    'road.river_outlet_w:0',
+    'tx.darkness_n',
     'explode.unit_0',
     'explode.unit_4',
-    'swords.unit_0',
-    'swords.unit_7',
     'explode.nuke',
-    'grid.usermark',
     'f.shield.rome',
   ];
   const contract = await page.evaluate(tags => {
     const globals = window as unknown as {
-      tileset?: Record<string, unknown>;
-      tileset_tile_width?: number;
-      tileset_tile_height?: number;
-      tileset_image_count?: number;
-      is_isometric?: number;
+      __civjsParityRenderer?: {
+        tilesetLoader?: {
+          metadata?: { id?: string; format?: string; topologyId?: number };
+          getGeometry?: () => Record<string, number>;
+          getTopologyCompatibility?: (topologyId: number) => string;
+          hasSprite?: (tag: string) => boolean;
+        };
+      };
     };
-    const spec = globals.tileset ?? {};
-    const missing = tags.filter(tag => !(tag in spec));
-    const malformed = tags.filter(tag => {
-      const definition = spec[tag];
-      return (
-        !Array.isArray(definition) ||
-        definition.length !== 5 ||
-        definition.some(value => typeof value !== 'number' || !Number.isFinite(value))
-      );
-    });
+    const provider = globals.__civjsParityRenderer?.tilesetLoader;
     return {
-      missing,
-      malformed,
-      tileWidth: globals.tileset_tile_width,
-      tileHeight: globals.tileset_tile_height,
-      imageCount: globals.tileset_image_count,
-      isometric: globals.is_isometric,
+      id: provider?.metadata?.id,
+      format: provider?.metadata?.format,
+      topologyId: provider?.metadata?.topologyId,
+      compatibility: provider?.getTopologyCompatibility?.(3),
+      geometry: provider?.getGeometry?.(),
+      missing: tags.filter(tag => !provider?.hasSprite?.(tag)),
     };
   }, requiredTags);
 
   expect(contract).toEqual({
+    id: 'hexemplio',
+    format: 'freeciv',
+    topologyId: 3,
+    compatibility: 'exact',
+    geometry: {
+      tileWidth: 126,
+      tileHeight: 64,
+      fullTileWidth: 126,
+      fullTileHeight: 96,
+      hexWidth: 16,
+      hexHeight: 0,
+    },
     missing: [],
-    malformed: [],
-    tileWidth: 96,
-    tileHeight: 48,
-    imageCount: 3,
-    isometric: 1,
   });
+
+  const manifest = (await (await manifestResponse).json()) as {
+    schemaVersion?: number;
+    topologyId?: number;
+    sourceRevision?: string;
+    preloadImages?: unknown[];
+    sprites?: Record<string, { x?: number; y?: number; width?: number; height?: number }>;
+  };
+  const malformed = Object.entries(manifest.sprites ?? {})
+    .filter(([, rectangle]) =>
+      [rectangle.x, rectangle.y, rectangle.width, rectangle.height].some(
+        value => typeof value !== 'number' || !Number.isFinite(value) || value < 0
+      )
+    )
+    .map(([tag]) => tag);
+  expect(manifest.schemaVersion).toBe(2);
+  expect(manifest.topologyId).toBe(3);
+  expect(manifest.sourceRevision).toBe('eb8c7033aa6a70dfcd4aee828c3ac1ba33092afc');
+  expect(manifest.preloadImages).toHaveLength(37);
+  expect(Object.keys(manifest.sprites ?? {})).toHaveLength(3263);
+  expect(malformed).toEqual([]);
 });
 
 test('supports keyboard navigation across the player-visible surface', async ({ page }) => {

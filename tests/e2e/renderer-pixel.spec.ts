@@ -5,6 +5,7 @@ import { installRulesetRoutes } from './support/rulesetRoutes';
 import {
   getMinimapLayout,
   getMinimapViewportPolygons,
+  nativeToMinimapPixelPosition,
 } from '../../apps/client/src/components/GameUI/minimapGeometry';
 import {
   TOPOLOGY_HEX,
@@ -133,10 +134,9 @@ test.describe('isometric map pixel parity', () => {
     await expect(overlay).toHaveAttribute('height', '256');
 
     const target = { x: 21, y: 37 };
-    const targetPixel = {
-      x: ((target.x + 0.5) / 32) * 256,
-      y: ((target.y + 0.5) / 64) * 256,
-    };
+    const topologyId = TOPOLOGY_ISO | TOPOLOGY_HEX;
+    const layout = getMinimapLayout(32, 64, topologyId, 3);
+    const targetPixel = nativeToMinimapPixelPosition(target.x, target.y, layout, topologyId, 3);
     await overlay.click({ position: targetPixel });
 
     await expect
@@ -144,17 +144,19 @@ test.describe('isometric map pixel parity', () => {
         page.evaluate(() => {
           const globals = window as unknown as {
             viewport?: { x: number; y: number; width: number; height: number };
+            __civjsParityRenderer?: {
+              canvasToMap: (
+                canvasX: number,
+                canvasY: number,
+                viewport: { x: number; y: number; width: number; height: number }
+              ) => { mapX: number; mapY: number };
+            };
           };
           const viewport = globals.viewport;
-          if (!viewport) return null;
-          const tileWidth = 96;
-          const tileHeight = 48;
-          const adjustedX = viewport.x + viewport.width / 2 - tileWidth / 2;
-          const guiY = viewport.y + viewport.height / 2;
-          return {
-            x: Math.floor((adjustedX * tileHeight + guiY * tileWidth) / (tileWidth * tileHeight)),
-            y: Math.floor((guiY * tileWidth - adjustedX * tileHeight) / (tileWidth * tileHeight)),
-          };
+          const renderer = globals.__civjsParityRenderer;
+          if (!viewport || !renderer) return null;
+          const tile = renderer.canvasToMap(viewport.width / 2, viewport.height / 2, viewport);
+          return { x: tile.mapX, y: tile.mapY };
         })
       )
       .toEqual(target);
@@ -166,9 +168,25 @@ test.describe('isometric map pixel parity', () => {
       if (!globals.viewport) throw new Error('Fixture viewport is unavailable');
       return globals.viewport;
     });
-    const topologyId = TOPOLOGY_ISO | TOPOLOGY_HEX;
-    const layout = getMinimapLayout(32, 64, topologyId);
-    const polygons = getMinimapViewportPolygons(viewport, 32, 64, 3, layout, 96, 48, topologyId);
+    const activeTileSize = await page.evaluate(() => {
+      const renderer = (
+        window as unknown as {
+          __civjsParityRenderer?: { getTileSize: () => { width: number; height: number } };
+        }
+      ).__civjsParityRenderer;
+      if (!renderer) throw new Error('Parity renderer is unavailable');
+      return renderer.getTileSize();
+    });
+    const polygons = getMinimapViewportPolygons(
+      viewport,
+      32,
+      64,
+      3,
+      layout,
+      activeTileSize.width,
+      activeTileSize.height,
+      topologyId
+    );
     const polygonCenters = polygons.map(polygon => ({
       x: polygon.reduce((sum, point) => sum + point.x, 0) / polygon.length,
       y: polygon.reduce((sum, point) => sum + point.y, 0) / polygon.length,

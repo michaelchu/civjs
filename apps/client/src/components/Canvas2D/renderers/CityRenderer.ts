@@ -113,6 +113,12 @@ export class CityRenderer extends BaseRenderer {
 
   /** Paint CITYBAR for one globally ordered tile/copy walk. */
   renderCityOverlayEntries(entries: readonly CityRenderEntry[]): void {
+    this.renderWorkedTileOverlayEntries(entries);
+    this.renderCityBarEntries(entries);
+  }
+
+  /** Paint selected-city output overlays on Freeciv's OVERLAYS layer. */
+  renderWorkedTileOverlayEntries(entries: readonly CityRenderEntry[]): void {
     const first = entries[0];
     if (!first) return;
     const selectedCity = first.state.selectedCityId
@@ -121,20 +127,25 @@ export class CityRenderer extends BaseRenderer {
     const workableByPosition = new Map(
       (selectedCity?.workableTiles ?? []).map(tile => [`${tile.x},${tile.y}`, tile] as const)
     );
-    const cityByPosition = this.indexCities(first.state);
 
     for (const { state, tile } of entries) {
       if (!tile.known || !this.isInViewport(tile.x, tile.y, state.viewport)) continue;
-
-      const city = cityByPosition.get(`${tile.x},${tile.y}`);
-      if (city) {
-        this.renderCityBar(city, this.mapToScreen(city.x, city.y, state.viewport), state);
-      }
-
       const workable = workableByPosition.get(`${tile.x},${tile.y}`);
       if (workable) {
         this.renderWorkedTileOutput(workable, state.viewport);
       }
+    }
+  }
+
+  /** Paint full city descriptions on Freeciv's CITYBAR layer. */
+  renderCityBarEntries(entries: readonly CityRenderEntry[]): void {
+    const first = entries[0];
+    if (!first) return;
+    const cityByPosition = this.indexCities(first.state);
+    for (const { state, tile } of entries) {
+      if (!tile.known || !this.isInViewport(tile.x, tile.y, state.viewport)) continue;
+      const city = cityByPosition.get(`${tile.x},${tile.y}`);
+      if (city) this.renderCityBar(city, this.mapToScreen(city.x, city.y, state.viewport), state);
     }
   }
 
@@ -151,6 +162,7 @@ export class CityRenderer extends BaseRenderer {
 
   private renderCitySprite(city: City, viewport: MapViewport, state: RenderState): void {
     const screenPos = this.mapToScreen(city.x, city.y, viewport);
+    const cityOffset = this.getCitySpriteOffset();
 
     // Get city sprite based on size and nation
     const citySprites = this.getCitySprites(city, state);
@@ -162,8 +174,8 @@ export class CityRenderer extends BaseRenderer {
       if (sprite) {
         this.ctx.drawImage(
           sprite,
-          screenPos.x + (spriteInfo.offset_x ?? CityRenderer.CITY_SPRITE_OFFSET.offset_x),
-          screenPos.y + (spriteInfo.offset_y ?? CityRenderer.CITY_SPRITE_OFFSET.offset_y)
+          screenPos.x + (spriteInfo.offset_x ?? cityOffset.offset_x),
+          screenPos.y + (spriteInfo.offset_y ?? cityOffset.offset_y)
         );
         spriteRendered = true;
       }
@@ -196,7 +208,12 @@ export class CityRenderer extends BaseRenderer {
     for (const key of outputSprites) {
       const sprite = this.tilesetLoader.getSprite(key);
       if (sprite) {
-        this.ctx.drawImage(sprite, screen.x + this.tileWidth / 4, screen.y - this.tileHeight / 4);
+        const nativeHex = this.tilesetLoader.getGeometry().hexWidth > 0;
+        this.ctx.drawImage(
+          sprite,
+          screen.x + this.tileWidth / (nativeHex ? 3 : 4),
+          screen.y - this.tileHeight / (nativeHex ? 3 : 4)
+        );
       }
     }
   }
@@ -215,6 +232,7 @@ export class CityRenderer extends BaseRenderer {
     state: RenderState
   ): Array<{ key: string; offset_x?: number; offset_y?: number }> {
     const sprites: Array<{ key: string; offset_x?: number; offset_y?: number }> = [];
+    const cityOffset = this.getCitySpriteOffset();
 
     // Get authentic Freeciv city style based on player's nation and tech
     const cityStyleGraphic = city.presentation?.graphic ?? this.getCityStyleGraphic(city, state);
@@ -236,23 +254,42 @@ export class CityRenderer extends BaseRenderer {
 
     const overlays = city.presentation?.overlays ?? [];
     for (const key of overlays.filter(key => key.endsWith('_underlay'))) {
-      sprites.push({ key, ...CityRenderer.CITY_SPRITE_OFFSET });
+      sprites.push({ key, ...cityOffset });
     }
     sprites.push({
       key: spriteKey,
-      ...CityRenderer.CITY_SPRITE_OFFSET,
+      ...cityOffset,
     });
     for (const key of overlays.filter(key => !key.endsWith('_underlay'))) {
-      sprites.push({ key, ...CityRenderer.CITY_SPRITE_OFFSET });
+      sprites.push({ key, ...cityOffset });
     }
-    if (city.granaryTurns === -1) {
-      sprites.push({ key: 'city.starve', ...CityRenderer.CITY_SPRITE_OFFSET });
+    if (city.granaryTurns === -1 && this.tilesetLoader.getGeometry().hexWidth <= 0) {
+      sprites.push({ key: 'city.starve', ...cityOffset });
     }
     if (city.disorder) {
-      sprites.push({ key: 'city.disorder', ...CityRenderer.CITY_SPRITE_OFFSET });
+      const full = this.getFullTileOffset();
+      sprites.push({ key: 'city.disorder', offset_x: full.x, offset_y: full.y });
     }
 
     return sprites;
+  }
+
+  private getCitySpriteOffset(): { offset_x: number; offset_y: number } {
+    const geometry = this.tilesetLoader.getGeometry?.();
+    if (!geometry || geometry.hexWidth <= 0) return CityRenderer.CITY_SPRITE_OFFSET;
+    const offsets = this.tilesetLoader.getPresentationOffsets();
+    return {
+      offset_x: (geometry.tileWidth - geometry.fullTileWidth) / 2 + offsets.cityX,
+      offset_y: geometry.tileHeight - geometry.fullTileHeight + offsets.cityY,
+    };
+  }
+
+  private getFullTileOffset(): { x: number; y: number } {
+    const geometry = this.tilesetLoader.getGeometry();
+    return {
+      x: (geometry.tileWidth - geometry.fullTileWidth) / 2,
+      y: geometry.tileHeight - geometry.fullTileHeight,
+    };
   }
 
   /**
@@ -330,8 +367,10 @@ export class CityRenderer extends BaseRenderer {
    * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview.js:276-348
    */
   private renderCityBar(city: City, screenPos: { x: number; y: number }, state: RenderState): void {
-    const canvasX = screenPos.x + CityRenderer.CITYBAR_OFFSET.x;
-    const canvasY = screenPos.y + CityRenderer.CITYBAR_OFFSET.y;
+    const presentation = this.tilesetLoader.getPresentationOffsets?.();
+    const nativeHex = this.tilesetLoader.getGeometry().hexWidth > 0;
+    const canvasX = screenPos.x + (nativeHex ? this.tileWidth / 2 : CityRenderer.CITYBAR_OFFSET.x);
+    const canvasY = screenPos.y + (presentation?.citybarY ?? CityRenderer.CITYBAR_OFFSET.y);
     const text = this.decodeCityName(city.name).toUpperCase();
     const size = String(city.size);
     const player = state.players[city.playerId];

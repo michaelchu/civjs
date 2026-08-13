@@ -13,7 +13,8 @@ export interface Tile {
   known: boolean;
   resource?: string;
   elevation?: number;
-  riverMask?: number; // River connection bitmask: N=1, E=2, S=4, W=8
+  /** Clockwise visual river connections; presence is the `river` improvement. */
+  riverMask?: number;
   hasRoad?: boolean;
   hasRailroad?: boolean;
   improvements?: string[];

@@ -16,7 +16,7 @@ export interface UnitOverlayOffsets {
   stackY: number;
   stackRingX: number;
   stackRingY: number;
-  stackRingKey: 'unit.stk_shld_l' | 'unit.stk_shld_r';
+  stackRingKey: 'unit.stk_shld_l' | 'unit.stk_shld_r' | 'unit.stack';
   shieldRight: boolean;
   shieldYAligned: boolean;
 }

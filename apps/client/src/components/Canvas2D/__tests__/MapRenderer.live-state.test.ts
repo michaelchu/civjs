@@ -5,7 +5,7 @@ import type { RenderState } from '../renderers/BaseRenderer';
 import type { Tile, Unit } from '../../../types';
 
 function createContext() {
-  return {
+  const context = {
     canvas: { width: 800, height: 600 },
     clearRect: vi.fn(),
     fillRect: vi.fn(),
@@ -16,8 +16,12 @@ function createContext() {
     fillText: vi.fn(),
     measureText: vi.fn().mockReturnValue({ width: 32 }),
     stroke: vi.fn(),
+    save: vi.fn(),
+    restore: vi.fn(),
+    filter: 'none',
     imageSmoothingEnabled: false,
-  } as unknown as CanvasRenderingContext2D;
+  };
+  return context as unknown as CanvasRenderingContext2D;
 }
 
 function createRenderState(cities: RenderState['cities'] = {}): RenderState {
@@ -69,6 +73,10 @@ function createPipelineDoubles(
       setMapGeometry: vi.fn(),
       invalidateTileCache: vi.fn(),
       renderTerrainEntries: vi.fn(),
+      renderTerrainLayerEntries: vi.fn(),
+      renderDarknessEntries: vi.fn(),
+      renderWaterEntries: vi.fn(),
+      renderRoadEntries: vi.fn(),
       renderSpecials: vi.fn(),
       renderSpecial2: vi.fn(),
       renderSpecial3: vi.fn(),
@@ -85,11 +93,15 @@ function createPipelineDoubles(
       setMapGeometry: vi.fn(),
       renderCityEntries: vi.fn(),
       renderCityOverlayEntries: vi.fn(),
+      renderWorkedTileOverlayEntries: vi.fn(),
+      renderCityBarEntries: vi.fn(),
       ...overrides.cityRenderer,
     },
     unitRenderer: {
       setMapGeometry: vi.fn(),
       renderUnitLayerEntries: vi.fn(runAfterTile),
+      renderNonFocusedUnitLayerEntries: vi.fn(runAfterTile),
+      renderFocusedUnitLayerEntries: vi.fn(),
       hasActiveMovementAnimations: () => false,
       ...overrides.unitRenderer,
     },
@@ -150,7 +162,7 @@ describe('MapRenderer live-state updates', () => {
     });
   });
 
-  it('keeps a wrapped drag release at the painted browser-grid origin', () => {
+  it('normalizes a wrapped origin to an equivalent native-axis map copy', () => {
     const renderer = new MapRenderer(createContext());
     Object.assign(renderer as unknown as Record<string, unknown>, {
       currentMap: {
@@ -165,12 +177,13 @@ describe('MapRenderer live-state updates', () => {
     });
 
     const viewportOrigin = { x: 368, y: 1284 };
-    expect(renderer.setMapviewOrigin(viewportOrigin.x, viewportOrigin.y, 800, 600)).toEqual(
-      viewportOrigin
-    );
+    const normalized = renderer.setMapviewOrigin(viewportOrigin.x, viewportOrigin.y, 800, 600);
+    expect(normalized).toEqual({ x: 368, y: 2484 });
+    expect(normalized.x - viewportOrigin.x).toBe(0);
+    expect(normalized.y - viewportOrigin.y).toBe(1200);
   });
 
-  it('normalizes C2C3 wrapped origins in the direct browser tile grid', () => {
+  it('normalizes C2C3 wrapped origins through native storage axes', () => {
     const renderer = new MapRenderer(createContext());
     Object.assign(renderer as unknown as Record<string, unknown>, {
       currentMap: {
@@ -191,12 +204,7 @@ describe('MapRenderer live-state updates', () => {
       }
     ).normalizeGuiPos;
     const normalized = normalizeGuiPos.call(renderer, source.guiDx + 32, source.guiDy + 12);
-    const wrapped = renderer.mapToGuiVector(79, 30);
-
-    expect(normalized).toEqual({
-      guiX: wrapped.guiDx + 32,
-      guiY: wrapped.guiDy + 12,
-    });
+    expect(normalized).toEqual({ guiX: 3824, guiY: 3108 });
   });
 
   it('renders the neighboring finite-map copy when a wrapped viewport reaches a seam', () => {
@@ -233,7 +241,7 @@ describe('MapRenderer live-state updates', () => {
     const views = getWrappedRenderViews.call(renderer, tiles, viewport);
 
     expect(views.map(view => view.viewport)).toEqual(
-      expect.arrayContaining([viewport, { ...viewport, x: 2288, y: 2244 }])
+      expect.arrayContaining([viewport, { ...viewport, x: -4144, y: 2244 }])
     );
   });
 
@@ -897,6 +905,125 @@ describe('MapRenderer live-state updates', () => {
     ).getVisibleTiles([nearTile, farTile], createRenderState().viewport);
 
     expect(visible).toEqual([nearTile]);
+  });
+
+  /**
+   * @evidence parity
+   * @reference reference/freeciv/data/hexemplio.tilespec:111-143
+   * @reference reference/freeciv/client/mapview_common.c:1374-1394
+   * @reference reference/freeciv/client/tilespec.c:4669-4685,6139-6554
+   * @assertion Native Hexemplio uses the declared layer order, applies Auto
+   * fog to foggable sprite layers including Grid1 borders, and leaves the
+   * TileLabel/CityBar text layers unfiltered.
+   */
+  it('runs native Hexemplio layers with per-sprite Auto fog boundaries', () => {
+    const context = createContext();
+    const savedFilters: string[] = [];
+    context.save = vi.fn(() => savedFilters.push(context.filter));
+    context.restore = vi.fn(() => {
+      context.filter = savedFilters.pop() ?? 'none';
+    });
+    const calls: Array<{ layer: string; filter: string }> = [];
+    const record = (layer: string) => () => calls.push({ layer, filter: context.filter });
+    const provider = {
+      getGeometry: () => ({
+        tileWidth: 126,
+        tileHeight: 64,
+        fullTileWidth: 126,
+        fullTileHeight: 96,
+        hexWidth: 16,
+        hexHeight: 0,
+      }),
+      getRenderProfile: () => ({ fogStyle: 'auto' }),
+      getSprite: () => null,
+      hasSprite: () => false,
+      hasTerrainDefinition: () => false,
+      getTileSize: () => ({ width: 126, height: 64 }),
+      getTopologyCompatibility: () => 'exact',
+      getTerrainComposition: () => null,
+      getPresentationOffsets: () => ({}),
+      load: vi.fn(),
+      dispose: vi.fn(),
+      metadata: {
+        id: 'hex-test',
+        name: 'Hex test',
+        format: 'synthetic',
+        projection: 'isometric',
+        topologyId: 3,
+      },
+    } as unknown as ConstructorParameters<typeof MapRenderer>[1];
+    const renderer = new MapRenderer(context, provider);
+    const terrainRenderer = {
+      setMapGeometry: vi.fn(),
+      invalidateTileCache: vi.fn(),
+      renderTerrainLayerEntries: vi.fn((_entries: RenderEntry[], layer: number) =>
+        calls.push({ layer: `terrain${layer + 1}`, filter: context.filter })
+      ),
+      renderDarknessEntries: vi.fn(record('darkness')),
+      renderWaterEntries: vi.fn(record('water')),
+      renderRoadEntries: vi.fn(record('roads')),
+      renderSpecials: vi.fn(record('special1')),
+      renderSpecial2: vi.fn(record('special2')),
+      renderSpecial3: vi.fn(record('special3')),
+      renderTileLabels: vi.fn(record('tileLabel')),
+    };
+    const state = createRenderState();
+    state.map.topology_id = 3;
+    state.map.tiles['0,0'] = { ...state.map.tiles['0,0'], visible: false };
+    const tile = state.map.tiles['0,0'];
+    Object.assign(renderer as unknown as Record<string, unknown>, {
+      isInitialized: true,
+      ...createPipelineDoubles({
+        terrainRenderer,
+        borderRenderer: { render: vi.fn(record('grid1')) },
+        cityRenderer: {
+          renderCityEntries: vi.fn(record('city1')),
+          renderWorkedTileOverlayEntries: vi.fn(record('overlays')),
+          renderCityBarEntries: vi.fn(record('cityBar')),
+        },
+        unitRenderer: {
+          renderNonFocusedUnitLayerEntries: vi.fn(
+            (_entries: readonly RenderEntry[], afterTile?: AfterTile) => {
+              calls.push({ layer: 'unit', filter: context.filter });
+              afterTile?.(state, tile);
+            }
+          ),
+          renderFocusedUnitLayerEntries: vi.fn(record('focusUnit')),
+        },
+        pathRenderer: { renderPathLayerEntries: vi.fn(record('goto')) },
+      }),
+      getWrappedRenderViews: () => [
+        { viewport: state.viewport, visibleTiles: [tile], isPrimary: true },
+      ],
+      checkViewportBounds: () => false,
+    });
+
+    renderer.render(state, true);
+
+    expect(calls.map(call => call.layer)).toEqual([
+      'terrain1',
+      'terrain2',
+      'darkness',
+      'terrain3',
+      'water',
+      'roads',
+      'special1',
+      'grid1',
+      'city1',
+      'special2',
+      'unit',
+      'special3',
+      'overlays',
+      'tileLabel',
+      'cityBar',
+      'focusUnit',
+      'goto',
+    ]);
+    const unfogged = new Set(['tileLabel', 'cityBar', 'goto']);
+    for (const call of calls) {
+      expect(call.filter).toBe(unfogged.has(call.layer) ? 'none' : 'brightness(65%)');
+    }
+    expect(context.filter).toBe('none');
   });
 
   it('reveals unknown terrain and skips the fog layer when debug fog is disabled', () => {

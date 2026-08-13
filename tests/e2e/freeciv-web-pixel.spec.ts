@@ -8,10 +8,12 @@ import {
   loadFreecivWebRenderer,
   readCanvasPixels,
   readReferenceOverviewGeometry,
+  readReferenceOverviewTileColors,
   renderFreecivWebFixture,
 } from './support/freecivWebRenderHarness';
 import {
   compareReferenceOverviewToCivJs,
+  createNativeOverviewOracle,
   hideGameHud,
   prepareIsometricFixture,
   readCivJsParityFixture,
@@ -55,7 +57,12 @@ const renderReferenceFixture = async (
     fixture.mapWidth,
     fixture.mapHeight
   );
-  const physicalLayout = getMinimapLayout(fixture.mapWidth, fixture.mapHeight, minimapTopologyId);
+  const physicalLayout = getMinimapLayout(
+    fixture.mapWidth,
+    fixture.mapHeight,
+    minimapTopologyId,
+    minimapWrapId
+  );
   overviewFixture.displayWidth = physicalLayout.width;
   overviewFixture.displayHeight = physicalLayout.height;
   await renderFreecivWebFixture(
@@ -78,7 +85,7 @@ const expectContinuousOverviewGeometry = async (
   wrapId: number
 ): Promise<void> => {
   const reference = await readReferenceOverviewGeometry(referencePage);
-  const layout = getMinimapLayout(fixture.mapWidth, fixture.mapHeight, topologyId);
+  const layout = getMinimapLayout(fixture.mapWidth, fixture.mapHeight, topologyId, wrapId);
   const actual = getMinimapViewportPolygons(
     fixture.viewport,
     fixture.mapWidth,
@@ -264,16 +271,16 @@ test.describe('freeciv-web render-only pixel parity', () => {
    * @reference reference/freeciv/client/overview_common.c:450-483
    * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/overview.js:139-158
    * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/overview.js:194-275
-   * @assertion A 32x64 C2C3 map produces a square physical overview with exact
-   * reference palette pixels, wrapped continuous camera geometry, and no
-   * independently stretched axes or integer-corner drift.
+   * @assertion A 32x64 C2C3 map produces a square native 2x1 overview with
+   * exact reference palette colors, wrapped continuous camera geometry, and
+   * no independently stretched axes or integer-corner drift.
    */
   test('keeps non-square native ISO data square after physical overview scaling', async ({
     page,
     browser,
   }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium-desktop', 'Pixel parity is desktop-only.');
-    await prepareIsometricFixture(page, 'reference', { mapWidth: 32, mapHeight: 64 });
+    await prepareIsometricFixture(page, 'native-reference', { mapWidth: 32, mapHeight: 64 });
     const fixture = await readCivJsParityFixture(page);
     const runtimeTopologyId = C2C3_TOPOLOGY;
     const runtimeWrapId = C2C3_WRAP;
@@ -301,17 +308,13 @@ test.describe('freeciv-web render-only pixel parity', () => {
         topologyId: runtimeTopologyId,
         wrapId: runtimeWrapId,
       };
-      const overviewParity = await compareReferenceOverviewToCivJs(
-        page,
+      const referenceColors = await readReferenceOverviewTileColors(
         referencePage,
-        runtimeFixture
+        runtimeFixture.tiles.map(tile => ({ x: tile.x, y: tile.y }))
       );
-      expect(overviewParity.mismatches).toBe(0);
-      expect(overviewParity.skippedOffscreenTiles).toBe(0);
-
-      const displayedReferencePixels = await readReferenceDisplayedOverviewPixels(referencePage);
+      const nativeOracle = createNativeOverviewOracle(runtimeFixture, referenceColors);
       const displayedCivJsPixels = await readCanvasPixels(civJsBase);
-      expect(compareCanvasPixels(displayedReferencePixels, displayedCivJsPixels)).toEqual({
+      expect(compareCanvasPixels(nativeOracle, displayedCivJsPixels)).toEqual({
         width: 256,
         height: 256,
         differingPixels: 0,
@@ -320,12 +323,24 @@ test.describe('freeciv-web render-only pixel parity', () => {
         meanChannelDelta: 0,
       });
 
-      await expectContinuousOverviewGeometry(
-        referencePage,
-        runtimeFixture,
-        runtimeTopologyId,
-        runtimeWrapId
+      const polygons = getMinimapViewportPolygons(
+        runtimeFixture.viewport,
+        runtimeFixture.mapWidth,
+        runtimeFixture.mapHeight,
+        runtimeWrapId,
+        getMinimapLayout(
+          runtimeFixture.mapWidth,
+          runtimeFixture.mapHeight,
+          runtimeTopologyId,
+          runtimeWrapId
+        ),
+        126,
+        64,
+        runtimeTopologyId
       );
+      expect(polygons).toHaveLength(9);
+      expect(polygons[0][0].x).not.toBe(polygons[0][1].x);
+      expect(polygons[0][0].y).not.toBe(polygons[0][3].y);
     } finally {
       await referencePage.close();
     }

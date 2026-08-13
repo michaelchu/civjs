@@ -10,6 +10,7 @@ import type { Unit } from '@game/units/UnitTypes';
 import type { UnitType } from '@game/services/RulesetUnitsService';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
+import { tileHasRiver } from '@game/map/TerrainUtils';
 
 export interface WorkerAssignment {
   unit: Unit;
@@ -121,7 +122,7 @@ function currentTileValue(tile: MapTile, rulesetName: string): number {
     shields += terrain.miningShieldIncr;
   }
   if (tile.hasRoad || tile.improvements.includes('road')) trade += roadTradeIncrement(terrain);
-  if (tile.riverMask !== 0) trade += 1;
+  if (tileHasRiver(tile)) trade += 1;
   if (tile.hasRailroad || tile.improvements.includes('railroad')) {
     shields = Math.floor(shields * 1.5);
   }

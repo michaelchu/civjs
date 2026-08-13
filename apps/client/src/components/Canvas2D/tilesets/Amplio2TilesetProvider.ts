@@ -6,7 +6,13 @@
 // Based on freeciv-web/mapview.js init_sprites() and init_cache_sprites()
 // NOTE: Freeciv constants are now loaded globally in index.html
 
-import type { TilesetMetadata, TilesetProvider } from './TilesetProvider';
+import {
+  getTilesetTopologyCompatibility,
+  type TerrainCompositionProfile,
+  type TilesetMetadata,
+  type TilesetPresentationOffsets,
+  type TilesetProvider,
+} from './TilesetProvider';
 
 interface TilesetConfig {
   tileset_tile_width: number;
@@ -27,6 +33,7 @@ export class Amplio2TilesetProvider implements TilesetProvider {
     name: 'Amplio2',
     format: 'freeciv-web',
     projection: 'isometric',
+    topologyId: 1,
   };
 
   private config: TilesetConfig | null = null;
@@ -209,6 +216,94 @@ export class Amplio2TilesetProvider implements TilesetProvider {
     return {
       width: this.config?.tileset_tile_width || 96,
       height: this.config?.tileset_tile_height || 48,
+    };
+  }
+
+  getGeometry() {
+    const { width: tileWidth, height: tileHeight } = this.getTileSize();
+    return {
+      tileWidth,
+      tileHeight,
+      fullTileWidth: tileWidth,
+      fullTileHeight: tileHeight,
+      hexWidth: 0,
+      hexHeight: 0,
+    };
+  }
+
+  getTopologyCompatibility(topologyId: number) {
+    return getTilesetTopologyCompatibility(topologyId, this.metadata.topologyId);
+  }
+
+  getTerrainComposition(): TerrainCompositionProfile | null {
+    const globals = window as any;
+    const setup = globals.tile_types_setup as
+      | Record<
+          string,
+          {
+            match_style: number;
+            sprite_type: number;
+            match_indices: number;
+            match_index: number[];
+            dither: boolean;
+          }
+        >
+      | undefined;
+    const tiles = globals.ts_tiles as Record<string, Record<string, unknown>> | undefined;
+    if (!setup || !tiles) return null;
+
+    const terrains: TerrainCompositionProfile['terrains'] = {};
+    for (const [graphic, tile] of Object.entries(tiles)) {
+      const numLayers = Number(tile.num_layers ?? 0);
+      terrains[graphic] = {
+        numLayers,
+        blendLayer: Number(tile.is_blended ? 1 : 0),
+        layers: Array.from({ length: numLayers }, (_, layer) => {
+          const composition = setup[`l${layer}.${graphic}`];
+          const matchType = String(tile[`layer${layer}_match_type`] ?? '');
+          const matchWith = tile[`layer${layer}_match_with`];
+          if (!composition) return null;
+          return {
+            matchStyle: composition.match_style,
+            spriteType: composition.sprite_type,
+            matchIndices: composition.match_indices,
+            matchIndex: composition.match_index,
+            dither: composition.dither,
+            matchType,
+            matchWith: Array.isArray(matchWith) ? matchWith.map(String) : [],
+          };
+        }),
+      };
+    }
+
+    return {
+      mode: 'legacy-cellgroup',
+      matchTypes: (globals.ts_layer ?? []).map((layer: { match_types?: string[] }) =>
+        Array.isArray(layer?.match_types) ? layer.match_types : []
+      ),
+      terrains,
+      cellgroupMap: globals.cellgroup_map ?? {},
+    };
+  }
+
+  getPresentationOffsets(): TilesetPresentationOffsets {
+    return {
+      unitFlagX: 25,
+      unitFlagY: 16,
+      cityFlagX: 2,
+      cityFlagY: 9,
+      unitX: 16,
+      unitY: -11,
+      activityX: 55,
+      activityY: -25,
+      selectX: 0,
+      selectY: 0,
+      stackX: 0,
+      stackY: -31,
+      cityX: -4,
+      cityY: -24,
+      citybarY: 55,
+      tileLabelY: 15,
     };
   }
 

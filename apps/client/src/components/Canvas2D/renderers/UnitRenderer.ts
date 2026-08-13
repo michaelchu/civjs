@@ -6,6 +6,7 @@ import type { Unit, MapViewport, Tile } from '../../../types';
 import type { GraphicDefinition, UnitOverlayOffsets } from '../../../services/RulesetService';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
 import { sortMapPointsInPainterOrder } from '../mapTopologyGeometry';
+import type { TilesetGeometry } from '../tilesets/TilesetProvider';
 
 export interface UnitRenderEntry {
   state: RenderState;
@@ -20,7 +21,6 @@ interface PreparedUnitLayer {
 }
 
 export class UnitRenderer extends BaseRenderer {
-  private readonly unitActivityOffset = { x: 55, y: -25 };
   private readonly defaultUnitOverlayOffsets: UnitOverlayOffsets = {
     unitX: 16,
     unitY: -11,
@@ -97,6 +97,27 @@ export class UnitRenderer extends BaseRenderer {
     entries: readonly UnitRenderEntry[],
     afterTile?: (state: RenderState, tile: Tile) => void
   ): void {
+    this.renderUnitLayerEntriesByFocus(entries, 'all', afterTile);
+  }
+
+  /** Paint UNIT while reserving the focused unit for Freeciv's later FOCUSUNIT layer. */
+  renderNonFocusedUnitLayerEntries(
+    entries: readonly UnitRenderEntry[],
+    afterTile?: (state: RenderState, tile: Tile) => void
+  ): void {
+    this.renderUnitLayerEntriesByFocus(entries, 'non-focused', afterTile);
+  }
+
+  /** Paint selection plus the focused unit at Freeciv's late FOCUSUNIT layer. */
+  renderFocusedUnitLayerEntries(entries: readonly UnitRenderEntry[]): void {
+    this.renderUnitLayerEntriesByFocus(entries, 'focused');
+  }
+
+  private renderUnitLayerEntriesByFocus(
+    entries: readonly UnitRenderEntry[],
+    mode: 'all' | 'non-focused' | 'focused',
+    afterTile?: (state: RenderState, tile: Tile) => void
+  ): void {
     const first = entries[0];
     if (!first) return;
 
@@ -112,7 +133,7 @@ export class UnitRenderer extends BaseRenderer {
 
       const key = `${tile.x},${tile.y}`;
       const focused = prepared.focusedAtPosition.get(key);
-      if (focused) {
+      if (focused && mode !== 'non-focused') {
         this.renderUnitSelectionOutline(
           focused,
           state.viewport,
@@ -123,7 +144,12 @@ export class UnitRenderer extends BaseRenderer {
 
       const units = prepared.unitsAtPosition.get(key) ?? [];
       const topUnit = this.selectDrawableUnit(units, state, prepared.cityPositions.has(key));
-      if (topUnit) this.renderUnit(topUnit, state.viewport, units.length, state);
+      const topIsFocused = Boolean(topUnit && prepared.focusedIds.includes(topUnit.id));
+      const shouldDraw =
+        mode === 'all' ||
+        (mode === 'focused' && topIsFocused) ||
+        (mode === 'non-focused' && !topIsFocused);
+      if (topUnit && shouldDraw) this.renderUnit(topUnit, state.viewport, units.length, state);
       afterTile?.(state, tile);
     }
   }
@@ -323,18 +349,18 @@ export class UnitRenderer extends BaseRenderer {
       );
     }
 
-    // The carried Freeciv-web painter suppresses HP/movement/stack indicators
-    // during animation, then paints the veteran badge last and keeps it bound
-    // to the moving unit.
+    const nativeHex = this.getTilesetGeometry().hexWidth > 0;
+    // Preserve the carried Freeciv-web animation behavior on its atlas. The
+    // topology-exact Hexemplio path follows fill_unit_sprite_array(): stack,
+    // veteran, then HP, all at the full-tile origin.
     if (animOffset.x === 0 && animOffset.y === 0) {
-      this.renderUnitIndicatorSprites(unit, stackSize, originX, originY, offsets, state);
-    }
-    if (unit.veteranLevel > 0) {
-      this.drawUnitSpriteIfPresent(
-        `unit.vet_${Math.min(unit.veteranLevel, 9)}`,
-        originX + offsets.veteranX,
-        originY + offsets.veteranY
-      );
+      if (nativeHex) {
+        this.renderNativeUnitIndicators(unit, stackSize, originX, originY, offsets);
+      } else {
+        this.renderLegacyUnitIndicators(unit, stackSize, originX, originY, offsets, state);
+      }
+    } else if (!nativeHex) {
+      this.renderVeteranSprite(unit, originX, originY, offsets);
     }
   }
 
@@ -408,15 +434,19 @@ export class UnitRenderer extends BaseRenderer {
       required: true,
     });
 
+    if (unit.transportedBy && this.getTilesetGeometry().hexWidth > 0) {
+      const full = this.getFullTileOffset();
+      sprites.push({
+        key: 'unit.loaded',
+        offset_x: full.x,
+        offset_y: full.y,
+      });
+    }
+
     // Get activity sprite if unit has activity
     // @reference freeciv-web: get_unit_activity_sprite(punit)
     const activitySprite = this.getUnitActivitySprite(unit);
-    if (activitySprite) {
-      sprites.push(activitySprite);
-      if (activitySprite.connect) {
-        sprites.push({ key: 'unit.connect', offset_x: -6, offset_y: -6 });
-      }
-    }
+    if (activitySprite) sprites.push(activitySprite);
 
     // Freeciv-web paints server-side-agent state separately from activity.
     // This matters for workers that are actively improving a tile and for
@@ -424,18 +454,57 @@ export class UnitRenderer extends BaseRenderer {
     const agentSprite = this.getUnitAgentSprite(unit);
     if (agentSprite) sprites.push(agentSprite);
 
+    const orders = Array.isArray(unit.orders) ? unit.orders : [];
+    if (orders.length > 0) {
+      const nativeHex = this.getTilesetGeometry().hexWidth > 0;
+      const repeated = orders.some(
+        order =>
+          Boolean((order as { repeat?: unknown }).repeat) ||
+          String((order as { type?: unknown }).type ?? '')
+            .toLowerCase()
+            .includes('patrol')
+      );
+      if (nativeHex && repeated) {
+        const full = this.getFullTileOffset();
+        sprites.push({ key: 'unit.patrol', offset_x: full.x, offset_y: full.y });
+      } else if (
+        nativeHex &&
+        this.getUnitActivityName(unit) !== '' &&
+        this.getUnitActivityName(unit) !== 'idle'
+      ) {
+        sprites.push({ key: 'unit.connect' });
+      } else if (nativeHex) {
+        const activity = this.getActivityOffset();
+        sprites.push({ key: 'unit.goto', offset_x: activity.x, offset_y: activity.y });
+      } else if (this.isConnectingActivity(this.getUnitActivityName(unit))) {
+        sprites.push({ key: 'unit.connect', offset_x: -6, offset_y: -6 });
+      }
+    }
+
     if (actionDecisionWant) {
+      const activity = this.getActivityOffset();
       sprites.push({
         key: 'unit.action_decision_want',
-        offset_x: this.unitActivityOffset.x,
-        offset_y: this.unitActivityOffset.y,
+        offset_x: activity.x,
+        offset_y: activity.y,
       });
+    }
+
+    if (this.getTilesetGeometry().hexWidth > 0) {
+      const full = this.getFullTileOffset();
+      const singleMove = 6;
+      if ((unit.maxFuel ?? 0) > 0 && unit.fuel === 1 && unit.movesLeft <= 2 * singleMove) {
+        sprites.push({ key: 'unit.lowfuel', offset_x: full.x, offset_y: full.y });
+      }
+      if ((unit.maxMoves ?? 0) > 0 && unit.movesLeft < singleMove) {
+        sprites.push({ key: 'unit.tired', offset_x: full.x, offset_y: full.y });
+      }
     }
 
     return sprites;
   }
 
-  private renderUnitIndicatorSprites(
+  private renderLegacyUnitIndicators(
     unit: Unit,
     stackSize: number,
     originX: number,
@@ -444,7 +513,7 @@ export class UnitRenderer extends BaseRenderer {
     state: RenderState
   ): void {
     const maxHp = Math.max(1, unit.maxHp ?? 100);
-    const hpPercent = this.toFivePercentFloor((unit.hp / maxHp) * 100);
+    const hpPercent = this.toTenPercentFloor((unit.hp / maxHp) * 100);
     const hpKey = `unit.hp_${hpPercent}`;
     const hasMoveBar =
       Boolean(state.showUnitMovePoints) &&
@@ -452,7 +521,7 @@ export class UnitRenderer extends BaseRenderer {
       Number.isFinite(unit.maxMoves) &&
       (unit.maxMoves ?? 0) > 0;
     const movePercent = hasMoveBar
-      ? this.toFivePercentFloor((unit.movesLeft / (unit.maxMoves ?? 1)) * 100)
+      ? this.toTenPercentFloor((unit.movesLeft / (unit.maxMoves ?? 1)) * 100)
       : hpPercent;
 
     let drewHp = false;
@@ -480,6 +549,67 @@ export class UnitRenderer extends BaseRenderer {
         originY + offsets.stackY
       );
     }
+    this.renderVeteranSprite(unit, originX, originY, offsets);
+  }
+
+  private renderNativeUnitIndicators(
+    unit: Unit,
+    stackSize: number,
+    originX: number,
+    originY: number,
+    offsets: UnitOverlayOffsets
+  ): void {
+    if (stackSize === 1 && unit.occupied) {
+      this.drawUnitSpriteIfPresent(
+        offsets.stackRingKey,
+        originX + offsets.stackRingX,
+        originY + offsets.stackRingY
+      );
+    } else if (stackSize > 1) {
+      const stackNumber = `unit.stack${Math.min(stackSize, 9)}`;
+      const previousFilter = this.ctx.filter;
+      this.ctx.filter = 'none';
+      const drewNumber = this.drawUnitSpriteIfPresent(
+        stackNumber,
+        originX + offsets.stackX,
+        originY + offsets.stackY
+      );
+      this.ctx.filter = previousFilter;
+      if (!drewNumber) {
+        this.drawUnitSpriteIfPresent(
+          offsets.stackRingKey,
+          originX + offsets.stackRingX,
+          originY + offsets.stackRingY
+        );
+      }
+    }
+
+    this.renderVeteranSprite(unit, originX, originY, offsets);
+    const maxHp = Math.max(1, unit.maxHp ?? 100);
+    const hpIndex = Math.max(0, Math.min(10, Math.floor((10 * unit.hp) / maxHp)));
+    if (
+      !this.drawUnitSpriteIfPresent(
+        `unit.hp_${hpIndex * 10}`,
+        originX + this.getFullTileOffset().x,
+        originY + this.getFullTileOffset().y
+      )
+    ) {
+      this.renderUnitHealthBar(unit, originX, originY);
+    }
+  }
+
+  private renderVeteranSprite(
+    unit: Unit,
+    originX: number,
+    originY: number,
+    offsets: UnitOverlayOffsets
+  ): void {
+    if (unit.veteranLevel <= 0) return;
+    this.drawUnitSpriteIfPresent(
+      `unit.vet_${Math.min(unit.veteranLevel, 9)}`,
+      originX + offsets.veteranX,
+      originY + offsets.veteranY
+    );
   }
 
   private drawUnitSpriteIfPresent(key: string, x: number, y: number): boolean {
@@ -489,8 +619,8 @@ export class UnitRenderer extends BaseRenderer {
     return true;
   }
 
-  private toFivePercentFloor(percent: number): number {
-    return Math.max(0, Math.min(100, Math.floor(percent / 5) * 5));
+  private toTenPercentFloor(percent: number): number {
+    return Math.max(0, Math.min(100, Math.floor(percent / 10) * 10));
   }
 
   /**
@@ -552,7 +682,43 @@ export class UnitRenderer extends BaseRenderer {
   }
 
   private getUnitOverlayOffsets(unit: Unit): UnitOverlayOffsets {
-    return this.unitGraphics[unit.unitTypeId]?.offsets ?? this.defaultUnitOverlayOffsets;
+    if (this.getTilesetGeometry().hexWidth <= 0) {
+      return this.unitGraphics[unit.unitTypeId]?.offsets ?? this.defaultUnitOverlayOffsets;
+    }
+
+    const presentation = this.tilesetLoader.getPresentationOffsets();
+    const full = this.getFullTileOffset();
+    return {
+      unitX: full.x + presentation.unitX,
+      unitY: full.y + presentation.unitY,
+      shieldX: full.x + presentation.unitFlagX,
+      shieldY: full.y + presentation.unitFlagY,
+      veteranX: full.x,
+      veteranY: full.y,
+      stackX: presentation.stackX,
+      stackY: presentation.stackY,
+      stackRingX: full.x,
+      stackRingY: full.y,
+      stackRingKey: 'unit.stack',
+      shieldRight: false,
+      shieldYAligned: false,
+    };
+  }
+
+  private getFullTileOffset(): { x: number; y: number } {
+    const geometry = this.getTilesetGeometry();
+    return {
+      x: (geometry.tileWidth - geometry.fullTileWidth) / 2,
+      y: geometry.tileHeight - geometry.fullTileHeight,
+    };
+  }
+
+  private getActivityOffset(): { x: number; y: number } {
+    const geometry = this.getTilesetGeometry();
+    if (geometry.hexWidth <= 0) return { x: 55, y: -25 };
+    const offsets = this.tilesetLoader.getPresentationOffsets();
+    const full = this.getFullTileOffset();
+    return { x: full.x + offsets.activityX, y: full.y + offsets.activityY };
   }
 
   /**
@@ -594,17 +760,12 @@ export class UnitRenderer extends BaseRenderer {
    */
   private getUnitActivitySprite(
     unit: Unit
-  ): { key: string; offset_x?: number; offset_y?: number; connect?: boolean } | null {
+  ): { key: string; offset_x?: number; offset_y?: number } | null {
     // The reference cannot compose an activity sprite with SSA_AUTOEXPLORE;
     // the agent icon below is the sole overlay in that state.
     if (unit.automation === 'explore') return null;
 
-    const activity =
-      typeof unit.activity === 'string'
-        ? unit.activity.toLowerCase()
-        : unit.activity && typeof unit.activity === 'object' && 'type' in unit.activity
-          ? String((unit.activity as { type?: unknown }).type ?? '').toLowerCase()
-          : '';
+    const activity = this.getUnitActivityName(unit);
     const activitySprites: Record<string, string> = {
       road: 'unit.road',
       build_road: 'unit.road',
@@ -649,28 +810,41 @@ export class UnitRenderer extends BaseRenderer {
       cleaning_pollution: 'unit.pollution',
       fallout: 'unit.fallout',
     };
-    const transportedActivity =
-      unit.transportedBy && (!activity || activity === 'idle' || activity === 'sentry');
     const targetGraphic = this.getActivityTargetGraphic(unit.activityTarget);
-    const key = transportedActivity
-      ? 'unit.cargo'
-      : unit.fortified
-        ? 'unit.fortified'
-        : activity === 'road' || activity === 'build_road' || activity === 'building_road'
-          ? (targetGraphic ?? activitySprites[activity])
-          : activity === 'irrigate' || activity === 'irrigation' || activity === 'irrigating'
-            ? ((unit.activityTarget && unit.activityTarget !== '-1' ? targetGraphic : undefined) ??
-              activitySprites[activity])
-            : activity === 'mine' || activity === 'mining'
-              ? unit.activityTarget && unit.activityTarget !== '-1'
-                ? targetGraphic
-                : 'unit.plant'
-              : activity === 'base' || activity === 'building_base'
-                ? (targetGraphic ?? activitySprites[activity])
-                : activitySprites[activity];
+    const key = unit.fortified
+      ? 'unit.fortified'
+      : activity === 'road' || activity === 'build_road' || activity === 'building_road'
+        ? (targetGraphic ?? activitySprites[activity])
+        : activity === 'irrigate' || activity === 'irrigation' || activity === 'irrigating'
+          ? ((unit.activityTarget && unit.activityTarget !== '-1' ? targetGraphic : undefined) ??
+            activitySprites[activity])
+          : activity === 'mine' || activity === 'mining'
+            ? unit.activityTarget && unit.activityTarget !== '-1'
+              ? targetGraphic
+              : 'unit.plant'
+            : activity === 'base' || activity === 'building_base'
+              ? (targetGraphic ?? activitySprites[activity])
+              : activitySprites[activity];
     if (!key) return null;
 
-    const connectingActivities = new Set([
+    const activityOffset = this.getActivityOffset();
+    return {
+      key,
+      offset_x: activityOffset.x,
+      offset_y: activityOffset.y,
+    };
+  }
+
+  private getUnitActivityName(unit: Unit): string {
+    return typeof unit.activity === 'string'
+      ? unit.activity.toLowerCase()
+      : unit.activity && typeof unit.activity === 'object' && 'type' in unit.activity
+        ? String((unit.activity as { type?: unknown }).type ?? '').toLowerCase()
+        : '';
+  }
+
+  private isConnectingActivity(activity: string): boolean {
+    return new Set([
       'road',
       'build_road',
       'building_road',
@@ -685,14 +859,7 @@ export class UnitRenderer extends BaseRenderer {
       'cultivate',
       'cultivating',
       'planting',
-    ]);
-    return {
-      key,
-      offset_x: this.unitActivityOffset.x,
-      offset_y: this.unitActivityOffset.y,
-      connect:
-        connectingActivities.has(activity) && Array.isArray(unit.orders) && unit.orders.length > 0,
-    };
+    ]).has(activity);
   }
 
   /**
@@ -703,22 +870,22 @@ export class UnitRenderer extends BaseRenderer {
     unit: Unit
   ): { key: string; offset_x: number; offset_y: number } | null {
     if (unit.automation === 'explore') {
+      const activityOffset = this.getActivityOffset();
       return {
         key: 'unit.auto_explore',
-        offset_x: this.unitActivityOffset.x,
-        offset_y: this.unitActivityOffset.y,
+        offset_x: activityOffset.x,
+        offset_y: activityOffset.y,
       };
     }
     if (unit.automation !== 'worker') return null;
 
     if (this.tilesetLoader.getSprite('unit.auto_worker')) {
-      return { key: 'unit.auto_worker', offset_x: 0, offset_y: 0 };
+      const full = this.getFullTileOffset();
+      return { key: 'unit.auto_worker', offset_x: full.x, offset_y: full.y };
     }
 
-    // The currently carried customized atlas predates the upstream
-    // unit.auto_worker tag. Preserve its equivalent whole-tile marker until
-    // the atlas is regenerated from the pinned reference source.
-    return { key: 'unit.auto_settler', offset_x: 20, offset_y: this.unitActivityOffset.y };
+    // Legacy Amplio2 compatibility only. Hexemplio carries unit.auto_worker.
+    return { key: 'unit.auto_settler', offset_x: 20, offset_y: this.getActivityOffset().y };
   }
 
   private getActivityTargetGraphic(activityTarget?: string): string | null {
@@ -841,9 +1008,17 @@ export class UnitRenderer extends BaseRenderer {
     // exactly six frames per second. Keeping this absolute (rather than tied
     // to selection start) also keeps multiple clients on the same cadence.
     const selectionFrame = reducedMotion ? 0 : Math.floor((Date.now() * 6) / 1000) % 4;
-    const selectionSprite = this.tilesetLoader.getSprite(`unit.select${selectionFrame}`);
+    const geometry = this.getTilesetGeometry();
+    const selectionKey =
+      geometry.hexWidth > 0 ? `unit.select:${selectionFrame}` : `unit.select${selectionFrame}`;
+    const selectionSprite = this.tilesetLoader.getSprite(selectionKey);
     if (selectionSprite) {
-      this.ctx.drawImage(selectionSprite, screenPos.x, screenPos.y);
+      const offsets = this.tilesetLoader.getPresentationOffsets();
+      this.ctx.drawImage(
+        selectionSprite,
+        screenPos.x + (geometry.hexWidth > 0 ? offsets.selectX : 0),
+        screenPos.y + (geometry.hexWidth > 0 ? offsets.selectY : 0)
+      );
       return;
     }
 
@@ -904,5 +1079,19 @@ export class UnitRenderer extends BaseRenderer {
     this.ctx.lineTo(centerX - innerHalfWidth, centerY); // Left
     this.ctx.closePath();
     this.ctx.stroke();
+  }
+
+  /** Keep lightweight renderer test doubles on the legacy geometry path. */
+  private getTilesetGeometry(): TilesetGeometry {
+    return (
+      this.tilesetLoader.getGeometry?.() ?? {
+        tileWidth: this.tileWidth,
+        tileHeight: this.tileHeight,
+        fullTileWidth: this.tileWidth,
+        fullTileHeight: this.tileHeight,
+        hexWidth: 0,
+        hexHeight: 0,
+      }
+    );
   }
 }

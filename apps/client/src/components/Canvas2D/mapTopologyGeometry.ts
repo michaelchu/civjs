@@ -3,10 +3,9 @@
  * Shared Freeciv native, logical, natural/display, and GUI map geometry.
  *
  * Freeciv packets and CivJS tile storage use native coordinates. Isometric
- * maps also expose logical and natural helpers for topology code. The browser
- * 2D client follows freeciv-web's direct packet-grid renderer; inserting the
- * C client's native/logical conversion into that path rotates it a second
- * time. This deliberate client-model boundary is tested explicitly.
+ * maps also expose logical and natural helpers for topology code. The legacy
+ * square-ISO browser renderer addresses its packet grid directly, while the
+ * C2C3 ISO-hex path follows Freeciv's native -> logical -> GUI pipeline.
  *
  * @reference reference/freeciv/common/map.h:170-190
  * @reference reference/freeciv/common/world_object.h:52-60
@@ -26,6 +25,10 @@ export const TOPOLOGY_HEX = 1 << 1;
 export const isIsometricTopology = (topologyId: number): boolean =>
   (topologyId & (TOPOLOGY_ISO | TOPOLOGY_HEX)) !== 0;
 
+/** C2C3's ISO-hex topology requires Freeciv's native/logical conversion. */
+export const usesNativeLogicalProjection = (topologyId: number): boolean =>
+  (topologyId & (TOPOLOGY_ISO | TOPOLOGY_HEX)) === (TOPOLOGY_ISO | TOPOLOGY_HEX);
+
 /**
  * Compare native tile positions in the order used by the map painter.
  *
@@ -41,6 +44,13 @@ export const compareMapPointsInPainterOrder = (
   topologyId = 0
 ): number => {
   if (!isIsometricTopology(topologyId)) {
+    return first.y - second.y || first.x - second.x;
+  }
+
+  // For ISO-hex storage, GUI Y increases by native row and GUI X by native
+  // column within that row after NATIVE_TO_MAP_POS. This is the same ordering
+  // as comparing the projected tile origins, without needing map dimensions.
+  if (usesNativeLogicalProjection(topologyId)) {
     return first.y - second.y || first.x - second.x;
   }
 
@@ -61,6 +71,8 @@ export interface MapGeometry {
   displayWidth: number;
   displayHeight: number;
   isIsometric: boolean;
+  isHex: boolean;
+  topologyId: number;
 }
 
 export const createMapGeometry = (
@@ -75,7 +87,53 @@ export const createMapGeometry = (
     displayWidth: isIsometric ? nativeWidth * 2 : nativeWidth,
     displayHeight: nativeHeight,
     isIsometric,
+    isHex: (topologyId & TOPOLOGY_HEX) !== 0,
+    topologyId,
   };
+};
+
+export interface MapDirection {
+  index: number;
+  dx: number;
+  dy: number;
+  name: 'nw' | 'n' | 'ne' | 'w' | 'e' | 'sw' | 's' | 'se';
+}
+
+/** Freeciv DIR8 ordering and packet-grid offsets. */
+export const MAP_DIRECTIONS: readonly MapDirection[] = [
+  { index: 0, dx: -1, dy: -1, name: 'nw' },
+  { index: 1, dx: 0, dy: -1, name: 'n' },
+  { index: 2, dx: 1, dy: -1, name: 'ne' },
+  { index: 3, dx: -1, dy: 0, name: 'w' },
+  { index: 4, dx: 1, dy: 0, name: 'e' },
+  { index: 5, dx: -1, dy: 1, name: 'sw' },
+  { index: 6, dx: 0, dy: 1, name: 's' },
+  { index: 7, dx: 1, dy: 1, name: 'se' },
+] as const;
+
+/**
+ * Freeciv's clockwise tileset directions. ISO-hex omits NE/SW; overhead hex
+ * omits NW/SE. Square maps retain all eight valid directions.
+ *
+ * @reference reference/freeciv/common/map.c:1383-1466
+ * @reference reference/freeciv/client/tilespec.c:2126-2143
+ */
+export const getValidMapDirections = (topologyId: number): readonly MapDirection[] => {
+  const isHex = (topologyId & TOPOLOGY_HEX) !== 0;
+  const isIso = (topologyId & TOPOLOGY_ISO) !== 0;
+  const validNames = !isHex
+    ? ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw']
+    : isIso
+      ? ['n', 'e', 'se', 's', 'w', 'nw']
+      : ['n', 'ne', 'e', 's', 'sw', 'w'];
+  return validNames.map(name => MAP_DIRECTIONS.find(direction => direction.name === name)!);
+};
+
+/** Freeciv's cardinal directions in clockwise tileset order. */
+export const getCardinalMapDirections = (topologyId: number): readonly MapDirection[] => {
+  if ((topologyId & TOPOLOGY_HEX) !== 0) return getValidMapDirections(topologyId);
+  const names = ['n', 'e', 's', 'w'];
+  return names.map(name => MAP_DIRECTIONS.find(direction => direction.name === name)!);
 };
 
 /**
@@ -202,16 +260,43 @@ export const guiToMapPosition = (
   guiX: number,
   guiY: number,
   tileWidth: number,
-  tileHeight: number
+  tileHeight: number,
+  hexWidth = 0,
+  hexHeight = 0
 ): MapPoint => {
+  if ((hexWidth > 0 || hexHeight > 0) && tileWidth > 0 && tileHeight > 0) {
+    const divide = (value: number, divisor: number): number => Math.floor(value / divisor);
+    const x = divide(guiX, tileWidth);
+    const y = divide(guiY, tileHeight);
+    let dx = guiX - x * tileWidth;
+    let dy = guiY - y * tileHeight;
+    const xMultiplier = dx >= tileWidth / 2 ? -1 : 1;
+    const yMultiplier = dy >= tileHeight / 2 ? -1 : 1;
+    dx = dx >= tileWidth / 2 ? tileWidth - 1 - dx : dx;
+    dy = dy >= tileHeight / 2 ? tileHeight - 1 - dy : dy;
+    const comparison =
+      hexWidth > 0
+        ? (dx - hexWidth / 2) * (tileHeight / 2) -
+          (tileHeight / 2 - 1 - dy) * (tileWidth / 2 - hexWidth)
+        : (dy - hexHeight / 2) * (tileWidth / 2) -
+          (tileWidth / 2 - 1 - dx) * (tileHeight / 2 - hexHeight);
+    const modifier = comparison < 0 ? -1 : 0;
+    return {
+      x: x + y + (modifier * (xMultiplier + yMultiplier)) / 2,
+      y: y - x + (modifier * (yMultiplier - xMultiplier)) / 2,
+    };
+  }
   const point = guiToMapPositionContinuous(guiX, guiY, tileWidth, tileHeight);
   return { x: Math.floor(point.x), y: Math.floor(point.y) };
 };
 
 /**
- * Project one authoritative tile into freeciv-web's GUI coordinate space.
- * Its tile x/y fields already are the map grid supplied to map_to_gui_pos().
+ * Project one authoritative tile into the tileset GUI coordinate space.
+ * C2C3 ISO-hex maps follow Freeciv's native-to-logical conversion. The
+ * topology-1 compatibility path retains freeciv-web's direct packet grid.
  *
+ * @reference reference/freeciv/client/mapview_common.c:886-905
+ * @reference reference/freeciv/common/map.h:170-190
  * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:81-96,243-249
  */
 export const nativeToGuiPosition = (
@@ -221,20 +306,26 @@ export const nativeToGuiPosition = (
   tileWidth: number,
   tileHeight: number
 ): MapPoint => {
-  void geometry;
-  return mapToGuiPosition(nativeX, nativeY, tileWidth, tileHeight);
+  const logical = usesNativeLogicalProjection(geometry.topologyId)
+    ? nativeToMapPosition(nativeX, nativeY, geometry.nativeWidth, true)
+    : { x: nativeX, y: nativeY };
+  return mapToGuiPosition(logical.x, logical.y, tileWidth, tileHeight);
 };
 
-/** Convert GUI coordinates back to freeciv-web's browser tile grid. */
+/** Convert GUI coordinates back to the authoritative native tile grid. */
 export const guiToNativePosition = (
   guiX: number,
   guiY: number,
   geometry: MapGeometry,
   tileWidth: number,
-  tileHeight: number
+  tileHeight: number,
+  hexWidth = 0,
+  hexHeight = 0
 ): MapPoint => {
-  void geometry;
-  return guiToMapPosition(guiX, guiY, tileWidth, tileHeight);
+  const logical = guiToMapPosition(guiX, guiY, tileWidth, tileHeight, hexWidth, hexHeight);
+  return usesNativeLogicalProjection(geometry.topologyId)
+    ? mapToNativePosition(logical.x, logical.y, geometry.nativeWidth, true)
+    : logical;
 };
 
 /** Project a GUI point into natural/display coordinates for overview outlines. */
@@ -330,19 +421,18 @@ export const normalizeMapPosition = (
   topologyId: number,
   wrapId: number
 ): MapPoint => {
-  // The browser renderer addresses packet tiles directly.  Applying the C
-  // server's native/logical conversion here makes a drag release jump to a
-  // different GUI origin even though the pointer stayed over the same tile.
-  // Keep normalization in the same coordinate space as map_to_gui/gui_to_map.
-  void topologyId;
-  const normalized = { x: mapX, y: mapY };
-  if ((wrapId & 1) !== 0) normalized.x = wrap(normalized.x, nativeWidth);
-  if ((wrapId & 2) !== 0) normalized.y = wrap(normalized.y, nativeHeight);
-  return normalized;
+  const useLogicalProjection = usesNativeLogicalProjection(topologyId);
+  const native = useLogicalProjection
+    ? mapToNativePosition(mapX, mapY, nativeWidth, true)
+    : { x: mapX, y: mapY };
+  if ((wrapId & 1) !== 0) native.x = wrap(native.x, nativeWidth);
+  if ((wrapId & 2) !== 0) native.y = wrap(native.y, nativeHeight);
+  return useLogicalProjection ? nativeToMapPosition(native.x, native.y, nativeWidth, true) : native;
 };
 
 /**
- * Apply one freeciv-web map direction to the browser tile grid.
+ * Apply one logical Freeciv direction to an authoritative native tile.
+ * @reference reference/freeciv/common/map.c:1383-1466
  * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/map.js:215-219,341-350
  */
 export const stepNativeMapPosition = (
@@ -355,8 +445,13 @@ export const stepNativeMapPosition = (
   topologyId: number,
   wrapId: number
 ): MapPoint | null => {
-  void topologyId;
-  const candidate = { x: nativeX + mapDx, y: nativeY + mapDy };
+  const useLogicalProjection = usesNativeLogicalProjection(topologyId);
+  const logical = useLogicalProjection
+    ? nativeToMapPosition(nativeX, nativeY, nativeWidth, true)
+    : { x: nativeX, y: nativeY };
+  const candidate = useLogicalProjection
+    ? mapToNativePosition(logical.x + mapDx, logical.y + mapDy, nativeWidth, true)
+    : { x: nativeX + mapDx, y: nativeY + mapDy };
 
   if ((wrapId & 1) !== 0) candidate.x = wrap(candidate.x, nativeWidth);
   if ((wrapId & 2) !== 0) candidate.y = wrap(candidate.y, nativeHeight);

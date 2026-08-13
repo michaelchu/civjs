@@ -4,6 +4,7 @@
  */
 import { logger } from '@utils/logger';
 import { MapTile, TerrainType, TerrainProperty } from './MapTypes';
+import { tileHasRiver } from './TerrainUtils';
 import { MapTopology, type MapTopologyOptions } from './MapTopology';
 
 /**
@@ -159,7 +160,7 @@ export class RiverGenerator {
 
     for (const position of this.topology.getPositionsWithinRadius(startX, startY, radius)) {
       totalCount++;
-      if (tiles[position.x][position.y].riverMask > 0) {
+      if (tileHasRiver(tiles[position.x][position.y])) {
         riverCount++;
       }
     }
@@ -257,7 +258,7 @@ export class RiverGenerator {
    * Common suitability checks for river start
    */
   private isSuitableStartBase(tile: MapTile): boolean {
-    return this.isLandTile(tile.terrain) && tile.riverMask === 0;
+    return this.isLandTile(tile.terrain) && !tileHasRiver(tile);
   }
 
   /**
@@ -284,7 +285,9 @@ export class RiverGenerator {
       visited.add(key);
 
       // Mark current tile as river
-      tiles[currentX][currentY].riverMask = 1; // Temporary value, will be recalculated
+      const currentTile = tiles[currentX][currentY];
+      currentTile.riverMask = 1; // Temporary connectivity sentinel, recalculated below.
+      if (!currentTile.improvements.includes('river')) currentTile.improvements.push('river');
       riverPath.push({ x: currentX, y: currentY });
       this.convertTerrainForRiver(tiles[currentX][currentY]);
       length++;
@@ -332,7 +335,7 @@ export class RiverGenerator {
         const neighborTile = tiles[nx][ny];
 
         // Don't flow through existing rivers
-        if (neighborTile.riverMask > 0) continue;
+        if (tileHasRiver(neighborTile)) continue;
 
         let score = 0;
 
@@ -377,7 +380,7 @@ export class RiverGenerator {
   private calculateRiverConnections(tiles: MapTile[][]): void {
     for (let x = 0; x < this.width; x++) {
       for (let y = 0; y < this.height; y++) {
-        if (tiles[x][y].riverMask > 0) {
+        if (tileHasRiver(tiles[x][y])) {
           tiles[x][y].riverMask = this.calculateRiverMaskForTile(tiles, x, y);
         }
       }
@@ -390,18 +393,12 @@ export class RiverGenerator {
   private calculateRiverMaskForTile(tiles: MapTile[][], x: number, y: number): number {
     let mask = 0;
 
-    // Check cardinal directions for river connections
-    const cardinalDirs = [
-      { dx: 0, dy: -1, mask: 1 }, // North
-      { dx: 1, dy: 0, mask: 2 }, // East
-      { dx: 0, dy: 1, mask: 4 }, // South
-      { dx: -1, dy: 0, mask: 8 }, // West
-    ];
-
-    for (const dir of cardinalDirs) {
-      const neighbor = this.topology.normalize(x + dir.dx, y + dir.dy);
+    // The bit order is the tileset's clockwise cardinal direction order.
+    // ISO-hex therefore uses all six bits: N, E, SE, S, W, NW.
+    for (const [index, direction] of this.topology.getCardinalDirections().entries()) {
+      const neighbor = this.topology.step(x, y, direction);
       if (neighbor && this.shouldConnectToNeighbor(tiles, neighbor.x, neighbor.y)) {
-        mask |= dir.mask;
+        mask |= 1 << index;
       }
     }
 
@@ -419,6 +416,6 @@ export class RiverGenerator {
     const neighborTile = tiles[nx][ny];
 
     // Connect to other rivers or ocean
-    return neighborTile.riverMask > 0 || !this.isLandTile(neighborTile.terrain);
+    return tileHasRiver(neighborTile) || !this.isLandTile(neighborTile.terrain);
   }
 }

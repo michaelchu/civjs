@@ -126,7 +126,7 @@ describe('FogRenderer', () => {
     expect(pannedAnchor).toEqual({ x: anchor.x - 37, y: anchor.y - 19 });
   });
 
-  it('converts logical fog corners through native ISO coordinates', () => {
+  it('projects native ISO-hex fog corners through logical coordinates', () => {
     const context = {
       drawImage: vi.fn(),
       fillRect: vi.fn(),
@@ -159,7 +159,7 @@ describe('FogRenderer', () => {
       }
     ).mapCornerToScreen(2, 3, state);
 
-    expect(anchor).toEqual({ x: -48, y: 144 });
+    expect(anchor).toEqual({ x: 48, y: 192 });
   });
 
   it('uses freeciv-web flat-index edge adjustment for ISO fog corners', () => {

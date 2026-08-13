@@ -65,7 +65,11 @@ export const ClimateReport: React.FC<ClimateReportProps> = ({
   }, {});
   const total = knownTiles.length;
   const waterCount = knownTiles.filter(tile => waterTerrains.has(tile.terrain)).length;
-  const riverCount = knownTiles.filter(tile => (tile.riverMask ?? 0) > 0).length;
+  const riverCount = knownTiles.filter(
+    tile =>
+      (tile.riverMask ?? 0) !== 0 ||
+      tile.improvements?.some(improvement => improvement.toLowerCase() === 'river')
+  ).length;
   const elevations = knownTiles.map(tile => tile.elevation ?? 0);
   const averageElevation = elevations.length
     ? Math.round(elevations.reduce((sum, value) => sum + value, 0) / elevations.length)

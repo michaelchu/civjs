@@ -56,6 +56,9 @@ export const buildRulesetPresentation = (ruleset: string) => {
         {
           name: extra.name,
           rule_name: extra.rule_name,
+          category: extra.category,
+          causes: extra.causes,
+          hidden_by: extra.hidden_by,
           graphic: extra.graphic,
           graphic_alt: extra.graphic_alt,
           activity_gfx: extra.activity_gfx,

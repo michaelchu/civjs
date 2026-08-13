@@ -21,12 +21,12 @@ import {
   guiToMapPosition,
   guiToNativePosition,
   getProjectedMapBounds,
-  isIsometricTopology,
   mapToGuiPosition,
   nativeAxisGuiPeriod,
   nativeToGuiPosition,
   normalizeMapPosition,
   sortMapPointsInPainterOrder,
+  usesNativeLogicalProjection,
   type MapGeometry,
 } from './mapTopologyGeometry';
 
@@ -86,6 +86,9 @@ export class MapRenderer {
   ) {
     this.ctx = ctx;
     this.tilesetLoader = tilesetProvider;
+    this.tilesetLoader.setSpriteReadyListener?.(() => {
+      if (!this.isDisposed && this.renderState) this.render(this.renderState, true);
+    });
     this.setupCanvas();
 
     this.isSmallScreen = window.innerWidth <= 640 || window.innerHeight <= 590;
@@ -437,6 +440,11 @@ export class MapRenderer {
       state: entry.presentationState,
       tile: entry.tile,
     }));
+
+    if (usesNativeLogicalProjection(this.getCurrentGeometry().topologyId)) {
+      return this.renderNativeHexLayers(paintTileEntries, renderEntries, gotoEntries);
+    }
+
     this.terrainRenderer.renderTerrainEntries(renderEntries);
 
     // SPECIAL1 and UNIT contain multiple source operations which must remain
@@ -470,6 +478,88 @@ export class MapRenderer {
     });
 
     return hasActivePresentationEffects;
+  }
+
+  /** Paint the exact layer sequence declared by Hexemplio's native tilespec. */
+  private renderNativeHexLayers(
+    paintTileEntries: Array<{ state: RenderState; tile: Tile; presentationState: RenderState }>,
+    renderEntries: Array<{ state: RenderState; tile: Tile }>,
+    gotoEntries: Array<{ state: RenderState; tile: Tile }>
+  ): boolean {
+    const forEachFoggedTile = (
+      render: (state: RenderState, tile: Tile, presentationState: RenderState) => void
+    ) => {
+      for (const entry of paintTileEntries) {
+        this.renderWithNativeAutoFog(entry.tile, () =>
+          render(entry.state, entry.tile, entry.presentationState)
+        );
+      }
+    };
+
+    const renderFoggedEntries = (
+      render: (entries: Array<{ state: RenderState; tile: Tile }>) => void
+    ) => forEachFoggedTile((state, tile) => render([{ state, tile }]));
+
+    renderFoggedEntries(entries => this.terrainRenderer.renderTerrainLayerEntries(entries, 0));
+    renderFoggedEntries(entries => this.terrainRenderer.renderTerrainLayerEntries(entries, 1));
+    renderFoggedEntries(entries => this.terrainRenderer.renderDarknessEntries(entries));
+    renderFoggedEntries(entries => this.terrainRenderer.renderTerrainLayerEntries(entries, 2));
+    renderFoggedEntries(entries => this.terrainRenderer.renderWaterEntries(entries));
+    renderFoggedEntries(entries => this.terrainRenderer.renderRoadEntries(entries));
+    forEachFoggedTile((state, tile) => this.terrainRenderer.renderSpecials(state, [tile]));
+    forEachFoggedTile((state, tile) => this.borderRenderer.render(state, [tile]));
+    renderFoggedEntries(entries => this.cityRenderer.renderCityEntries(entries));
+    forEachFoggedTile((state, tile) => this.terrainRenderer.renderSpecial2(state, [tile]));
+
+    let hasActivePresentationEffects = false;
+    forEachFoggedTile((_state, tile, presentationState) => {
+      this.unitRenderer.renderNonFocusedUnitLayerEntries(
+        [{ state: presentationState, tile }],
+        (effectState, effectTile) => {
+          const active =
+            this.presentationEffectRenderer?.renderUnitEffectsForTile?.(effectState, effectTile) ??
+            false;
+          hasActivePresentationEffects = hasActivePresentationEffects || active;
+        }
+      );
+    });
+    forEachFoggedTile((state, tile) => this.terrainRenderer.renderSpecial3(state, [tile]));
+    renderFoggedEntries(entries => this.cityRenderer.renderWorkedTileOverlayEntries(entries));
+    // TILELABEL and CITYBAR are client text layers, intentionally outside Auto fog.
+    for (const { state, tile } of renderEntries)
+      this.terrainRenderer.renderTileLabels(state, [tile]);
+    this.cityRenderer.renderCityBarEntries(renderEntries);
+    forEachFoggedTile((_state, tile, presentationState) =>
+      this.unitRenderer.renderFocusedUnitLayerEntries([{ state: presentationState, tile }])
+    );
+    this.pathRenderer.renderPathLayerEntries(gotoEntries, (state, tile) => {
+      const active =
+        this.presentationEffectRenderer?.renderGotoEffectsForTile?.(state, tile) ?? false;
+      hasActivePresentationEffects = hasActivePresentationEffects || active;
+    });
+    return hasActivePresentationEffects;
+  }
+
+  /** GTK's Auto fog darkens each foggable sprite to 65% over known-unseen tiles. */
+  private renderWithNativeAutoFog(tile: Tile, render: () => void): void {
+    const shouldFog =
+      this.fogOfWarEnabled &&
+      this.tilesetLoader.getRenderProfile?.()?.fogStyle === 'auto' &&
+      tile.known &&
+      !tile.visible;
+    if (!shouldFog) {
+      render();
+      return;
+    }
+
+    this.ctx.save();
+    const previousFilter = this.ctx.filter;
+    this.ctx.filter =
+      previousFilter && previousFilter !== 'none'
+        ? `${previousFilter} brightness(65%)`
+        : 'brightness(65%)';
+    render();
+    this.ctx.restore();
   }
 
   /**
@@ -529,19 +619,30 @@ export class MapRenderer {
   }
 
   private guiToMapPos(guiX: number, guiY: number): { mapX: number; mapY: number } {
-    const position = guiToMapPosition(guiX, guiY, this.tileWidth, this.tileHeight);
+    const geometry = this.tilesetLoader.getGeometry();
+    const position = guiToMapPosition(
+      guiX,
+      guiY,
+      this.tileWidth,
+      this.tileHeight,
+      geometry.hexWidth,
+      geometry.hexHeight
+    );
     return { mapX: position.x, mapY: position.y };
   }
 
   canvasToMap(canvasX: number, canvasY: number, viewport: MapViewport) {
     const guiX = canvasX + viewport.x;
     const guiY = canvasY + viewport.y;
+    const tilesetGeometry = this.tilesetLoader.getGeometry();
     const native = guiToNativePosition(
       guiX,
       guiY,
       this.getCurrentGeometry(),
       this.tileWidth,
-      this.tileHeight
+      this.tileHeight,
+      tilesetGeometry.hexWidth,
+      tilesetGeometry.hexHeight
     );
     return { mapX: native.x, mapY: native.y };
   }
@@ -930,12 +1031,13 @@ export class MapRenderer {
       this.movementAnimationFrameId = null;
     }
     this.renderState = null;
+    this.tilesetLoader.setSpriteReadyListener?.(null);
     this.tilesetLoader.dispose();
     this.isInitialized = false;
   }
 
   private getVisibleTiles(mapTiles: Tile[], viewport: MapViewport, includeUnknown = false): Tile[] {
-    if (this.currentGeometry.isIsometric && !this.isWrappedMap()) {
+    if (this.currentGeometry.isIsometric && !this.currentGeometry.isHex && !this.isWrappedMap()) {
       return this.getReferenceIsometricTiles(mapTiles, viewport, includeUnknown);
     }
 
@@ -1087,7 +1189,7 @@ export class MapRenderer {
     if (
       this.currentGeometry.nativeWidth !== nativeWidth ||
       this.currentGeometry.nativeHeight !== nativeHeight ||
-      this.currentGeometry.isIsometric !== isIsometricTopology(topologyId)
+      this.currentGeometry.topologyId !== topologyId
     ) {
       this.currentGeometry = createMapGeometry(nativeWidth, nativeHeight, topologyId);
     }

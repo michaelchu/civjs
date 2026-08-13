@@ -19,6 +19,7 @@ import type { MapManager } from '@game/managers/MapManager';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
 import { logger } from '@utils/logger';
+import { tileHasRiver } from '@game/map/TerrainUtils';
 
 const DISASTER_BASE_RARITY = 1_000_000;
 const CLASSIC_DISASTER_FREQUENCY = 10;
@@ -200,7 +201,7 @@ export class DisasterManager {
 
   private matchesExtra(tile: MapTile, name: string): boolean {
     const normalized = this.normalizeRuleName(name);
-    const river = normalized === 'river' && tile.riverMask !== 0;
+    const river = normalized === 'river' && tileHasRiver(tile);
     if (river) return true;
 
     return tile.improvements.some(improvement => {

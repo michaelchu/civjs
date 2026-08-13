@@ -235,20 +235,14 @@ export class FreecivScenarioLoader implements ScenarioProvider {
   }
 
   private connectRivers(tiles: MapTile[][], topology: MapTopology): void {
-    const directions = [
-      { dx: 0, dy: -1, mask: 1 },
-      { dx: 1, dy: 0, mask: 2 },
-      { dx: 0, dy: 1, mask: 4 },
-      { dx: -1, dy: 0, mask: 8 },
-    ];
     for (let x = 0; x < topology.width; x++) {
       for (let y = 0; y < topology.height; y++) {
         const tile = tiles[x][y];
         if (!tile.improvements.includes('river')) continue;
-        for (const direction of directions) {
-          const neighbor = topology.normalize(x + direction.dx, y + direction.dy);
+        for (const [index, direction] of topology.getCardinalDirections().entries()) {
+          const neighbor = topology.step(x, y, direction);
           if (neighbor && tiles[neighbor.x][neighbor.y].improvements.includes('river')) {
-            tile.riverMask |= direction.mask;
+            tile.riverMask |= 1 << index;
           }
         }
       }

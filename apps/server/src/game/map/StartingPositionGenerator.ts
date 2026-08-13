@@ -21,6 +21,7 @@ import { PlayerState } from '@game/runtime/GameTypes';
 import { rulesetLoader } from '@shared/data/rulesets/RulesetLoader';
 import { MapTopology, type MapTopologyOptions } from './MapTopology';
 import { DEFAULT_RULESET } from '@shared/data/rulesets/defaultRuleset';
+import { tileHasRiver } from './TerrainUtils';
 
 /**
  * Island data structure matching freeciv's islands_data_type
@@ -150,7 +151,7 @@ export class StartingPositionGenerator {
     }
 
     // Add river bonus for trade
-    if (outputType === 'trade' && tile.riverMask > 0) {
+    if (outputType === 'trade' && tileHasRiver(tile)) {
       output += 1;
     }
 
