@@ -51,6 +51,24 @@ describe('Freeciv AI technology want planner', () => {
     expect(wants.get('bronze_working')).toBeGreaterThan(0);
   });
 
+  it('does not evaluate city production when there is no observed attacker', () => {
+    const canBuildNow = jest.fn(() => true);
+
+    expect(
+      rankThreatTechnologyWants({
+        cities: [city()],
+        hostileUnits: [],
+        unitTypes: {
+          current: { id: 'current', defense: 2 } as any,
+          future: { id: 'future', defense: 6, requiredTech: 'Bronze Working' } as any,
+        },
+        researchedTechs: new Set(),
+        canBuildNow,
+      })
+    ).toEqual(new Map());
+    expect(canBuildNow).not.toHaveBeenCalled();
+  });
+
   it('merges normalized advisor sources', () => {
     expect(
       mergeTechnologyWants(new Map([['Bronze Working', 10]]), new Map([['bronze_working', 5]]))

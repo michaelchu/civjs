@@ -1732,6 +1732,8 @@ export class GameLifecycleManager extends BaseGameService implements GameLifecyc
           this.io.to(`player:${playerId}`).emit('hut_event', { gameId: changedGameId, message }),
         broadcastMapChanged: (changedGameId, mapData) =>
           this.onBroadcastMapData?.(changedGameId, mapData),
+        broadcastTileChanged: (changedGameId, x, y) =>
+          this.broadcastManager?.broadcastTileChanged(changedGameId, x, y),
       },
     });
   }

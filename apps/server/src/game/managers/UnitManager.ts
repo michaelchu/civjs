@@ -4,7 +4,6 @@
  */
 import { DatabaseProvider } from '@database';
 import { units } from '@database/schema/units';
-import { games } from '@database/schema/games';
 import { players } from '@database/schema/players';
 import { and, eq, sql } from 'drizzle-orm';
 import { logger } from '@utils/logger';
@@ -131,6 +130,7 @@ export interface UnitManagerCallbacks {
     statistic: 'unitsBuilt' | 'unitsKilled' | 'unitsLost'
   ) => void;
   broadcastMapChanged?: (gameId: string, mapData: unknown) => void;
+  broadcastTileChanged?: (gameId: string, x: number, y: number) => void;
 }
 
 interface CombatSetup {
@@ -2609,6 +2609,8 @@ export class UnitManager {
   }
 
   private createLoadedUnit(dbUnit: typeof units.$inferSelect, unitType: UnitType): Unit {
+    const orders = this.parseLoadedOrders(dbUnit.orders);
+
     return {
       id: dbUnit.id,
       gameId: dbUnit.gameId,
@@ -2626,7 +2628,8 @@ export class UnitManager {
       veteranLevel: dbUnit.veteranLevel,
       experience: dbUnit.experience || 0,
       fortified: dbUnit.isFortified,
-      orders: this.parseLoadedOrders(dbUnit.orders),
+      orders,
+      activity: orders[0]?.activity,
       transportedBy: dbUnit.transportedBy ?? undefined,
       cargoUnits: Array.isArray(dbUnit.cargoUnits) ? (dbUnit.cargoUnits as string[]) : [],
       homeCityId: dbUnit.homeCityId ?? undefined,
@@ -2636,7 +2639,7 @@ export class UnitManager {
         dbUnit.automationMode,
         dbUnit.isAutomated,
         dbUnit.currentOrder,
-        this.parseLoadedOrders(dbUnit.orders)
+        orders
       ),
       automationTask: isWorkerAutomationTask(dbUnit.automationTask)
         ? dbUnit.automationTask
@@ -3108,13 +3111,17 @@ export class UnitManager {
    * every candidate edge.
    */
   createPathSearchPolicy(unit: Unit): PathfindingSearchPolicy {
-    const tileKey = (x: number, y: number) => `${x},${y}`;
-    const unitsByTile = new Map<string, Unit[]>();
+    // Freeciv addresses path-map state by tile index. Keep the immutable
+    // occupancy and ZOC snapshot dense as well so every expanded edge avoids
+    // coordinate-string allocation and hashing.
+    // @reference reference/freeciv/common/aicore/path_finding.c:pf_normal_map
+    const tileIndex = (x: number, y: number) => x * this.mapHeight + y;
+    const unitsByTile = new Array<Unit[] | undefined>(this.mapWidth * this.mapHeight);
     for (const candidate of this.units.values()) {
-      const key = tileKey(candidate.x, candidate.y);
-      const stack = unitsByTile.get(key);
+      const index = tileIndex(candidate.x, candidate.y);
+      const stack = unitsByTile[index];
       if (stack) stack.push(candidate);
-      else unitsByTile.set(key, [candidate]);
+      else unitsByTile[index] = [candidate];
     }
 
     const alliedPlayers = new Set(this.alliedPlayersProvider?.(unit.playerId) ?? []);
@@ -3124,7 +3131,7 @@ export class UnitManager {
     const subjectToZoc =
       type?.rulesetUnitClassFlags.includes('ZOC') === true &&
       type.flags?.includes('IgZOC') !== true;
-    const enemyZocTiles = new Set<string>();
+    const enemyZocTiles = new Uint8Array(this.mapWidth * this.mapHeight);
     if (subjectToZoc) {
       for (const candidate of this.units.values()) {
         if (
@@ -3141,28 +3148,28 @@ export class UnitManager {
         ) {
           continue;
         }
-        enemyZocTiles.add(tileKey(candidate.x, candidate.y));
+        enemyZocTiles[tileIndex(candidate.x, candidate.y)] = 1;
         for (const neighbor of topology.getNeighbors(candidate.x, candidate.y)) {
-          enemyZocTiles.add(tileKey(neighbor.x, neighbor.y));
+          enemyZocTiles[tileIndex(neighbor.x, neighbor.y)] = 1;
         }
       }
     }
 
-    const cityCache = new Map<string, CityAtLocation | null>();
+    const cityCache = new Map<number, CityAtLocation | null>();
     const cityAt = (x: number, y: number): CityAtLocation | null => {
-      const key = tileKey(x, y);
-      if (cityCache.has(key)) return cityCache.get(key) ?? null;
+      const index = tileIndex(x, y);
+      if (cityCache.has(index)) return cityCache.get(index) ?? null;
       const city = this.gameManagerCallback?.getCityAt?.(x, y) ?? null;
-      cityCache.set(key, city);
+      cityCache.set(index, city);
       return city;
     };
-    const terrainCache = new Map<string, TerrainType>();
+    const terrainCache = new Array<TerrainType | undefined>(this.mapWidth * this.mapHeight);
     const terrainAt = (x: number, y: number): TerrainType => {
-      const key = tileKey(x, y);
-      const cached = terrainCache.get(key);
+      const index = tileIndex(x, y);
+      const cached = terrainCache[index];
       if (cached) return cached;
       const terrain = this.getTerrainAt(x, y);
-      terrainCache.set(key, terrain);
+      terrainCache[index] = terrain;
       return terrain;
     };
     const isCivilian = type?.unitClass === 'civilian' || type?.flags?.includes('NonMil') === true;
@@ -3182,7 +3189,7 @@ export class UnitManager {
     return {
       getPathStepCost: (fromX, fromY, toX, toY, isDestination) => {
         if (this.isRandomMovementUnit(unit)) return -1;
-        const destinationKey = tileKey(toX, toY);
+        const destinationIndex = tileIndex(toX, toY);
         const destinationCity = cityAt(toX, toY);
         const hostileCity = Boolean(
           destinationCity &&
@@ -3201,7 +3208,7 @@ export class UnitManager {
           return -1;
         }
         if (
-          (unitsByTile.get(destinationKey) ?? []).some(isNonAllied) &&
+          (unitsByTile[destinationIndex] ?? []).some(isNonAllied) &&
           !(isDestination && canAttack)
         ) {
           return -1;
@@ -3209,7 +3216,7 @@ export class UnitManager {
         if (hostileCity && !(isDestination && canCapture)) return -1;
 
         if (subjectToZoc) {
-          const hasFriendlyStack = (unitsByTile.get(destinationKey) ?? []).some(
+          const hasFriendlyStack = (unitsByTile[destinationIndex] ?? []).some(
             candidate => candidate.playerId === unit.playerId
           );
           const hasEndpointCity = Boolean(cityAt(fromX, fromY) || destinationCity);
@@ -3219,8 +3226,8 @@ export class UnitManager {
             !hasFriendlyStack &&
             !hasEndpointCity &&
             !ignoresZoc &&
-            enemyZocTiles.has(tileKey(fromX, fromY)) &&
-            enemyZocTiles.has(destinationKey)
+            enemyZocTiles[tileIndex(fromX, fromY)] === 1 &&
+            enemyZocTiles[destinationIndex] === 1
           ) {
             return -1;
           }
@@ -7050,18 +7057,13 @@ export class UnitManager {
         removed,
       });
     }
-    const mapData = this.mapManager.getMapData?.();
-    if (mapData) {
-      // Worker extras are part of the authoritative map and must survive a
-      // server restart just like terrain and ownership.
-      // @reference reference/freeciv/server/savegame/savegame3.c:2490-2600
-      await this.databaseProvider
-        .getDatabase()
-        .update(games)
-        .set({ mapData })
-        .where(eq(games.id, this.gameId));
-      this.gameManagerCallback?.broadcastMapChanged?.(this.gameId, mapData);
-    }
+    // Worker extras are durable map state, but Freeciv persists and transmits
+    // the affected tile rather than rewriting and rebroadcasting the complete
+    // map for every finished activity.
+    // @reference reference/freeciv/server/savegame/savegame3.c:2490-2600
+    // @reference reference/freeciv/server/maphand.c:442-613
+    await this.mapStateRepository.persistTile(unit.x, unit.y);
+    this.gameManagerCallback?.broadcastTileChanged?.(this.gameId, unit.x, unit.y);
     logger.info(`Activity ${order.type} completed by unit ${unit.id} at (${unit.x}, ${unit.y})`);
   }
 

@@ -54,13 +54,14 @@ export class UnitHutService {
       }
     }
 
-    const conquerableExtras = improvements.filter(
-      (extra: string) => !['pollution', 'fallout'].includes(extra.toLowerCase())
-    );
-    if (conquerableExtras.length > 0 && tile.claimer !== unit.playerId) {
-      this.mapManager?.updateTileProperty(unit.x, unit.y, 'claimer', unit.playerId);
-      changed = true;
-    }
+    // Freeciv claims only a native base whose base type claims territory;
+    // ordinary roads, irrigation, mines, and resources are not conquered.
+    // C2C3 defines every base with border_sq = -1, so none of its bases claim
+    // territory on entry. This service therefore persists the map only when
+    // an actual hut was removed.
+    // @reference reference/freeciv/common/tile.c:216-228
+    // @reference reference/freeciv/common/base.c:163-166
+    // @reference reference/freeciv/data/civ2civ3/terrain.ruleset:1535-1727
     if (changed) {
       this.mapManager?.updateTileProperty(unit.x, unit.y, 'improvements', improvements);
       await this.mapStateRepository.persist();

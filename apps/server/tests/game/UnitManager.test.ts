@@ -5303,6 +5303,12 @@ describe('UnitManager', () => {
       await unitManager.loadUnits();
 
       expect(unitManager.getUnit('persisted-worker')).toMatchObject({
+        activity: expect.objectContaining({
+          type: 'building_road',
+          turnsRemaining: 1,
+          totalTurns: 2,
+          target: { x: 10, y: 10 },
+        }),
         orders: [
           expect.objectContaining({
             type: 'road',
@@ -5954,6 +5960,28 @@ describe('UnitManager', () => {
         attackerId: attacker.id,
         defenderId: defender.id,
       });
+    });
+
+    it('does not persist the full map when movement enters ordinary infrastructure', async () => {
+      const map = makeMap();
+      map.tiles.get('11,10').improvements = ['road', 'irrigation'];
+      const manager = createCiv2Civ3HutManager(map).manager;
+      const explorer = await manager.createUnit('player-123', 'warriors', 10, 10);
+      const database = mockDbProvider.getDatabase() as any;
+      database.set.mockClear();
+
+      await manager.moveUnit(explorer.id, 11, 10);
+
+      expect(map.tiles.get('11,10').claimer).toBeUndefined();
+      expect(map.manager.updateTileProperty).not.toHaveBeenCalledWith(
+        11,
+        10,
+        'claimer',
+        'player-123'
+      );
+      expect(database.set).not.toHaveBeenCalledWith(
+        expect.objectContaining({ mapData: expect.anything() })
+      );
     });
 
     it('resolves and persists a hut reward when movement enters the tile', async () => {

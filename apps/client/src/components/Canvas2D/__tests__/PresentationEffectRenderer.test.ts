@@ -238,6 +238,37 @@ describe('PresentationEffectRenderer', () => {
     expect(context.drawImage).toHaveBeenCalledWith(frames[0], 19, 62);
   });
 
+  it('indexes retained effects once instead of rescanning them for every visible tile', () => {
+    const renderer = createRenderer(createContext(), 'isometric', () => null);
+    const effects = Array.from({ length: 16 }, (_, index) => ({
+      id: `retained-${index}`,
+      type: 'combat' as const,
+      x: index,
+      y: 20,
+      startedAt: 0,
+    }));
+    const state = {
+      ...createState(effects[0]),
+      presentationEffects: effects,
+    };
+    const getDestroyedCombatantTiles = vi.spyOn(
+      renderer as unknown as {
+        getDestroyedCombatantTiles: (effect: (typeof effects)[number]) => Array<{
+          x: number;
+          y: number;
+        }>;
+      },
+      'getDestroyedCombatantTiles'
+    );
+
+    renderer.beginFrame(state);
+    for (let tile = 0; tile < 100; tile += 1) {
+      renderer.renderUnitEffectsForTile(state, { x: tile, y: 0 });
+    }
+
+    expect(getDestroyedCombatantTiles).toHaveBeenCalledTimes(effects.length);
+  });
+
   it('does not paint a square-isometric combat effect when no unit died', () => {
     const context = createContext();
     const renderer = createRenderer(context, 'isometric', () => ({}) as HTMLImageElement);

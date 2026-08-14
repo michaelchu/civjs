@@ -179,6 +179,42 @@ describe('VisibilityManager', () => {
       expect(persist).toHaveBeenCalledTimes(2);
     });
 
+    it('persists one settled visibility snapshot per player after a turn batch', async () => {
+      const persist = jest.fn(
+        async (
+          _playerId: string,
+          _exploredTiles: string[],
+          _visibleTiles: string[],
+          _lastSeenByTile: Record<string, string>,
+          _rememberedTiles: Record<string, unknown>
+        ) => undefined
+      );
+      const persistentManager = new VisibilityManager(
+        gameId,
+        unitManager,
+        mapManager,
+        undefined,
+        undefined,
+        persist
+      );
+
+      persistentManager.beginPersistenceBatch();
+      persistentManager.updatePlayerVisibility('player-1');
+      persistentManager.updatePlayerVisibility('player-1');
+      persistentManager.updatePlayerVisibility('player-2');
+      await new Promise(resolve => setImmediate(resolve));
+
+      expect(persist).not.toHaveBeenCalled();
+
+      await persistentManager.endPersistenceBatch();
+
+      expect(persist).toHaveBeenCalledTimes(2);
+      expect(persist.mock.calls.map(([playerId]) => playerId).sort()).toEqual([
+        'player-1',
+        'player-2',
+      ]);
+    });
+
     it('serves the last observed tile state while a tile is fogged', () => {
       visibilityManager.setCityVisionProvider(playerId =>
         playerId === 'player-123' ? [{ x: 10, y: 10 }] : []

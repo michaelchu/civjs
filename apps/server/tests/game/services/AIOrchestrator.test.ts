@@ -194,6 +194,7 @@ function createScenario() {
     },
   };
   const game = {
+    id: 'game',
     state: 'active',
     random: {
       next: () => 999,
@@ -285,6 +286,11 @@ function createScenario() {
           ].filter(position => mapTiles[position.x]?.[position.y]),
         squaredDistance: (fromX: number, fromY: number, toX: number, toY: number) =>
           (fromX - toX) ** 2 + (fromY - toY) ** 2,
+        getPositionsWithinSquaredRadius: (x: number, y: number, radiusSquared: number) =>
+          mapTiles
+            .flat()
+            .filter(tile => (tile.x - x) ** 2 + (tile.y - y) ** 2 <= radiusSquared)
+            .map(tile => ({ x: tile.x, y: tile.y })),
       }),
     },
     pathfindingManager: {
@@ -360,6 +366,11 @@ describe('FreecivAIOrchestrator', () => {
         budget: expect.objectContaining({ maxPlanningMs: expect.any(Number) }),
       })
     );
+    // Freeciv's advisors read one in-memory relation state throughout a
+    // player's phase. CivJS needs one scoped policy read plus the diplomacy
+    // controller's own and counterparty snapshots, not one query per advisor
+    // subsystem (twelve reads in this fixture before scoping).
+    expect(scenario.diplomacyManager.getSnapshot).toHaveBeenCalledTimes(4);
   });
 
   it('covers expansion, economy, research, production, workers, combat, diplomacy, and action use', async () => {
@@ -1464,6 +1475,52 @@ describe('FreecivAIOrchestrator', () => {
       previousPlayerId: 'human',
     });
     expect(ai.aiState.unitTasks).toEqual({});
+  });
+
+  it('persists only the settled AI lifecycle state after repeated turn-local updates', async () => {
+    const scenario = createScenario();
+    const ai = scenario.game.players.get('ai') as any;
+    ai.aiState.unitTasks.hunter = {
+      role: 'hunter',
+      targetId: 'target',
+      targetX: 2,
+      targetY: 3,
+      assignedTurn: 1,
+    };
+    const writes: any[] = [];
+    const database = {
+      update: jest.fn(() => ({
+        set: jest.fn((value: { aiState: unknown }) => {
+          writes.push(value.aiState);
+          return { where: jest.fn().mockResolvedValue([]) };
+        }),
+      })),
+    };
+    const orchestrator = new FreecivAIOrchestrator(scenario.diplomacyManager as any, undefined, {
+      getDatabase: () => database,
+    } as any);
+    (orchestrator as any).playerController.processPlayer = jest.fn(async () => {
+      orchestrator.onUnitLifecycle('game', scenario.game as any, {
+        type: 'moved',
+        unit: { id: 'target', playerId: 'human', x: 8, y: 9 } as any,
+        previousX: 2,
+        previousY: 3,
+      });
+      orchestrator.onUnitLifecycle('game', scenario.game as any, {
+        type: 'moved',
+        unit: { id: 'target', playerId: 'human', x: 10, y: 11 } as any,
+        previousX: 8,
+        previousY: 9,
+      });
+      return 0;
+    });
+
+    await orchestrator.processTurn('game', scenario.game as any);
+
+    // One crash-recovery marker plus one final authoritative state. The two
+    // movement callbacks must not enqueue two additional whole-state writes.
+    expect(writes).toHaveLength(2);
+    expect(writes[1].unitTasks.hunter).toMatchObject({ targetX: 10, targetY: 11 });
   });
 
   it('applies action and war incidents to persistent diplomacy memory immediately', () => {

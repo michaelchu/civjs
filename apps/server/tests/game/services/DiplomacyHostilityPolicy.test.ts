@@ -24,4 +24,23 @@ describe('DiplomacyHostilityPolicy', () => {
       unknown: new Set(['neutral']),
     });
   });
+
+  it('reuses one snapshot within an AI planning scope and refreshes after it', async () => {
+    const diplomacyManager = {
+      getSnapshot: jest.fn().mockResolvedValue({
+        nations: [{ id: 'enemy', relation: { state: 'war' } }],
+      }),
+    };
+    const policy = new DiplomacyHostilityPolicy(diplomacyManager as any);
+
+    await policy.withSnapshotScope('game', 'player', async () => {
+      await policy.getHostilePlayerIds('game', 'player');
+      await policy.getRelationPlayerIds('game', 'player');
+      await policy.getDiplomacySnapshot('game', 'player');
+    });
+
+    expect(diplomacyManager.getSnapshot).toHaveBeenCalledTimes(1);
+    await policy.getHostilePlayerIds('game', 'player');
+    expect(diplomacyManager.getSnapshot).toHaveBeenCalledTimes(2);
+  });
 });

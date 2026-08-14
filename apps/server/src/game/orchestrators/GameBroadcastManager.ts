@@ -52,6 +52,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       units: Map<string, string>;
       cities: Map<string, string>;
       borders: Map<string, string>;
+      researchSignature?: string;
     }
   >();
 
@@ -276,7 +277,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     for (const [playerId] of gameInstance.players) {
       this.sendVisibilitySnapshotToPlayer(gameInstance, gameId, playerId, mapData);
     }
-    this.sendSpectatorVisibilityDelta(gameInstance, gameId, mapData);
+    this.sendSpectatorVisibilityDelta(gameInstance, gameId, mapData, true);
   }
 
   /**
@@ -299,7 +300,78 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
         fullTileScan
       );
     }
-    this.sendSpectatorVisibilityDelta(gameInstance, gameId, mapData);
+    this.sendSpectatorVisibilityDelta(gameInstance, gameId, mapData, fullTileScan);
+  }
+
+  /**
+   * Send the playermap delta after one authoritative tile changes. The delta
+   * cache emits only changed TILE_INFO records, avoiding a full map snapshot.
+   * @reference reference/freeciv/server/maphand.c:442-613
+   */
+  broadcastTileChanged(gameId: string, x: number, y: number): void {
+    const gameInstance = this.games.get(gameId);
+    const mapData = gameInstance?.mapManager.getMapData();
+    if (!gameInstance || !mapData?.tiles[x]?.[y]) return;
+
+    const tileKey = `${x},${y}`;
+    for (const [playerId] of gameInstance.players) {
+      const debug = this.isDebugVisibilityEnabled(gameId, playerId);
+      const visibleTiles = debug
+        ? this.getAllTileKeys(mapData)
+        : gameInstance.visibilityManager.getVisibleTiles(playerId);
+      const exploredTiles = debug
+        ? visibleTiles
+        : gameInstance.visibilityManager.getExploredTiles(playerId);
+      const rememberedTiles = this.getRememberedTiles(
+        gameInstance,
+        playerId,
+        mapData,
+        exploredTiles
+      );
+      const tile = this.createTileInfo(
+        mapData,
+        x,
+        y,
+        visibleTiles.has(tileKey),
+        exploredTiles.has(tileKey),
+        rememberedTiles.get(tileKey),
+        gameInstance.config.ruleset ?? DEFAULT_RULESET,
+        new Set(gameInstance.researchManager.getResearchedTechs(playerId))
+      );
+      if (!tile) continue;
+      const cached = this.getVisibilityCache(gameId, playerId);
+      const { next, changed } = this.diffWireStateSubset(
+        cached.tiles,
+        [tile],
+        item => `${item.x},${item.y}`
+      );
+      cached.tiles = next;
+      if (changed.length > 0) this.sendTileDataInBatches(gameInstance, playerId, changed, false);
+    }
+
+    if (this.hasSpectators(gameId)) {
+      const spectatorTile = this.createTileInfo(
+        mapData,
+        x,
+        y,
+        true,
+        true,
+        undefined,
+        gameInstance.config.ruleset ?? DEFAULT_RULESET,
+        new Set()
+      );
+      if (spectatorTile) {
+        spectatorTile.resource = mapData.tiles[x][y].resource ?? undefined;
+        const cached = this.getVisibilityCache(gameId, SPECTATOR_CACHE_ID);
+        const { next, changed } = this.diffWireStateSubset(
+          cached.tiles,
+          [spectatorTile],
+          item => `${item.x},${item.y}`
+        );
+        cached.tiles = next;
+        if (changed.length > 0) this.sendSpectatorTileDataInBatches(gameId, changed, false);
+      }
+    }
   }
 
   setDebugVisibility(gameId: string, playerId: string, enabled: boolean): boolean {
@@ -457,6 +529,9 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       this.sendTileDataInBatches(gameInstance, playerId, visibility.tiles, true);
       const cached = this.getVisibilityCache(gameId, playerId);
       cached.tiles = this.indexWireState(visibility.tiles, tile => `${tile.x},${tile.y}`);
+      cached.researchSignature = this.researchSignature(
+        gameInstance.researchManager.getResearchedTechs(playerId)
+      );
 
       this.sendPacketToPlayer(gameInstance, playerId, PacketType.UNIT_INFO, {
         units: formattedUnits,
@@ -530,22 +605,29 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
   private sendSpectatorVisibilityDelta(
     gameInstance: GameInstance,
     gameId: string,
-    mapData: any
+    mapData: any,
+    fullTileScan = false
   ): void {
     if (!this.hasSpectators(gameId)) return;
 
     const cached = this.getVisibilityCache(gameId, SPECTATOR_CACHE_ID);
 
-    const tiles = this.getSpectatorMapTiles(gameInstance, mapData);
-    const { next: nextTiles, changed: changedTiles } = this.diffWireState(
-      cached.tiles,
-      tiles,
-      tile => `${tile.x},${tile.y}`
-    );
-    if (changedTiles.length > 0) {
-      this.sendSpectatorTileDataInBatches(gameId, changedTiles, false);
+    // Unit movement does not alter the observer's omniscient tile projection;
+    // worker and climate changes use their dedicated tile/map broadcasts.
+    // Avoid rebuilding and serializing the entire map for every movement and
+    // ordinary turn delta.
+    if (fullTileScan || cached.tiles.size === 0) {
+      const tiles = this.getSpectatorMapTiles(gameInstance, mapData);
+      const { next: nextTiles, changed: changedTiles } = this.diffWireState(
+        cached.tiles,
+        tiles,
+        tile => `${tile.x},${tile.y}`
+      );
+      if (changedTiles.length > 0) {
+        this.sendSpectatorTileDataInBatches(gameId, changedTiles, false);
+      }
+      cached.tiles = nextTiles;
     }
-    cached.tiles = nextTiles;
 
     const units = this.getSpectatorUnits(gameInstance);
     const { next: nextUnits, changed: changedUnits } = this.diffWireState(
@@ -905,6 +987,9 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     this.sendTileDataInBatches(gameInstance, playerId, tiles, true);
     const cached = this.getVisibilityCache(gameId, playerId);
     cached.tiles = this.indexWireState(tiles, tile => `${tile.x},${tile.y}`);
+    cached.researchSignature = this.researchSignature(
+      gameInstance.researchManager.getResearchedTechs(playerId)
+    );
 
     const visibleUnits = debugVisibility
       ? Array.from(gameInstance.unitManager.getAllUnits().values())
@@ -963,11 +1048,22 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
     const rememberedTiles = this.getRememberedTiles(gameInstance, playerId, mapData, exploredTiles);
     const cached = this.getVisibilityCache(gameId, playerId);
     const rulesetName = gameInstance.config.ruleset ?? DEFAULT_RULESET;
-    const researchedTechs = new Set(gameInstance.researchManager.getResearchedTechs(playerId));
+    const researchedTechIds = gameInstance.researchManager.getResearchedTechs(playerId);
+    const researchedTechs = new Set(researchedTechIds);
+    const researchSignature = this.researchSignature(researchedTechIds);
+    const researchVisibilityChanged =
+      cached.researchSignature !== undefined && cached.researchSignature !== researchSignature;
     // Ordinary unit movement can only change the wire state of tiles that
-    // entered or left current sight. Keep turn boundaries and unprimed caches
-    // on a complete scan so research reveals and world changes still fan out.
+    // entered or left current sight. Unprimed caches and explicit callers can
+    // still request a complete scan; research changes expand the bounded scan
+    // to the player's explored playermap below.
     const changedVisibilityKeys = new Set([...(previouslyVisibleTiles ?? []), ...visibleTiles]);
+    if (researchVisibilityChanged) {
+      // A newly researched resource-revealing technology can change any
+      // explored tile, but never an unknown one. This preserves Freeciv's
+      // playermap update without allocating a projection for the whole world.
+      for (const tileKey of exploredTiles) changedVisibilityKeys.add(tileKey);
+    }
     const partialTileScan = !debug && !fullTileScan && cached.tiles.size > 0;
     const tiles = partialTileScan
       ? this.processMapTileKeysForPlayer(
@@ -994,6 +1090,7 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       this.sendTileDataInBatches(gameInstance, playerId, changedTiles, false);
     }
     cached.tiles = nextTiles;
+    cached.researchSignature = researchSignature;
 
     const visibleUnits: any[] = debug
       ? Array.from(gameInstance.unitManager.getAllUnits().values())
@@ -1108,6 +1205,10 @@ export class GameBroadcastManager extends BaseGameService implements BroadcastSe
       this.visibilityState.set(key, state);
     }
     return state;
+  }
+
+  private researchSignature(techs: Iterable<string>): string {
+    return [...techs].sort().join('\u0000');
   }
 
   private indexWireState<T>(items: T[], key: (item: T) => string): Map<string, string> {

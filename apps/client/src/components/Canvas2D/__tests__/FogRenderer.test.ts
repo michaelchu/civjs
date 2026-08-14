@@ -3,6 +3,47 @@ import { FogRenderer } from '../renderers/FogRenderer';
 import type { RenderState } from '../renderers/BaseRenderer';
 
 describe('FogRenderer', () => {
+  it('reuses the map-wide knowledge index while only the viewport changes', () => {
+    const context = {
+      canvas: { width: 800, height: 600 },
+      drawImage: vi.fn(),
+      fillRect: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+    const renderer = new FogRenderer(context, { getSprite: () => null } as never, 96, 48);
+    const state: RenderState = {
+      viewport: { x: 0, y: 0, width: 800, height: 600 },
+      map: {
+        width: 2,
+        height: 1,
+        tiles: {
+          '0,0': { x: 0, y: 0, terrain: 'plains', known: true, visible: true },
+          '1,0': { x: 1, y: 0, terrain: 'plains', known: true, visible: false },
+        },
+      },
+      units: {},
+      cities: {},
+      players: {},
+    };
+    const normalizeKnowledge = vi.spyOn(
+      renderer as unknown as { normalizeKnowledge: (known?: boolean, visible?: boolean) => number },
+      'normalizeKnowledge'
+    );
+
+    renderer.render(state);
+    renderer.render({ ...state, viewport: { ...state.viewport, x: 48 } });
+
+    expect(normalizeKnowledge).toHaveBeenCalledTimes(2);
+
+    renderer.render({
+      ...state,
+      map: {
+        ...state.map,
+        tiles: { ...state.map.tiles, '1,0': { ...state.map.tiles['1,0'], visible: true } },
+      },
+    });
+    expect(normalizeKnowledge).toHaveBeenCalledTimes(4);
+  });
+
   it('draws remembered-terrain transitions without overlapping fully unknown masks', () => {
     const sprites = new Map<string, HTMLCanvasElement>();
     const context = {

@@ -822,6 +822,53 @@ describe('MapCanvas Go To feedback', () => {
     expect(state.selectUnit).not.toHaveBeenCalled();
   });
 
+  /**
+   * @evidence parity
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapctrl.js:43-47
+   * @reference reference/freeciv-web/freeciv-web/src/main/webapp/javascript/2dcanvas/mapview_common.js:504-519
+   * @assertion Continuous pointer updates retain the already scheduled paint
+   * while replacing its camera snapshot with the most recent position.
+   */
+  it('does not postpone a pending pan frame when more pointer events arrive', async () => {
+    const frames: FrameRequestCallback[] = [];
+    const cancelFrame = vi.fn();
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', cancelFrame);
+
+    render(<MapCanvas width={100} height={100} />);
+    const canvas = screen.getByLabelText('World map');
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    mapRendererRender.mockClear();
+
+    await act(async () => {
+      fireEvent.mouseDown(canvas, { clientX: 10, clientY: 10, button: 0 });
+      fireEvent.mouseMove(canvas, { clientX: 30, clientY: 30, buttons: 1 });
+      fireEvent.mouseMove(canvas, { clientX: 50, clientY: 60, buttons: 1 });
+    });
+
+    expect(frames).toHaveLength(1);
+    expect(cancelFrame).not.toHaveBeenCalled();
+
+    await act(async () => {
+      frames[0](16);
+    });
+
+    expect(
+      (mapRendererRender.mock.calls.at(-1)?.[0] as { viewport?: unknown } | undefined)?.viewport
+    ).toEqual({
+      x: -80,
+      y: -100,
+      width: 100,
+      height: 100,
+    });
+  });
+
   it('does not republish the stored viewport when an overlay rerenders', async () => {
     render(<MapCanvas width={100} height={100} />);
     await act(async () => {

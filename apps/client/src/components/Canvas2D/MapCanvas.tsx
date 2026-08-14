@@ -887,9 +887,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const scheduleDragRender = useCallback(
     (nextViewport: MapViewport) => {
       currentRenderViewport.current = nextViewport;
-      if (dragRenderFrame.current !== null) {
-        cancelAnimationFrame(dragRenderFrame.current);
-      }
+      // Keep the frame that is already queued and only replace its camera
+      // snapshot. Cancelling and rescheduling on every pointer event can
+      // starve painting when a high-polling mouse dispatches moves faster than
+      // requestAnimationFrame, making the map freeze and then catch up.
+      if (dragRenderFrame.current !== null) return;
       dragRenderFrame.current = requestAnimationFrame(() => {
         dragRenderFrame.current = null;
         renderLatestSnapshot(currentRenderViewport.current, true);

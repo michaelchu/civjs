@@ -80,8 +80,11 @@ function context(
       tiles
         .flat()
         .filter(candidate => Math.max(Math.abs(candidate.x - x), Math.abs(candidate.y - y)) === 1),
+    getTilesWithinSquaredRadius: (x, y, radiusSquared) =>
+      tiles
+        .flat()
+        .filter(candidate => (candidate.x - x) ** 2 + (candidate.y - y) ** 2 <= radiusSquared),
     distance: (fromX, fromY, toX, toY) => Math.max(Math.abs(fromX - toX), Math.abs(fromY - toY)),
-    squaredDistance: (fromX, fromY, toX, toY) => (fromX - toX) ** 2 + (fromY - toY) ** 2,
     findPath: async (actor, targetX, targetY) => ({
       valid: true,
       path: [

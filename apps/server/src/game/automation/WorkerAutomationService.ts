@@ -127,6 +127,14 @@ async function planPathAwareInfrastructureWork(
   existingTasks: Readonly<Record<string, WorkerAutomationTask>>,
   retainCrossContinentCandidates: boolean
 ) {
+  // Freeciv keeps a worker on its current activity until the activity ends;
+  // autoworker search is only re-entered for an idle unit. Avoid building a
+  // full path-cost map for workers that planWorkerImprovements will discard
+  // as busy anyway.
+  // @reference reference/freeciv/server/advisors/autoworkers.c:840-908
+  const planningWorkers = workers.filter(
+    worker => !worker.transportedBy && (!worker.activity || worker.activity.type === 'idle')
+  );
   const tiles = new Map<string, { x: number; y: number }>();
   for (const city of game.cityManager.getPlayerCities(playerId)) {
     for (const tile of city.workableTiles ?? []) tiles.set(`${tile.x},${tile.y}`, tile);
@@ -137,7 +145,7 @@ async function planPathAwareInfrastructureWork(
     }
   }
   const travelTurns = new Map<string, number>();
-  for (const worker of workers) {
+  for (const worker of planningWorkers) {
     const movement = Math.max(1, game.unitManager.getUnitType(worker.unitTypeId)?.movement ?? 1);
     const destinations = [...tiles.values()].filter(
       tile => worker.x !== tile.x || worker.y !== tile.y
@@ -193,7 +201,7 @@ async function planPathAwareInfrastructureWork(
   return planInfrastructureWork(
     game,
     playerId,
-    workers,
+    planningWorkers,
     hostileUnits,
     existingTasks,
     undefined,

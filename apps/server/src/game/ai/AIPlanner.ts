@@ -432,28 +432,53 @@ function directResearchWant(context: ResearchPlanningContext, tech: Technology):
   return { want, reasons };
 }
 
-function prerequisiteDistance(
-  techById: ReadonlyMap<string, Technology>,
-  goalId: string,
-  prerequisiteId: string,
-  visiting = new Set<string>()
-): number | undefined {
-  if (goalId === prerequisiteId) return 0;
-  if (visiting.has(goalId)) return undefined;
-  const goal = techById.get(goalId);
-  if (!goal) return undefined;
-  const nextVisiting = new Set(visiting).add(goalId);
-  const distances = goal.requirements
-    .map(requirement => prerequisiteDistance(techById, requirement, prerequisiteId, nextVisiting))
-    .filter((distance): distance is number => distance !== undefined);
-  return distances.length > 0 ? Math.min(...distances) + 1 : undefined;
+function buildTechnologyDependents(
+  catalogue: readonly Technology[]
+): ReadonlyMap<string, readonly string[]> {
+  const dependents = new Map<string, string[]>();
+  for (const technology of catalogue) {
+    for (const requirement of technology.requirements) {
+      const existing = dependents.get(requirement);
+      if (existing) existing.push(technology.id);
+      else dependents.set(requirement, [technology.id]);
+    }
+  }
+  return dependents;
+}
+
+/**
+ * Build each downstream goal distance once for an immediately available
+ * prerequisite. Freeciv keeps transitive technology requirements in indexed
+ * research state and iterates that index; recursively walking every path for
+ * every candidate repeats shared branches exponentially in a dense tech DAG.
+ *
+ * @reference reference/freeciv/ai/default/daitech.c:115-153
+ * @reference reference/freeciv/common/research.c:753-773
+ */
+function downstreamTechnologyDistances(
+  dependents: ReadonlyMap<string, readonly string[]>,
+  prerequisiteId: string
+): ReadonlyMap<string, number> {
+  const distances = new Map<string, number>([[prerequisiteId, 0]]);
+  const pending = [prerequisiteId];
+  for (let index = 0; index < pending.length; index++) {
+    const technologyId = pending[index];
+    const nextDistance = distances.get(technologyId)! + 1;
+    for (const dependentId of dependents.get(technologyId) ?? []) {
+      const previousDistance = distances.get(dependentId);
+      if (previousDistance !== undefined && previousDistance <= nextDistance) continue;
+      distances.set(dependentId, nextDistance);
+      pending.push(dependentId);
+    }
+  }
+  return distances;
 }
 
 function rankAvailableTechnology(
   context: ResearchPlanningContext,
   tech: Technology,
   directWants: ReadonlyMap<string, ResearchWant>,
-  techById: ReadonlyMap<string, Technology>
+  downstreamDistances: ReadonlyMap<string, number>
 ): AIChoice<Technology> {
   const direct = directWants.get(tech.id) ?? { want: 1, reasons: [] };
   let want = direct.want;
@@ -462,7 +487,7 @@ function rankAvailableTechnology(
   let bestGoalContribution = direct.want;
   for (const goal of context.catalogue) {
     if (context.researchedTechs?.has(goal.id) || goal.id === tech.id) continue;
-    const distance = prerequisiteDistance(techById, goal.id, tech.id);
+    const distance = downstreamDistances.get(goal.id);
     if (distance === undefined) continue;
     const goalWant = directWants.get(goal.id)?.want ?? 1;
     const contribution = amortize(goalWant, distance * 3) / (distance + 1);
@@ -494,10 +519,11 @@ export function rankResearch(context: ResearchPlanningContext): AIChoice<Technol
     directWants.set(tech.id, directResearchWant(context, tech));
   }
 
-  const techById = new Map(context.catalogue.map(tech => [tech.id, tech]));
-  const choices = context.available.map(tech =>
-    rankAvailableTechnology(context, tech, directWants, techById)
-  );
+  const dependents = buildTechnologyDependents(context.catalogue);
+  const choices = context.available.map(tech => {
+    const distances = downstreamTechnologyDistances(dependents, tech.id);
+    return rankAvailableTechnology(context, tech, directWants, distances);
+  });
 
   return choices.sort((a, b) => b.want - a.want || a.value.id.localeCompare(b.value.id));
 }

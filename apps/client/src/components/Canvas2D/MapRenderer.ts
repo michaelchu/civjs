@@ -276,6 +276,7 @@ export class MapRenderer {
     this.presentationEffectRenderer.setMapGeometry?.(state.map);
     this.fogRenderer.setMapGeometry?.(state.map);
     this.pathRenderer.setMapGeometry?.(state.map);
+    this.unitRenderer.beginFrame?.(state);
     this.presentationEffectRenderer.beginFrame?.(state);
 
     /**

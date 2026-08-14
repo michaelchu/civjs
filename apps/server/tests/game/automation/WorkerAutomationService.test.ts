@@ -230,6 +230,21 @@ describe('shared worker automation service', () => {
     expect(plan.assignments[0]).toMatchObject({ tile: { x: 1, y: 1 } });
   });
 
+  it('does not rebuild path maps for a worker continuing an activity', async () => {
+    const unit = worker({
+      x: 0,
+      y: 0,
+      orders: [{ type: 'mine' }, { type: 'autoSettler' }],
+      activity: { type: 'mining', turnsRemaining: 2, totalTurns: 3 },
+    });
+    const game = gameFor(unit, { x: 2, y: 2 });
+
+    const plan = await planAIInfrastructureWork(game, unit.playerId, [unit], [], {});
+
+    expect(plan.assignments).toHaveLength(0);
+    expect(game.pathfindingManager.findPath).not.toHaveBeenCalled();
+  });
+
   it('recognizes only assignment-owned move and activity orders as automated', () => {
     const task = {
       action: ActionType.BUILD_ROAD,

@@ -69,6 +69,8 @@ const mockBorderManager = {
 const mockVisibilityManager = {
   updateVisibility: jest.fn(),
   calculateVisibility: jest.fn(),
+  beginPersistenceBatch: jest.fn(),
+  endPersistenceBatch: jest.fn().mockResolvedValue(undefined),
 } as any;
 
 const mockCultureManager = {
@@ -240,11 +242,12 @@ describe('TurnManager', () => {
         ['player1', 'player2'] // player IDs
       );
       expect((turnManager as any).broadcastManager.broadcastVisibilityDelta).toHaveBeenCalledWith(
-        'test-game-id',
-        true
+        'test-game-id'
       );
       expect((turnManager as any).broadcastManager.broadcastVisibilityState).not.toHaveBeenCalled();
       expect((turnManager as any).broadcastManager.broadcastCityData).not.toHaveBeenCalled();
+      expect(mockVisibilityManager.beginPersistenceBatch).toHaveBeenCalledTimes(1);
+      expect(mockVisibilityManager.endPersistenceBatch).toHaveBeenCalledTimes(1);
 
       // Should advance to next turn
       expect(turnManager.getCurrentTurn()).toBe(2);
@@ -341,6 +344,9 @@ describe('TurnManager', () => {
       });
 
       await expect(turnManager.processTurn()).rejects.toThrow('Turn processing failed');
+
+      expect(mockVisibilityManager.beginPersistenceBatch).toHaveBeenCalledTimes(1);
+      expect(mockVisibilityManager.endPersistenceBatch).toHaveBeenCalledTimes(1);
 
       // Should not advance turn on failure
       expect(turnManager.getCurrentTurn()).toBe(1);

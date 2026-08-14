@@ -1441,8 +1441,12 @@ export class FreecivAIUnitController {
       ...routeContext,
       existingTasks: state.unitTasks,
       getNeighbors: (x, y) => game.mapManager.getNeighbors(x, y),
-      squaredDistance: (fromX, fromY, toX, toY) =>
-        game.mapManager.getTopology().squaredDistance(fromX, fromY, toX, toY),
+      getTilesWithinSquaredRadius: (x, y, radiusSquared) =>
+        game.mapManager
+          .getTopology()
+          .getPositionsWithinSquaredRadius(x, y, radiusSquared)
+          .map(position => map.tiles[position.x]?.[position.y])
+          .filter((tile): tile is (typeof map.tiles)[number][number] => Boolean(tile)),
       findPath: (unit, targetX, targetY) =>
         game.pathfindingManager.findPath(unit, targetX, targetY, {
           cacheKey: explorationCacheKey,

@@ -348,7 +348,7 @@ export class PathfindingManager {
   private readonly searchMoveCosts: Float64Array;
   private readonly searchQueueOrders: Uint32Array;
   private readonly searchOpenSet: IndexedMinHeap;
-  private readonly stepCosts = new Map<number, number>();
+  private readonly stepCosts: Float64Array;
   private searchGeneration = 0;
   private stepCostScope?: string;
   private activeSearchPolicy?: PathfindingSearchPolicy;
@@ -382,6 +382,13 @@ export class PathfindingManager {
         this.searchQueueOrders[left] - this.searchQueueOrders[right]
       );
     });
+    // Two cached costs per directed edge: ordinary transit and final-step
+    // destination legality. Freeciv's path maps use tile-indexed arrays; a
+    // dense array avoids hundreds of thousands of Map lookups as AI worker
+    // counts grow.
+    // @reference reference/freeciv/common/aicore/path_finding.c:pf_normal_map
+    this.stepCosts = new Float64Array(this.tileCount * 8 * 2);
+    this.stepCosts.fill(Number.NaN);
   }
 
   /** Starts a bounded path-cache scope for a single authoritative turn. */
@@ -1129,7 +1136,7 @@ export class PathfindingManager {
     const mapRevision = this.getMapRevision();
     if (mapRevision === undefined) {
       this.stepCostScope = undefined;
-      this.stepCosts.clear();
+      this.stepCosts.fill(Number.NaN);
       this.activeSearchPolicy = this.movementPolicy?.createPathSearchPolicy?.(unit);
       return;
     }
@@ -1142,7 +1149,7 @@ export class PathfindingManager {
     if (scope === this.stepCostScope) return;
 
     this.stepCostScope = scope;
-    this.stepCosts.clear();
+    this.stepCosts.fill(Number.NaN);
     this.activeSearchPolicy = this.movementPolicy?.createPathSearchPolicy?.(unit);
   }
 
@@ -1155,10 +1162,10 @@ export class PathfindingManager {
     toY: number,
     isDestination: boolean
   ): number {
-    const cached = this.stepCosts.get(slot);
-    if (cached !== undefined) return cached;
+    const cached = this.stepCosts[slot];
+    if (!Number.isNaN(cached)) return cached;
     const cost = this.getMovementCost(fromX, fromY, toX, toY, unit, isDestination);
-    this.stepCosts.set(slot, cost);
+    this.stepCosts[slot] = cost;
     return cost;
   }
 

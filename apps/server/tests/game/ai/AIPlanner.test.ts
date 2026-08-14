@@ -520,6 +520,42 @@ describe('Freeciv AI want planner', () => {
     expect(choice?.reason).toContain('goal:writing');
   });
 
+  it('ranks a dense shared-prerequisite graph without rewalking every dependency path', () => {
+    const root = {
+      id: 'root',
+      name: 'Root',
+      cost: 10,
+      requirements: [],
+      flags: [],
+    };
+    const catalogue: any[] = [root];
+    let previous = [root.id];
+    for (let level = 0; level < 24; level++) {
+      const current = [`left_${level}`, `right_${level}`].map(id => ({
+        id,
+        name: id,
+        cost: 10 + level,
+        requirements: previous,
+        flags: [],
+      }));
+      catalogue.push(...current);
+      previous = current.map(technology => technology.id);
+    }
+
+    const ranked = rankResearch({
+      available: [root],
+      catalogue,
+      unitTypes: {},
+      buildingTypes: {},
+      governmentTechs: new Set(),
+      militaryPressure: 0,
+      cityCount: 1,
+      researchedTechs: new Set(),
+    });
+
+    expect(ranked[0]?.value.id).toBe('root');
+  });
+
   it('propagates an advisor want through a prerequisite into the active choice', () => {
     const prerequisite = {
       id: 'alphabet',

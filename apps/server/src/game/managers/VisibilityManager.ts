@@ -72,6 +72,7 @@ export class VisibilityManager {
   private visibilityPersistence?: VisibilityPersistence;
   private persistenceQueues = new Map<string, Promise<void>>();
   private persistenceDirtyPlayers = new Set<string>();
+  private persistenceBatchDepth = 0;
   private readonly initialVisionRadiusSq = rulesetLoader.getGameParameters().init_vis_radius_sq;
 
   constructor(
@@ -437,7 +438,47 @@ export class VisibilityManager {
 
     const playerId = visibility.playerId;
     this.persistenceDirtyPlayers.add(playerId);
-    if (this.persistenceQueues.has(playerId)) return;
+    if (this.persistenceBatchDepth > 0 || this.persistenceQueues.has(playerId)) return;
+
+    this.startPersistenceDrain(playerId);
+  }
+
+  /**
+   * Defer visibility writes while an authoritative turn is being resolved.
+   * Freeciv mutates player vision in memory throughout the turn and exposes
+   * the settled result at the turn boundary. Persisting the whole explored
+   * map after every AI unit step caused hundreds of transactions per turn.
+   *
+   * @reference reference/freeciv/server/srv_main.c:begin_turn()
+   * @reference reference/freeciv/server/maphand.c:send_all_known_tiles()
+   */
+  public beginPersistenceBatch(): void {
+    this.persistenceBatchDepth++;
+  }
+
+  /** Flush the latest visibility snapshot once for each dirty player. */
+  public async endPersistenceBatch(): Promise<void> {
+    if (this.persistenceBatchDepth === 0) return;
+    this.persistenceBatchDepth--;
+    if (this.persistenceBatchDepth > 0) return;
+    await this.flushPersistence();
+  }
+
+  public async flushPersistence(): Promise<void> {
+    if (!this.visibilityPersistence || this.persistenceBatchDepth > 0) return;
+
+    while (this.persistenceDirtyPlayers.size > 0 || this.persistenceQueues.size > 0) {
+      for (const playerId of this.persistenceDirtyPlayers) {
+        if (!this.persistenceQueues.has(playerId)) this.startPersistenceDrain(playerId);
+      }
+      const pending = [...this.persistenceQueues.values()];
+      if (pending.length === 0) return;
+      await Promise.all(pending);
+    }
+  }
+
+  private startPersistenceDrain(playerId: string): void {
+    if (!this.visibilityPersistence || this.persistenceQueues.has(playerId)) return;
 
     // Persist the latest authoritative snapshot, coalescing any number of
     // visibility updates that arrive while the database write is in flight.
@@ -476,7 +517,13 @@ export class VisibilityManager {
       .finally(() => {
         this.persistenceQueues.delete(playerId);
         const current = this.playerVisibility.get(playerId);
-        if (current && this.persistenceDirtyPlayers.has(playerId)) this.queuePersistence(current);
+        if (
+          current &&
+          this.persistenceDirtyPlayers.has(playerId) &&
+          this.persistenceBatchDepth === 0
+        ) {
+          this.startPersistenceDrain(playerId);
+        }
       });
     this.persistenceQueues.set(playerId, drain);
   }
@@ -652,6 +699,7 @@ export class VisibilityManager {
   public cleanup(): void {
     this.playerVisibility.clear();
     this.persistenceDirtyPlayers.clear();
+    this.persistenceBatchDepth = 0;
     logger.debug(`Visibility manager cleaned up for game ${this.gameId}`);
   }
 }

@@ -22,6 +22,7 @@ type RuntimeCallbacks = Pick<
   | 'broadcastUnitInfo'
   | 'broadcastHutEvent'
   | 'broadcastMapChanged'
+  | 'broadcastTileChanged'
 >;
 
 export function createRuntimeUnitManager(input: {

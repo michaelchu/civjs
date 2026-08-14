@@ -26,103 +26,122 @@ import { logger } from '@utils/logger';
 export class FreecivAIOrchestrator {
   private readonly playerController: FreecivAIPlayerController;
   private readonly stateStore: FreecivAIStateStore;
+  private readonly hostilityPolicy: DiplomacyHostilityPolicy;
+  private readonly lifecyclePersistenceBatches = new Set<string>();
+  private readonly pendingLifecycleStates = new Map<
+    string,
+    { gameId: string; playerId: string; state: FreecivAIState }
+  >();
 
   constructor(
     diplomacyManager: DiplomacyManager,
     hostilityPolicy?: DiplomacyHostilityPolicy,
     databaseProvider?: DatabaseProvider
   ) {
-    this.playerController = new FreecivAIPlayerController(diplomacyManager, hostilityPolicy);
+    this.hostilityPolicy = hostilityPolicy ?? new DiplomacyHostilityPolicy(diplomacyManager);
+    this.playerController = new FreecivAIPlayerController(diplomacyManager, this.hostilityPolicy);
     this.stateStore = new FreecivAIStateStore(databaseProvider);
   }
 
   async processTurn(gameId: string, game: GameInstance): Promise<number> {
     if (game.state !== 'active') return 0;
 
-    game.pathfindingManager.beginTurn?.(game.currentTurn);
-    game.pathfindingManager.resetDiagnostics?.();
-    let actions = 0;
-    for (const player of game.players.values()) {
-      if (!player.isAI) continue;
-      const state = assertAIState(player.aiState);
-      player.aiState = state as unknown as Record<string, unknown>;
-      if (typeof game.currentTurn === 'number' && state.lastProcessedTurn === game.currentTurn) {
-        continue;
-      }
-      if (typeof game.currentTurn === 'number' && state.inProgressTurn === game.currentTurn) {
-        state.lastProcessedTurn = game.currentTurn;
-        state.lastDecisionCount = 0;
-        delete state.inProgressTurn;
+    this.lifecyclePersistenceBatches.add(gameId);
+    try {
+      game.pathfindingManager.beginTurn?.(game.currentTurn);
+      game.pathfindingManager.resetDiagnostics?.();
+      let actions = 0;
+      for (const player of game.players.values()) {
+        if (!player.isAI) continue;
+        const state = assertAIState(player.aiState);
+        player.aiState = state as unknown as Record<string, unknown>;
+        if (typeof game.currentTurn === 'number' && state.lastProcessedTurn === game.currentTurn) {
+          continue;
+        }
+        if (typeof game.currentTurn === 'number' && state.inProgressTurn === game.currentTurn) {
+          state.lastProcessedTurn = game.currentTurn;
+          state.lastDecisionCount = 0;
+          delete state.inProgressTurn;
+          await this.stateStore.save(gameId, player.id, state);
+          continue;
+        }
+        state.inProgressTurn = game.currentTurn;
         await this.stateStore.save(gameId, player.id, state);
-        continue;
-      }
-      state.inProgressTurn = game.currentTurn;
-      await this.stateStore.save(gameId, player.id, state);
-      game.visibilityManager.updatePlayerVisibility(player.id);
-      const playerStartedAt = Date.now();
-      const budget = new AIPlanningBudget();
-      const pathfindingBefore = game.pathfindingManager.getDiagnostics?.();
-      let playerActions = 0;
-      game.pathfindingManager.setPlanningBudget?.(budget);
-      try {
-        playerActions = await this.playerController.processPlayer(
+        game.visibilityManager.updatePlayerVisibility(player.id);
+        const playerStartedAt = Date.now();
+        const budget = new AIPlanningBudget();
+        const pathfindingBefore = game.pathfindingManager.getDiagnostics?.();
+        let playerActions = 0;
+        game.pathfindingManager.setPlanningBudget?.(budget);
+        try {
+          playerActions = await this.hostilityPolicy.withSnapshotScope(
+            gameId,
+            player.id,
+            async () =>
+              this.playerController.processPlayer(
+                gameId,
+                game,
+                player.id,
+                state,
+                (label, decision) =>
+                  this.attempt(state, game, player.id, game.currentTurn ?? 0, label, decision)
+              )
+          );
+        } finally {
+          game.pathfindingManager.setPlanningBudget?.();
+        }
+        const durationMs = Date.now() - playerStartedAt;
+        const pathfindingAfter = game.pathfindingManager.getDiagnostics?.();
+        const pathfinding = this.diagnosticsDelta(pathfindingBefore, pathfindingAfter);
+        const budgetSnapshot = budget.snapshot();
+        state.recentProcessingDiagnostics = {
+          turn: game.currentTurn ?? 0,
+          durationMs,
+          pathfinding,
+          budget: budgetSnapshot,
+        };
+        logger.info('CivJS AI player turn completed', {
           gameId,
+          playerId: player.id,
+          turn: game.currentTurn ?? 0,
+          durationMs,
+          actions: playerActions,
+          pathfinding,
+          budget: budgetSnapshot,
+        });
+        actions += playerActions;
+        state.recentPlanSnapshot = {
+          turn: game.currentTurn ?? 0,
+          candidateScores: this.candidateScores(state),
+          selectedActions: this.selectedActions(game, player.id),
+          unitTasks: this.unitTasks(state),
+          ...(state.treasuryGoal ? { treasuryGoal: { ...state.treasuryGoal } } : {}),
+        };
+        state.lastProcessedTurn = game.currentTurn;
+        state.lastDecisionCount = playerActions;
+        delete state.inProgressTurn;
+        player.aiState = state as unknown as Record<string, unknown>;
+        await this.attempt(
+          state,
           game,
           player.id,
-          state,
-          (label, decision) =>
-            this.attempt(state, game, player.id, game.currentTurn ?? 0, label, decision)
+          game.currentTurn ?? 0,
+          'state persistence',
+          async () => {
+            await this.stateStore.save(gameId, player.id, state);
+            return 0;
+          }
         );
-      } finally {
-        game.pathfindingManager.setPlanningBudget?.();
+        this.pendingLifecycleStates.delete(this.lifecycleStateKey(gameId, player.id));
+        // The persistence trace remains in memory and is included in the next
+        // checkpoint. Writing the entire AI state a second time here only to
+        // persist telemetry doubles this phase's final database round trip.
       }
-      const durationMs = Date.now() - playerStartedAt;
-      const pathfindingAfter = game.pathfindingManager.getDiagnostics?.();
-      const pathfinding = this.diagnosticsDelta(pathfindingBefore, pathfindingAfter);
-      const budgetSnapshot = budget.snapshot();
-      state.recentProcessingDiagnostics = {
-        turn: game.currentTurn ?? 0,
-        durationMs,
-        pathfinding,
-        budget: budgetSnapshot,
-      };
-      logger.info('CivJS AI player turn completed', {
-        gameId,
-        playerId: player.id,
-        turn: game.currentTurn ?? 0,
-        durationMs,
-        actions: playerActions,
-        pathfinding,
-        budget: budgetSnapshot,
-      });
-      actions += playerActions;
-      state.recentPlanSnapshot = {
-        turn: game.currentTurn ?? 0,
-        candidateScores: this.candidateScores(state),
-        selectedActions: this.selectedActions(game, player.id),
-        unitTasks: this.unitTasks(state),
-        ...(state.treasuryGoal ? { treasuryGoal: { ...state.treasuryGoal } } : {}),
-      };
-      state.lastProcessedTurn = game.currentTurn;
-      state.lastDecisionCount = playerActions;
-      delete state.inProgressTurn;
-      player.aiState = state as unknown as Record<string, unknown>;
-      await this.attempt(
-        state,
-        game,
-        player.id,
-        game.currentTurn ?? 0,
-        'state persistence',
-        async () => {
-          await this.stateStore.save(gameId, player.id, state);
-          return 0;
-        }
-      );
-      // The persistence attempt itself is traced after its write completes;
-      // save once more so restart recovery sees that final trace entry too.
-      await this.stateStore.save(gameId, player.id, state);
+      return actions;
+    } finally {
+      this.lifecyclePersistenceBatches.delete(gameId);
+      await this.flushLifecyclePersistence(gameId);
     }
-    return actions;
   }
 
   onUnitLifecycle(gameId: string, game: GameInstance, event: UnitLifecycleEvent): void {
@@ -260,13 +279,7 @@ export class FreecivAIOrchestrator {
         const state = assertAIState(player.aiState);
         if (!mutate(state, player.id)) continue;
         player.aiState = state as unknown as Record<string, unknown>;
-        void this.stateStore.save(gameId, player.id, state).catch(error => {
-          logger.warn('CivJS AI lifecycle state persistence failed', {
-            gameId,
-            playerId: player.id,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        });
+        this.queueLifecyclePersistence(gameId, player.id, state);
       } catch (error) {
         logger.warn('CivJS AI lifecycle mutation failed', {
           gameId,
@@ -275,6 +288,62 @@ export class FreecivAIOrchestrator {
         });
       }
     }
+  }
+
+  /**
+   * Freeciv mutates unit and diplomacy AI data in memory during a turn and
+   * serializes the settled state at a save boundary. Movement callbacks can
+   * touch the same AI task many times, so retain only the latest state while
+   * the authoritative AI phase is active instead of cloning and queueing one
+   * player-row update per callback.
+   *
+   * @reference reference/freeciv/ai/default/daiunit.c:dai_unit_save
+   * @reference reference/freeciv/server/srv_main.c:begin_turn
+   */
+  private queueLifecyclePersistence(gameId: string, playerId: string, state: FreecivAIState): void {
+    if (this.lifecyclePersistenceBatches.has(gameId)) {
+      this.pendingLifecycleStates.set(this.lifecycleStateKey(gameId, playerId), {
+        gameId,
+        playerId,
+        state,
+      });
+      return;
+    }
+    void this.persistLifecycleState(gameId, playerId, state);
+  }
+
+  private async flushLifecyclePersistence(gameId: string): Promise<void> {
+    const pending = Array.from(this.pendingLifecycleStates.entries())
+      .filter(([, entry]) => entry.gameId === gameId)
+      .map(([key, entry]) => {
+        this.pendingLifecycleStates.delete(key);
+        return entry;
+      });
+    await Promise.all(
+      pending.map(({ gameId, playerId, state }) =>
+        this.persistLifecycleState(gameId, playerId, state)
+      )
+    );
+  }
+
+  private async persistLifecycleState(
+    gameId: string,
+    playerId: string,
+    state: FreecivAIState
+  ): Promise<void> {
+    try {
+      await this.stateStore.save(gameId, playerId, state);
+    } catch (error) {
+      logger.warn('CivJS AI lifecycle state persistence failed', {
+        gameId,
+        playerId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private lifecycleStateKey(gameId: string, playerId: string): string {
+    return `${gameId}:${playerId}`;
   }
 
   private async attempt(

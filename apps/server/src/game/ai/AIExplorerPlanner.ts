@@ -42,8 +42,8 @@ export interface ExplorerPlanningContext {
   existingTasks: Readonly<Record<string, AIUnitTask>>;
   getType: (unitTypeId: string) => UnitType | undefined;
   getNeighbors: (x: number, y: number) => MapTile[];
+  getTilesWithinSquaredRadius: (x: number, y: number, radiusSquared: number) => MapTile[];
   distance: (fromX: number, fromY: number, toX: number, toY: number) => number;
-  squaredDistance: (fromX: number, fromY: number, toX: number, toY: number) => number;
   findPath: (unit: Unit, targetX: number, targetY: number) => Promise<PathfindingResult>;
   findPaths?: (
     unit: Unit,
@@ -86,11 +86,12 @@ function tilesInVision(
   center: MapTile,
   visionRadiusSquared: number
 ): MapTile[] {
-  return context.map.tiles
-    .flat()
-    .filter(
-      tile => context.squaredDistance(center.x, center.y, tile.x, tile.y) <= visionRadiusSquared
-    );
+  // Freeciv's circle_iterate() only visits the coordinate square intersecting
+  // the requested radius. Scanning the whole map here made explorer scoring
+  // O(map tiles squared) because this runs once for every candidate tile.
+  // @reference reference/freeciv/common/map.h:396-424
+  // @reference reference/freeciv/server/advisors/autoexplorer.c:238-262
+  return context.getTilesWithinSquaredRadius(center.x, center.y, visionRadiusSquared);
 }
 
 function knownHutBonus(context: ExplorerPlanningContext, tile: MapTile): number {
@@ -123,9 +124,9 @@ export function explorationDesirability(
     const native = likelyNative(context, type, visible);
     if (!context.exploredTiles.has(tileKey(visible.x, visible.y))) {
       unknown++;
-      desirable += (native * SAME_TERRAIN_SCORE + (100 - native) * DIFFERENT_TERRAIN_SCORE) / 100;
+      desirable += native * SAME_TERRAIN_SCORE + (100 - native) * DIFFERENT_TERRAIN_SCORE;
     } else if (context.distance(tile.x, tile.y, visible.x, visible.y) === 1) {
-      desirable += ((100 - native) * KNOWN_DIFFERENT_TERRAIN_SCORE) / 100;
+      desirable += (100 - native) * KNOWN_DIFFERENT_TERRAIN_SCORE;
     }
   }
   if (unknown === 0) desirable = 0;

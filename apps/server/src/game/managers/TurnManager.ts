@@ -422,8 +422,15 @@ export class TurnManager {
       void this.renewTurnProcessingLease(processingTurn);
     }, 30_000);
     leaseHeartbeat.unref();
+    let visibilityBatchActive = false;
 
     try {
+      // AI movement can recalculate the same player's visibility many times.
+      // Keep those authoritative changes in memory and persist one settled
+      // snapshot per player before advancing the turn.
+      this.visibilityManager.beginPersistenceBatch?.();
+      visibilityBatchActive = true;
+
       // Clear any existing timer
       if (this.turnTimer) {
         clearTimeout(this.turnTimer);
@@ -471,6 +478,8 @@ export class TurnManager {
         // produce authoritative events after the phase service flushes its
         // queue. Persist those events before finalizing or advancing the turn.
         await this.gameEventService.processQueuedEvents(this.currentTurn, this.currentYear);
+        await this.visibilityManager.endPersistenceBatch?.();
+        visibilityBatchActive = false;
         await this.completeTurnRecord(phaseResult);
         if (gameEnded) {
           this.clearTurnTimer();
@@ -485,7 +494,7 @@ export class TurnManager {
         // Production, growth, research reveals, visibility, units, and borders
         // are all part of the cached player projection. One incremental pass
         // replaces the old full city broadcast plus full playermap snapshot.
-        this.broadcastManager.broadcastVisibilityDelta?.(this.gameId, true);
+        this.broadcastManager.broadcastVisibilityDelta?.(this.gameId);
       } else {
         logger.error('Turn processing failed', {
           gameId: this.gameId,
@@ -504,6 +513,7 @@ export class TurnManager {
       throw error;
     } finally {
       clearInterval(leaseHeartbeat);
+      if (visibilityBatchActive) await this.visibilityManager.endPersistenceBatch?.();
       await this.releaseTurnProcessingLease(processingTurn);
     }
   }

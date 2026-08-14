@@ -136,6 +136,7 @@ function createPipelineDoubles(
     },
     unitRenderer: {
       setMapGeometry: vi.fn(),
+      beginFrame: vi.fn(),
       renderUnitLayerEntries: vi.fn(runAfterTile),
       renderNonFocusedUnitLayerEntries: vi.fn(runAfterTile),
       renderFocusedUnitLayerEntries: vi.fn(),
@@ -889,6 +890,64 @@ describe('MapRenderer live-state updates', () => {
     });
     expect(renderer.hasActiveMovementAnimations()).toBe(false);
     expect(context.drawImage).toHaveBeenCalledWith(unitSprite, 115, 34);
+  });
+
+  it('does not keep the map RAF loop alive for off-screen unit movement', () => {
+    const context = createContext();
+    const unitSprite = {} as HTMLImageElement;
+    const renderer = new UnitRenderer(
+      context,
+      createSquareUnitTileset((key: string) => (key === 'u.warriors' ? unitSprite : null)) as never,
+      96,
+      48
+    );
+    const unit: Unit = {
+      id: 'offscreen-warrior',
+      playerId: 'player-1',
+      unitTypeId: 'warriors',
+      x: 100,
+      y: 100,
+      hp: 100,
+      movesLeft: 1,
+      veteranLevel: 0,
+    };
+
+    renderer.renderUnits(createUnitState(unit));
+    renderer.renderUnits(createUnitState({ ...unit, x: 101 }));
+
+    expect(renderer.hasActiveMovementAnimations()).toBe(false);
+    expect(context.drawImage).not.toHaveBeenCalled();
+  });
+
+  it('does not revive skipped off-screen movement after scrolling', () => {
+    const context = createContext();
+    const unitSprite = {} as HTMLImageElement;
+    const renderer = new UnitRenderer(
+      context,
+      createSquareUnitTileset((key: string) => (key === 'u.warriors' ? unitSprite : null)) as never,
+      96,
+      48
+    );
+    const unit: Unit = {
+      id: 'stale-warrior',
+      playerId: 'player-1',
+      unitTypeId: 'warriors',
+      x: 100,
+      y: 100,
+      hp: 100,
+      movesLeft: 1,
+      veteranLevel: 0,
+    };
+    renderer.renderUnits(createUnitState(unit));
+    renderer.renderUnits(createUnitState({ ...unit, x: 101 }));
+    renderer.renderUnits(
+      createUnitState(
+        { ...unit, x: 101 },
+        { viewport: { x: 0, y: 4800, width: 10000, height: 10000 } }
+      )
+    );
+
+    expect(renderer.hasActiveMovementAnimations()).toBe(false);
   });
 
   it('does not start a full-map RAF loop for selection pulsing', () => {

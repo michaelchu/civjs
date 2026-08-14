@@ -93,6 +93,11 @@ export function rankThreatTechnologyWants(context: {
   canBuildNow: (cityId: string, unitTypeId: string) => boolean;
 }): Map<string, number> {
   const wants = new Map<string, number>();
+  // Freeciv's defender-tech pass is driven by an observed attacker. Without
+  // one there is no defender comparison to make, so avoid evaluating every
+  // unit type against every city only to return an empty map.
+  // @reference reference/freeciv/ai/default/daitech.c:dai_wants_defender_against
+  if (context.cities.length === 0 || context.hostileUnits.length === 0) return wants;
   const knownTechs = new Set([...context.researchedTechs].map(normalizeId));
   const types = Object.values(context.unitTypes);
   const currentDefense = types.reduce((best, type) => {

@@ -16,11 +16,13 @@ describe('GameBroadcastManager visibility sync', () => {
   let manager: GameBroadcastManager;
   let availableWorkerActions: string[];
   let spectatorSockets: Set<string>;
+  let playerOneTechs: string[];
 
   beforeEach(() => {
     emitted = [];
     availableWorkerActions = [];
     spectatorSockets = new Set(['spectator-socket']);
+    playerOneTechs = ['iron_working'];
     const io = {
       to: jest.fn((room: string) => ({
         emit: (event: string, data: any) => emitted.push({ room, event, data }),
@@ -132,7 +134,7 @@ describe('GameBroadcastManager visibility sync', () => {
       cityManager: { getAllCities: () => [] },
       borderManager: { getAllTileOwnership: () => [] },
       researchManager: {
-        getResearchedTechs: (playerId: string) => (playerId === playerOne ? ['iron_working'] : []),
+        getResearchedTechs: (playerId: string) => (playerId === playerOne ? playerOneTechs : []),
       },
     };
     manager.setGamesReference(new Map([[gameId, game as any]]));
@@ -384,6 +386,17 @@ describe('GameBroadcastManager visibility sync', () => {
     expect(emitted.some(emission => emission.room === `game:${gameId}:spectators`)).toBe(false);
   });
 
+  it('does not rebuild the spectator map for an ordinary primed visibility delta', () => {
+    const projectTiles = jest.spyOn(manager as any, 'getSpectatorMapTiles');
+    manager.broadcastVisibilityState(gameId);
+    expect(projectTiles).toHaveBeenCalledTimes(1);
+
+    projectTiles.mockClear();
+    manager.broadcastVisibilityDelta(gameId);
+
+    expect(projectTiles).not.toHaveBeenCalled();
+  });
+
   it('reuses each visibility calculation for the matching city delta', () => {
     spectatorSockets.clear();
     const game = (manager as any).games.get(gameId);
@@ -410,6 +423,64 @@ describe('GameBroadcastManager visibility sync', () => {
     expect(
       emitted.some(
         emission => emission.event === 'packet' && emission.data.type === PacketType.TILE_INFO
+      )
+    ).toBe(false);
+  });
+
+  it('rescans explored tiles only for a player whose research visibility changed', () => {
+    spectatorSockets.clear();
+    manager.broadcastVisibilityState(gameId);
+    const createTileInfo = jest.spyOn(manager as any, 'createTileInfo');
+
+    playerOneTechs = ['iron_working', 'mining'];
+    manager.broadcastVisibilityDelta(gameId);
+
+    // Player one has two explored tiles; player two retains the ordinary
+    // one-tile visibility delta. A whole-map pass for both would visit four.
+    expect(createTileInfo).toHaveBeenCalledTimes(3);
+  });
+
+  it('projects a changed worker tile without recomputing the full playermap', () => {
+    manager.broadcastVisibilityState(gameId);
+    emitted = [];
+    const game = (manager as any).games.get(gameId);
+    game.visibilityManager.updatePlayerVisibility.mockClear();
+    game.mapManager.getMapData = () => ({
+      width: 2,
+      height: 1,
+      tiles: [
+        [
+          {
+            terrain: 'grassland',
+            elevation: 0,
+            riverMask: 0,
+            hasRoad: true,
+            improvements: ['road'],
+          },
+        ],
+        [{ terrain: 'hills', elevation: 0, riverMask: 0 }],
+      ],
+    });
+    const createTileInfo = jest.spyOn(manager as any, 'createTileInfo');
+
+    manager.broadcastTileChanged(gameId, 0, 0);
+
+    expect(game.visibilityManager.updatePlayerVisibility).not.toHaveBeenCalled();
+    expect(createTileInfo).toHaveBeenCalledTimes(3);
+    const playerTilePackets = emitted.filter(
+      emission =>
+        emission.event === 'packet' &&
+        emission.room.startsWith('player:') &&
+        emission.data.type === PacketType.TILE_INFO
+    );
+    expect(playerTilePackets).toHaveLength(1);
+    expect(playerTilePackets[0]?.data.data).toMatchObject({
+      fullSnapshot: false,
+      tiles: [expect.objectContaining({ x: 0, y: 0, hasRoad: true })],
+    });
+    expect(
+      emitted.some(
+        emission => emission.event === 'packet' && emission.data.type === PacketType.UNIT_INFO
       )
     ).toBe(false);
   });

@@ -73,9 +73,11 @@ export class RulesetLoader {
   private governmentsCache = new Map<string, GovernmentsRulesetFile>();
   private gameRulesCache = new Map<string, GameRulesetFile>();
   private effectsCache = new Map<string, EffectsRulesetFile>();
+  private installedRulesetCache = new Set<string>();
   private nationsCache = new Map<string, NationsRulesetFile>();
   private citiesCache = new Map<string, CitiesRulesetFile>();
   private actionsCache = new Map<string, ActionsRulesetFile>();
+  private actionEnablersByNameCache = new Map<string, Map<string, ActionEnabler[]>>();
   private extrasCache = new Map<string, ExtrasRulesetFile>();
   private stylesCache = new Map<string, StylesRulesetFile>();
   private readonly baseDir: string;
@@ -117,9 +119,15 @@ export class RulesetLoader {
 
   private requireInstalledRuleset(rulesetName: string): string {
     const supportedRuleset = requireSupportedRuleset(rulesetName);
+    if (this.installedRulesetCache.has(supportedRuleset)) return supportedRuleset;
     if (!this.hasCompleteRulesetData(supportedRuleset)) {
       throw new Error(`Ruleset '${supportedRuleset}' is not installed completely.`);
     }
+    // Ruleset files are immutable runtime data. Freeciv validates them once
+    // during ruleset loading; repeating eight filesystem probes for every
+    // action/effect lookup creates substantial turn-time allocation pressure.
+    // @reference reference/freeciv/server/ruleset/ruleload.c:7934-7998
+    this.installedRulesetCache.add(supportedRuleset);
     return supportedRuleset;
   }
 
@@ -866,10 +874,20 @@ export class RulesetLoader {
   }
 
   getActionEnablersFor(action: string, rulesetName: string = DEFAULT_RULESET): ActionEnabler[] {
+    rulesetName = this.requireInstalledRuleset(rulesetName);
     const normalizedAction = this.normalizeRuleName(action);
-    return this.getActionEnablers(rulesetName).filter(
-      enabler => this.normalizeRuleName(enabler.action) === normalizedAction
-    );
+    let index = this.actionEnablersByNameCache.get(rulesetName);
+    if (!index) {
+      index = new Map();
+      for (const enabler of this.getActionEnablers(rulesetName)) {
+        const key = this.normalizeRuleName(enabler.action);
+        const matches = index.get(key);
+        if (matches) matches.push(enabler);
+        else index.set(key, [enabler]);
+      }
+      this.actionEnablersByNameCache.set(rulesetName, index);
+    }
+    return index.get(normalizedAction) ?? [];
   }
 
   loadExtrasRuleset(rulesetName: string = DEFAULT_RULESET): ExtrasRulesetFile {
@@ -1399,6 +1417,8 @@ export class RulesetLoader {
     this.nationsCache.clear();
     this.citiesCache.clear();
     this.actionsCache.clear();
+    this.actionEnablersByNameCache.clear();
+    this.installedRulesetCache.clear();
     this.extrasCache.clear();
     this.stylesCache.clear();
   }

@@ -41,6 +41,8 @@ interface FogTile {
 export class FogRenderer extends BaseRenderer {
   private currentWrapId = 0;
   private currentTopologyId = 0;
+  private knowledgeTilesSource: RenderState['map']['tiles'] | null = null;
+  private knowledgeByCoordinate = new Map<string, Knowledge>();
 
   render(state: RenderState): void {
     const mapWidth = state.map.xsize ?? state.map.width;
@@ -49,19 +51,22 @@ export class FogRenderer extends BaseRenderer {
     this.setMapGeometry(state.map);
     this.currentWrapId = state.map.wrap_id ?? 0;
     this.currentTopologyId = state.map.topology_id ?? 0;
-    const knowledgeByCoordinate = new Map<string, Knowledge>();
-    for (const rawTile of Object.values(state.map.tiles)) {
-      const tile = rawTile as FogTile | undefined;
-      if (tile?.x === undefined || tile.y === undefined) continue;
-      knowledgeByCoordinate.set(
-        this.coordinateKey(tile.x, tile.y),
-        this.normalizeKnowledge(tile.known, tile.visible)
-      );
+    if (this.knowledgeTilesSource !== state.map.tiles) {
+      this.knowledgeTilesSource = state.map.tiles;
+      this.knowledgeByCoordinate = new Map();
+      for (const rawTile of Object.values(state.map.tiles)) {
+        const tile = rawTile as FogTile | undefined;
+        if (tile?.x === undefined || tile.y === undefined) continue;
+        this.knowledgeByCoordinate.set(
+          this.coordinateKey(tile.x, tile.y),
+          this.normalizeKnowledge(tile.known, tile.visible)
+        );
+      }
     }
 
     const corners = isIsometricTopology(state.map.topology_id ?? 0)
-      ? this.getReferencePainterCorners(state, mapWidth, mapHeight, knowledgeByCoordinate)
-      : this.getRectangularCorners(state, mapWidth, mapHeight, knowledgeByCoordinate);
+      ? this.getReferencePainterCorners(state, mapWidth, mapHeight, this.knowledgeByCoordinate)
+      : this.getRectangularCorners(state, mapWidth, mapHeight, this.knowledgeByCoordinate);
 
     for (const corner of corners) {
       const { states, screen } = corner;

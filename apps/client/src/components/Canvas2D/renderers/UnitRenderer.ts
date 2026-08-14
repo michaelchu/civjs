@@ -75,13 +75,24 @@ export class UnitRenderer extends BaseRenderer {
   private cityPositions = new Set<string>();
   private animationUnitsSource: RenderState['units'] | null = null;
   private animationReducedMotion = false;
+  private sampledMovementAnimationThisFrame = false;
+
+  /**
+   * Start one map paint. Movement redraws are only useful when this paint
+   * actually samples an animated unit; off-screen AI movement must not keep a
+   * full-map requestAnimationFrame loop alive.
+   */
+  beginFrame(state: RenderState): void {
+    this.sampledMovementAnimationThisFrame = false;
+    this.updateMovementAnimations(state);
+  }
 
   /**
    * Render all units visible in the viewport with proper stacking behavior.
    * Only renders the first unit on each tile (freeciv-web stacking behavior).
    */
   renderUnits(state: RenderState, visibleTiles?: Tile[]): void {
-    this.updateMovementAnimations(state);
+    this.beginFrame(state);
     this.squareAnimationSamples.clear();
     const prepared = this.prepareUnitLayer(state);
     const orderedTiles =
@@ -227,6 +238,8 @@ export class UnitRenderer extends BaseRenderer {
 
   private updateMovementAnimations(state: RenderState): void {
     const reducedMotion = Boolean(state.reducedMotion);
+    const now = performance.now();
+    this.pruneExpiredMovementAnimations(now);
     if (
       this.animationUnitsSource === state.units &&
       this.animationReducedMotion === reducedMotion
@@ -236,7 +249,6 @@ export class UnitRenderer extends BaseRenderer {
     this.animationUnitsSource = state.units;
     this.animationReducedMotion = reducedMotion;
 
-    const now = performance.now();
     const activeIds = new Set(Object.keys(state.units));
     if (reducedMotion) {
       this.movementAnimations.clear();
@@ -250,7 +262,8 @@ export class UnitRenderer extends BaseRenderer {
       } else if (
         !state.reducedMotion &&
         previous &&
-        (previous.x !== unit.x || previous.y !== unit.y)
+        (previous.x !== unit.x || previous.y !== unit.y) &&
+        this.isInViewport(unit.x, unit.y, state.viewport)
       ) {
         const current = this.movementAnimations.get(unit.id);
         const segments = current
@@ -289,6 +302,18 @@ export class UnitRenderer extends BaseRenderer {
         this.lastTransportedState.delete(unitId);
         this.movementAnimations.delete(unitId);
       }
+    }
+  }
+
+  /**
+   * Native movement is elapsed-time based. Square ISO normally consumes its
+   * eight reference samples while visible, but still needs an elapsed-time
+   * ceiling when a unit never enters the painter walk.
+   */
+  private pruneExpiredMovementAnimations(now: number): void {
+    for (const [unitId, animation] of this.movementAnimations) {
+      const duration = Math.max(1, animation.segments.length) * this.movementDurationMs;
+      if (now - animation.startedAt >= duration) this.movementAnimations.delete(unitId);
     }
   }
 
@@ -494,6 +519,7 @@ export class UnitRenderer extends BaseRenderer {
         this.movementAnimations.delete(unit.id);
         return { x: 0, y: 0 };
       }
+      this.sampledMovementAnimationThisFrame = true;
       segment.remainingSteps -= 1;
       const step = Math.floor((segment.remainingSteps + 2) / 3);
       const from = this.mapToScreen(segment.fromX, segment.fromY, viewport);
@@ -517,6 +543,7 @@ export class UnitRenderer extends BaseRenderer {
       this.movementAnimations.delete(unit.id);
       return { x: 0, y: 0 };
     }
+    this.sampledMovementAnimationThisFrame = true;
     const segment = animation.segments[segmentIndex];
     const progress = Math.min(1, (elapsed % this.movementDurationMs) / this.movementDurationMs);
     const easedProgress = 1 - Math.pow(1 - progress, 3);
@@ -530,7 +557,7 @@ export class UnitRenderer extends BaseRenderer {
   }
 
   hasActiveMovementAnimations(): boolean {
-    return this.movementAnimations.size > 0;
+    return this.sampledMovementAnimationThisFrame;
   }
 
   /**

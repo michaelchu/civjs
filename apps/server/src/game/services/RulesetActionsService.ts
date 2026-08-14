@@ -69,6 +69,9 @@ const CIV2CIV3_UNIT_ACTIONS: ReadonlyArray<{
  * satisfy an enabler.
  */
 export class RulesetActionsService {
+  private readonly diplomatActionsCache = new Map<string, string[]>();
+  private readonly unitActionsCache = new Map<string, ActionType[]>();
+
   constructor(
     private readonly loader: Pick<RulesetLoader, 'getActionEnablersFor'> = rulesetLoader,
     private readonly rulesetName: string = DEFAULT_RULESET,
@@ -77,8 +80,16 @@ export class RulesetActionsService {
 
   getDiplomatActions(actor: UnitType | Iterable<string>): string[] {
     const unitType = this.asUnitType(actor);
+    const cacheKey = unitType
+      ? `unit:${unitType.id}`
+      : `flags:${Array.from(actor as Iterable<string>)
+          .sort()
+          .join('\0')}`;
+    const cached = this.diplomatActionsCache.get(cacheKey);
+    if (cached) return cached;
     const flags = new Set(unitType ? (unitType.flags ?? []) : (actor as Iterable<string>));
-    return CLIENT_ACTIONS.filter(action =>
+    const unitClassFlags = new Set(unitType?.rulesetUnitClassFlags ?? []);
+    const actions = CLIENT_ACTIONS.filter(action =>
       action.upstream.some(upstream =>
         this.loader
           .getActionEnablersFor(upstream, this.rulesetName)
@@ -87,12 +98,14 @@ export class RulesetActionsService {
               enabler,
               flags,
               unitType?.rulesetUnitClass,
-              new Set(unitType?.rulesetUnitClassFlags ?? []),
+              unitClassFlags,
               unitType?.id
             )
           )
       )
     ).map(action => action.id);
+    this.diplomatActionsCache.set(cacheKey, actions);
+    return actions;
   }
 
   /**
@@ -100,8 +113,11 @@ export class RulesetActionsService {
    * are still checked by UnitManager when the command executes.
    */
   getUnitActions(unitType: UnitType): ActionType[] {
+    const cached = this.unitActionsCache.get(unitType.id);
+    if (cached) return cached;
     const flags = new Set(unitType.flags ?? []);
     const unitClass = unitType.rulesetUnitClass;
+    const unitClassFlags = new Set(unitType.rulesetUnitClassFlags);
     const actions = CIV2CIV3_UNIT_ACTIONS.filter(action => {
       if (action.id === ActionType.BUILD_AIRBASE && !flags.has('Airbase')) return false;
       if (action.id === ActionType.UPGRADE_UNIT && !unitType.obsolete_by) return false;
@@ -109,13 +125,7 @@ export class RulesetActionsService {
         this.loader
           .getActionEnablersFor(upstream, this.rulesetName)
           .some(enabler =>
-            this.matchesStaticActorFacts(
-              enabler,
-              flags,
-              unitClass,
-              new Set(unitType.rulesetUnitClassFlags),
-              unitType.id
-            )
+            this.matchesStaticActorFacts(enabler, flags, unitClass, unitClassFlags, unitType.id)
           )
       );
     }).map(action => action.id);
@@ -125,6 +135,7 @@ export class RulesetActionsService {
     if (unitType.bombardRate > 0) actions.push(ActionType.BOMBARD);
     if (unitType.movement > 0) actions.push(ActionType.AUTO_EXPLORE);
     if (unitType.canBuildImprovements) actions.push(ActionType.AUTO_SETTLER);
+    this.unitActionsCache.set(unitType.id, actions);
     return actions;
   }
 

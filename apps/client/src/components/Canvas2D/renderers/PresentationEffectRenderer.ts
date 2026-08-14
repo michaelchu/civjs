@@ -5,6 +5,15 @@
 import type { PresentationEffect, Tile, Unit } from '../../../types';
 import { BaseRenderer, type RenderState } from './BaseRenderer';
 
+type EffectLayer = 'unit' | 'goto';
+
+interface SquareEffectLocation {
+  effect: PresentationEffect;
+  location: { x: number; y: number };
+}
+
+const EMPTY_PRESENTATION_EFFECTS: PresentationEffect[] = [];
+
 /**
  * Renders short-lived map effects without putting animation state in the
  * authoritative unit/city snapshot.
@@ -16,9 +25,23 @@ export class PresentationEffectRenderer extends BaseRenderer {
    * elapsed-time presentation used by the native Hexemplio renderer.
    */
   private squareEffectSteps = new Map<string, { effectKey: string; remaining: number }>();
+  private indexedEffectsSource: RenderState['presentationEffects'] | null = null;
+  private nativeEffectsByLayer: Record<EffectLayer, PresentationEffect[]> = {
+    unit: [],
+    goto: [],
+  };
+  private nativeEffectsByTile: Record<EffectLayer, Map<string, PresentationEffect[]>> = {
+    unit: new Map(),
+    goto: new Map(),
+  };
+  private squareEffectsByTile: Record<EffectLayer, Map<string, SquareEffectLocation>> = {
+    unit: new Map(),
+    goto: new Map(),
+  };
 
   /** Remove counters only after their source presentation effect is gone. */
   beginFrame(state: RenderState): void {
+    this.ensureEffectIndex(state);
     const activeIds = new Set(
       (state.presentationEffects ?? []).map(effect => this.effectKey(effect))
     );
@@ -82,20 +105,21 @@ export class PresentationEffectRenderer extends BaseRenderer {
 
   private renderEffectsForLayer(
     state: RenderState,
-    layer: 'unit' | 'goto',
+    layer: EffectLayer,
     tile?: Pick<Tile, 'x' | 'y'>
   ): boolean {
+    this.ensureEffectIndex(state);
     if (this.isSquareIsometric()) {
       return this.renderSquareEffectsForLayer(state, layer, tile);
     }
 
-    const effects = state.presentationEffects ?? [];
+    const effects = tile
+      ? (this.nativeEffectsByTile[layer].get(this.tileKey(tile)) ?? [])
+      : this.nativeEffectsByLayer[layer];
     const now = performance.now();
     let hasActiveEffects = false;
 
     for (const effect of effects) {
-      if ((effect.type === 'nuclear') !== (layer === 'goto')) continue;
-      if (tile && !this.effectCoversTile(effect, tile)) continue;
       const duration = this.getDuration(effect);
       const progress = state.reducedMotion ? 0 : (now - effect.startedAt) / duration;
       if (progress < 0 || progress >= 1) continue;
@@ -128,13 +152,18 @@ export class PresentationEffectRenderer extends BaseRenderer {
    */
   private renderSquareEffectsForLayer(
     state: RenderState,
-    layer: 'unit' | 'goto',
+    layer: EffectLayer,
     tile?: Pick<Tile, 'x' | 'y'>
   ): boolean {
     let needsAnotherFrame = false;
 
-    for (const { effect, location } of this.getSquareEffectLocations(state, layer)) {
-      if (tile && (location.x !== tile.x || location.y !== tile.y)) continue;
+    const indexed = this.squareEffectsByTile[layer];
+    const effects = tile
+      ? indexed.has(this.tileKey(tile))
+        ? [indexed.get(this.tileKey(tile))!]
+        : []
+      : [...indexed.values()];
+    for (const { effect, location } of effects) {
       const initialSteps = effect.type === 'nuclear' ? 60 : 25;
       const counter = this.getSquareCounter(effect, location, initialSteps);
       const renderRemaining = state.reducedMotion ? initialSteps : counter.remaining;
@@ -156,29 +185,43 @@ export class PresentationEffectRenderer extends BaseRenderer {
     return needsAnotherFrame;
   }
 
-  private getSquareEffectLocations(
-    state: RenderState,
-    layer: 'unit' | 'goto'
-  ): Array<{ effect: PresentationEffect; location: { x: number; y: number } }> {
-    // explosion_anim_map and ptile.nuke are tile fields in the pinned client.
-    // A later packet for the same tile replaces/resets that tile's animation;
-    // it does not create a second independently composited sprite.
-    const latestByTile = new Map<
-      string,
-      { effect: PresentationEffect; location: { x: number; y: number } }
-    >();
-    for (const effect of state.presentationEffects ?? []) {
+  /** Build tile lookups once per immutable effect snapshot, not once per painted tile. */
+  private ensureEffectIndex(state: RenderState): void {
+    const effects = state.presentationEffects ?? EMPTY_PRESENTATION_EFFECTS;
+    if (this.indexedEffectsSource === effects) return;
+    this.indexedEffectsSource = effects;
+    this.nativeEffectsByLayer = { unit: [], goto: [] };
+    this.nativeEffectsByTile = { unit: new Map(), goto: new Map() };
+    this.squareEffectsByTile = { unit: new Map(), goto: new Map() };
+
+    for (const effect of effects) {
+      const layer: EffectLayer = effect.type === 'nuclear' ? 'goto' : 'unit';
+      this.nativeEffectsByLayer[layer].push(effect);
+      const nativeLocations =
+        effect.type === 'nuclear' && effect.tiles?.length
+          ? effect.tiles
+          : [{ x: effect.x, y: effect.y }];
+      for (const location of nativeLocations) {
+        const key = this.tileKey(location);
+        const atTile = this.nativeEffectsByTile[layer].get(key) ?? [];
+        atTile.push(effect);
+        this.nativeEffectsByTile[layer].set(key, atTile);
+      }
+
       if (effect.type === 'marker') continue;
-      if ((effect.type === 'nuclear') !== (layer === 'goto')) continue;
-      const locations =
+      const squareLocations =
         effect.type === 'nuclear'
           ? [{ x: effect.x, y: effect.y }]
           : this.getDestroyedCombatantTiles(effect);
-      for (const location of locations) {
-        latestByTile.set(`${effect.type}@${location.x},${location.y}`, { effect, location });
+      for (const location of squareLocations) {
+        // explosion_anim_map and ptile.nuke hold one latest effect per tile.
+        this.squareEffectsByTile[layer].set(this.tileKey(location), { effect, location });
       }
     }
-    return [...latestByTile.values()];
+  }
+
+  private tileKey(tile: Pick<Tile, 'x' | 'y'>): string {
+    return `${tile.x},${tile.y}`;
   }
 
   private getDestroyedCombatantTiles(effect: PresentationEffect): Array<{ x: number; y: number }> {
@@ -244,13 +287,6 @@ export class PresentationEffectRenderer extends BaseRenderer {
     if (!sprite) return;
     const screen = this.mapToScreen(location.x, location.y, state.viewport);
     this.ctx.drawImage(sprite, screen.x - 45, screen.y - 45);
-  }
-
-  private effectCoversTile(effect: PresentationEffect, tile: Pick<Tile, 'x' | 'y'>): boolean {
-    if (effect.type === 'nuclear' && effect.tiles?.length) {
-      return effect.tiles.some(affected => affected.x === tile.x && affected.y === tile.y);
-    }
-    return effect.x === tile.x && effect.y === tile.y;
   }
 
   private getDuration(effect: PresentationEffect): number {
