@@ -45,6 +45,10 @@ export interface ExplorerPlanningContext {
   distance: (fromX: number, fromY: number, toX: number, toY: number) => number;
   squaredDistance: (fromX: number, fromY: number, toX: number, toY: number) => number;
   findPath: (unit: Unit, targetX: number, targetY: number) => Promise<PathfindingResult>;
+  findPaths?: (
+    unit: Unit,
+    destinations: ReadonlyArray<{ x: number; y: number }>
+  ) => Promise<ReadonlyMap<string, PathfindingResult>>;
   budget?: AIPlanningBudgetLike;
   mayExploreTile: (unit: Unit, tile: MapTile) => boolean;
   knowsHuts: boolean;
@@ -249,18 +253,33 @@ async function rankedAssignmentsForUnit(
   if (previous && !shortlisted.includes(previous)) shortlisted.push(previous);
 
   const reached: Array<(typeof shortlisted)[number] & { path: PathfindingResult }> = [];
+  const requested: typeof shortlisted = [];
   for (const candidate of shortlisted) {
     if (context.budget && !context.budget.consumePlanningStep()) break;
-    const pathKey = `${unit.id}:${unit.x},${unit.y}:${unit.movementLeft}:${candidate.tile.x},${candidate.tile.y}`;
-    let pathPromise = pathMemo.get(pathKey);
-    if (!pathPromise) {
-      pathPromise = context.findPath(unit, candidate.tile.x, candidate.tile.y);
-      pathMemo.set(pathKey, pathPromise);
+    requested.push(candidate);
+  }
+  if (context.findPaths) {
+    const routeMap = await context.findPaths(
+      unit,
+      requested.map(candidate => ({ x: candidate.tile.x, y: candidate.tile.y }))
+    );
+    for (const candidate of requested) {
+      const path = routeMap.get(tileKey(candidate.tile.x, candidate.tile.y));
+      if (path) reached.push({ ...candidate, path });
     }
-    reached.push({
-      ...candidate,
-      path: await pathPromise,
-    });
+  } else {
+    for (const candidate of requested) {
+      const pathKey = `${unit.id}:${unit.x},${unit.y}:${unit.movementLeft}:${candidate.tile.x},${candidate.tile.y}`;
+      let pathPromise = pathMemo.get(pathKey);
+      if (!pathPromise) {
+        pathPromise = context.findPath(unit, candidate.tile.x, candidate.tile.y);
+        pathMemo.set(pathKey, pathPromise);
+      }
+      reached.push({
+        ...candidate,
+        path: await pathPromise,
+      });
+    }
   }
   return reached
     .filter(candidate => candidate.path.valid && candidate.path.path.length > 1)

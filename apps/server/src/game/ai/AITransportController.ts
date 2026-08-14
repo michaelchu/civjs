@@ -148,10 +148,20 @@ export class FreecivAITransportController {
     ferry: Unit,
     candidates: Array<{ x: number; y: number }>
   ): Promise<{ x: number; y: number } | null> {
+    const eligible = candidates.filter(candidate =>
+      game.unitManager.canContinuePathFrom(ferry, candidate.x, candidate.y)
+    );
+    const routeMap =
+      typeof game.pathfindingManager.findPathCosts === 'function'
+        ? await game.pathfindingManager.findPathCosts(ferry, eligible)
+        : typeof game.pathfindingManager.findPaths === 'function'
+          ? await game.pathfindingManager.findPaths(ferry, eligible)
+          : undefined;
     const reachable: Array<{ x: number; y: number; turns: number; cost: number }> = [];
-    for (const candidate of candidates) {
-      if (!game.unitManager.canContinuePathFrom(ferry, candidate.x, candidate.y)) continue;
-      const path = await game.pathfindingManager.findPath(ferry, candidate.x, candidate.y);
+    for (const candidate of eligible) {
+      const path =
+        routeMap?.get(`${candidate.x},${candidate.y}`) ??
+        (await game.pathfindingManager.findPath(ferry, candidate.x, candidate.y));
       if (!path.valid) continue;
       reachable.push({
         x: candidate.x,

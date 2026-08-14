@@ -42,6 +42,14 @@ export interface CityThreatTravelPlanningContext {
     targetX: number,
     targetY: number
   ) => Promise<{ valid: boolean; estimatedTurns: number }>;
+  findPaths?: (
+    unit: Unit,
+    destinations: ReadonlyArray<{ x: number; y: number }>
+  ) => Promise<ReadonlyMap<string, { valid: boolean; estimatedTurns: number }>>;
+  findPathCosts?: (
+    unit: Unit,
+    destinations: ReadonlyArray<{ x: number; y: number }>
+  ) => Promise<ReadonlyMap<string, { valid: boolean; estimatedTurns: number }>>;
   budget?: AIPlanningBudgetLike;
 }
 
@@ -99,11 +107,31 @@ export async function buildCityThreatTravelTimes(
 ): Promise<Map<string, number>> {
   const travelTimes = new Map<string, number>();
   const pathMemo = new Map<string, Promise<{ valid: boolean; estimatedTurns: number }>>();
+  const routeMapMemo = new Map<
+    string,
+    Promise<ReadonlyMap<string, { valid: boolean; estimatedTurns: number }>>
+  >();
   const findMemoizedPath = (unit: Unit, city: CityState) => {
     const key = `${unit.id}:${city.id}:${city.x},${city.y}`;
     const existing = pathMemo.get(key);
     if (existing) return existing;
-    const path = context.findPath(unit, city.x, city.y);
+    let path: Promise<{ valid: boolean; estimatedTurns: number }>;
+    const findRouteMap = context.findPathCosts ?? context.findPaths;
+    if (findRouteMap) {
+      let routeMap = routeMapMemo.get(unit.id);
+      if (!routeMap) {
+        routeMap = findRouteMap(
+          unit,
+          context.cities.map(candidate => ({ x: candidate.x, y: candidate.y }))
+        );
+        routeMapMemo.set(unit.id, routeMap);
+      }
+      path = routeMap.then(
+        routes => routes.get(`${city.x},${city.y}`) ?? { valid: false, estimatedTurns: 0 }
+      );
+    } else {
+      path = context.findPath(unit, city.x, city.y);
+    }
     pathMemo.set(key, path);
     return path;
   };
@@ -160,6 +188,18 @@ export async function buildAuthoritativeCityDangerAssessments(options: {
     getUnit: unitId => game.unitManager.getUnit(unitId),
     distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
     findPath: (unit, targetX, targetY) => game.pathfindingManager.findPath(unit, targetX, targetY),
+    ...(typeof game.pathfindingManager.findPaths === 'function'
+      ? {
+          findPaths: (unit: Unit, destinations: ReadonlyArray<{ x: number; y: number }>) =>
+            game.pathfindingManager.findPaths(unit, destinations),
+        }
+      : {}),
+    ...(typeof game.pathfindingManager.findPathCosts === 'function'
+      ? {
+          findPathCosts: (unit: Unit, destinations: ReadonlyArray<{ x: number; y: number }>) =>
+            game.pathfindingManager.findPathCosts(unit, destinations),
+        }
+      : {}),
   });
   return new Map(
     cities.map(city => [

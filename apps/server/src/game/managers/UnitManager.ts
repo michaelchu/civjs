@@ -20,6 +20,7 @@ import { MapTopology } from '@game/map/MapTopology';
 import { randomInt, type RandomSource } from '@game/random/FreecivRandom';
 import { FreecivIdentityAllocator } from '@game/random/FreecivIdentityAllocator';
 import type { MapManager } from '@game/managers/MapManager';
+import type { PathfindingSearchPolicy } from '@game/managers/PathfindingManager';
 import { RulesetRequirementEvaluator } from '@game/services/RulesetRequirementEvaluator';
 import {
   isWorkerAutomationTask,
@@ -3097,6 +3098,142 @@ export class UnitManager {
 
   private canUnitEnterTerrain(terrain: TerrainType, unitTypeId: string): boolean {
     return this.movementCosts.canEnterTerrain(terrain, unitTypeId);
+  }
+
+  /**
+   * Build immutable occupancy and ZOC indexes for one synchronous route-map
+   * search. Pathfinding invalidates its scope whenever units, diplomacy, or
+   * movement-relevant map state changes, so these derived indexes retain the
+   * exact authoritative movement rules without rescanning every unit for
+   * every candidate edge.
+   */
+  createPathSearchPolicy(unit: Unit): PathfindingSearchPolicy {
+    const tileKey = (x: number, y: number) => `${x},${y}`;
+    const unitsByTile = new Map<string, Unit[]>();
+    for (const candidate of this.units.values()) {
+      const key = tileKey(candidate.x, candidate.y);
+      const stack = unitsByTile.get(key);
+      if (stack) stack.push(candidate);
+      else unitsByTile.set(key, [candidate]);
+    }
+
+    const alliedPlayers = new Set(this.alliedPlayersProvider?.(unit.playerId) ?? []);
+    const hostilePlayers = new Set(this.hostilePlayersProvider?.(unit.playerId) ?? []);
+    const topology = this.getMapTopology();
+    const type = this.unitTypes[unit.unitTypeId];
+    const subjectToZoc =
+      type?.rulesetUnitClassFlags.includes('ZOC') === true &&
+      type.flags?.includes('IgZOC') !== true;
+    const enemyZocTiles = new Set<string>();
+    if (subjectToZoc) {
+      for (const candidate of this.units.values()) {
+        if (
+          candidate.playerId === unit.playerId ||
+          candidate.transportedBy ||
+          (this.hostilePlayersProvider && !hostilePlayers.has(candidate.playerId))
+        ) {
+          continue;
+        }
+        const candidateType = this.unitTypes[candidate.unitTypeId];
+        if (
+          candidateType?.rulesetUnitClassFlags.includes('ZOC') !== true ||
+          candidateType.flags?.includes('HasNoZOC') === true
+        ) {
+          continue;
+        }
+        enemyZocTiles.add(tileKey(candidate.x, candidate.y));
+        for (const neighbor of topology.getNeighbors(candidate.x, candidate.y)) {
+          enemyZocTiles.add(tileKey(neighbor.x, neighbor.y));
+        }
+      }
+    }
+
+    const cityCache = new Map<string, CityAtLocation | null>();
+    const cityAt = (x: number, y: number): CityAtLocation | null => {
+      const key = tileKey(x, y);
+      if (cityCache.has(key)) return cityCache.get(key) ?? null;
+      const city = this.gameManagerCallback?.getCityAt?.(x, y) ?? null;
+      cityCache.set(key, city);
+      return city;
+    };
+    const terrainCache = new Map<string, TerrainType>();
+    const terrainAt = (x: number, y: number): TerrainType => {
+      const key = tileKey(x, y);
+      const cached = terrainCache.get(key);
+      if (cached) return cached;
+      const terrain = this.getTerrainAt(x, y);
+      terrainCache.set(key, terrain);
+      return terrain;
+    };
+    const isCivilian = type?.unitClass === 'civilian' || type?.flags?.includes('NonMil') === true;
+    const canAttack = Boolean(type && !isCivilian && (type.attack ?? type.combat) > 0);
+    const canCapture = Boolean(type && this.canUnitCaptureCity(type));
+    const isFlagless = type?.flags?.includes('Flagless') === true;
+    const isNonAllied = (candidate: Unit): boolean => {
+      if (candidate.playerId === unit.playerId) return false;
+      return (
+        isFlagless ||
+        this.unitTypes[candidate.unitTypeId]?.flags?.includes('Flagless') === true ||
+        !alliedPlayers.has(candidate.playerId)
+      );
+    };
+    const noZocTerrains = new Set<TerrainType>(['ocean', 'deep_ocean', 'coast', 'lake']);
+
+    return {
+      getPathStepCost: (fromX, fromY, toX, toY, isDestination) => {
+        if (this.isRandomMovementUnit(unit)) return -1;
+        const destinationKey = tileKey(toX, toY);
+        const destinationCity = cityAt(toX, toY);
+        const hostileCity = Boolean(
+          destinationCity &&
+          destinationCity.playerId !== unit.playerId &&
+          !alliedPlayers.has(destinationCity.playerId)
+        );
+        const owner = this.mapManager?.getTile?.(toX, toY)?.owner;
+        if (
+          !isCivilian &&
+          owner &&
+          owner !== unit.playerId &&
+          !alliedPlayers.has(owner) &&
+          !hostilePlayers.has(owner) &&
+          !(isDestination && hostileCity)
+        ) {
+          return -1;
+        }
+        if (
+          (unitsByTile.get(destinationKey) ?? []).some(isNonAllied) &&
+          !(isDestination && canAttack)
+        ) {
+          return -1;
+        }
+        if (hostileCity && !(isDestination && canCapture)) return -1;
+
+        if (subjectToZoc) {
+          const hasFriendlyStack = (unitsByTile.get(destinationKey) ?? []).some(
+            candidate => candidate.playerId === unit.playerId
+          );
+          const hasEndpointCity = Boolean(cityAt(fromX, fromY) || destinationCity);
+          const ignoresZoc =
+            noZocTerrains.has(terrainAt(fromX, fromY)) || noZocTerrains.has(terrainAt(toX, toY));
+          if (
+            !hasFriendlyStack &&
+            !hasEndpointCity &&
+            !ignoresZoc &&
+            enemyZocTiles.has(tileKey(fromX, fromY)) &&
+            enemyZocTiles.has(destinationKey)
+          ) {
+            return -1;
+          }
+        }
+
+        const movementCost = this.calculateTerrainMovementCost(unit, fromX, fromY, toX, toY);
+        if (movementCost >= 0) return movementCost;
+        return isDestination && this.findAvailableTransportAt(unit, toX, toY)
+          ? this.getMoveFragments()
+          : -1;
+      },
+      canContinuePathFrom: (x, y) => this.calculateTerrainMovementCost(unit, x, y, x, y) >= 0,
+    };
   }
 
   /** @reference reference/freeciv/data/civ2civ3/terrain.ruleset:74-79 */

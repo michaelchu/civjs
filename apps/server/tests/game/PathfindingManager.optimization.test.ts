@@ -1,10 +1,11 @@
 import {
   BinaryMinHeap,
   PathfindingManager,
+  pathDestinationKey,
   type PathfindingMovementPolicy,
 } from '@game/managers/PathfindingManager';
 import type { Unit } from '@game/units/UnitTypes';
-import { MapTopology } from '@game/map/MapTopology';
+import { MapTopology, TopologyFlag, WrapFlag } from '@game/map/MapTopology';
 import { AIPlanningBudget } from '@game/ai/AIPlanningBudget';
 
 function unit(overrides: Partial<Unit> = {}): Unit {
@@ -132,5 +133,189 @@ describe('PathfindingManager optimization primitives', () => {
 
     expect(result).toMatchObject({ valid: false, budgetExceeded: true });
     expect(manager.getDiagnostics().budgetExhaustions).toBeGreaterThan(0);
+  });
+
+  it('matches independent route costs in one destination-aware route map', async () => {
+    const makePolicy = (): PathfindingMovementPolicy => ({
+      getPathStepCost: (_unit, _fromX, fromY, toX, toY, isDestination) => {
+        if (toX === 5 && toY === 5) return isDestination ? 2 : -1;
+        if (toX === 6 && toY >= 3 && toY <= 8) return -1;
+        if (fromY === 1 && toY === 1) return 0;
+        return toX === 4 ? 3 : 1;
+      },
+      getUnitMaxMovement: () => 6,
+    });
+    const targets = [
+      { x: 5, y: 5 },
+      { x: 8, y: 8 },
+      { x: 12, y: 2 },
+    ];
+    const actor = unit({ x: 2, y: 2 });
+    const bulkManager = new PathfindingManager(20, 20, mapFixture(), makePolicy());
+    const individualManager = new PathfindingManager(20, 20, mapFixture(), makePolicy());
+    const options = {
+      cacheKey: 'risk',
+      additionalStepCost: (
+        _unit: Unit,
+        _fromX: number,
+        _fromY: number,
+        toX: number,
+        toY: number
+      ) => (toX === 3 && toY === 3 ? 5 : 0),
+    };
+
+    const bulk = await bulkManager.findPaths(actor, targets, options);
+    for (const target of targets) {
+      const individual = await individualManager.findPath(actor, target.x, target.y, options);
+      expect(bulk.get(pathDestinationKey(target.x, target.y))).toMatchObject({
+        valid: individual.valid,
+        totalCost: individual.totalCost,
+        weightedCost: individual.weightedCost,
+        estimatedTurns: individual.estimatedTurns,
+      });
+    }
+  });
+
+  it('expands one shared lattice for many destinations and caches each result', async () => {
+    const map = mapFixture();
+    const manager = new PathfindingManager(20, 20, map);
+    const actor = unit();
+    const targets = [
+      { x: 10, y: 10 },
+      { x: 11, y: 10 },
+      { x: 12, y: 10 },
+      { x: 12, y: 11 },
+    ];
+    manager.beginTurn(1);
+
+    const first = await manager.findPaths(actor, targets);
+    const firstDiagnostics = manager.getDiagnostics();
+    expect(first.size).toBe(targets.length);
+    expect([...first.values()].every(result => result.valid)).toBe(true);
+    expect(firstDiagnostics).toMatchObject({
+      pathRequests: targets.length,
+      searches: 1,
+      cacheHits: 0,
+    });
+
+    manager.resetDiagnostics();
+    const second = await manager.findPaths(actor, targets);
+    expect(second).toEqual(first);
+    expect(manager.getDiagnostics()).toMatchObject({
+      pathRequests: targets.length,
+      searches: 0,
+      cacheHits: targets.length,
+      expandedNodes: 0,
+    });
+  });
+
+  it('returns and caches cost-only route maps without materializing paths', async () => {
+    const manager = new PathfindingManager(20, 20, mapFixture());
+    const actor = unit();
+    const targets = [
+      { x: 10, y: 10 },
+      { x: 11, y: 10 },
+      { x: 12, y: 10 },
+    ];
+    manager.beginTurn(1);
+
+    const costs = await manager.findPathCosts(actor, targets);
+    for (const target of targets) {
+      const cost = costs.get(pathDestinationKey(target.x, target.y));
+      expect(cost).toMatchObject({ valid: true, totalCost: expect.any(Number) });
+      expect(cost).not.toHaveProperty('path');
+    }
+    expect(manager.getCacheSizes()).toMatchObject({ paths: 0, travelCosts: targets.length });
+
+    manager.resetDiagnostics();
+    expect(await manager.findPathCosts(actor, targets)).toEqual(costs);
+    expect(manager.getDiagnostics()).toMatchObject({
+      searches: 0,
+      cacheHits: targets.length,
+      expandedNodes: 0,
+    });
+  });
+
+  it('keeps bulk route costs equal across square, wrapped, and iso-hex topologies', async () => {
+    const configurations = [
+      {},
+      { wrapId: WrapFlag.X },
+      { topologyId: TopologyFlag.ISO | TopologyFlag.HEX, wrapId: WrapFlag.X },
+    ];
+    const targets = [
+      { x: 0, y: 4 },
+      { x: 5, y: 7 },
+      { x: 9, y: 1 },
+      { x: 11, y: 8 },
+    ];
+    const actor = unit({ x: 2, y: 2 });
+    const options = {
+      cacheKey: 'deterministic-risk',
+      additionalStepCost: (
+        _unit: Unit,
+        _fromX: number,
+        _fromY: number,
+        toX: number,
+        toY: number
+      ) => ((toX * 3 + toY * 5) % 7 === 0 ? 2 : 0),
+    };
+
+    for (const topologyOptions of configurations) {
+      const makeMap = () => ({
+        getRevision: () => 1,
+        getTopology: () => new MapTopology(12, 10, topologyOptions),
+        getTile: () => ({ terrain: 'grassland' }),
+      });
+      const makePolicy = (): PathfindingMovementPolicy => ({
+        getPathStepCost: (_unit, _fromX, fromY, toX, toY, isDestination) => {
+          if ((toX * 11 + toY * 7) % 29 === 0) return isDestination ? 2 : -1;
+          if (fromY === 3 && toY === 3) return 0;
+          return 1 + ((toX + 2 * toY) % 3);
+        },
+        getUnitMaxMovement: () => 6,
+      });
+      const bulkManager = new PathfindingManager(12, 10, makeMap(), makePolicy());
+      const costManager = new PathfindingManager(12, 10, makeMap(), makePolicy());
+      const individualManager = new PathfindingManager(12, 10, makeMap(), makePolicy());
+      const bulk = await bulkManager.findPaths(actor, targets, options);
+      const costs = await costManager.findPathCosts(actor, targets, options);
+
+      for (const target of targets) {
+        const individual = await individualManager.findPath(actor, target.x, target.y, options);
+        const expected = {
+          valid: individual.valid,
+          totalCost: individual.totalCost,
+          weightedCost: individual.weightedCost,
+          estimatedTurns: individual.estimatedTurns,
+        };
+        expect(bulk.get(pathDestinationKey(target.x, target.y))).toMatchObject(expected);
+        expect(costs.get(pathDestinationKey(target.x, target.y))).toMatchObject(expected);
+      }
+    }
+  });
+
+  it('reuses a search-scoped movement snapshot until authoritative invalidation', async () => {
+    const map = mapFixture();
+    const getPathStepCost = jest.fn(() => 1);
+    const createPathSearchPolicy = jest.fn(() => ({ getPathStepCost }));
+    const legacyStepCost = jest.fn(() => {
+      throw new Error('legacy global scan should not run');
+    });
+    const manager = new PathfindingManager(20, 20, map, {
+      getPathStepCost: legacyStepCost,
+      getUnitMaxMovement: () => 6,
+      createPathSearchPolicy,
+    });
+    const actor = unit();
+    manager.beginTurn(1);
+
+    expect((await manager.findPath(actor, 8, 8)).valid).toBe(true);
+    expect((await manager.findPath(actor, 9, 8)).valid).toBe(true);
+    expect(createPathSearchPolicy).toHaveBeenCalledTimes(1);
+    expect(legacyStepCost).not.toHaveBeenCalled();
+
+    manager.invalidateCache();
+    expect((await manager.findPath(actor, 8, 8)).valid).toBe(true);
+    expect(createPathSearchPolicy).toHaveBeenCalledTimes(2);
   });
 });

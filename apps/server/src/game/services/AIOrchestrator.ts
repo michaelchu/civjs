@@ -174,9 +174,20 @@ export class FreecivAIOrchestrator {
    * memory without losing events that occurred between AI turns.
    */
   onDiplomacyEvent(gameId: string, game: GameInstance, event: DiplomacyEvent): void {
+    // Relationship changes alter border, city-entry, hostile-stack, and ZOC
+    // legality. Drop any route-map snapshot before applying AI-only memory.
+    if (
+      event.type === 'first_contact' ||
+      event.type === 'accepted' ||
+      event.type === 'ceasefire_expired' ||
+      event.type === 'armistice_completed' ||
+      event.type === 'war_declared' ||
+      event.type === 'incident'
+    ) {
+      game.pathfindingManager.invalidateCache?.();
+    }
     if (event.type !== 'incident' && event.type !== 'war_declared') return;
     if (event.type === 'war_declared' && event.justified) return;
-    game.pathfindingManager.invalidateCache?.();
     const offenderId = event.offenderId ?? event.playerIds[0];
     const victimId = event.victimId ?? event.playerIds[1];
 

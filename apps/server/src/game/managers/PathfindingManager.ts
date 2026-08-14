@@ -23,6 +23,14 @@ export interface PathfindingResult {
   budgetExceeded?: boolean;
 }
 
+export interface PathfindingTravelResult {
+  totalCost: number;
+  estimatedTurns: number;
+  valid: boolean;
+  weightedCost?: number;
+  budgetExceeded?: boolean;
+}
+
 export interface PathfindingOptions {
   /**
    * Adds non-negative planning cost without changing authoritative movement
@@ -47,30 +55,42 @@ export interface PathfindingOptions {
   budget?: PathfindingBudget;
 }
 
+export interface PathDestination {
+  x: number;
+  y: number;
+}
+
+export function pathDestinationKey(x: number, y: number): string {
+  return `${x},${y}`;
+}
+
 export interface AccessibleTile {
   x: number;
   y: number;
   remainingMovement: number;
 }
 
-interface AStarNode {
-  x: number;
-  y: number;
-  gCost: number; // Cost from start
-  hCost: number; // Heuristic cost to goal
-  fCost: number; // Total cost (g + h)
-  parent: AStarNode | null;
-  moveCost: number; // Cost to move to this tile
-  queueOrder: number;
-}
-
 interface AccessibleQueueEntry {
-  tile: AccessibleTile;
+  index: number;
+  remainingMovement: number;
   order: number;
 }
 
-interface AStarSearchResult {
-  path: AStarNode[] | null;
+interface LatticeSearchResult {
+  path: number[] | null;
+  weightedCost: number;
+  budgetExceeded: boolean;
+}
+
+interface LatticeDestinationResult {
+  parentIndex: number;
+  moveCost: number;
+  totalCost: number;
+  weightedCost: number;
+}
+
+interface LatticeManySearchResult {
+  destinations: Map<number, LatticeDestinationResult>;
   budgetExceeded: boolean;
 }
 
@@ -173,6 +193,101 @@ export class BinaryMinHeap<T> {
   }
 }
 
+/**
+ * Tile-indexed min heap matching Freeciv's map-index priority queue shape.
+ * Positions live in a dense typed array, avoiding a Map lookup and node
+ * allocation for every decrease-key operation in the path search.
+ *
+ * @reference reference/freeciv/common/aicore/path_finding.c:pf_normal_map
+ */
+class IndexedMinHeap {
+  private readonly items: number[] = [];
+  private readonly positions: Int32Array;
+
+  constructor(
+    capacity: number,
+    private readonly compare: (left: number, right: number) => number
+  ) {
+    this.positions = new Int32Array(capacity);
+    this.positions.fill(-1);
+  }
+
+  get size(): number {
+    return this.items.length;
+  }
+
+  peek(): number | undefined {
+    return this.items[0];
+  }
+
+  clear(): void {
+    for (const index of this.items) this.positions[index] = -1;
+    this.items.length = 0;
+  }
+
+  push(item: number): void {
+    this.positions[item] = this.items.length;
+    this.items.push(item);
+    this.siftUp(this.items.length - 1);
+  }
+
+  pop(): number | undefined {
+    const root = this.items[0];
+    if (root === undefined) return undefined;
+    const last = this.items.pop()!;
+    this.positions[root] = -1;
+    if (this.items.length > 0) {
+      this.items[0] = last;
+      this.positions[last] = 0;
+      this.siftDown(0);
+    }
+    return root;
+  }
+
+  update(item: number): void {
+    const position = this.positions[item];
+    if (position < 0) return;
+    this.siftUp(position);
+  }
+
+  private siftUp(start: number): void {
+    let index = start;
+    while (index > 0) {
+      const parent = Math.floor((index - 1) / 2);
+      if (this.compare(this.items[index], this.items[parent]) >= 0) return;
+      this.swap(index, parent);
+      index = parent;
+    }
+  }
+
+  private siftDown(start: number): void {
+    let index = start;
+    while (true) {
+      const left = index * 2 + 1;
+      const right = left + 1;
+      let smallest = index;
+      if (left < this.items.length && this.compare(this.items[left], this.items[smallest]) < 0) {
+        smallest = left;
+      }
+      if (right < this.items.length && this.compare(this.items[right], this.items[smallest]) < 0) {
+        smallest = right;
+      }
+      if (smallest === index) return;
+      this.swap(index, smallest);
+      index = smallest;
+    }
+  }
+
+  private swap(left: number, right: number): void {
+    const leftItem = this.items[left];
+    const rightItem = this.items[right];
+    this.items[left] = rightItem;
+    this.items[right] = leftItem;
+    this.positions[leftItem] = right;
+    this.positions[rightItem] = left;
+  }
+}
+
 export interface PathfindingMovementPolicy {
   getPathStepCost(
     unit: Unit,
@@ -184,6 +299,18 @@ export interface PathfindingMovementPolicy {
   ): number;
   getUnitMaxMovement(unitTypeId: string): number;
   canContinuePathFrom?(unit: Unit, x: number, y: number): boolean;
+  createPathSearchPolicy?(unit: Unit): PathfindingSearchPolicy;
+}
+
+export interface PathfindingSearchPolicy {
+  getPathStepCost(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    isDestination: boolean
+  ): number;
+  canContinuePathFrom?(x: number, y: number): boolean;
 }
 
 /**
@@ -205,9 +332,26 @@ export class PathfindingManager {
   private cacheTurn?: number;
   private cacheVersion = 0;
   private readonly pathCache = new Map<string, PathfindingResult>();
+  private readonly travelCostCache = new Map<string, PathfindingTravelResult>();
   private readonly accessibleCache = new Map<string, AccessibleTile[]>();
+  private readonly fallbackMovementCostCache = new Map<string, number>();
   private readonly maxCacheEntries = 4_096;
   private diagnostics: PathfindingDiagnostics = this.emptyDiagnostics();
+  private readonly tileCount: number;
+  private readonly neighborCounts: Uint8Array;
+  private readonly neighborIndexes: Int32Array;
+  private readonly searchGenerations: Uint32Array;
+  private readonly searchStates: Uint8Array;
+  private readonly searchCosts: Float64Array;
+  private readonly searchTotalMoveCosts: Float64Array;
+  private readonly searchParents: Int32Array;
+  private readonly searchMoveCosts: Float64Array;
+  private readonly searchQueueOrders: Uint32Array;
+  private readonly searchOpenSet: IndexedMinHeap;
+  private readonly stepCosts = new Map<number, number>();
+  private searchGeneration = 0;
+  private stepCostScope?: string;
+  private activeSearchPolicy?: PathfindingSearchPolicy;
 
   constructor(
     mapWidth: number,
@@ -220,6 +364,24 @@ export class PathfindingManager {
     this.mapManager = mapManager;
     this.topology = mapManager?.getTopology?.() ?? new MapTopology(mapWidth, mapHeight);
     this.movementPolicy = movementPolicy;
+    this.tileCount = mapWidth * mapHeight;
+    this.neighborCounts = new Uint8Array(this.tileCount);
+    this.neighborIndexes = new Int32Array(this.tileCount * 8);
+    this.neighborIndexes.fill(-1);
+    this.buildNeighborIndex();
+    this.searchGenerations = new Uint32Array(this.tileCount);
+    this.searchStates = new Uint8Array(this.tileCount);
+    this.searchCosts = new Float64Array(this.tileCount);
+    this.searchTotalMoveCosts = new Float64Array(this.tileCount);
+    this.searchParents = new Int32Array(this.tileCount);
+    this.searchMoveCosts = new Float64Array(this.tileCount);
+    this.searchQueueOrders = new Uint32Array(this.tileCount);
+    this.searchOpenSet = new IndexedMinHeap(this.tileCount, (left, right) => {
+      return (
+        this.searchCosts[left] - this.searchCosts[right] ||
+        this.searchQueueOrders[left] - this.searchQueueOrders[right]
+      );
+    });
   }
 
   /** Starts a bounded path-cache scope for a single authoritative turn. */
@@ -232,6 +394,7 @@ export class PathfindingManager {
   invalidateCache(): void {
     this.cacheVersion++;
     this.pathCache.clear();
+    this.travelCostCache.clear();
     this.accessibleCache.clear();
   }
 
@@ -251,8 +414,12 @@ export class PathfindingManager {
     this.diagnostics = this.emptyDiagnostics();
   }
 
-  getCacheSizes(): { paths: number; accessible: number } {
-    return { paths: this.pathCache.size, accessible: this.accessibleCache.size };
+  getCacheSizes(): { paths: number; travelCosts: number; accessible: number } {
+    return {
+      paths: this.pathCache.size,
+      travelCosts: this.travelCostCache.size,
+      accessible: this.accessibleCache.size,
+    };
   }
 
   /**
@@ -320,7 +487,7 @@ export class PathfindingManager {
       this.diagnostics.searches++;
 
       // Run A* pathfinding
-      const search = this.aStar(
+      const search = this.searchLattice(
         { x: unit.x, y: unit.y },
         { x: targetX, y: targetY },
         unit,
@@ -339,7 +506,7 @@ export class PathfindingManager {
         return result;
       }
 
-      const result = this.buildSuccessfulResult(search.path, unit, options);
+      const result = this.buildSuccessfulResult(search.path, search.weightedCost, unit, options);
       if (cacheKey !== undefined) this.cachePathResult(cacheKey, result);
 
       const duration = Date.now() - startTime;
@@ -366,21 +533,199 @@ export class PathfindingManager {
     }
   }
 
-  private buildSuccessfulResult(
-    path: AStarNode[],
+  /**
+   * Resolve many destinations from one unit with one reusable route map.
+   * Transit edges are evaluated with ordinary movement legality; each goal's
+   * final edge is evaluated separately with destination-only attack,
+   * embarkation, and city-entry rules. This is equivalent to independent
+   * searches for route cost while avoiding attacker-by-target map scans.
+   *
+   * @reference reference/freeciv/common/aicore/path_finding.c:pf_map_path
+   * @reference reference/freeciv/ai/default/daimilitary.c:pf_map_new
+   */
+  async findPaths(
     unit: Unit,
-    options: PathfindingOptions
+    destinations: readonly PathDestination[],
+    options: PathfindingOptions = {}
+  ): Promise<Map<string, PathfindingResult>> {
+    const results = new Map<string, PathfindingResult>();
+    const pending = new Map<
+      number,
+      { x: number; y: number; resultKey: string; cacheKey?: string }
+    >();
+
+    for (const destination of destinations) {
+      const resultKey = pathDestinationKey(destination.x, destination.y);
+      if (results.has(resultKey)) continue;
+      if (!this.isValidCoordinate(destination.x, destination.y)) {
+        this.diagnostics.pathRequests++;
+        results.set(resultKey, this.invalidResult());
+        continue;
+      }
+      const destinationIndex = this.toIndex(destination.x, destination.y);
+      if (pending.has(destinationIndex)) continue;
+      this.diagnostics.pathRequests++;
+      if (unit.x === destination.x && unit.y === destination.y) {
+        results.set(resultKey, {
+          path: [{ x: unit.x, y: unit.y, moveCost: 0 }],
+          totalCost: 0,
+          estimatedTurns: 0,
+          valid: true,
+        });
+        continue;
+      }
+
+      const cacheKey = this.pathCacheKey(unit, destination.x, destination.y, options);
+      const cached = cacheKey === undefined ? undefined : this.pathCache.get(cacheKey);
+      if (cached) {
+        this.diagnostics.cacheHits++;
+        results.set(resultKey, this.clonePathResult(cached));
+        continue;
+      }
+      if (cacheKey !== undefined) this.diagnostics.cacheMisses++;
+      pending.set(destinationIndex, {
+        ...destination,
+        resultKey,
+        cacheKey,
+      });
+    }
+
+    if (pending.size === 0) return results;
+    const budget = options.budget ?? this.activeBudget;
+    if (budget && !budget.canStartSearch()) {
+      this.diagnostics.budgetExhaustions++;
+      for (const destination of pending.values()) {
+        results.set(destination.resultKey, this.invalidResult(true));
+      }
+      return results;
+    }
+
+    this.diagnostics.searches++;
+    const search = this.searchManyLattice(unit, pending, options, budget);
+    if (search.budgetExceeded) this.diagnostics.budgetExhaustions++;
+
+    for (const [index, destination] of pending) {
+      const found = search.destinations.get(index);
+      const result = found
+        ? this.buildDestinationResult(index, found, unit, options)
+        : this.invalidResult(search.budgetExceeded);
+      results.set(destination.resultKey, result);
+      if (destination.cacheKey !== undefined && !search.budgetExceeded) {
+        this.cachePathResult(destination.cacheKey, result);
+      }
+    }
+    return results;
+  }
+
+  /**
+   * Resolve route costs without reconstructing or retaining every path. This
+   * is the preferred API for AI scoring over large destination sets such as
+   * worker tiles, military objectives, and city danger maps.
+   */
+  async findPathCosts(
+    unit: Unit,
+    destinations: readonly PathDestination[],
+    options: PathfindingOptions = {}
+  ): Promise<Map<string, PathfindingTravelResult>> {
+    const results = new Map<string, PathfindingTravelResult>();
+    const pending = new Map<number, { resultKey: string; cacheKey?: string }>();
+
+    for (const destination of destinations) {
+      const resultKey = pathDestinationKey(destination.x, destination.y);
+      if (results.has(resultKey)) continue;
+      if (!this.isValidCoordinate(destination.x, destination.y)) {
+        this.diagnostics.pathRequests++;
+        results.set(resultKey, this.invalidTravelResult());
+        continue;
+      }
+      const destinationIndex = this.toIndex(destination.x, destination.y);
+      if (pending.has(destinationIndex)) continue;
+      this.diagnostics.pathRequests++;
+      if (unit.x === destination.x && unit.y === destination.y) {
+        results.set(resultKey, {
+          totalCost: 0,
+          estimatedTurns: 0,
+          valid: true,
+        });
+        continue;
+      }
+
+      const cacheKey = this.pathCacheKey(unit, destination.x, destination.y, options);
+      const cached = cacheKey === undefined ? undefined : this.travelCostCache.get(cacheKey);
+      if (cached) {
+        this.diagnostics.cacheHits++;
+        results.set(resultKey, { ...cached });
+        continue;
+      }
+      if (cacheKey !== undefined) this.diagnostics.cacheMisses++;
+      pending.set(destinationIndex, { resultKey, cacheKey });
+    }
+
+    if (pending.size === 0) return results;
+    const budget = options.budget ?? this.activeBudget;
+    if (budget && !budget.canStartSearch()) {
+      this.diagnostics.budgetExhaustions++;
+      for (const destination of pending.values()) {
+        results.set(destination.resultKey, this.invalidTravelResult(true));
+      }
+      return results;
+    }
+
+    this.diagnostics.searches++;
+    const search = this.searchManyLattice(unit, pending, options, budget);
+    if (search.budgetExceeded) this.diagnostics.budgetExhaustions++;
+    for (const [index, destination] of pending) {
+      const found = search.destinations.get(index);
+      const result: PathfindingTravelResult = found
+        ? {
+            totalCost: found.totalCost,
+            estimatedTurns: this.calculateTurns(found.totalCost, unit),
+            ...(options.additionalStepCost ? { weightedCost: found.weightedCost } : {}),
+            valid: true,
+          }
+        : this.invalidTravelResult(search.budgetExceeded);
+      results.set(destination.resultKey, result);
+      if (destination.cacheKey !== undefined && !search.budgetExceeded) {
+        this.travelCostCache.set(destination.cacheKey, { ...result });
+        this.trimCache(this.travelCostCache);
+      }
+    }
+    return results;
+  }
+
+  private buildSuccessfulResult(
+    path: number[],
+    weightedCost: number,
+    unit: Unit,
+    options: PathfindingOptions,
+    finalMoveCost?: number
   ): PathfindingResult {
-    const pathTiles = this.convertToPathTiles(path, unit);
+    const pathTiles = this.convertToPathTiles(path, unit, finalMoveCost);
     const totalCost = pathTiles.reduce((sum, tile) => sum + tile.moveCost, 0);
-    const lastNode = path[path.length - 1];
     return {
       path: pathTiles,
       totalCost,
       estimatedTurns: this.calculateTurns(totalCost, unit),
-      ...(options.additionalStepCost ? { weightedCost: lastNode.gCost } : {}),
+      ...(options.additionalStepCost ? { weightedCost } : {}),
       valid: true,
     };
+  }
+
+  private buildDestinationResult(
+    destinationIndex: number,
+    destination: LatticeDestinationResult,
+    unit: Unit,
+    options: PathfindingOptions
+  ): PathfindingResult {
+    const path = this.reconstructLatticePath(destination.parentIndex);
+    path.push(destinationIndex);
+    return this.buildSuccessfulResult(
+      path,
+      destination.weightedCost,
+      unit,
+      options,
+      destination.moveCost
+    );
   }
 
   /**
@@ -405,40 +750,56 @@ export class PathfindingManager {
       return [];
     }
     this.diagnostics.accessibleSearches++;
+    this.prepareStepCostCache(unit);
 
-    const bestRemaining = new Map<string, number>();
+    const bestRemaining = new Map<number, number>();
     const queue = new BinaryMinHeap<AccessibleQueueEntry>((left, right) => {
-      return right.tile.remainingMovement - left.tile.remainingMovement || left.order - right.order;
+      return right.remainingMovement - left.remainingMovement || left.order - right.order;
     });
     let nextOrder = 0;
+    const startIndex = this.toIndex(unit.x, unit.y);
     queue.push({
-      tile: { x: unit.x, y: unit.y, remainingMovement: availableMovement },
+      index: startIndex,
+      remainingMovement: availableMovement,
       order: nextOrder++,
     });
-    bestRemaining.set(`${unit.x},${unit.y}`, availableMovement);
+    bestRemaining.set(startIndex, availableMovement);
 
     while (queue.size > 0) {
       if (budget && !budget.consumeSearchNode()) {
         this.diagnostics.budgetExhaustions++;
         return [];
       }
-      const current = queue.pop()!.tile;
-      const currentKey = `${current.x},${current.y}`;
-      if (current.remainingMovement < (bestRemaining.get(currentKey) ?? -1)) continue;
+      const entry = queue.pop()!;
+      if (entry.remainingMovement < (bestRemaining.get(entry.index) ?? -1)) continue;
+      const current = {
+        ...this.fromIndex(entry.index),
+        remainingMovement: entry.remainingMovement,
+      };
       if (!this.canExpandAccessibleTile(unit, current)) continue;
-      this.enqueueAccessibleNeighbors(unit, current, bestRemaining, queue, () => nextOrder++);
+      this.enqueueAccessibleNeighbors(
+        unit,
+        entry.index,
+        current,
+        bestRemaining,
+        queue,
+        () => nextOrder++
+      );
     }
 
-    const result = [...bestRemaining.entries()].map(([key, remainingMovement]) => {
-      const [x, y] = key.split(',').map(Number);
-      return { x, y, remainingMovement };
-    });
+    const result = [...bestRemaining.entries()].map(([index, remainingMovement]) => ({
+      ...this.fromIndex(index),
+      remainingMovement,
+    }));
     if (cacheKey !== undefined) this.cacheAccessibleResult(cacheKey, result);
     return result.map(tile => ({ ...tile }));
   }
 
   private canExpandAccessibleTile(unit: Unit, tile: AccessibleTile): boolean {
     if (tile.remainingMovement <= 0) return false;
+    if (this.activeSearchPolicy?.canContinuePathFrom) {
+      return this.activeSearchPolicy.canContinuePathFrom(tile.x, tile.y);
+    }
     return (
       !this.movementPolicy?.canContinuePathFrom ||
       this.movementPolicy.canContinuePathFrom(unit, tile.x, tile.y)
@@ -447,13 +808,18 @@ export class PathfindingManager {
 
   private enqueueAccessibleNeighbors(
     unit: Unit,
+    currentIndex: number,
     current: AccessibleTile,
-    bestRemaining: Map<string, number>,
+    bestRemaining: Map<number, number>,
     queue: BinaryMinHeap<AccessibleQueueEntry>,
     nextOrder: () => number
   ): void {
-    for (const neighbor of this.getNeighbors(current.x, current.y)) {
-      const moveCost = this.movementPolicy!.getPathStepCost(
+    const offset = currentIndex * 8;
+    for (let position = 0; position < this.neighborCounts[currentIndex]; position++) {
+      const neighborIndex = this.neighborIndexes[offset + position];
+      const neighbor = this.fromIndex(neighborIndex);
+      const moveCost = this.getCachedMovementCost(
+        (currentIndex * 8 + position) * 2 + 1,
         unit,
         current.x,
         current.y,
@@ -466,25 +832,33 @@ export class PathfindingManager {
       // Freeciv permits one adjacent step with any positive movement
       // remaining, even when the terrain cost exceeds those fragments.
       const remainingMovement = Math.max(0, current.remainingMovement - moveCost);
-      const key = `${neighbor.x},${neighbor.y}`;
-      if (remainingMovement <= (bestRemaining.get(key) ?? -1)) continue;
-      bestRemaining.set(key, remainingMovement);
-      queue.push({ tile: { ...neighbor, remainingMovement }, order: nextOrder() });
+      if (remainingMovement <= (bestRemaining.get(neighborIndex) ?? -1)) continue;
+      bestRemaining.set(neighborIndex, remainingMovement);
+      queue.push({ index: neighborIndex, remainingMovement, order: nextOrder() });
     }
   }
 
   /**
-   * A* pathfinding algorithm implementation
-   * @reference https://en.wikipedia.org/wiki/A*_search_algorithm
+   * Dijkstra search over a reusable tile-indexed lattice. C2C3 railroads can
+   * produce zero-cost edges, so a positive geometric A* heuristic would not
+   * be admissible. The compact lattice and indexed queue preserve optimal
+   * Freeciv movement costs without allocating coordinate keys and node
+   * objects for every visited tile.
+   *
+   * @reference reference/freeciv/common/aicore/path_finding.c:pf_normal_map
+   * @reference reference/freeciv/common/aicore/path_finding.c:pf_normal_map_iterate
    */
-  private aStar(
+  private searchLattice(
     start: { x: number; y: number },
     goal: { x: number; y: number },
     unit: Unit,
     options: PathfindingOptions,
     budget?: PathfindingBudget
-  ): AStarSearchResult {
-    const { openSet, closedSet, nodes } = this.initializeAStarSearch(start, goal);
+  ): LatticeSearchResult {
+    const startIndex = this.toIndex(start.x, start.y);
+    const goalIndex = this.toIndex(goal.x, goal.y);
+    this.prepareStepCostCache(unit);
+    const generation = this.beginLatticeSearch(startIndex);
 
     let iterations = 0;
     const maxIterations = Math.min(
@@ -492,24 +866,37 @@ export class PathfindingManager {
       Math.max(0, options.maxIterations ?? this.mapWidth * this.mapHeight)
     );
 
-    while (openSet.size > 0 && iterations < maxIterations) {
+    let nextQueueOrder = 1;
+    while (this.searchOpenSet.size > 0 && iterations < maxIterations) {
       if (budget && !budget.consumeSearchNode()) {
-        return { path: null, budgetExceeded: true };
+        return { path: null, weightedCost: 0, budgetExceeded: true };
       }
       iterations++;
       this.diagnostics.expandedNodes++;
 
-      const current = this.processCurrentNode(openSet, closedSet);
+      const currentIndex = this.searchOpenSet.pop()!;
+      this.searchStates[currentIndex] = 2;
 
-      if (current.x === goal.x && current.y === goal.y) {
-        return { path: this.reconstructPath(current), budgetExceeded: false };
+      if (currentIndex === goalIndex) {
+        return {
+          path: this.reconstructLatticePath(currentIndex),
+          weightedCost: this.searchCosts[currentIndex],
+          budgetExceeded: false,
+        };
       }
 
-      this.processNeighbors(current, goal, unit, options, openSet, closedSet, nodes);
+      nextQueueOrder = this.expandLatticeNode(
+        currentIndex,
+        goalIndex,
+        unit,
+        options,
+        generation,
+        nextQueueOrder
+      );
     }
 
     // No path found
-    logger.debug('A* pathfinding found no traversable route', {
+    logger.debug('Pathfinding lattice found no traversable route', {
       unitId: unit.id,
       from: start,
       to: goal,
@@ -517,198 +904,262 @@ export class PathfindingManager {
       maxIterations,
     });
 
-    return { path: null, budgetExceeded: false };
+    return { path: null, weightedCost: 0, budgetExceeded: false };
   }
 
-  /**
-   * Initialize A* search data structures
-   */
-  private initializeAStarSearch(start: { x: number; y: number }, goal: { x: number; y: number }) {
-    const openSet = new BinaryMinHeap<AStarNode>((left, right) => {
-      return (
-        left.fCost - right.fCost || left.hCost - right.hCost || left.queueOrder - right.queueOrder
-      );
-    });
-    const closedSet = new Set<string>();
-    const nodes = new Map<string, AStarNode>();
-
-    const startNode: AStarNode = {
-      x: start.x,
-      y: start.y,
-      gCost: 0,
-      hCost: this.heuristic(start.x, start.y, goal.x, goal.y),
-      fCost: 0,
-      parent: null,
-      moveCost: 0,
-      queueOrder: 0,
-    };
-    startNode.fCost = startNode.gCost + startNode.hCost;
-
-    openSet.push(startNode);
-    nodes.set(`${start.x},${start.y}`, startNode);
-
-    return { openSet, closedSet, nodes };
-  }
-
-  /**
-   * Process current node in A* algorithm
-   */
-  private processCurrentNode(openSet: BinaryMinHeap<AStarNode>, closedSet: Set<string>): AStarNode {
-    const current = openSet.pop()!;
-    closedSet.add(`${current.x},${current.y}`);
-    return current;
-  }
-
-  /**
-   * Process neighbors of current node in A* algorithm
-   */
-  private processNeighbors(
-    current: AStarNode,
-    goal: { x: number; y: number },
+  private searchManyLattice(
     unit: Unit,
+    destinations: ReadonlyMap<number, unknown>,
     options: PathfindingOptions,
-    openSet: BinaryMinHeap<AStarNode>,
-    closedSet: Set<string>,
-    nodes: Map<string, AStarNode>
-  ) {
-    const neighbors = this.getNeighbors(current.x, current.y);
-
-    for (const neighbor of neighbors) {
-      this.processNeighborNode(current, neighbor, goal, unit, options, openSet, closedSet, nodes);
-    }
-  }
-
-  /**
-   * Process individual neighbor node
-   */
-  private processNeighborNode(
-    current: AStarNode,
-    neighbor: { x: number; y: number },
-    goal: { x: number; y: number },
-    unit: Unit,
-    options: PathfindingOptions,
-    openSet: BinaryMinHeap<AStarNode>,
-    closedSet: Set<string>,
-    nodes: Map<string, AStarNode>
-  ) {
-    const neighborKey = `${neighbor.x},${neighbor.y}`;
-
-    if (closedSet.has(neighborKey)) {
-      return;
-    }
-
-    const moveCost = this.getMovementCost(
-      current.x,
-      current.y,
-      neighbor.x,
-      neighbor.y,
-      unit,
-      neighbor.x === goal.x && neighbor.y === goal.y
+    budget?: PathfindingBudget
+  ): LatticeManySearchResult {
+    const startIndex = this.toIndex(unit.x, unit.y);
+    this.prepareStepCostCache(unit);
+    const generation = this.beginLatticeSearch(startIndex);
+    const found = new Map<number, LatticeDestinationResult>();
+    let nextQueueOrder = 1;
+    let iterations = 0;
+    const maxIterations = Math.min(
+      this.tileCount,
+      Math.max(0, options.maxIterations ?? this.tileCount)
     );
-    if (moveCost < 0) {
-      return; // Unwalkable terrain
+
+    while (this.searchOpenSet.size > 0 && iterations < maxIterations) {
+      if (found.size === destinations.size) {
+        const nextIndex = this.searchOpenSet.peek();
+        let highestFoundCost = 0;
+        for (const destination of found.values()) {
+          highestFoundCost = Math.max(highestFoundCost, destination.weightedCost);
+        }
+        if (nextIndex === undefined || this.searchCosts[nextIndex] >= highestFoundCost) break;
+      }
+      if (budget && !budget.consumeSearchNode()) {
+        return { destinations: found, budgetExceeded: true };
+      }
+
+      iterations++;
+      this.diagnostics.expandedNodes++;
+      const currentIndex = this.searchOpenSet.pop()!;
+      this.searchStates[currentIndex] = 2;
+      const current = this.fromIndex(currentIndex);
+      const offset = currentIndex * 8;
+
+      for (let position = 0; position < this.neighborCounts[currentIndex]; position++) {
+        const neighborIndex = this.neighborIndexes[offset + position];
+        const neighbor = this.fromIndex(neighborIndex);
+        const additionalCost =
+          options.additionalStepCost?.(unit, current.x, current.y, neighbor.x, neighbor.y) ?? 0;
+        if (!Number.isFinite(additionalCost) || additionalCost < 0) continue;
+
+        if (destinations.has(neighborIndex)) {
+          const destinationMoveCost = this.getCachedMovementCost(
+            (currentIndex * 8 + position) * 2 + 1,
+            unit,
+            current.x,
+            current.y,
+            neighbor.x,
+            neighbor.y,
+            true
+          );
+          if (destinationMoveCost >= 0) {
+            const weightedCost =
+              this.searchCosts[currentIndex] + destinationMoveCost + additionalCost;
+            const previous = found.get(neighborIndex);
+            if (!previous || weightedCost < previous.weightedCost) {
+              found.set(neighborIndex, {
+                parentIndex: currentIndex,
+                moveCost: destinationMoveCost,
+                totalCost: this.searchTotalMoveCosts[currentIndex] + destinationMoveCost,
+                weightedCost,
+              });
+            }
+          }
+        }
+
+        if (
+          this.searchGenerations[neighborIndex] === generation &&
+          this.searchStates[neighborIndex] === 2
+        ) {
+          continue;
+        }
+        const moveCost = this.getCachedMovementCost(
+          (currentIndex * 8 + position) * 2,
+          unit,
+          current.x,
+          current.y,
+          neighbor.x,
+          neighbor.y,
+          false
+        );
+        if (moveCost < 0) continue;
+        const tentativeCost = this.searchCosts[currentIndex] + moveCost + additionalCost;
+        const tentativeTotalMoveCost = this.searchTotalMoveCosts[currentIndex] + moveCost;
+        if (this.searchGenerations[neighborIndex] !== generation) {
+          this.initializeLatticeNode(
+            neighborIndex,
+            generation,
+            tentativeCost,
+            tentativeTotalMoveCost,
+            currentIndex,
+            moveCost,
+            nextQueueOrder++
+          );
+          this.searchOpenSet.push(neighborIndex);
+        } else if (tentativeCost < this.searchCosts[neighborIndex]) {
+          this.searchCosts[neighborIndex] = tentativeCost;
+          this.searchTotalMoveCosts[neighborIndex] = tentativeTotalMoveCost;
+          this.searchParents[neighborIndex] = currentIndex;
+          this.searchMoveCosts[neighborIndex] = moveCost;
+          this.searchOpenSet.update(neighborIndex);
+        }
+      }
     }
 
-    const additionalCost =
-      options.additionalStepCost?.(unit, current.x, current.y, neighbor.x, neighbor.y) ?? 0;
-    if (!Number.isFinite(additionalCost)) return;
-    if (additionalCost < 0) return;
-    const tentativeGCost = current.gCost + moveCost + additionalCost;
-    let neighborNode = nodes.get(neighborKey);
-
-    if (!neighborNode) {
-      neighborNode = this.createNeighborNode(
-        neighbor,
-        tentativeGCost,
-        goal,
-        current,
-        moveCost,
-        nodes.size
-      );
-      nodes.set(neighborKey, neighborNode);
-      openSet.push(neighborNode);
-    } else if (tentativeGCost < neighborNode.gCost) {
-      this.updateNeighborNode(neighborNode, tentativeGCost, current, moveCost, openSet);
-    }
+    return { destinations: found, budgetExceeded: false };
   }
 
-  /**
-   * Create new neighbor node
-   */
-  private createNeighborNode(
-    neighbor: { x: number; y: number },
-    gCost: number,
-    goal: { x: number; y: number },
-    parent: AStarNode,
+  private expandLatticeNode(
+    currentIndex: number,
+    goalIndex: number,
+    unit: Unit,
+    options: PathfindingOptions,
+    generation: number,
+    nextQueueOrder: number
+  ): number {
+    const current = this.fromIndex(currentIndex);
+    const offset = currentIndex * 8;
+    for (let position = 0; position < this.neighborCounts[currentIndex]; position++) {
+      const neighborIndex = this.neighborIndexes[offset + position];
+      if (
+        this.searchGenerations[neighborIndex] === generation &&
+        this.searchStates[neighborIndex] === 2
+      ) {
+        continue;
+      }
+
+      const neighbor = this.fromIndex(neighborIndex);
+      const isDestination = neighborIndex === goalIndex;
+      const moveCost = this.getCachedMovementCost(
+        (currentIndex * 8 + position) * 2 + (isDestination ? 1 : 0),
+        unit,
+        current.x,
+        current.y,
+        neighbor.x,
+        neighbor.y,
+        isDestination
+      );
+      if (moveCost < 0) continue;
+
+      const additionalCost =
+        options.additionalStepCost?.(unit, current.x, current.y, neighbor.x, neighbor.y) ?? 0;
+      if (!Number.isFinite(additionalCost) || additionalCost < 0) continue;
+      const tentativeCost = this.searchCosts[currentIndex] + moveCost + additionalCost;
+      const tentativeTotalMoveCost = this.searchTotalMoveCosts[currentIndex] + moveCost;
+
+      if (this.searchGenerations[neighborIndex] !== generation) {
+        this.initializeLatticeNode(
+          neighborIndex,
+          generation,
+          tentativeCost,
+          tentativeTotalMoveCost,
+          currentIndex,
+          moveCost,
+          nextQueueOrder++
+        );
+        this.searchOpenSet.push(neighborIndex);
+      } else if (tentativeCost < this.searchCosts[neighborIndex]) {
+        this.searchCosts[neighborIndex] = tentativeCost;
+        this.searchTotalMoveCosts[neighborIndex] = tentativeTotalMoveCost;
+        this.searchParents[neighborIndex] = currentIndex;
+        this.searchMoveCosts[neighborIndex] = moveCost;
+        this.searchOpenSet.update(neighborIndex);
+      }
+    }
+    return nextQueueOrder;
+  }
+
+  private beginLatticeSearch(startIndex: number): number {
+    this.searchGeneration = (this.searchGeneration + 1) >>> 0;
+    if (this.searchGeneration === 0) {
+      this.searchGenerations.fill(0);
+      this.searchGeneration = 1;
+    }
+    this.searchOpenSet.clear();
+    this.initializeLatticeNode(startIndex, this.searchGeneration, 0, 0, -1, 0, 0);
+    this.searchOpenSet.push(startIndex);
+    return this.searchGeneration;
+  }
+
+  private initializeLatticeNode(
+    index: number,
+    generation: number,
+    cost: number,
+    totalMoveCost: number,
+    parent: number,
     moveCost: number,
     queueOrder: number
-  ): AStarNode {
-    const neighborNode: AStarNode = {
-      x: neighbor.x,
-      y: neighbor.y,
-      gCost,
-      hCost: this.heuristic(neighbor.x, neighbor.y, goal.x, goal.y),
-      fCost: 0,
-      parent,
-      moveCost,
-      queueOrder,
-    };
-    neighborNode.fCost = neighborNode.gCost + neighborNode.hCost;
-    return neighborNode;
+  ): void {
+    this.searchGenerations[index] = generation;
+    this.searchStates[index] = 1;
+    this.searchCosts[index] = cost;
+    this.searchTotalMoveCosts[index] = totalMoveCost;
+    this.searchParents[index] = parent;
+    this.searchMoveCosts[index] = moveCost;
+    this.searchQueueOrders[index] = queueOrder;
   }
 
-  /**
-   * Update existing neighbor node with better path
-   */
-  private updateNeighborNode(
-    neighborNode: AStarNode,
-    gCost: number,
-    parent: AStarNode,
-    moveCost: number,
-    openSet: BinaryMinHeap<AStarNode>
-  ) {
-    neighborNode.gCost = gCost;
-    neighborNode.fCost = neighborNode.gCost + neighborNode.hCost;
-    neighborNode.parent = parent;
-    neighborNode.moveCost = moveCost;
-
-    openSet.update(neighborNode);
-  }
-
-  /**
-   * Reconstruct path from goal node back to start
-   */
-  private reconstructPath(goalNode: AStarNode): AStarNode[] {
-    const path: AStarNode[] = [];
-    let current: AStarNode | null = goalNode;
-
-    while (current) {
-      path.unshift(current);
-      current = current.parent;
+  private reconstructLatticePath(goalIndex: number): number[] {
+    const path: number[] = [];
+    let currentIndex = goalIndex;
+    while (currentIndex >= 0) {
+      path.push(currentIndex);
+      currentIndex = this.searchParents[currentIndex];
     }
-
+    path.reverse();
     return path;
   }
 
   /**
-   * Get valid neighbor coordinates
+   * Reuse authoritative edge costs while one unit is evaluated against many
+   * AI destinations. Runtime movement changes advance either the manager's
+   * cache version or the map revision, so a scope can never survive a change
+   * in occupancy, diplomacy, infrastructure, or terrain.
    */
-  private getNeighbors(x: number, y: number): Array<{ x: number; y: number }> {
-    return this.topology.getNeighbors(x, y);
+  private prepareStepCostCache(unit: Unit): void {
+    const mapRevision = this.getMapRevision();
+    if (mapRevision === undefined) {
+      this.stepCostScope = undefined;
+      this.stepCosts.clear();
+      this.activeSearchPolicy = this.movementPolicy?.createPathSearchPolicy?.(unit);
+      return;
+    }
+    const scope = [
+      this.cacheTurn ?? 'unscoped',
+      this.cacheVersion,
+      mapRevision,
+      this.unitCacheKey(unit),
+    ].join('|');
+    if (scope === this.stepCostScope) return;
+
+    this.stepCostScope = scope;
+    this.stepCosts.clear();
+    this.activeSearchPolicy = this.movementPolicy?.createPathSearchPolicy?.(unit);
   }
 
-  /**
-   * Calculate heuristic cost (Manhattan distance)
-   */
-  private heuristic(x1: number, y1: number, x2: number, y2: number): number {
-    // Ruleset railroads can have zero-cost edges, so no positive geometric
-    // heuristic is admissible for every map. Dijkstra mode preserves optimal
-    // paths across mixed terrain, roads, and railroad networks.
-    void x1;
-    void y1;
-    void x2;
-    void y2;
-    return 0;
+  private getCachedMovementCost(
+    slot: number,
+    unit: Unit,
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    isDestination: boolean
+  ): number {
+    const cached = this.stepCosts.get(slot);
+    if (cached !== undefined) return cached;
+    const cost = this.getMovementCost(fromX, fromY, toX, toY, unit, isDestination);
+    this.stepCosts.set(slot, cost);
+    return cost;
   }
 
   /**
@@ -737,6 +1188,9 @@ export class PathfindingManager {
     }
 
     try {
+      if (this.activeSearchPolicy) {
+        return this.activeSearchPolicy.getPathStepCost(fromX, fromY, toX, toY, isDestination);
+      }
       if (this.movementPolicy) {
         return this.movementPolicy.getPathStepCost(unit, fromX, fromY, toX, toY, isDestination);
       }
@@ -752,7 +1206,19 @@ export class PathfindingManager {
       }
 
       // Use enhanced movement cost calculation with terrain validation
-      return calculateMovementCost(fromX, fromY, toX, toY, tile.terrain, unit.unitTypeId);
+      const movementKey = `${unit.unitTypeId}|${tile.terrain}`;
+      const cached = this.fallbackMovementCostCache.get(movementKey);
+      if (cached !== undefined) return cached;
+      const movementCost = calculateMovementCost(
+        fromX,
+        fromY,
+        toX,
+        toY,
+        tile.terrain,
+        unit.unitTypeId
+      );
+      this.fallbackMovementCostCache.set(movementKey, movementCost);
+      return movementCost;
     } catch (error) {
       logger.error('PathfindingManager: Failed to get terrain data', {
         x: toX,
@@ -772,23 +1238,52 @@ export class PathfindingManager {
     return this.topology.isValidCoordinate(x, y);
   }
 
+  private buildNeighborIndex(): void {
+    for (let x = 0; x < this.mapWidth; x++) {
+      for (let y = 0; y < this.mapHeight; y++) {
+        const index = this.toIndex(x, y);
+        const neighbors = this.topology.getNeighbors(x, y);
+        this.neighborCounts[index] = neighbors.length;
+        for (let position = 0; position < neighbors.length; position++) {
+          const neighbor = neighbors[position];
+          this.neighborIndexes[index * 8 + position] = this.toIndex(neighbor.x, neighbor.y);
+        }
+      }
+    }
+  }
+
+  private toIndex(x: number, y: number): number {
+    return y * this.mapWidth + x;
+  }
+
+  private fromIndex(index: number): { x: number; y: number } {
+    return {
+      x: index % this.mapWidth,
+      y: Math.floor(index / this.mapWidth),
+    };
+  }
+
   /**
-   * Convert A* nodes to PathTile format with directions
+   * Convert lattice indexes to PathTile format with directions.
    */
-  private convertToPathTiles(path: AStarNode[], _unit: Unit): PathTile[] {
+  private convertToPathTiles(path: number[], _unit: Unit, finalMoveCost?: number): PathTile[] {
     const pathTiles: PathTile[] = [];
 
     for (let i = 0; i < path.length; i++) {
-      const node = path[i];
+      const index = path[i];
+      const node = this.fromIndex(index);
       const pathTile: PathTile = {
         x: node.x,
         y: node.y,
-        moveCost: node.moveCost,
+        moveCost:
+          finalMoveCost !== undefined && i === path.length - 1
+            ? finalMoveCost
+            : this.searchMoveCosts[index],
       };
 
       // Calculate direction to next tile for rendering
       if (i < path.length - 1) {
-        const nextNode = path[i + 1];
+        const nextNode = this.fromIndex(path[i + 1]);
         pathTile.direction = this.calculateDirection(node.x, node.y, nextNode.x, nextNode.y);
       }
 
@@ -844,6 +1339,15 @@ export class PathfindingManager {
   private invalidResult(budgetExceeded = false): PathfindingResult {
     return {
       path: [],
+      totalCost: 0,
+      estimatedTurns: 0,
+      valid: false,
+      ...(budgetExceeded ? { budgetExceeded: true } : {}),
+    };
+  }
+
+  private invalidTravelResult(budgetExceeded = false): PathfindingTravelResult {
+    return {
       totalCost: 0,
       estimatedTurns: 0,
       valid: false,

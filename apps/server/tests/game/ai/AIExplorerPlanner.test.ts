@@ -219,6 +219,49 @@ describe('FreecivAIExplorerPlanner', () => {
     ).toBe(2);
   });
 
+  it('uses one route-map search for an explorer shortlist', async () => {
+    const planning = context([
+      [1, 2],
+      [2, 2],
+      [3, 1],
+      [3, 2],
+      [3, 3],
+      [4, 2],
+    ]);
+    const findPath = jest.fn();
+    const findPaths = jest.fn(
+      async (
+        actor: ExplorerPlanningContext['units'][number],
+        destinations: ReadonlyArray<{ x: number; y: number }>
+      ) =>
+        new Map(
+          destinations.map(destination => [
+            `${destination.x},${destination.y}`,
+            {
+              valid: true,
+              path: [
+                { x: actor.x, y: actor.y, moveCost: 0 },
+                { x: destination.x, y: destination.y, moveCost: 1 },
+              ],
+              totalCost: Math.max(
+                Math.abs(actor.x - destination.x),
+                Math.abs(actor.y - destination.y)
+              ),
+              estimatedTurns: 1,
+            },
+          ])
+        )
+    );
+    planning.findPath = findPath;
+    planning.findPaths = findPaths;
+
+    const plan = await planExploration(planning);
+
+    expect(plan.assignments).toHaveLength(1);
+    expect(findPaths).toHaveBeenCalledTimes(1);
+    expect(findPath).not.toHaveBeenCalled();
+  });
+
   it('keeps the original assignment turn while a frontier target remains valuable', async () => {
     const planning = context(
       [

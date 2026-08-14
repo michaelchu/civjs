@@ -532,6 +532,18 @@ export class FreecivAICityController {
       getNeighbors: (x, y) => game.mapManager.getNeighbors(x, y),
       findPath: (unit, targetX, targetY) =>
         game.pathfindingManager.findPath(unit, targetX, targetY),
+      ...(typeof game.pathfindingManager.findPaths === 'function'
+        ? {
+            findPaths: (unit: Unit, destinations: ReadonlyArray<{ x: number; y: number }>) =>
+              game.pathfindingManager.findPaths(unit, destinations),
+          }
+        : {}),
+      ...(typeof game.pathfindingManager.findPathCosts === 'function'
+        ? {
+            findPathCosts: (unit: Unit, destinations: ReadonlyArray<{ x: number; y: number }>) =>
+              game.pathfindingManager.findPathCosts(unit, destinations),
+          }
+        : {}),
       isStackProtected: (x, y) => {
         const tile = game.mapManager.getTile(x, y);
         return Boolean(
@@ -671,25 +683,50 @@ export class FreecivAICityController {
     );
     const diplomatTravelTurns = new Map<string, number>();
     await Promise.all(
-      diplomatTypes.flatMap(type =>
-        diplomatTargetCities.map(async target => {
-          const virtual = createVirtualDiplomat(game.id, playerId, city, type.id, type.movement);
-          const candidates = await Promise.all(
-            game.mapManager
-              .getNeighbors(target.x, target.y)
-              .map(tile => game.pathfindingManager.findPath(virtual, tile.x, tile.y))
-          );
-          const cost = candidates
-            .filter(path => path.valid)
-            .reduce((best, path) => Math.min(best, path.totalCost), Infinity);
+      diplomatTypes.map(async type => {
+        const virtual = createVirtualDiplomat(game.id, playerId, city, type.id, type.movement);
+        const destinationsByTarget = new Map<string, Array<{ x: number; y: number }>>();
+        const uniqueDestinations = new Map<string, { x: number; y: number }>();
+        for (const target of diplomatTargetCities) {
+          const destinations = game.mapManager.getNeighbors(target.x, target.y);
+          destinationsByTarget.set(target.id, destinations);
+          for (const destination of destinations) {
+            uniqueDestinations.set(`${destination.x},${destination.y}`, destination);
+          }
+        }
+        const routeMap =
+          typeof game.pathfindingManager.findPathCosts === 'function'
+            ? await game.pathfindingManager.findPathCosts(virtual, [...uniqueDestinations.values()])
+            : typeof game.pathfindingManager.findPaths === 'function'
+              ? await game.pathfindingManager.findPaths(virtual, [...uniqueDestinations.values()])
+              : new Map(
+                  await Promise.all(
+                    [...uniqueDestinations].map(
+                      async ([key, destination]) =>
+                        [
+                          key,
+                          await game.pathfindingManager.findPath(
+                            virtual,
+                            destination.x,
+                            destination.y
+                          ),
+                        ] as const
+                    )
+                  )
+                );
+        for (const target of diplomatTargetCities) {
+          const cost = (destinationsByTarget.get(target.id) ?? [])
+            .map(destination => routeMap.get(`${destination.x},${destination.y}`))
+            .filter(path => path?.valid)
+            .reduce((best, path) => Math.min(best, path!.totalCost), Infinity);
           diplomatTravelTurns.set(
             `${type.id}:${target.id}`,
             Number.isFinite(cost)
               ? Math.max(1, Math.ceil(cost / Math.max(1, type.movement)))
               : Infinity
           );
-        })
-      )
+        }
+      })
     );
     const diplomatThreat = hostileUnits.some(enemy => {
       const type = game.unitManager.getUnitType(enemy.unitTypeId);

@@ -89,6 +89,14 @@ export interface MilitaryTravelPlanningContext {
     targetX: number,
     targetY: number
   ) => Promise<{ valid: boolean; estimatedTurns: number }>;
+  findPaths?: (
+    unit: Unit,
+    destinations: ReadonlyArray<{ x: number; y: number }>
+  ) => Promise<ReadonlyMap<string, { valid: boolean; estimatedTurns: number }>>;
+  findPathCosts?: (
+    unit: Unit,
+    destinations: ReadonlyArray<{ x: number; y: number }>
+  ) => Promise<ReadonlyMap<string, { valid: boolean; estimatedTurns: number }>>;
   budget?: AIPlanningBudgetLike;
 }
 
@@ -121,16 +129,26 @@ export async function buildMilitaryTravelTimes(
       destinationsByTarget.set(`${target.x},${target.y}`, destinationKeys);
     }
 
-    const pathByDestination = new Map<
-      string,
-      Promise<{ valid: boolean; estimatedTurns: number }>
-    >();
+    const requestedDestinations = new Map<string, { x: number; y: number }>();
     for (const [key, destination] of uniqueDestinations) {
       if (context.budget && !context.budget.consumePlanningStep()) break;
-      pathByDestination.set(key, context.findPath(attacker, destination.x, destination.y));
+      requestedDestinations.set(key, destination);
     }
-    const resolvedPaths = new Map<string, { valid: boolean; estimatedTurns: number }>();
-    for (const [key, path] of pathByDestination) resolvedPaths.set(key, await path);
+    let resolvedPaths: ReadonlyMap<string, { valid: boolean; estimatedTurns: number }>;
+    if (context.findPathCosts) {
+      resolvedPaths = await context.findPathCosts(attacker, [...requestedDestinations.values()]);
+    } else if (context.findPaths) {
+      resolvedPaths = await context.findPaths(attacker, [...requestedDestinations.values()]);
+    } else {
+      resolvedPaths = new Map(
+        await Promise.all(
+          [...requestedDestinations].map(
+            async ([key, destination]) =>
+              [key, await context.findPath(attacker, destination.x, destination.y)] as const
+          )
+        )
+      );
+    }
 
     for (const target of targets.values()) {
       const validTurns = (destinationsByTarget.get(`${target.x},${target.y}`) ?? [])

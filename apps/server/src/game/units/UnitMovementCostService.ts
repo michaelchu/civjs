@@ -21,6 +21,9 @@ interface InfrastructureTile {
 }
 
 export class UnitMovementCostService {
+  private readonly baseTerrainCostCache = new Map<string, number>();
+  private readonly moveFragmentsCache = new Map<string, number>();
+
   constructor(
     private readonly unitTypes: Record<string, UnitType>,
     private readonly effectsManager: EffectsManager,
@@ -35,25 +38,13 @@ export class UnitMovementCostService {
     const destinationTerrain = this.getTerrainAt(toX, toY);
     const unitType = this.unitTypes[unit.unitTypeId];
     const rulesetName = this.getRulesetName();
-    const fragments = getRulesetMoveFragments(rulesetName);
-    let movementCost = getTerrainMovementCost(
+    const movementCost = this.getBaseTerrainCost(
+      rulesetName,
       destinationTerrain,
       unit.unitTypeId,
-      this.movementRulesetLookup(rulesetName)
+      unitType
     );
-
-    if (movementCost < 0 && unitType) {
-      const terrain = rulesetLoader.getTerrain(destinationTerrain, rulesetName);
-      const isWater = ['ocean', 'deep_ocean', 'coast', 'lake'].includes(destinationTerrain);
-      const isSeaUnit = ['Sea', 'Trireme'].includes(unitType.rulesetUnitClass ?? '');
-      const isAirUnit = unitType.rulesetUnitClass === 'Air';
-      if ((isSeaUnit && isWater) || (isAirUnit && !isWater) || (!isSeaUnit && !isWater)) {
-        movementCost = isAirUnit ? fragments : (terrain.moveCost ?? 1) * fragments;
-      }
-    }
-    if (movementCost < 0 || this.isTriremeBlocked(unitType, destinationTerrain)) {
-      return -1;
-    }
+    if (movementCost < 0) return -1;
 
     return (
       this.getInfrastructureCost(unitType, this.getTile(fromX, fromY), this.getTile(toX, toY)) ??
@@ -103,6 +94,44 @@ export class UnitMovementCostService {
         rulesetUnitsService.getMovementType(unitTypeId, rulesetName) as MovementType | undefined,
       getMoveFragments: () => getRulesetMoveFragments(rulesetName),
     };
+  }
+
+  private getBaseTerrainCost(
+    rulesetName: string,
+    terrainId: TerrainType,
+    unitTypeId: string,
+    unitType: UnitType | undefined
+  ): number {
+    const key = `${rulesetName}|${unitTypeId}|${terrainId}`;
+    const cached = this.baseTerrainCostCache.get(key);
+    if (cached !== undefined) return cached;
+
+    const fragments = this.getMoveFragments(rulesetName);
+    let movementCost = getTerrainMovementCost(
+      terrainId,
+      unitTypeId,
+      this.movementRulesetLookup(rulesetName)
+    );
+    if (movementCost < 0 && unitType) {
+      const terrain = rulesetLoader.getTerrain(terrainId, rulesetName);
+      const isWater = ['ocean', 'deep_ocean', 'coast', 'lake'].includes(terrainId);
+      const isSeaUnit = ['Sea', 'Trireme'].includes(unitType.rulesetUnitClass ?? '');
+      const isAirUnit = unitType.rulesetUnitClass === 'Air';
+      if ((isSeaUnit && isWater) || (isAirUnit && !isWater) || (!isSeaUnit && !isWater)) {
+        movementCost = isAirUnit ? fragments : (terrain.moveCost ?? 1) * fragments;
+      }
+    }
+    if (movementCost < 0 || this.isTriremeBlocked(unitType, terrainId)) movementCost = -1;
+    this.baseTerrainCostCache.set(key, movementCost);
+    return movementCost;
+  }
+
+  private getMoveFragments(rulesetName: string): number {
+    const cached = this.moveFragmentsCache.get(rulesetName);
+    if (cached !== undefined) return cached;
+    const fragments = getRulesetMoveFragments(rulesetName);
+    this.moveFragmentsCache.set(rulesetName, fragments);
+    return fragments;
   }
 
   private isTriremeBlocked(unitType: UnitType | undefined, terrain: TerrainType): boolean {

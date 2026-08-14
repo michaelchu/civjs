@@ -1830,6 +1830,47 @@ describe('UnitManager', () => {
       await expect(unitManager.moveUnit(mover.id, 11, 10)).rejects.toThrow('enemy zone of control');
     });
 
+    it('matches authoritative movement rules in the indexed path-search policy', async () => {
+      unitManager.setAlliedPlayersProvider(() => new Set());
+      unitManager.setHostilePlayersProvider(() => new Set(['player-456']));
+      const mover = await unitManager.createUnit('player-123', 'warriors', 10, 10);
+      await unitManager.createUnit('player-456', 'warriors', 9, 10);
+      await unitManager.createUnit('player-456', 'warriors', 12, 10);
+      cities.set('14,10', { id: 'enemy-city', playerId: 'player-456' });
+      roads.add('15,10');
+      roads.add('16,10');
+      railroads.add('17,10');
+      railroads.add('18,10');
+
+      const policy = unitManager.createPathSearchPolicy(mover);
+      const cases = [
+        { fromX: 10, fromY: 10, toX: 11, toY: 10, destination: false },
+        { fromX: 11, fromY: 10, toX: 12, toY: 10, destination: true },
+        { fromX: 13, fromY: 10, toX: 14, toY: 10, destination: false },
+        { fromX: 13, fromY: 10, toX: 14, toY: 10, destination: true },
+        { fromX: 15, fromY: 10, toX: 16, toY: 10, destination: false },
+        { fromX: 17, fromY: 10, toX: 18, toY: 10, destination: false },
+      ];
+
+      for (const step of cases) {
+        expect(
+          policy.getPathStepCost(step.fromX, step.fromY, step.toX, step.toY, step.destination)
+        ).toBe(
+          unitManager.getPathStepCost(
+            mover,
+            step.fromX,
+            step.fromY,
+            step.toX,
+            step.toY,
+            step.destination
+          )
+        );
+      }
+      expect(policy.canContinuePathFrom?.(10, 10)).toBe(
+        unitManager.canContinuePathFrom(mover, 10, 10)
+      );
+    });
+
     it('does not treat allied units as enemy zones of control', async () => {
       unitManager.setHostilePlayersProvider(() => new Set());
       const mover = await unitManager.createUnit('player-123', 'warriors', 10, 10);

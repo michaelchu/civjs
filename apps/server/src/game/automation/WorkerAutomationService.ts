@@ -139,14 +139,26 @@ async function planPathAwareInfrastructureWork(
   const travelTurns = new Map<string, number>();
   for (const worker of workers) {
     const movement = Math.max(1, game.unitManager.getUnitType(worker.unitTypeId)?.movement ?? 1);
+    const destinations = [...tiles.values()].filter(
+      tile => worker.x !== tile.x || worker.y !== tile.y
+    );
+    const routeMap =
+      typeof game.pathfindingManager.findPathCosts === 'function'
+        ? await game.pathfindingManager.findPathCosts(worker, destinations)
+        : typeof game.pathfindingManager.findPaths === 'function'
+          ? await game.pathfindingManager.findPaths(worker, destinations)
+          : undefined;
     for (const tile of tiles.values()) {
       const key = `${worker.id}:${tile.x},${tile.y}`;
       if (worker.x === tile.x && worker.y === tile.y) {
         travelTurns.set(key, 0);
         continue;
       }
-      const path = await game.pathfindingManager.findPath(worker, tile.x, tile.y);
-      if (!path.valid || path.path.length < 2) {
+      const path =
+        routeMap?.get(`${tile.x},${tile.y}`) ??
+        (await game.pathfindingManager.findPath(worker, tile.x, tile.y));
+      const pathLength = 'path' in path && Array.isArray(path.path) ? path.path.length : 2;
+      if (!path.valid || pathLength < 2) {
         const source = game.mapManager.getTile(worker.x, worker.y);
         const destination = game.mapManager.getTile(tile.x, tile.y);
         if (

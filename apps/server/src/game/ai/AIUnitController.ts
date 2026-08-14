@@ -392,12 +392,20 @@ export class FreecivAIUnitController {
     unit: Unit,
     state: FreecivAIState,
     reservedSites: Map<string, string>,
-    candidate: ReturnType<typeof rankCitySites>[number]
+    candidate: ReturnType<typeof rankCitySites>[number],
+    routeReachable?: boolean
   ): Promise<boolean> {
     const isCurrentTile = candidate.tile.x === unit.x && candidate.tile.y === unit.y;
     if (!isCurrentTile) {
-      const path = await game.pathfindingManager.findPath(unit, candidate.tile.x, candidate.tile.y);
-      if (!path.valid || path.path.length < 2) return false;
+      if (routeReachable === false) return false;
+      if (routeReachable === undefined) {
+        const path = await game.pathfindingManager.findPath(
+          unit,
+          candidate.tile.x,
+          candidate.tile.y
+        );
+        if (!path.valid || path.path.length < 2) return false;
+      }
     }
     this.releaseSettlerReservation(reservedSites, unit.id);
     const key = `${candidate.tile.x},${candidate.tile.y}`;
@@ -502,8 +510,26 @@ export class FreecivAIUnitController {
       existingTask,
       (profile.expansion / 100) * (profile.traits.expansionist / 50)
     );
+    const remoteCandidates = candidates
+      .map(candidate => candidate.tile)
+      .filter(tile => tile.x !== unit.x || tile.y !== unit.y);
+    const routeMap =
+      typeof game.pathfindingManager.findPathCosts === 'function'
+        ? await game.pathfindingManager.findPathCosts(unit, remoteCandidates)
+        : typeof game.pathfindingManager.findPaths === 'function'
+          ? await game.pathfindingManager.findPaths(unit, remoteCandidates)
+          : undefined;
     for (const candidate of candidates) {
-      if (await this.trySettlerCandidate(game, unit, state, reservedSites, candidate)) return 1;
+      const isCurrentTile = candidate.tile.x === unit.x && candidate.tile.y === unit.y;
+      const routeReachable = isCurrentTile
+        ? true
+        : routeMap
+          ? routeMap.get(`${candidate.tile.x},${candidate.tile.y}`)?.valid === true
+          : undefined;
+      if (
+        await this.trySettlerCandidate(game, unit, state, reservedSites, candidate, routeReachable)
+      )
+        return 1;
     }
     this.releaseSettlerReservation(reservedSites, unit.id);
     if (state.unitTasks[unit.id]?.role === 'settle') delete state.unitTasks[unit.id];
@@ -674,6 +700,18 @@ export class FreecivAIUnitController {
       getNeighbors: (x, y) => game.mapManager.getNeighbors(x, y),
       findPath: (unit, targetX, targetY) =>
         game.pathfindingManager.findPath(unit, targetX, targetY),
+      ...(typeof game.pathfindingManager.findPaths === 'function'
+        ? {
+            findPaths: (unit: Unit, destinations: ReadonlyArray<{ x: number; y: number }>) =>
+              game.pathfindingManager.findPaths(unit, destinations),
+          }
+        : {}),
+      ...(typeof game.pathfindingManager.findPathCosts === 'function'
+        ? {
+            findPathCosts: (unit: Unit, destinations: ReadonlyArray<{ x: number; y: number }>) =>
+              game.pathfindingManager.findPathCosts(unit, destinations),
+          }
+        : {}),
       budget: this.planningBudget(game),
     });
     const campaign = planMilitaryCampaign({
@@ -799,16 +837,28 @@ export class FreecivAIUnitController {
     if (unit.health >= 50 || unit.movementLeft <= 0) return 0;
     const relations = await this.hostilityPolicy.getRelationPlayerIds(game.id, playerId);
     const owners = new Set([playerId, ...relations.allied]);
+    const cities = game.cityManager.getAllCities().filter(city => owners.has(city.playerId));
+    const routeMap =
+      typeof game.pathfindingManager.findPathCosts === 'function'
+        ? await game.pathfindingManager.findPathCosts(
+            unit,
+            cities.map(city => ({ x: city.x, y: city.y }))
+          )
+        : typeof game.pathfindingManager.findPaths === 'function'
+          ? await game.pathfindingManager.findPaths(
+              unit,
+              cities.map(city => ({ x: city.x, y: city.y }))
+            )
+          : undefined;
     const candidates = await Promise.all(
-      game.cityManager
-        .getAllCities()
-        .filter(city => owners.has(city.playerId))
-        .map(async city => ({
-          city,
-          path: await game.pathfindingManager.findPath(unit, city.x, city.y),
-          regeneration: game.unitManager.calculateUnitHitpointRecovery(unit, city.x, city.y)
-            .regeneration,
-        }))
+      cities.map(async city => ({
+        city,
+        path:
+          routeMap?.get(`${city.x},${city.y}`) ??
+          (await game.pathfindingManager.findPath(unit, city.x, city.y)),
+        regeneration: game.unitManager.calculateUnitHitpointRecovery(unit, city.x, city.y)
+          .regeneration,
+      }))
     );
     const destination = candidates
       .filter(candidate => candidate.path.valid)
@@ -906,6 +956,18 @@ export class FreecivAIUnitController {
       distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
       findPath: (unit, targetX, targetY) =>
         game.pathfindingManager.findPath(unit, targetX, targetY),
+      ...(typeof game.pathfindingManager.findPaths === 'function'
+        ? {
+            findPaths: (unit: Unit, destinations: ReadonlyArray<{ x: number; y: number }>) =>
+              game.pathfindingManager.findPaths(unit, destinations),
+          }
+        : {}),
+      ...(typeof game.pathfindingManager.findPathCosts === 'function'
+        ? {
+            findPathCosts: (unit: Unit, destinations: ReadonlyArray<{ x: number; y: number }>) =>
+              game.pathfindingManager.findPathCosts(unit, destinations),
+          }
+        : {}),
       budget: this.planningBudget(game),
     });
     const plan = planCityGuards({
@@ -965,6 +1027,18 @@ export class FreecivAIUnitController {
       distance: (fromX, fromY, toX, toY) => game.mapManager.getDistance(fromX, fromY, toX, toY),
       findPath: (unit, targetX, targetY) =>
         game.pathfindingManager.findPath(unit, targetX, targetY),
+      ...(typeof game.pathfindingManager.findPaths === 'function'
+        ? {
+            findPaths: (unit: Unit, destinations: ReadonlyArray<{ x: number; y: number }>) =>
+              game.pathfindingManager.findPaths(unit, destinations),
+          }
+        : {}),
+      ...(typeof game.pathfindingManager.findPathCosts === 'function'
+        ? {
+            findPathCosts: (unit: Unit, destinations: ReadonlyArray<{ x: number; y: number }>) =>
+              game.pathfindingManager.findPathCosts(unit, destinations),
+          }
+        : {}),
       budget: this.planningBudget(game),
     });
     const guardPlan = planCityGuards({
@@ -1270,14 +1344,27 @@ export class FreecivAIUnitController {
     ) {
       return 0;
     }
+    const tiles = game.mapManager.getNeighbors(targetX, targetY);
+    const routeMap =
+      typeof game.pathfindingManager.findPathCosts === 'function'
+        ? await game.pathfindingManager.findPathCosts(attacker, tiles)
+        : typeof game.pathfindingManager.findPaths === 'function'
+          ? await game.pathfindingManager.findPaths(attacker, tiles)
+          : undefined;
     const candidates = await Promise.all(
-      game.mapManager.getNeighbors(targetX, targetY).map(async tile => ({
+      tiles.map(async tile => ({
         tile,
-        path: await game.pathfindingManager.findPath(attacker, tile.x, tile.y),
+        path:
+          routeMap?.get(`${tile.x},${tile.y}`) ??
+          (await game.pathfindingManager.findPath(attacker, tile.x, tile.y)),
       }))
     );
     const destination = candidates
-      .filter(candidate => candidate.path.valid && candidate.path.path.length > 1)
+      .filter(
+        candidate =>
+          candidate.path.valid &&
+          (candidate.tile.x !== attacker.x || candidate.tile.y !== attacker.y)
+      )
       .sort(
         (a, b) =>
           a.path.estimatedTurns - b.path.estimatedTurns ||
@@ -1362,6 +1449,16 @@ export class FreecivAIUnitController {
           additionalStepCost: (actor, _fromX, _fromY, toX, toY) =>
             explorationAdditionalStepCost(routeContext, actor, toX, toY),
         }),
+      ...(typeof game.pathfindingManager.findPaths === 'function'
+        ? {
+            findPaths: (unit: Unit, destinations: ReadonlyArray<{ x: number; y: number }>) =>
+              game.pathfindingManager.findPaths(unit, destinations, {
+                cacheKey: explorationCacheKey,
+                additionalStepCost: (actor, _fromX, _fromY, toX, toY) =>
+                  explorationAdditionalStepCost(routeContext, actor, toX, toY),
+              }),
+          }
+        : {}),
       budget: this.planningBudget(game),
       knowsHuts: !profile.handicaps.has('huts'),
     });

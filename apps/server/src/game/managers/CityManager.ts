@@ -185,6 +185,7 @@ export const BUILDING_TYPES: Record<string, BuildingType> =
  */
 export class CityManager {
   private cities: Map<string, CityState> = new Map();
+  private cityByPosition = new Map<string, CityState>();
   private gameId: string;
   private databaseProvider: DatabaseProvider;
   private callbacks: CityManagerCallbacks;
@@ -794,6 +795,7 @@ export class CityManager {
     }
 
     this.cities.set(cityId, city);
+    this.cityByPosition.set(this.cityPositionKey(x, y), city);
     this.refreshCapitalStatus(playerId);
 
     // C2C3 roads are automatically present on eligible city centers.
@@ -860,6 +862,7 @@ export class CityManager {
       // Founding is authoritative only after persistence succeeds. Roll back
       // provisional state so the tile and first-city grant can be retried.
       this.cities.delete(cityId);
+      this.cityByPosition.delete(this.cityPositionKey(x, y));
       if (isFirstCity) this.playersWithFirstCity.delete(playerId);
       if (centerTile && previousCenterRoad) {
         centerTile.hasRoad = previousCenterRoad.hasRoad;
@@ -1324,9 +1327,11 @@ export class CityManager {
     try {
       const loadedCities = await this.repository.loadAll();
       this.cities.clear();
+      this.cityByPosition.clear();
 
       for (const { city, workedTiles } of loadedCities) {
         this.cities.set(city.id, city);
+        this.cityByPosition.set(this.cityPositionKey(city.x, city.y), city);
         this.playersWithFirstCity.add(city.playerId);
         this.initializeWorkableTilesForLoadedCity(city, workedTiles);
         await this.restoreLoadedCitizenAssignment(city);
@@ -2380,6 +2385,7 @@ export class CityManager {
 
     // Remove from memory
     this.cities.delete(cityId);
+    this.cityByPosition.delete(this.cityPositionKey(city.x, city.y));
 
     // Remove from database
     try {
@@ -3047,18 +3053,29 @@ export class CityManager {
    */
   cleanup(): void {
     this.cities.clear();
+    this.cityByPosition.clear();
   }
 
   /**
    * Get city at coordinates - used by GameLifecycleManager
    */
   getCityAt(x: number, y: number): CityState | null {
+    const key = this.cityPositionKey(x, y);
+    const indexed = this.cityByPosition.get(key);
+    if (indexed) return indexed;
+    // Some recovery/test fixtures hydrate the authoritative map directly.
+    // Repair the derived index lazily without penalizing normal lookups.
     for (const city of this.cities.values()) {
       if (city.x === x && city.y === y) {
+        this.cityByPosition.set(key, city);
         return city;
       }
     }
     return null;
+  }
+
+  private cityPositionKey(x: number, y: number): string {
+    return `${x},${y}`;
   }
 
   /**

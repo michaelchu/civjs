@@ -441,6 +441,15 @@ export class FreecivAdvisorService {
           additionalStepCost: (actor, _fromX, _fromY, toX, toY) =>
             explorationAdditionalStepCost(routeContext, actor, toX, toY),
         }),
+      ...(typeof game.pathfindingManager.findPaths === 'function'
+        ? {
+            findPaths: (unit: Unit, destinations: ReadonlyArray<{ x: number; y: number }>) =>
+              game.pathfindingManager.findPaths(unit, destinations, {
+                additionalStepCost: (actor, _fromX, _fromY, toX, toY) =>
+                  explorationAdditionalStepCost(routeContext, actor, toX, toY),
+              }),
+          }
+        : {}),
       knowsHuts: true,
     });
     return plan.assignments.map(assignment => ({

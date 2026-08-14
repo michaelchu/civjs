@@ -27,6 +27,14 @@ export interface VirtualMilitaryProductionContext {
     targetX: number,
     targetY: number
   ) => Promise<{ valid: boolean; estimatedTurns: number }>;
+  findPaths?: (
+    unit: Unit,
+    destinations: ReadonlyArray<{ x: number; y: number }>
+  ) => Promise<ReadonlyMap<string, { valid: boolean; estimatedTurns: number }>>;
+  findPathCosts?: (
+    unit: Unit,
+    destinations: ReadonlyArray<{ x: number; y: number }>
+  ) => Promise<ReadonlyMap<string, { valid: boolean; estimatedTurns: number }>>;
   isStackProtected: (x: number, y: number) => boolean;
   rateAttack: (unit: Unit) => number;
   rateDefense: (defender: Unit, attacker: Unit) => number;
@@ -76,6 +84,8 @@ export async function rankVirtualMilitaryProduction(
     ],
     getNeighbors: context.getNeighbors,
     findPath: context.findPath,
+    findPaths: context.findPaths,
+    findPathCosts: context.findPathCosts,
   });
 
   return new Map(

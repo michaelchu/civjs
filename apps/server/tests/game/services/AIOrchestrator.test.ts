@@ -1521,6 +1521,22 @@ describe('FreecivAIOrchestrator', () => {
     expect(ai.aiState.diplomacy.human).toMatchObject({ love: -795, warDesire: 465 });
   });
 
+  it('invalidates route snapshots when diplomatic movement legality changes', () => {
+    const scenario = createScenario();
+    const invalidateCache = jest.fn();
+    (scenario.game.pathfindingManager as any).invalidateCache = invalidateCache;
+    const orchestrator = new FreecivAIOrchestrator(scenario.diplomacyManager as any);
+
+    orchestrator.onDiplomacyEvent('game', scenario.game as any, {
+      type: 'accepted',
+      gameId: 'game',
+      playerIds: ['human', 'ai'],
+      message: 'Treaty accepted.',
+    });
+
+    expect(invalidateCache).toHaveBeenCalledTimes(1);
+  });
+
   it('optimizes AI citizens with starvation and unrest constraints', async () => {
     const scenario = createScenario();
     const optimizeCityManually = jest.fn().mockResolvedValue(true);

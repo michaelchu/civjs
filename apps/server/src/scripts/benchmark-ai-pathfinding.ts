@@ -24,7 +24,7 @@ const ATTACKERS_PER_AI = 1;
 const CITIES_PER_AI = 1;
 const TARGETS_PER_AI = 2;
 const THREATS_PER_AI = 2;
-const SAMPLES = 1;
+const SAMPLES = 3;
 
 interface BenchmarkPath {
   valid: boolean;
@@ -40,10 +40,11 @@ interface Workload {
 }
 
 interface BenchmarkResult {
-  mode: 'linear-baseline' | 'heap-cache-optimized';
+  mode: 'linear-baseline' | 'lattice-route-map-optimized';
   samplesMs: number[];
   medianMs: number;
   pathCalls: number;
+  searches: number;
   cacheHits: number;
   expandedNodes: number;
 }
@@ -167,14 +168,18 @@ async function runWorkload(
   const samplesMs: number[] = [];
   let pathCalls = 0;
   let cacheHits = 0;
+  let searches = 0;
   let expandedNodes = 0;
   for (let sample = 0; sample < SAMPLES; sample++) {
-    const startedAt = performance.now();
     const map = makeMap();
     const optimized = new PathfindingManager(WIDTH, HEIGHT, map);
     optimized.beginTurn(sample);
     optimized.resetDiagnostics();
     const linear = new LinearBaselinePathfinder();
+    // Manager construction builds topology indexes once per game. Keep it
+    // outside the turn-workload timer so this benchmark isolates recurring
+    // AI planning latency rather than game initialization.
+    const startedAt = performance.now();
 
     for (const player of workload) {
       const findPath = async (unit: Unit, x: number, y: number) => {
@@ -182,6 +187,20 @@ async function runWorkload(
         return mode === 'linear-baseline'
           ? linear.findPath(unit, x, y)
           : optimized.findPath(unit, x, y);
+      };
+      const findPaths = async (
+        unit: Unit,
+        destinations: ReadonlyArray<{ x: number; y: number }>
+      ) => {
+        pathCalls += destinations.length;
+        return optimized.findPaths(unit, destinations);
+      };
+      const findPathCosts = async (
+        unit: Unit,
+        destinations: ReadonlyArray<{ x: number; y: number }>
+      ) => {
+        pathCalls += destinations.length;
+        return optimized.findPathCosts(unit, destinations);
       };
       const getNeighbors = (x: number, y: number) => map.getTopology().getNeighbors(x, y);
       if (mode === 'linear-baseline') {
@@ -194,6 +213,8 @@ async function runWorkload(
           targets: player.targets,
           getNeighbors,
           findPath,
+          findPaths,
+          findPathCosts,
         });
         const threatContext = {
           cities: player.cities as unknown as CityState[],
@@ -204,6 +225,8 @@ async function runWorkload(
           distance: (x1: number, y1: number, x2: number, y2: number) =>
             Math.abs(x1 - x2) + Math.abs(y1 - y2),
           findPath,
+          findPaths,
+          findPathCosts,
         };
         await buildCityThreatTravelTimes(threatContext);
         await buildCityThreatTravelTimes(threatContext);
@@ -211,6 +234,7 @@ async function runWorkload(
     }
     const diagnostics = optimized.getDiagnostics();
     cacheHits += diagnostics.cacheHits;
+    searches += diagnostics.searches;
     expandedNodes += diagnostics.expandedNodes;
     samplesMs.push(performance.now() - startedAt);
   }
@@ -220,6 +244,7 @@ async function runWorkload(
     samplesMs,
     medianMs: ordered[Math.floor(ordered.length / 2)]!,
     pathCalls,
+    searches,
     cacheHits,
     expandedNodes,
   };
@@ -253,7 +278,7 @@ async function runLegacyThreats(
 async function main(): Promise<void> {
   const workload = makeWorkload();
   const baseline = await runWorkload('linear-baseline', workload);
-  const optimized = await runWorkload('heap-cache-optimized', workload);
+  const optimized = await runWorkload('lattice-route-map-optimized', workload);
   process.stdout.write(
     `${JSON.stringify({ width: WIDTH, height: HEIGHT, aiPlayers: AI_PLAYERS, baseline, optimized }, null, 2)}\n`
   );

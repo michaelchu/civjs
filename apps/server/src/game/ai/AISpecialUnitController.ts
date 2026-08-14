@@ -436,14 +436,27 @@ export class FreecivAISpecialUnitController {
     targetX: number,
     targetY: number
   ): Promise<number> {
+    const tiles = game.mapManager.getNeighbors(targetX, targetY);
+    const routeMap =
+      typeof game.pathfindingManager.findPathCosts === 'function'
+        ? await game.pathfindingManager.findPathCosts(aircraft, tiles)
+        : typeof game.pathfindingManager.findPaths === 'function'
+          ? await game.pathfindingManager.findPaths(aircraft, tiles)
+          : undefined;
     const candidates = await Promise.all(
-      game.mapManager.getNeighbors(targetX, targetY).map(async tile => ({
+      tiles.map(async tile => ({
         tile,
-        path: await game.pathfindingManager.findPath(aircraft, tile.x, tile.y),
+        path:
+          routeMap?.get(`${tile.x},${tile.y}`) ??
+          (await game.pathfindingManager.findPath(aircraft, tile.x, tile.y)),
       }))
     );
     const destination = candidates
-      .filter(candidate => candidate.path.valid && candidate.path.path.length > 1)
+      .filter(
+        candidate =>
+          candidate.path.valid &&
+          (candidate.tile.x !== aircraft.x || candidate.tile.y !== aircraft.y)
+      )
       .sort(
         (left, right) =>
           left.path.totalCost - right.path.totalCost ||
@@ -518,22 +531,55 @@ export class FreecivAISpecialUnitController {
       ...friendlyCities.map(target => ({ ...target, approach: false })),
     ];
     await Promise.all(
-      diplomats.flatMap(diplomat =>
-        targets.map(async target => {
+      diplomats.map(async diplomat => {
+        const destinationsByTarget = new Map<string, Array<{ x: number; y: number }>>();
+        const uniqueDestinations = new Map<string, { x: number; y: number }>();
+        for (const target of targets) {
           const key = `${diplomat.id}:${target.x},${target.y}`;
           if (game.mapManager.getDistance(diplomat.x, diplomat.y, target.x, target.y) <= 1) {
             travelCosts.set(key, 0);
-            return;
+            continue;
           }
-          if (target.approach) {
-            const approach = await this.findDiplomatApproach(game, diplomat, target.x, target.y);
-            travelCosts.set(key, approach?.cost ?? Infinity);
-          } else {
-            const path = await game.pathfindingManager.findPath(diplomat, target.x, target.y);
-            travelCosts.set(key, path.valid ? path.totalCost : Infinity);
+          const destinations = target.approach
+            ? game.mapManager.getNeighbors(target.x, target.y)
+            : [{ x: target.x, y: target.y }];
+          destinationsByTarget.set(`${target.x},${target.y}`, destinations);
+          for (const destination of destinations) {
+            uniqueDestinations.set(`${destination.x},${destination.y}`, destination);
           }
-        })
-      )
+        }
+        const routeMap =
+          typeof game.pathfindingManager.findPathCosts === 'function'
+            ? await game.pathfindingManager.findPathCosts(diplomat, [
+                ...uniqueDestinations.values(),
+              ])
+            : typeof game.pathfindingManager.findPaths === 'function'
+              ? await game.pathfindingManager.findPaths(diplomat, [...uniqueDestinations.values()])
+              : new Map(
+                  await Promise.all(
+                    [...uniqueDestinations].map(
+                      async ([key, destination]) =>
+                        [
+                          key,
+                          await game.pathfindingManager.findPath(
+                            diplomat,
+                            destination.x,
+                            destination.y
+                          ),
+                        ] as const
+                    )
+                  )
+                );
+        for (const target of targets) {
+          const key = `${diplomat.id}:${target.x},${target.y}`;
+          if (travelCosts.has(key)) continue;
+          const cost = (destinationsByTarget.get(`${target.x},${target.y}`) ?? [])
+            .map(destination => routeMap.get(`${destination.x},${destination.y}`))
+            .filter(path => path?.valid)
+            .reduce((best, path) => Math.min(best, path!.totalCost), Infinity);
+          travelCosts.set(key, cost);
+        }
+      })
     );
     const stealableTechs = new Map(
       snapshot.nations.map(nation => {
@@ -718,10 +764,19 @@ export class FreecivAISpecialUnitController {
     targetX: number,
     targetY: number
   ): Promise<{ x: number; y: number; cost: number } | undefined> {
+    const tiles = game.mapManager.getNeighbors(targetX, targetY);
+    const routeMap =
+      typeof game.pathfindingManager.findPathCosts === 'function'
+        ? await game.pathfindingManager.findPathCosts(diplomat, tiles)
+        : typeof game.pathfindingManager.findPaths === 'function'
+          ? await game.pathfindingManager.findPaths(diplomat, tiles)
+          : undefined;
     const candidates = await Promise.all(
-      game.mapManager.getNeighbors(targetX, targetY).map(async tile => ({
+      tiles.map(async tile => ({
         tile,
-        path: await game.pathfindingManager.findPath(diplomat, tile.x, tile.y),
+        path:
+          routeMap?.get(`${tile.x},${tile.y}`) ??
+          (await game.pathfindingManager.findPath(diplomat, tile.x, tile.y)),
       }))
     );
     const best = candidates
